@@ -1,0 +1,2 @@
+Defaults:game-deploy !use_pty
+game-deploy ALL=(root) NOPASSWD: /usr/local/sbin/deploy-yuo-game-platform

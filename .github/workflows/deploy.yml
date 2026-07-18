@@ -1,0 +1,131 @@
+name: 构建并部署生产环境
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: yuo-game-platform-production
+  cancel-in-progress: false
+
+jobs:
+  verify-build-deploy:
+    name: 验证、构建并部署
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      IMAGE_REPOSITORY: yuo-game-platform
+      DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+      DEPLOY_PORT: ${{ vars.DEPLOY_PORT }}
+      DEPLOY_USER: ${{ vars.DEPLOY_USER }}
+
+    steps:
+      - name: 检出源码
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: 配置 Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: 安装依赖
+        run: npm ci
+
+      - name: 执行单元测试
+        run: npm test
+
+      - name: 执行类型检查与生产构建
+        run: npm run build
+
+      - name: 校验运行内存硬上限
+        run: npm run check:limits
+
+      - name: 构建不可变运行镜像
+        id: image
+        shell: bash
+        run: |
+          set -euo pipefail
+          image_tag="sha-${GITHUB_SHA}"
+          image_ref="${IMAGE_REPOSITORY}:${image_tag}"
+          artifact="${RUNNER_TEMP}/${IMAGE_REPOSITORY}-${image_tag}.tar.gz"
+
+          docker build --pull --tag "${image_ref}" .
+          test "$(docker image inspect --format '{{.Config.User}}' "${image_ref}")" = "platform"
+          docker save "${image_ref}" | gzip -1 > "${artifact}"
+
+          artifact_sha256="$(sha256sum "${artifact}" | awk '{print $1}')"
+          test -s "${artifact}"
+          echo "artifact=${artifact}" >> "${GITHUB_OUTPUT}"
+          echo "artifact_sha256=${artifact_sha256}" >> "${GITHUB_OUTPUT}"
+          echo "image_ref=${image_ref}" >> "${GITHUB_OUTPUT}"
+
+      - name: 配置受限部署密钥
+        shell: bash
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test -n "${DEPLOY_HOST}"
+          test -n "${DEPLOY_PORT}"
+          test -n "${DEPLOY_USER}"
+          test -n "${DEPLOY_SSH_KEY}"
+          test -n "${DEPLOY_KNOWN_HOSTS}"
+
+          install -d -m 0700 "${HOME}/.ssh"
+          printf '%s\n' "${DEPLOY_SSH_KEY}" > "${HOME}/.ssh/deploy_key"
+          printf '%s\n' "${DEPLOY_KNOWN_HOSTS}" > "${HOME}/.ssh/known_hosts"
+          chmod 0600 "${HOME}/.ssh/deploy_key" "${HOME}/.ssh/known_hosts"
+          ssh-keygen -y -f "${HOME}/.ssh/deploy_key" > /dev/null
+
+      - name: 流式上传并部署
+        shell: bash
+        env:
+          ARTIFACT: ${{ steps.image.outputs.artifact }}
+          ARTIFACT_SHA256: ${{ steps.image.outputs.artifact_sha256 }}
+        run: |
+          set -euo pipefail
+          ssh \
+            -i "${HOME}/.ssh/deploy_key" \
+            -p "${DEPLOY_PORT}" \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            -o ConnectTimeout=15 \
+            -o ServerAliveInterval=15 \
+            -o ServerAliveCountMax=4 \
+            "${DEPLOY_USER}@${DEPLOY_HOST}" \
+            "deploy ${GITHUB_SHA} ${ARTIFACT_SHA256}" < "${ARTIFACT}"
+
+      - name: 验证公网入口
+        shell: bash
+        run: |
+          set -euo pipefail
+          for url in \
+            https://pool.yuohira.com/health \
+            https://pool.yuohira.com/life/health \
+            https://pool.yuohira.com/billiards/api/health \
+            https://pool.yuohira.com/snake/health
+          do
+            curl --fail --silent --show-error \
+              --retry 12 --retry-delay 5 --retry-all-errors \
+              --max-time 20 "${url}" > /dev/null
+          done
+
+      - name: 写入部署摘要
+        env:
+          IMAGE_REF: ${{ steps.image.outputs.image_ref }}
+        run: |
+          {
+            echo '### 生产部署完成'
+            echo
+            echo "- 提交：\`${GITHUB_SHA}\`"
+            echo "- 镜像：\`${IMAGE_REF}\`"
+            echo '- 公网入口：<https://pool.yuohira.com>'
+          } >> "${GITHUB_STEP_SUMMARY}"

@@ -1,5 +1,7 @@
 # Yuo戏大厅
 
+[![构建并部署生产环境](https://github.com/fruktoguo/yuo-game-platform/actions/workflows/deploy.yml/badge.svg)](https://github.com/fruktoguo/yuo-game-platform/actions/workflows/deploy.yml)
+
 统一账号、游戏目录、启动会话和通用积分的轻量 Web 游戏平台。当前包含生命战争、Breakline 台球与全服同场 PvPvE 的炫彩贪吃蛇 Ultra。
 
 [在线体验](https://pool.yuohira.com) · [架构说明](docs/architecture.md) · [游戏接入指南](docs/game-integration.md)
@@ -57,6 +59,7 @@ npm run check:e2e
 生产部署前必须替换 `.env.example` 中列出的服务令牌和游戏会话密钥，并启用 `COOKIE_SECURE=true`。
 
 当前生产拓扑、2 GiB 总预算和回滚流程见 [生产部署文档](docs/deployment.md)。
+`main` 分支的自动构建与受限 SSH 发布机制见 [GitHub Actions 自动部署](docs/github-actions-deployment.md)。
 
 ## 开源协议
 
