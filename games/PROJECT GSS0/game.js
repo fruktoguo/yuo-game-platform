@@ -249,7 +249,8 @@
   const SEGMENT_BIRTH_DURATION = 0.34;
   const LEVEL_UP_TRANSITION_DURATION = 0.9;
   const LEVEL_UP_TIME_SCALE = 0.15;
-  const NETWORK_BASE_SNAPSHOT_MS = 1000 / 12;
+  const NETWORK_BASE_SNAPSHOT_MS = 1000 / 15;
+  const NETWORK_SNAPSHOT_BUFFER_SIZE = 12;
   const NETWORK_INPUT_INTERVAL_MS = 1000 / 30;
   const NETWORK_INPUT_HEARTBEAT_MS = 110;
   const MAX_RENDER_DPR = 1.5;
@@ -314,13 +315,14 @@
     principal: null,
     roster: [],
     rosterByEntity: new Map(),
-    previousSnapshot: null,
     snapshot: null,
-    previousIndexes: null,
-    snapshotIndexes: null,
+    snapshotBuffer: [],
     receivedAt: 0,
     snapshotIntervalMs: NETWORK_BASE_SNAPSHOT_MS,
+    snapshotGapMs: NETWORK_BASE_SNAPSHOT_MS,
     snapshotJitterMs: 0,
+    renderServerTime: NaN,
+    lastPresentationAt: 0,
     presentationSnapshot: null,
     lastHudTick: -1,
     lastSelfAlive: false,
@@ -944,13 +946,14 @@
         network.connecting = false;
         network.selfEntityId = result.data.selfEntityId;
         network.roster = result.data.roster || [];
-        network.previousSnapshot = result.data.snapshot;
         network.snapshot = result.data.snapshot;
-        network.previousIndexes = indexNetworkSnapshot(result.data.snapshot);
-        network.snapshotIndexes = network.previousIndexes;
+        network.snapshotBuffer = [networkSnapshotEntry(result.data.snapshot)];
         network.receivedAt = performance.now();
         network.snapshotIntervalMs = NETWORK_BASE_SNAPSHOT_MS;
+        network.snapshotGapMs = NETWORK_BASE_SNAPSHOT_MS;
         network.snapshotJitterMs = 0;
+        network.renderServerTime = NaN;
+        network.lastPresentationAt = 0;
         clearNetworkViews();
         network.lastSelfAlive = Boolean(result.data.snapshot.players.find((item) => item.entityId === network.selfEntityId)?.alive);
         bestScore = Math.max(bestScore, Number(result.data.profile?.bestScore) || 0);
@@ -958,7 +961,7 @@
         setNetworkButtonsDisabled(false);
         setNetworkStatus("online", `ULTRA LINK / @${network.principal.username}`);
         renderNetworkRoster();
-        applyNetworkPresentation(1);
+        applyNetworkPresentation(result.data.snapshot, result.data.snapshot, network.snapshotBuffer[0].indexes, 1);
       });
     });
     socket.on("ultra:snapshot", (payload) => {
@@ -993,20 +996,21 @@
   function receiveNetworkSnapshot(snapshot) {
     const receivedAt = performance.now();
     const previousSnapshot = network.snapshot;
+    if (previousSnapshot && snapshot.serverTime <= previousSnapshot.serverTime) return;
     if (previousSnapshot && network.receivedAt > 0) {
       const arrivalInterval = receivedAt - network.receivedAt;
       const serverInterval = snapshot.serverTime - previousSnapshot.serverTime;
       if (arrivalInterval > 10 && arrivalInterval < 1000 && serverInterval > 10 && serverInterval < 1000) {
         const cadence = clamp(serverInterval, 50, 180);
         network.snapshotIntervalMs += (cadence - network.snapshotIntervalMs) * 0.18;
+        network.snapshotGapMs = Math.max(serverInterval, network.snapshotGapMs * 0.96);
         const jitter = Math.abs(arrivalInterval - serverInterval);
         network.snapshotJitterMs += (jitter - network.snapshotJitterMs) * 0.2;
       }
     }
-    network.previousSnapshot = network.snapshot || snapshot;
-    network.previousIndexes = network.snapshotIndexes || indexNetworkSnapshot(network.previousSnapshot);
     network.snapshot = snapshot;
-    network.snapshotIndexes = indexNetworkSnapshot(snapshot);
+    network.snapshotBuffer.push(networkSnapshotEntry(snapshot));
+    if (network.snapshotBuffer.length > NETWORK_SNAPSHOT_BUFFER_SIZE) network.snapshotBuffer.splice(0, network.snapshotBuffer.length - NETWORK_SNAPSHOT_BUFFER_SIZE);
     network.receivedAt = receivedAt;
     const self = snapshot.players.find((item) => item.entityId === network.selfEntityId);
     const selfAlive = Boolean(self?.alive);
@@ -1117,6 +1121,49 @@
     };
   }
 
+  function networkSnapshotEntry(snapshot) {
+    return { snapshot, indexes: indexNetworkSnapshot(snapshot) };
+  }
+
+  function selectNetworkPresentation() {
+    const buffer = network.snapshotBuffer;
+    if (buffer.length === 0) return null;
+    const now = performance.now();
+    const frameElapsed = network.lastPresentationAt > 0 ? clamp(now - network.lastPresentationAt, 0, 250) : 0;
+    network.lastPresentationAt = now;
+    const latest = buffer[buffer.length - 1];
+    const elapsedSinceLatest = Math.max(0, now - network.receivedAt);
+    const interpolationDelay = clamp(
+      Math.max(network.snapshotIntervalMs * 2.1, network.snapshotGapMs * 1.15) + network.snapshotJitterMs * 1.5,
+      130,
+      320
+    );
+    const desiredServerTime = latest.snapshot.serverTime + elapsedSinceLatest - interpolationDelay;
+    if (!Number.isFinite(network.renderServerTime) || Math.abs(desiredServerTime - network.renderServerTime) > 1000) {
+      network.renderServerTime = desiredServerTime;
+    } else {
+      const timingError = desiredServerTime - network.renderServerTime;
+      const playbackRate = clamp(1 + timingError / 350, 0.92, 1.08);
+      network.renderServerTime = Math.min(latest.snapshot.serverTime, network.renderServerTime + frameElapsed * playbackRate);
+    }
+
+    if (buffer.length === 1 || network.renderServerTime <= buffer[0].snapshot.serverTime) {
+      return { previous: buffer[0], current: buffer[0], amount: 1 };
+    }
+    if (network.renderServerTime >= latest.snapshot.serverTime) {
+      return { previous: buffer[Math.max(0, buffer.length - 2)], current: latest, amount: 1 };
+    }
+    for (let index = 1; index < buffer.length; index += 1) {
+      const current = buffer[index];
+      if (network.renderServerTime > current.snapshot.serverTime) continue;
+      const previous = buffer[index - 1];
+      const duration = Math.max(1, current.snapshot.serverTime - previous.snapshot.serverTime);
+      const amount = clamp((network.renderServerTime - previous.snapshot.serverTime) / duration, 0, 1);
+      return { previous, current, amount };
+    }
+    return { previous: latest, current: latest, amount: 1 };
+  }
+
   function clearNetworkViews() {
     network.presentationSnapshot = null;
     network.lastHudTick = -1;
@@ -1163,8 +1210,7 @@
     return counts;
   }
 
-  function updateNetworkProjectileViews(items, previousItems, amount) {
-    const activeTick = network.snapshot.tick;
+  function updateNetworkProjectileViews(items, previousItems, amount, activeTick) {
     projectiles.length = 0;
     for (const item of items) {
       let view = network.projectileViews.get(item.id);
@@ -1181,11 +1227,7 @@
     pruneNetworkViews(network.projectileViews, activeTick);
   }
 
-  function applyNetworkPresentation(amount) {
-    const current = network.snapshot;
-    if (!current) return;
-    const previous = network.previousSnapshot || current;
-    const previousIndexes = network.previousIndexes || indexNetworkSnapshot(previous);
+  function applyNetworkPresentation(previous, current, previousIndexes, amount) {
     const snapshotChanged = network.presentationSnapshot !== current;
     const activeTick = current.tick;
     gameTime = current.gameTime;
@@ -1196,7 +1238,7 @@
       if (!item.alive) continue;
       const old = previousIndexes.players.get(item.entityId);
       const rosterPlayer = network.rosterByEntity.get(item.entityId);
-      const playerAmount = item.entityId === network.selfEntityId ? clamp(amount * 1.2, 0, 1) : amount;
+      const playerAmount = amount;
       let view = network.playerViews.get(item.entityId);
       if (!view) {
         view = { segments: [] };
@@ -1270,7 +1312,7 @@
     }
     pruneNetworkViews(network.foodViews, activeTick);
 
-    updateNetworkProjectileViews(current.projectiles, previousIndexes.projectiles, amount);
+    updateNetworkProjectileViews(current.projectiles, previousIndexes.projectiles, amount, activeTick);
 
     hazards.length = 0;
     for (const item of current.hazards) {
@@ -1290,17 +1332,20 @@
   }
 
   function updateNetwork(dt) {
-    const elapsedMs = performance.now() - network.receivedAt;
-    const interpolationMs = clamp(network.snapshotIntervalMs + Math.min(35, network.snapshotJitterMs * 0.65), 60, 140);
-    const blend = clamp(elapsedMs / interpolationMs, 0, 1);
-    applyNetworkPresentation(blend);
+    const presentation = selectNetworkPresentation();
+    if (presentation) applyNetworkPresentation(
+      presentation.previous.snapshot,
+      presentation.current.snapshot,
+      presentation.previous.indexes,
+      presentation.amount
+    );
     if (state === "running" && player && !testMode) {
       updateInput(dt);
       sendNetworkInput();
     }
     updateEffects(dt);
-    if (network.lastHudTick !== network.snapshot?.tick) {
-      network.lastHudTick = network.snapshot?.tick ?? -1;
+    if (network.lastHudTick !== network.presentationSnapshot?.tick) {
+      network.lastHudTick = network.presentationSnapshot?.tick ?? -1;
       updateHud();
     }
   }
@@ -4195,26 +4240,6 @@
     }
   }
 
-  function drawPlayerHighlight(target, pieceScale) {
-    const pulse = 1 + Math.sin(performance.now() / 180) * 0.08;
-    const radius = 25 * pieceScale * pulse;
-    ctx.save();
-    ctx.translate(target.x, target.y);
-    ctx.rotate(Math.PI / 8);
-    ctx.strokeStyle = "#f3c600";
-    ctx.shadowColor = "#f3c600";
-    ctx.shadowBlur = 12;
-    ctx.lineWidth = Math.max(1.8, 2.4 * pieceScale);
-    ctx.setLineDash([6 * pieceScale, 4 * pieceScale]);
-    ctx.strokeRect(-radius, -radius, radius * 2, radius * 2);
-    ctx.setLineDash([]);
-    ctx.strokeStyle = "rgba(255,255,255,0.9)";
-    ctx.shadowBlur = 0;
-    ctx.lineWidth = Math.max(1, 1.2 * pieceScale);
-    ctx.strokeRect(-radius + 4 * pieceScale, -radius + 4 * pieceScale, (radius - 4 * pieceScale) * 2, (radius - 4 * pieceScale) * 2);
-    ctx.restore();
-  }
-
   function drawPlayerIdLabel(target, pieceScale) {
     const label = `@${target.playerId || target.name || "PLAYER"}`;
     const maxWidth = clamp(arena.cellSize * 5.2, 112, 172);
@@ -4256,7 +4281,6 @@
     activeGrowth = target.growth || (target === previousPlayer ? previousGrowth : null);
     ctx.save();
     const pieceScale = clamp(arena.cellSize / 34, 0.55, 1);
-    if (network.multiplayer && player.isSelf) drawPlayerHighlight(player, pieceScale);
     if (player.protectedState) ctx.globalAlpha = 0.48 + Math.sin(gameTime * 28) * 0.28;
     const repulseRange = repulseRangePixels();
     if (repulseRange > 0) {

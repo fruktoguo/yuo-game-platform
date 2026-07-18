@@ -30,6 +30,7 @@ type UltraServer = Server<ClientToServerEvents, ServerToClientEvents, InterServe
 type UltraSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
 
 const CONTROL_CHARACTER_PATTERN = /[\u0000-\u001f\u007f]/u;
+const SNAPSHOT_TICK_INTERVAL = Math.max(1, Math.round(SIMULATION_HZ / SNAPSHOT_HZ));
 
 export class ArenaHub {
   private readonly socketsByAccount = new Map<string, string>();
@@ -41,7 +42,7 @@ export class ArenaHub {
   private simulationTimer: NodeJS.Timeout | null = null;
   private persistenceTimer: NodeJS.Timeout | null = null;
   private lastStepAt = Date.now();
-  private lastSnapshotAt = 0;
+  private ticksSinceSnapshot = 0;
   private lastMetaAt = 0;
   private dirty = false;
 
@@ -69,7 +70,7 @@ export class ArenaHub {
     });
     const hub = new ArenaHub(io, world, profiles);
     publishEvent = (event) => hub.publishEvent(event);
-    publishEffects = (effects) => hub.io.emit('ultra:effects', effects);
+    publishEffects = (effects) => hub.publishEffects(effects);
     finishRun = (result) => hub.finishRun(result);
     publishUpgrade = (entityId, offer) => hub.sendUpgrade(entityId, offer);
     return hub;
@@ -78,7 +79,7 @@ export class ArenaHub {
   start(): void {
     if (this.simulationTimer) return;
     this.lastStepAt = Date.now();
-    this.lastSnapshotAt = this.lastStepAt - 1_000 / SNAPSHOT_HZ;
+    this.ticksSinceSnapshot = SNAPSHOT_TICK_INTERVAL - 1;
     this.simulationTimer = setInterval(() => this.tick(), 1_000 / SIMULATION_HZ);
   }
 
@@ -253,9 +254,9 @@ export class ArenaHub {
     this.lastStepAt = now;
     this.flushPendingInputs();
     this.world.step(delta, now);
-    const snapshotInterval = 1_000 / SNAPSHOT_HZ;
-    if (this.socketsByAccount.size > 0 && now - this.lastSnapshotAt >= snapshotInterval) {
-      this.lastSnapshotAt += Math.floor((now - this.lastSnapshotAt) / snapshotInterval) * snapshotInterval;
+    this.ticksSinceSnapshot += 1;
+    if (this.socketsByAccount.size > 0 && this.ticksSinceSnapshot >= SNAPSHOT_TICK_INTERVAL) {
+      this.ticksSinceSnapshot = 0;
       this.io.volatile.emit('ultra:snapshot', encodeUltraSnapshot(this.world.getSnapshot(now)));
     }
     if (this.socketsByAccount.size > 0 && now - this.lastMetaAt >= 500) {
@@ -274,8 +275,27 @@ export class ArenaHub {
   }
 
   private broadcastMeta(): void {
-    this.io.emit('ultra:roster', this.world.getRoster());
-    this.io.emit('ultra:leaderboard', this.world.getLeaderboard());
+    this.io.volatile.emit('ultra:roster', this.world.getRoster());
+    this.io.volatile.emit('ultra:leaderboard', this.world.getLeaderboard());
+  }
+
+  private publishEffects(effects: UltraEffect[]): void {
+    let shared: UltraEffect[] | null = null;
+    const targeted = new Map<number, UltraEffect[]>();
+    for (const effect of effects) {
+      if (effect.audienceEntityId === undefined) {
+        (shared ??= []).push(effect);
+        continue;
+      }
+      const audience = targeted.get(effect.audienceEntityId);
+      if (audience) audience.push(effect);
+      else targeted.set(effect.audienceEntityId, [effect]);
+    }
+    if (shared) this.io.volatile.emit('ultra:effects', shared);
+    for (const [entityId, items] of targeted) {
+      const socketId = this.socketsByEntity.get(entityId);
+      if (socketId) this.io.sockets.sockets.get(socketId)?.volatile.emit('ultra:effects', items);
+    }
   }
 
   private sendUpgrade(entityId: number, offer: UpgradeOffer | null): void {

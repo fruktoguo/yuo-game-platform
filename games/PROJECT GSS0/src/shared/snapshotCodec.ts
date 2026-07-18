@@ -16,9 +16,11 @@ const VERSION = 1;
 const MODULE_INDEX = new Map<ModuleId, number>(MODULES.map((module, index) => [module.id, index + 1]));
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder('utf-8', { fatal: true });
+let reusableWriter: BinaryWriter | null = null;
 
 export function encodeUltraSnapshot(snapshot: UltraSnapshot): ArrayBuffer {
-  const writer = new BinaryWriter();
+  const writer = reusableWriter ??= new BinaryWriter();
+  writer.reset();
   writer.u32(MAGIC);
   writer.u8(VERSION);
   writer.u32(snapshot.tick);
@@ -235,6 +237,8 @@ class BinaryWriter {
   private bytes = new Uint8Array(16_384);
   private view = new DataView(this.bytes.buffer);
   private offset = 0;
+
+  reset(): void { this.offset = 0; }
 
   u8(value: number): void { this.ensure(1); this.view.setUint8(this.offset, value); this.offset += 1; }
   u16(value: number): void { this.ensure(2); this.view.setUint16(this.offset, value, true); this.offset += 2; }
