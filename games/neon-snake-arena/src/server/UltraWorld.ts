@@ -46,6 +46,7 @@ const PROJECTILE_MAX = GRID_SIZE - 0.5;
 
 interface PlayerEntity extends UltraPlayerView {
   accountId: string;
+  playerId: string;
   disconnectedAt: number | null;
   speed: number;
   slow: number;
@@ -100,10 +101,7 @@ interface PendingSpawn extends PendingSpawnView {
   nextCell: GridPoint;
 }
 
-type TargetKind = 'enemy' | 'player';
-
 interface TargetRef {
-  kind: TargetKind;
   id: number;
 }
 
@@ -193,17 +191,18 @@ export class UltraWorld {
     this.callbacks = options.callbacks ?? {};
   }
 
-  connectPlayer(accountId: string, name: string, now = Date.now()): RosterPlayer | null {
+  connectPlayer(accountId: string, name: string, now = Date.now(), playerId = name): RosterPlayer | null {
     const existing = this.playersByAccount.get(accountId);
     if (existing) {
       existing.connected = true;
       existing.disconnectedAt = null;
       existing.paused = false;
       existing.name = normalizeName(name);
+      existing.playerId = normalizePlayerId(playerId);
       return toRosterPlayer(existing);
     }
     if (this.playersByAccount.size >= MAX_PLAYERS) return null;
-    const player = this.createPlayer(accountId, name);
+    const player = this.createPlayer(accountId, name, playerId);
     this.playersByAccount.set(accountId, player);
     this.playersByEntity.set(player.entityId, player);
     this.emitEvent('join', `${player.name} 接入行动区域`, now, player.entityId);
@@ -239,6 +238,24 @@ export class UltraWorld {
     if (this.alivePlayers().length === 0) this.resetSharedWorld();
     this.resetPlayerRun(player, this.findPlayerSpawn());
     this.effectSound('start', player.entityId);
+    this.now = now;
+    return true;
+  }
+
+  leaveRun(accountId: string, now = Date.now()): boolean {
+    const player = this.playersByAccount.get(accountId);
+    if (!player?.connected || !player.alive) return false;
+    const result = this.createRunResult(player);
+    player.alive = false;
+    player.paused = false;
+    player.choosingUpgrade = false;
+    player.upgradeOffer = null;
+    player.segments = [];
+    player.growth = null;
+    player.growthQueue = [];
+    player.respawnAt = null;
+    this.callbacks.onRunEnded?.(result);
+    if (this.alivePlayers().length === 0) this.resetSharedWorld();
     this.now = now;
     return true;
   }
@@ -351,6 +368,7 @@ export class UltraWorld {
       .map((player) => ({
         entityId: player.entityId,
         name: player.name,
+        playerId: player.playerId,
         colorIndex: player.colorIndex,
         score: Math.floor(player.score),
         kills: player.kills,
@@ -375,11 +393,12 @@ export class UltraWorld {
     return this.tick;
   }
 
-  private createPlayer(accountId: string, name: string): PlayerEntity {
+  private createPlayer(accountId: string, name: string, playerId: string): PlayerEntity {
     const entityId = this.allocatePlayerId();
     return {
       entityId,
       accountId,
+      playerId: normalizePlayerId(playerId),
       name: normalizeName(name),
       colorIndex: this.choosePlayerColor(),
       connected: true,
@@ -503,10 +522,7 @@ export class UltraWorld {
     const hasteMultiplier = 1 + this.moduleCount(player, 'haste') * 0.045;
     const progress = player.xpNeeded > 0 ? clamp(player.xp / player.xpNeeded, 0, 1) : 0;
     const progressMultiplier = 1 + this.moduleCount(player, 'progressor') * progress * 0.08;
-    const hostileChronos = this.activePlayers().reduce((maximum, other) => (
-      other === player ? maximum : Math.max(maximum, this.moduleCount(other, 'chronos'))
-    ), 0);
-    return 5 * (1 + player.level * 0.1) * hasteMultiplier * progressMultiplier * Math.pow(0.92, hostileChronos);
+    return 5 * (1 + player.level * 0.1) * hasteMultiplier * progressMultiplier;
   }
 
   private moduleCount(player: PlayerEntity, id: ModuleId): number {
@@ -718,9 +734,12 @@ export class UltraWorld {
   private updateSpawns(delta: number): void {
     this.waveTimer -= delta * this.waveCountdownRate();
     if (this.waveTimer > 0) return;
-    this.spawnFood();
-    this.spawnFood();
-    this.queueEnemySpawn();
+    const players = this.alivePlayers();
+    for (const player of players) {
+      this.spawnFood();
+      this.spawnFood();
+      this.queueEnemySpawn(player);
+    }
     this.waveCount += 1;
     this.waveTimer = WAVE_BASE_INTERVAL;
   }
@@ -755,12 +774,11 @@ export class UltraWorld {
     }
   }
 
-  private queueEnemySpawn(): boolean {
-    const level = this.threatLevel();
-    const totalLength = Math.max(1, Math.round(level * this.randomBetween(1, 2)) + 1);
+  private queueEnemySpawn(sourcePlayer: PlayerEntity): boolean {
+    const totalLength = Math.max(1, Math.round(sourcePlayer.level * this.randomBetween(1, 2)) + 1);
     const playerCount = this.activePlayers().length;
     const multiplayerScale = playerCount <= 1 ? 1 : Math.max(0.35, 1 / Math.sqrt(playerCount));
-    const placement = this.chooseEnemySpawn(totalLength - 1, this.maximumPlayerBaseSpeed() * 2 * multiplayerScale);
+    const placement = this.chooseEnemySpawn(totalLength - 1, this.playerBaseSpeed(sourcePlayer) * 2 * multiplayerScale);
     if (!placement) return false;
     const color = ENEMY_COLORS[(this.nextEnemyId - 1) % ENEMY_COLORS.length];
     this.pendingSpawns.push({
@@ -811,10 +829,6 @@ export class UltraWorld {
     this.ring(spawn.headCell.col, spawn.headCell.row, spawn.color, 0.58, 5, 1.25);
     this.effectSound('enemySpawn');
     this.shake(4);
-  }
-
-  private maximumPlayerBaseSpeed(): number {
-    return this.activePlayers().reduce((maximum, player) => Math.max(maximum, this.playerBaseSpeed(player)), 5);
   }
 
   private chooseEnemySpawn(bodySegmentCount: number, minimumHeadDistance: number): { head: GridPoint; body: GridPoint[]; next: GridPoint } | null {
@@ -1170,7 +1184,7 @@ export class UltraWorld {
     this.effectSound(sounds[moduleId] ?? 'skill', player.entityId);
   }
 
-  private spawnShot(player: PlayerEntity, origin: GridPoint, target: EnemyEntity | PlayerEntity | null, options: ShotOptions = {}): boolean {
+  private spawnShot(player: PlayerEntity, origin: GridPoint, target: EnemyEntity | null, options: ShotOptions = {}): boolean {
     if (!target || !this.isTargetAlive(target)) return false;
     const angle = Math.atan2(target.row - origin.row, target.col - origin.col) + (options.angleOffset ?? 0);
     this.createProjectile(player, origin, angle, options, this.targetRef(target));
@@ -1203,16 +1217,16 @@ export class UltraWorld {
     });
   }
 
-  private fireTesla(player: PlayerEntity, origin: GridPoint, first: EnemyEntity | PlayerEntity): void {
-    const hit: Array<EnemyEntity | PlayerEntity> = [];
-    let current: EnemyEntity | PlayerEntity | null = first;
+  private fireTesla(player: PlayerEntity, origin: GridPoint, first: EnemyEntity): void {
+    const hit: EnemyEntity[] = [];
+    let current: EnemyEntity | null = first;
     let from = origin;
     for (let jump = 0; jump < 3 && current; jump += 1) {
       hit.push(current);
       this.damageTarget(player, current, 1, current, MODULE_BY_ID.tesla.color);
       this.beam('lightning', from, current, MODULE_BY_ID.tesla.color, 0.24, player.entityId);
       from = current;
-      let next: EnemyEntity | PlayerEntity | null = null;
+      let next: EnemyEntity | null = null;
       let best = this.pixelsToCells(155) ** 2;
       for (const target of this.hostileTargets(player)) {
         if (hit.includes(target)) continue;
@@ -1232,7 +1246,7 @@ export class UltraWorld {
     for (const target of this.hostileTargets(player)) if (distanceSquared(origin, target) < radius * radius) this.damageTarget(player, target, 1, target, MODULE_BY_ID.pulse.color);
   }
 
-  private fireSweepBeam(player: PlayerEntity, origin: GridPoint, target: EnemyEntity | PlayerEntity): boolean {
+  private fireSweepBeam(player: PlayerEntity, origin: GridPoint, target: EnemyEntity): boolean {
     const angle = Math.atan2(target.row - origin.row, target.col - origin.col);
     const directionX = Math.cos(angle);
     const directionY = Math.sin(angle);
@@ -1252,7 +1266,7 @@ export class UltraWorld {
     return hits > 0;
   }
 
-  private fireFlakBurst(player: PlayerEntity, target: EnemyEntity | PlayerEntity): boolean {
+  private fireFlakBurst(player: PlayerEntity, target: EnemyEntity): boolean {
     const radius = this.pixelsToCells(84);
     let hits = 0;
     this.ring(target.col, target.row, MODULE_BY_ID.flak.color, 0.5, 8, radius, player.entityId);
@@ -1265,14 +1279,14 @@ export class UltraWorld {
     return hits > 0;
   }
 
-  private fireCrossfire(player: PlayerEntity, origin: GridPoint, target: EnemyEntity | PlayerEntity): void {
+  private fireCrossfire(player: PlayerEntity, origin: GridPoint, target: EnemyEntity): void {
     const baseAngle = Math.atan2(target.row - origin.row, target.col - origin.col);
     for (let index = 0; index < 4; index += 1) this.createProjectile(player, origin, baseAngle + index * Math.PI / 2, { speed: 285, life: 1.7, color: MODULE_BY_ID.crossfire.color, size: 6.2, pierce: 1 });
     this.ring(origin.col, origin.row, MODULE_BY_ID.crossfire.color, 0.4, 5, 1, player.entityId);
   }
 
   private updateTargetStatuses(delta: number): void {
-    for (const target of [...this.enemies, ...this.activePlayers()]) {
+    for (const target of this.enemies) {
       target.bladeCooldown = Math.max(0, target.bladeCooldown - delta);
       target.sawCooldown = Math.max(0, target.sawCooldown - delta);
       if (target.slow > 0) target.slow -= delta;
@@ -1484,7 +1498,7 @@ export class UltraWorld {
           hostile.col += dx / distance * pull;
           hostile.row += dy / distance * pull;
           hostile.slow = Math.max(hostile.slow, 0.2);
-          followContinuousSegments(hostile.col, hostile.row, hostile.segments, 'accountId' in hostile ? 0.58 : 0.54);
+          followContinuousSegments(hostile.col, hostile.row, hostile.segments, 0.54);
         }
         continue;
       }
@@ -1499,7 +1513,6 @@ export class UltraWorld {
       for (const hostile of this.hostileTargets(owner)) {
         if (distanceSquared(hazard, hostile) < hazard.radius * hazard.radius) {
           this.damageTarget(owner, hostile, 1, hostile, hazard.color);
-          if ('accountId' in hostile) this.bounceEntity(hostile, hostile.col - hazard.col, hostile.row - hazard.row, hazard.color, 0.58);
         }
       }
       if (ownerTriggered) this.bounceEntity(owner, owner.col - hazard.col, owner.row - hazard.row, hazard.color, 0.58);
@@ -1562,8 +1575,6 @@ export class UltraWorld {
         if (left.alive && right.alive) this.checkPlayerBodyHit(right, left, now);
         if (!left.alive || !right.alive || left.collisionCooldown > 0 || right.collisionCooldown > 0 || Math.hypot(left.col - right.col, left.row - right.row) >= this.playerHeadRadiusCells() * 2) continue;
         const normal = collisionNormal(left, right);
-        this.applyRamCollision(left, right);
-        this.applyRamCollision(right, left);
         this.bounceEntity(left, normal.col, normal.row, PLAYER_COLORS[left.colorIndex], 0.58);
         if (right.alive) this.bounceEntity(right, -normal.col, -normal.row, PLAYER_COLORS[right.colorIndex], 0.58);
       }
@@ -1571,29 +1582,18 @@ export class UltraWorld {
   }
 
   private checkPlayerBodyHit(attacker: PlayerEntity, defender: PlayerEntity, now: number): void {
-    if (attacker.invulnerable > 0 || attacker.collisionCooldown > 0) return;
+    if (
+      attacker.invulnerable > 0
+      || defender.invulnerable > 0
+      || attacker.paused
+      || defender.paused
+      || attacker.choosingUpgrade
+      || defender.choosingUpgrade
+      || attacker.collisionCooldown > 0
+    ) return;
     const body = defender.segments.find((segment) => Math.hypot(attacker.col - segment.col, attacker.row - segment.row) < 0.42);
     if (!body) return;
-    if (this.consumeDefense(attacker)) {
-      this.damageTarget(attacker, defender, 1, body, '#ffffff');
-      return;
-    }
-    const thorns = this.moduleCount(defender, 'thorns');
-    const thornsReady = thorns > 0 && defender.thornsCooldown <= 0;
-    this.eliminatePlayer(attacker, defender, now, '撞上了对手身体');
-    if (thornsReady) {
-      this.triggerBodyIntercept(defender, body, attacker, thorns);
-      defender.thornsCooldown = 6 * Math.pow(0.85, thorns - 1);
-    }
-  }
-
-  private applyRamCollision(attacker: PlayerEntity, target: PlayerEntity): void {
-    const ram = this.moduleCount(attacker, 'ram');
-    if (ram <= 0 || attacker.ramCooldown > 0 || !target.alive) return;
-    this.damageTarget(attacker, target, 1, target, MODULE_BY_ID.ram.color);
-    attacker.ramCooldown = 5 * Math.pow(0.86, ram - 1);
-    this.ring(attacker.col, attacker.row, MODULE_BY_ID.ram.color, 0.42, 6, 1, attacker.entityId);
-    this.playSkillSound(attacker, 'ram');
+    this.eliminatePlayer(attacker, null, now, '撞上了其他玩家的身体');
   }
 
   private consumeDefense(player: PlayerEntity): boolean {
@@ -1608,8 +1608,8 @@ export class UltraWorld {
     return true;
   }
 
-  private damageTarget(owner: PlayerEntity, target: EnemyEntity | PlayerEntity, amount: number, point: GridPoint, color: string): void {
-    if (!this.isTargetAlive(target) || ('accountId' in target && (target.invulnerable > 0 || target.paused || target.choosingUpgrade))) return;
+  private damageTarget(owner: PlayerEntity, target: EnemyEntity, amount: number, point: GridPoint, color: string): void {
+    if (!this.isTargetAlive(target)) return;
     let applied = 0;
     let destroysHead = false;
     for (let index = 0; index < amount; index += 1) {
@@ -1627,10 +1627,7 @@ export class UltraWorld {
     this.effectSound('hit', owner.entityId);
     this.shake(2.2, owner.entityId);
     if (!destroysHead) return;
-    if ('accountId' in target) {
-      if (this.consumeDefense(target)) return;
-      this.eliminatePlayer(target, owner, this.now, '被火力击破');
-    } else this.killEnemy(target, owner);
+    this.killEnemy(target, owner);
   }
 
   private killEnemy(enemy: EnemyEntity, owner: PlayerEntity | null): void {
@@ -1682,15 +1679,12 @@ export class UltraWorld {
     this.playSkillSound(player, 'thorns');
   }
 
-  private hostileTargets(owner: PlayerEntity): Array<EnemyEntity | PlayerEntity> {
-    return [
-      ...this.enemies.filter((enemy) => !enemy.dead),
-      ...this.activePlayers().filter((player) => player !== owner),
-    ];
+  private hostileTargets(_owner: PlayerEntity): EnemyEntity[] {
+    return this.enemies.filter((enemy) => !enemy.dead);
   }
 
-  private nearestTarget(owner: PlayerEntity, origin: GridPoint, maximumDistance: number): EnemyEntity | PlayerEntity | null {
-    let nearest: EnemyEntity | PlayerEntity | null = null;
+  private nearestTarget(owner: PlayerEntity, origin: GridPoint, maximumDistance: number): EnemyEntity | null {
+    let nearest: EnemyEntity | null = null;
     let best = maximumDistance * maximumDistance;
     for (const target of this.hostileTargets(owner)) {
       const distance = distanceSquared(origin, target);
@@ -1702,24 +1696,21 @@ export class UltraWorld {
     return nearest;
   }
 
-  private pointHitsTarget(point: GridPoint, radius: number, target: EnemyEntity | PlayerEntity): boolean {
-    const headRadius = 'accountId' in target ? this.playerHeadRadiusCells() : 0.28;
-    if (distanceSquared(point, target) < (radius + headRadius) ** 2) return true;
+  private pointHitsTarget(point: GridPoint, radius: number, target: EnemyEntity): boolean {
+    if (distanceSquared(point, target) < (radius + 0.28) ** 2) return true;
     return target.segments.some((segment) => distanceSquared(point, segment) < (radius + this.pixelsToCells(9)) ** 2);
   }
 
-  private isTargetAlive(target: EnemyEntity | PlayerEntity): boolean {
-    return 'accountId' in target ? target.alive : !target.dead;
+  private isTargetAlive(target: EnemyEntity): boolean {
+    return !target.dead;
   }
 
-  private targetRef(target: EnemyEntity | PlayerEntity): TargetRef {
-    return 'accountId' in target ? { kind: 'player', id: target.entityId } : { kind: 'enemy', id: target.id };
+  private targetRef(target: EnemyEntity): TargetRef {
+    return { id: target.id };
   }
 
-  private resolveTarget(ref: TargetRef): EnemyEntity | PlayerEntity | null {
-    return ref.kind === 'player'
-      ? this.playersByEntity.get(ref.id) ?? null
-      : this.enemies.find((enemy) => enemy.id === ref.id) ?? null;
+  private resolveTarget(ref: TargetRef): EnemyEntity | null {
+    return this.enemies.find((enemy) => enemy.id === ref.id) ?? null;
   }
 
   private pixelsToCells(value: number): number {
@@ -1813,6 +1804,7 @@ export class UltraWorld {
     victim.growthQueue = [];
     victim.respawnAt = victim.connected ? now + RESPAWN_DELAY_MS : null;
     this.callbacks.onRunEnded?.(result);
+    if (this.alivePlayers().length === 0) this.resetSharedWorld();
   }
 
   private createRunResult(player: PlayerEntity): RunResult {
@@ -2003,6 +1995,7 @@ function toRosterPlayer(player: PlayerEntity): RosterPlayer {
   return {
     entityId: player.entityId,
     name: player.name,
+    playerId: player.playerId,
     colorIndex: player.colorIndex,
     connected: player.connected,
     alive: player.alive,
@@ -2075,8 +2068,8 @@ function distanceSquared(left: GridPoint, right: GridPoint): number {
   return col * col + row * row;
 }
 
-function targetKey(target: EnemyEntity | PlayerEntity): string {
-  return 'accountId' in target ? `p:${target.entityId}` : `e:${target.id}`;
+function targetKey(target: EnemyEntity): string {
+  return `e:${target.id}`;
 }
 
 function wallBounceNormal(col: number, row: number): GridPoint | null {
@@ -2117,6 +2110,10 @@ function angleDifference(from: number, to: number): number {
 
 function normalizeName(value: string): string {
   return Array.from(value.trim()).slice(0, 24).join('') || '未命名玩家';
+}
+
+function normalizePlayerId(value: string): string {
+  return Array.from(value.trim()).slice(0, 32).join('') || 'unknown';
 }
 
 function normalizeAngle(value: number): number {

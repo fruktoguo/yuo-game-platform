@@ -8,11 +8,12 @@ import {
   useRef,
   useState,
 } from 'react';
-import { PLAYER_COLORS } from '../shared/constants';
+import { GRID_SIZE, PLAYER_COLORS } from '../shared/constants';
 import { MODULE_BY_ID, type ModuleId } from '../shared/modules';
 import type {
   ChatMessage,
   LeaderboardEntry,
+  RosterPlayer,
   UltraPlayerView,
   UltraSnapshot,
 } from '../shared/protocol';
@@ -22,6 +23,7 @@ import { useSnakeArena } from './hooks/useSnakeArena';
 
 type GamePhase = 'menu' | 'running' | 'paused' | 'gameover';
 type NetworkTab = 'ranking' | 'chat';
+type OperationMode = 'manual' | 'auto';
 
 interface RunResultView {
   score: number;
@@ -36,6 +38,7 @@ export function App() {
   const audio = useMemo(() => new UltraAudio(), []);
   const [snapshot, setSnapshot] = useState<UltraSnapshot | null>(null);
   const [phase, setPhase] = useState<GamePhase>('menu');
+  const [operationMode, setOperationMode] = useState<OperationMode>('manual');
   const [spawning, setSpawning] = useState(false);
   const [result, setResult] = useState<RunResultView | null>(null);
   const [fontScale, setFontScale] = useState(() => loadNumber('ultra-snake-font-scale', 1, 0.5, 1.5));
@@ -45,14 +48,17 @@ export function App() {
   const [networkOpen, setNetworkOpen] = useState(false);
   const [networkTab, setNetworkTab] = useState<NetworkTab>('ranking');
   const phaseRef = useRef(phase);
+  const operationModeRef = useRef(operationMode);
   const previousAliveRef = useRef(false);
   const lastLivePlayerRef = useRef<UltraPlayerView | null>(null);
   const bestBeforeRunRef = useRef(0);
   const deathTimerRef = useRef<number | null>(null);
   phaseRef.current = phase;
+  operationModeRef.current = operationMode;
 
   const self = snapshot?.players.find((player) => player.entityId === connection.selfEntityId) ?? null;
   const active = phase === 'running' && Boolean(self?.alive && !self.paused && !self.choosingUpgrade);
+  const manualInputActive = active && operationMode === 'manual';
   const fieldPopulation = (snapshot?.foods.length ?? 0) + (snapshot?.enemies.length ?? 0);
   const nextWave = snapshot?.waveCount ? snapshot.waveTimer.toFixed(1) : '--';
   const lobbyUrl = import.meta.env.VITE_PLATFORM_LOBBY_URL ?? (import.meta.env.PROD ? '/' : 'http://127.0.0.1:3100');
@@ -111,9 +117,11 @@ export function App() {
     return () => document.removeEventListener('click', onDocumentClick);
   }, [closeSettings]);
 
-  const startRun = useCallback(async () => {
+  const startRun = useCallback(async (mode: OperationMode = 'manual') => {
     if (spawning || connection.status !== 'joined') return;
     audio.ensure();
+    operationModeRef.current = mode;
+    setOperationMode(mode);
     bestBeforeRunRef.current = connection.profile?.bestScore ?? 0;
     setSpawning(true);
     const response = await connection.spawn();
@@ -141,6 +149,36 @@ export function App() {
     audio.play(paused ? 'pause' : 'resume');
   }, [audio, connection, self?.alive, self?.choosingUpgrade]);
 
+  const returnToMenu = useCallback(async () => {
+    if (self?.alive) {
+      const response = await connection.leaveRun();
+      if (!response.ok) return;
+    }
+    previousAliveRef.current = false;
+    lastLivePlayerRef.current = null;
+    if (deathTimerRef.current !== null) {
+      window.clearTimeout(deathTimerRef.current);
+      deathTimerRef.current = null;
+    }
+    setResult(null);
+    setPhase('menu');
+  }, [connection, self?.alive]);
+
+  useEffect(() => {
+    if (!active || operationMode !== 'auto' || !snapshot || !self) return;
+    connection.setDirection(calculateAutopilotAngle(snapshot, self));
+  }, [active, connection.setDirection, operationMode, self, snapshot]);
+
+  useEffect(() => {
+    const offer = connection.upgradeOffer;
+    if (operationMode !== 'auto' || !offer || offer.options.length === 0) return;
+    const timer = window.setTimeout(() => {
+      const choice = offer.options[Math.floor(Math.random() * offer.options.length)];
+      void connection.chooseUpgrade(choice);
+    }, 650);
+    return () => window.clearTimeout(timer);
+  }, [connection.chooseUpgrade, connection.upgradeOffer, operationMode]);
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (isEditableTarget(event.target)) return;
@@ -153,11 +191,11 @@ export function App() {
         event.preventDefault();
         void changePause(phaseRef.current === 'running');
       }
-      if (event.code === 'Enter' && phaseRef.current === 'menu') void startRun();
+      if (event.code === 'Enter' && phaseRef.current === 'menu') void startRun('manual');
       if (event.code === 'Enter' && phaseRef.current === 'gameover') void restartRun();
     };
     const pauseWhenHidden = () => {
-      if (document.hidden && phaseRef.current === 'running') void changePause(true);
+      if (document.hidden && operationModeRef.current !== 'auto' && phaseRef.current === 'running') void changePause(true);
     };
     window.addEventListener('keydown', onKeyDown);
     document.addEventListener('visibilitychange', pauseWhenHidden);
@@ -183,20 +221,20 @@ export function App() {
   const onlineCount = connection.roster.filter((player) => player.connected).length;
 
   return (
-    <main id="game-shell" aria-label="炫彩贪吃蛇 Ultra 游戏区域">
+    <main id="game-shell" className={operationMode === 'auto' ? 'is-test-mode' : undefined} aria-label="PROJECT GSS0 游戏区域">
       <UltraCanvas
         snapshots={connection.snapshots}
         effects={connection.effects}
         selfEntityId={connection.selfEntityId}
         audio={audio}
         onDirection={connection.setDirection}
-        active={active}
+        active={manualInputActive}
       />
 
       <header className="hud hud-top" aria-label="对局信息">
         <div className="brand-lockup">
           <span className="brand-mark" aria-hidden="true" />
-          <div><strong>炫彩贪吃蛇</strong><span>ULTRA</span></div>
+          <div><strong>PROJECT GSS0</strong></div>
           <span className="signature">by 四季鸽</span>
         </div>
 
@@ -256,7 +294,14 @@ export function App() {
         </div>
       </header>
 
-      <aside id="module-rack" className="module-rack" aria-label="已装载身体模块">
+      {onlineCount > 1 && (
+        <MultiplayerScoreboard
+          players={connection.roster.filter((player) => player.connected)}
+          selfEntityId={connection.selfEntityId}
+        />
+      )}
+
+      <aside id="module-rack" className={`module-rack ${onlineCount > 1 ? 'has-multiplayer-scoreboard' : ''}`} aria-label="已装载身体模块">
         {[...moduleCounts].map(([moduleId, count]) => {
           const module = MODULE_BY_ID[moduleId];
           return (
@@ -288,9 +333,12 @@ export function App() {
         <div className="start-glow" aria-hidden="true" />
         <div className="start-content">
           <div className="title-kicker">TACTICAL SURVIVAL / ONLINE</div>
-          <h1 id="game-title"><span>炫彩贪吃蛇</span><em>ULTRA</em></h1>
-          <p>吞噬 / 构筑 / 生存 / 对抗</p>
-          <button id="start-button" className="primary-button" type="button" disabled={connection.status !== 'joined' || spawning} onClick={() => void startRun()}><span aria-hidden="true">▶</span>{spawning ? '接入中' : '开始行动'}</button>
+          <h1 id="game-title"><span>PROJECT GSS0</span></h1>
+          <p>吞噬 / 构筑 / 生存</p>
+          <div className="start-actions">
+            <button id="start-button" className="primary-button" type="button" disabled={connection.status !== 'joined' || spawning} onClick={() => void startRun('manual')}><span aria-hidden="true">▶</span>{spawning ? '接入中' : '开始行动'}</button>
+            <button id="auto-test-button" className="secondary-button auto-test-button" type="button" disabled={connection.status !== 'joined' || spawning} onClick={() => void startRun('auto')}><span aria-hidden="true">A</span>自动测试</button>
+          </div>
           <div className="best-line">平台最高分 <strong id="best-value">{Math.floor(connection.profile?.bestScore ?? 0).toLocaleString('zh-CN')}</strong></div>
           <div className={`online-line is-${connection.status}`}><i />{statusLabel(connection.status)} · {onlineCount} 人在线</div>
         </div>
@@ -303,6 +351,7 @@ export function App() {
           <div className="dialog-actions">
             <button className="primary-button" type="button" onClick={() => void changePause(false)}>继续游戏</button>
             <button className="secondary-button" type="button" onClick={() => void restartRun()}>重新开始</button>
+            <button className="secondary-button" type="button" onClick={() => void returnToMenu()}>返回主菜单</button>
           </div>
         </div>
       </section>
@@ -328,7 +377,10 @@ export function App() {
             <div><span>击破</span><strong>{result?.kills ?? 0}</strong></div>
             <div><span>存活</span><strong>{formatTime(result?.survivalTime ?? 0)}</strong></div>
           </div>
-          <button id="restart-button" className="primary-button" type="button" onClick={() => void restartRun()}>再来一局</button>
+          <div className="dialog-actions result-actions">
+            <button id="restart-button" className="primary-button" type="button" onClick={() => void restartRun()}>再来一局</button>
+            <button className="secondary-button" type="button" onClick={() => void returnToMenu()}>返回主菜单</button>
+          </div>
         </div>
       </section>
 
@@ -363,6 +415,26 @@ function UpgradeCard({ moduleId, onChoose }: { moduleId: ModuleId; onChoose: (mo
       <p>{module.desc}</p>
       <span className="card-action">装载到尾部 <b aria-hidden="true">+</b></span>
     </button>
+  );
+}
+
+function MultiplayerScoreboard({ players, selfEntityId }: { players: RosterPlayer[]; selfEntityId: number | null }) {
+  const ordered = [...players].sort((left, right) => right.score - left.score || right.level - left.level || left.playerId.localeCompare(right.playerId));
+  return (
+    <aside className="multiplayer-scoreboard" aria-label="多人记分板">
+      <header><strong>多人行动</strong><span>{players.length}P</span></header>
+      <div className="scoreboard-columns" aria-hidden="true"><span>ID</span><span>LV</span><span>得分</span></div>
+      <ol>
+        {ordered.map((player) => (
+          <li key={player.entityId} className={`${player.entityId === selfEntityId ? 'is-self' : ''} ${player.alive ? '' : 'is-out'}`}>
+            <i style={{ background: PLAYER_COLORS[player.colorIndex % PLAYER_COLORS.length] }} />
+            <strong title={`@${player.playerId}`}>@{player.playerId}</strong>
+            <span>{player.level}</span>
+            <em>{player.score.toLocaleString('zh-CN')}</em>
+          </li>
+        ))}
+      </ol>
+    </aside>
   );
 }
 
@@ -403,7 +475,7 @@ function NetworkPanel({ status, onlineCount, botCount, tab, entries, messages, s
             <li key={entry.entityId} className={entry.entityId === selfEntityId ? 'is-self' : ''}>
               <b>{String(index + 1).padStart(2, '0')}</b>
               <i style={{ background: PLAYER_COLORS[entry.colorIndex % PLAYER_COLORS.length] }} />
-              <span><strong>{entry.name}</strong><small>LV.{entry.level} · {entry.kills} 击破</small></span>
+              <span><strong>{entry.name}</strong><small>@{entry.playerId} · LV.{entry.level}</small></span>
               <em>{entry.score}</em>
             </li>
           ))}
@@ -461,4 +533,52 @@ function saveNumber(key: string, value: number): void {
 
 function isEditableTarget(target: EventTarget | null): boolean {
   return target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || (target instanceof HTMLElement && target.isContentEditable);
+}
+
+export function calculateAutopilotAngle(snapshot: UltraSnapshot, self: UltraPlayerView): number {
+  let vectorCol = 0;
+  let vectorRow = 0;
+  let nearestFood = snapshot.foods[0] ?? null;
+  let nearestDistance = Number.POSITIVE_INFINITY;
+  for (const food of snapshot.foods) {
+    const distance = (food.col - self.col) ** 2 + (food.row - self.row) ** 2;
+    if (distance >= nearestDistance) continue;
+    nearestDistance = distance;
+    nearestFood = food;
+  }
+
+  const target = nearestFood ?? { col: GRID_SIZE / 2, row: GRID_SIZE / 2 };
+  const targetCol = target.col - self.col;
+  const targetRow = target.row - self.row;
+  const targetLength = Math.hypot(targetCol, targetRow) || 1;
+  vectorCol += targetCol / targetLength;
+  vectorRow += targetRow / targetLength;
+
+  const wallMargin = 3.2;
+  if (self.col < wallMargin) vectorCol += (wallMargin - self.col) * 1.4;
+  if (self.col > GRID_SIZE - wallMargin) vectorCol -= (self.col - (GRID_SIZE - wallMargin)) * 1.4;
+  if (self.row < wallMargin) vectorRow += (wallMargin - self.row) * 1.4;
+  if (self.row > GRID_SIZE - wallMargin) vectorRow -= (self.row - (GRID_SIZE - wallMargin)) * 1.4;
+
+  const repel = (node: { col: number; row: number }, strength: number, range: number) => {
+    const awayCol = self.col - node.col;
+    const awayRow = self.row - node.row;
+    const distance = awayCol * awayCol + awayRow * awayRow;
+    if (distance <= 0.001 || distance >= range * range) return;
+    const factor = strength / distance;
+    vectorCol += awayCol * factor;
+    vectorRow += awayRow * factor;
+  };
+
+  for (let index = 3; index < self.segments.length; index += 1) repel(self.segments[index], 1.4, 2.4);
+  for (const enemy of snapshot.enemies) {
+    repel(enemy, 3.2, 3.5);
+    for (const segment of enemy.segments) repel(segment, 2.4, 2.8);
+  }
+  for (const player of snapshot.players) {
+    if (player.entityId === self.entityId || !player.alive || player.paused || player.choosingUpgrade) continue;
+    repel(player, 3.2, 3.5);
+    for (const segment of player.segments) repel(segment, 2.8, 3);
+  }
+  return Math.atan2(vectorRow, vectorCol);
 }

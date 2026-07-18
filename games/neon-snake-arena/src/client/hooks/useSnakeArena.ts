@@ -141,6 +141,16 @@ export function useSnakeArena() {
     });
   }), [showNotice]);
 
+  const leaveRun = useCallback(() => new Promise<ActionResult>((resolve) => {
+    const socket = socketRef.current;
+    if (!socket?.connected) return resolve({ ok: false, error: '行动区域尚未连接' });
+    setUpgradeOffer(null);
+    socket.emit('ultra:leave-run', (result) => {
+      if (!result.ok) showNotice(result.error ?? '无法返回主菜单');
+      resolve(result);
+    });
+  }), [showNotice]);
+
   const setPaused = useCallback((paused: boolean) => new Promise<ActionResult>((resolve) => {
     const socket = socketRef.current;
     if (!socket?.connected) return resolve({ ok: false, error: '行动区域尚未连接' });
@@ -188,6 +198,7 @@ export function useSnakeArena() {
     setDirection,
     spawn,
     restart,
+    leaveRun,
     setPaused,
     chooseUpgrade,
     sendChat,

@@ -63,8 +63,8 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): Platfo
         manifest: {
           id: 'neon-snake-arena',
           slug: 'neon-snake-arena',
-          name: '炫彩贪吃蛇',
-          shortDescription: '原版肉鸽 PvE 与多人 PvP 同场展开的 Ultra 生存行动',
+          name: 'PROJECT GSS0',
+          shortDescription: '保留原版肉鸽贪吃蛇机制，第二名玩家加入后自动切换为共享世界联机模式',
           coverUrl: '/neon-snake-cover.png',
           launchMode: 'navigate',
           status: 'online',

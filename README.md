@@ -2,7 +2,7 @@
 
 [![构建并部署生产环境](https://github.com/fruktoguo/yuo-game-platform/actions/workflows/deploy.yml/badge.svg)](https://github.com/fruktoguo/yuo-game-platform/actions/workflows/deploy.yml)
 
-统一账号、游戏目录、启动会话和通用积分的轻量 Web 游戏平台。当前包含生命战争、Breakline 台球与全服同场 PvPvE 的炫彩贪吃蛇 Ultra。
+统一账号、游戏目录、启动会话和通用积分的轻量 Web 游戏平台。当前包含生命战争、Breakline 台球与支持单人/多人共享世界的 PROJECT GSS0。
 
 [在线体验](https://pool.yuohira.com) · [架构说明](docs/architecture.md) · [游戏接入指南](docs/game-integration.md)
 
@@ -32,7 +32,7 @@ npm start
 - 游戏大厅：`http://127.0.0.1:3100`
 - 生命战争：通过大厅启动，服务端位于 `127.0.0.1:3101`
 - Breakline 台球：通过大厅启动，服务端位于 `127.0.0.1:3102`
-- 炫彩贪吃蛇 Ultra：通过大厅启动，保留原版 PvE、人机、模块、特效和声音，并在同一战场叠加多人 PvP；服务端位于 `127.0.0.1:3103`
+- PROJECT GSS0：通过大厅启动；单人保持原版肉鸽贪吃蛇规则，第二名玩家加入后自动切换共享世界联机模式；服务端位于 `127.0.0.1:3103`
 
 开发模式使用 `npm run dev`，大厅 Vite 地址为 `http://127.0.0.1:5175`。
 

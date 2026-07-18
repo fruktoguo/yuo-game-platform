@@ -98,6 +98,7 @@ export class ArenaHub {
     socket.on('ultra:join', (ack) => this.handleJoin(socket, ack));
     socket.on('ultra:spawn', (ack) => this.handleSpawn(socket, ack));
     socket.on('ultra:restart', (ack) => this.handleRestart(socket, ack));
+    socket.on('ultra:leave-run', (ack) => this.handleLeaveRun(socket, ack));
     socket.on('ultra:pause', (paused, ack) => this.handlePause(socket, paused, ack));
     socket.on('ultra:input', (payload) => this.handleInput(socket, payload));
     socket.on('ultra:upgrade', (moduleId, ack) => this.handleUpgrade(socket, moduleId, ack));
@@ -110,7 +111,7 @@ export class ArenaHub {
     if (socket.data.joinedArena) return ack({ ok: false, error: '当前连接已经加入行动区域' });
     const principal = socket.data.platformPrincipal;
     if (!principal || principal.gameId !== 'neon-snake-arena') return ack({ ok: false, error: '游戏账号会话无效' });
-    const player = this.world.connectPlayer(principal.accountId, principal.displayName);
+    const player = this.world.connectPlayer(principal.accountId, principal.displayName, Date.now(), principal.username);
     if (!player) return ack({ ok: false, error: '行动区域人数已满，请稍后再试' });
 
     const previousSocketId = this.socketsByAccount.get(principal.accountId);
@@ -154,6 +155,15 @@ export class ArenaHub {
     const accountId = this.getJoinedAccountId(socket);
     if (!accountId) return ack({ ok: false, error: '请先接入行动区域' });
     if (!this.world.restart(accountId)) return ack({ ok: false, error: '当前无法重新开始行动' });
+    ack({ ok: true });
+    this.broadcastMeta();
+  }
+
+  private handleLeaveRun(socket: UltraSocket, ack: (result: ActionResult) => void): void {
+    if (typeof ack !== 'function') return;
+    const accountId = this.getJoinedAccountId(socket);
+    if (!accountId) return ack({ ok: false, error: '请先接入行动区域' });
+    if (!this.world.leaveRun(accountId)) return ack({ ok: false, error: '当前没有进行中的行动' });
     ack({ ok: true });
     this.broadcastMeta();
   }

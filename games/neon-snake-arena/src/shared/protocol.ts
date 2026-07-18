@@ -139,6 +139,7 @@ export interface UltraProfileView {
 export interface RosterPlayer {
   entityId: number;
   name: string;
+  playerId: string;
   colorIndex: number;
   connected: boolean;
   alive: boolean;
@@ -154,6 +155,7 @@ export interface RosterPlayer {
 export interface LeaderboardEntry {
   entityId: number;
   name: string;
+  playerId: string;
   colorIndex: number;
   score: number;
   kills: number;
@@ -214,6 +216,7 @@ export interface ClientToServerEvents {
   'ultra:join': (ack: (result: ActionResult<ArenaJoinData>) => void) => void;
   'ultra:spawn': (ack: (result: ActionResult) => void) => void;
   'ultra:restart': (ack: (result: ActionResult) => void) => void;
+  'ultra:leave-run': (ack: (result: ActionResult) => void) => void;
   'ultra:pause': (paused: boolean, ack: (result: ActionResult) => void) => void;
   'ultra:input': (payload: InputPayload) => void;
   'ultra:upgrade': (moduleId: ModuleId, ack: (result: ActionResult) => void) => void;

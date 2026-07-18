@@ -164,7 +164,7 @@ try {
   await assertRenderedImage(mobileCanvas, '移动端台球 3D 画面');
   await shooterPage.screenshot({ path: join(artifactsDirectory, 'billiards-mobile.png'), fullPage: true });
 
-  logStep('验证炫彩贪吃蛇双人同服、聊天与平滑动画');
+  logStep('验证 PROJECT GSS0 双人共享世界、独立自动模式与平滑动画');
   await firstPage.setViewportSize({ width: 1440, height: 900 });
   await secondPage.setViewportSize({ width: 1440, height: 900 });
   await firstPage.goto(PLATFORM_URL, { waitUntil: 'networkidle' });
@@ -187,7 +187,9 @@ try {
     firstPage.goto(firstSnakeLaunch.launchUrl, { waitUntil: 'domcontentloaded' }),
     secondPage.goto(secondSnakeLaunch.launchUrl, { waitUntil: 'domcontentloaded' }),
   ]);
-  await Promise.all([enterSnakeUltra(firstPage), enterSnakeUltra(secondPage)]);
+  await Promise.all([enterSnakeUltra(firstPage), enterSnakeUltra(secondPage, '自动测试')]);
+  await firstPage.locator('.multiplayer-scoreboard').waitFor({ timeout: 10_000 });
+  await firstPage.getByText(`@${secondAccount.username}`, { exact: true }).waitFor({ timeout: 10_000 });
   await firstPage.getByTitle('联机信息').click();
   await firstPage.getByText(secondAccount.displayName, { exact: true }).waitFor({ timeout: 10_000 });
   await secondPage.getByTitle('联机信息').click();
@@ -200,7 +202,7 @@ try {
   await firstPage.waitForFunction(() => {
     const summary = document.querySelector('.network-panel header small')?.textContent ?? '';
     const counts = summary.match(/^(\d+) PLAYER · (\d+) AI$/);
-    return counts !== null && Number(counts[1]) >= 2 && Number(counts[2]) >= 1;
+    return counts !== null && Number(counts[1]) >= 2 && Number(counts[2]) >= 2;
   }, undefined, { timeout: 10_000 });
   assert.ok(await firstPage.evaluate(() => window.__ultraOscillatorCount > 0), '原版 WebAudio 音效未触发');
   await firstPage.getByRole('button', { name: '关闭联机信息' }).click();
@@ -217,7 +219,7 @@ try {
   await firstPage.screenshot({ path: join(artifactsDirectory, 'snake-desktop.png'), fullPage: true });
   await snakeStage.screenshot({ path: join(artifactsDirectory, 'snake-cover-candidate.png') });
 
-  logStep('验证炫彩贪吃蛇真实触控布局');
+  logStep('验证 PROJECT GSS0 真实触控布局');
   const touchContext = await browser.newContext({
     viewport: { width: 390, height: 844 },
     deviceScaleFactor: 2,
@@ -279,7 +281,7 @@ async function assertLobby(page, expectedBalance) {
   assert.equal(await page.locator('.game-card').count(), 3);
   await page.getByRole('heading', { name: '生命战争' }).waitFor();
   await page.getByRole('heading', { name: 'Breakline 台球' }).waitFor();
-  await page.getByRole('heading', { name: '炫彩贪吃蛇' }).waitFor();
+  await page.getByRole('heading', { name: 'PROJECT GSS0' }).waitFor();
   assert.equal(Number(await page.locator('.points-pill strong').textContent()), expectedBalance);
   await assertNoHorizontalOverflow(page);
 }
@@ -443,11 +445,11 @@ function logStep(message) {
   console.log(`\n[验收] ${message}`);
 }
 
-async function enterSnakeUltra(page) {
+async function enterSnakeUltra(page, mode = '开始行动') {
   await page.locator('.network-button.is-joined').waitFor({ timeout: 15_000 });
   const startScreen = page.locator('#start-screen');
   if (await startScreen.evaluate((element) => element.classList.contains('is-visible'))) {
-    await page.getByRole('button', { name: '开始行动' }).evaluate((button) => button.click());
+    await page.getByRole('button', { name: mode }).evaluate((button) => button.click());
   }
   await page.locator('#start-screen').waitFor({ state: 'hidden', timeout: 10_000 });
   await page.locator('canvas#game').waitFor({ state: 'visible', timeout: 10_000 });

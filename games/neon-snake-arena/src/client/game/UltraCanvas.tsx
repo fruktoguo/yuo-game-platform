@@ -180,7 +180,7 @@ export function UltraCanvas({ snapshots, effects, selfEntityId, audio, onDirecti
     };
   }, [effects, snapshots]);
 
-  return <canvas ref={canvasRef} id="game" aria-label="炫彩贪吃蛇 Ultra PvPvE 游戏画布" />;
+  return <canvas ref={canvasRef} id="game" aria-label="PROJECT GSS0 联机游戏画布" />;
 }
 
 function createArenaBounds(width: number, height: number): ArenaBounds {
@@ -250,7 +250,7 @@ function render(
   drawHazards(context, arena, snapshot.hazards, time);
   for (const enemy of snapshot.enemies) drawEnemy(context, arena, enemy);
   const players = [...snapshot.players].sort((left, right) => Number(left.entityId === self?.entityId) - Number(right.entityId === self?.entityId));
-  for (const player of players) if (player.alive) drawPlayer(context, arena, player, player.entityId === self?.entityId, snapshot.gameTime);
+  for (const player of players) if (player.alive) drawPlayer(context, arena, player, player.entityId === self?.entityId, time);
   drawProjectiles(context, arena, snapshot.projectiles);
   drawEffects(context, arena, particles, effects);
   context.restore();
@@ -490,6 +490,8 @@ function drawEnemy(context: CanvasRenderingContext2D, arena: ArenaBounds, enemy:
 }
 
 function drawPlayer(context: CanvasRenderingContext2D, arena: ArenaBounds, player: UltraPlayerView, self: boolean, gameTime: number): void {
+  context.save();
+  if (player.paused || player.choosingUpgrade) context.globalAlpha = 0.28 + Math.abs(Math.sin(gameTime * 12)) * 0.48;
   const head = cellCenter(player, arena);
   const pieceScale = clamp(arena.cellSize / 34, 0.55, 1);
   let previous = head;
@@ -521,6 +523,7 @@ function drawPlayer(context: CanvasRenderingContext2D, arena: ArenaBounds, playe
   const accent = self ? '#f3c600' : PLAYER_COLORS[player.colorIndex % PLAYER_COLORS.length];
   drawPlayerHead(context, head, player.angle, pieceScale, accent, player.invulnerable > 0, gameTime, growthPulse(player, 0), player.growth?.color);
   if (!self) drawPlayerLabel(context, arena, head, player.name, accent, pieceScale);
+  context.restore();
 }
 
 function drawEnemyHead(context: CanvasRenderingContext2D, point: { x: number; y: number }, angle: number, scale: number, color: string): void {
