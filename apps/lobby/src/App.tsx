@@ -116,7 +116,7 @@ function AuthScreen(props: {
       <section className="auth-panel" aria-labelledby="auth-title">
         <div className="brand-block">
           <span className="brand-mark"><Gamepad2 /></span>
-          <div><strong>YUO ARCADE</strong><small>统一游戏大厅</small></div>
+          <div><strong>Yuo戏大厅</strong><small>统一游戏大厅</small></div>
         </div>
         <header>
           <span>{mode === 'login' ? '欢迎回来' : '建立平台账号'}</span>
@@ -189,7 +189,7 @@ function LobbyScreen(props: {
       <header className="lobby-topbar">
         <div className="brand-block compact">
           <span className="brand-mark"><Gamepad2 /></span>
-          <div><strong>YUO ARCADE</strong><small>游戏大厅</small></div>
+          <div><strong>Yuo戏大厅</strong><small>游戏大厅</small></div>
         </div>
         <nav aria-label="大厅导航"><button className="is-active"><Gamepad2 />游戏</button><button><History />动态</button></nav>
         <div className="account-strip">

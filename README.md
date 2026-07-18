@@ -1,4 +1,4 @@
-# YUO Game Platform
+# Yuo戏大厅
 
 统一账号、游戏目录、启动会话和通用积分的轻量 Web 游戏平台。当前包含生命战争、Breakline 台球与全服同场 PvPvE 的炫彩贪吃蛇 Ultra。
 
