@@ -1,0 +1,47 @@
+{
+  "name": "@yuo/neon-snake-arena",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently -k -n server,client -c green,cyan \"npm:dev:server\" \"npm:dev:client\"",
+    "dev:server": "tsx watch src/server/index.ts",
+    "dev:client": "vite",
+    "build": "npm run typecheck && vite build && tsup src/server/index.ts --format esm --platform node --target node20 --out-dir dist/server --sourcemap --clean",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "benchmark": "tsx scripts/benchmark-world.ts",
+    "start": "NODE_ENV=production node dist/server/index.js",
+    "check:ui": "npm --prefix ../.. run check:e2e"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@yuo-platform/client-sdk": "1.0.0",
+    "@yuo-platform/contracts": "1.0.0",
+    "@yuo-platform/persistence": "1.0.0",
+    "@yuo-platform/realtime": "1.0.0",
+    "@yuo-platform/server-sdk": "1.0.0",
+    "express": "^5.2.1",
+    "lucide-react": "^1.24.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "socket.io": "^4.8.3",
+    "socket.io-client": "^4.8.3"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.1.1",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.3",
+    "concurrently": "^10.0.3",
+    "tsup": "^8.5.1",
+    "tsx": "^4.23.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.1.4",
+    "vitest": "^4.1.10"
+  }
+}

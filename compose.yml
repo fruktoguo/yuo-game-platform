@@ -1,0 +1,183 @@
+x-default-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: "3"
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: game_platform
+      POSTGRES_USER: game_platform
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-game_platform}
+    command:
+      - postgres
+      - -c
+      - shared_buffers=64MB
+      - -c
+      - max_connections=40
+      - -c
+      - work_mem=2MB
+    ports:
+      - "127.0.0.1:54329:5432"
+    volumes:
+      - platform-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U game_platform -d game_platform"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    mem_limit: 256m
+    pids_limit: 128
+    stop_grace_period: 30s
+    logging: *default-logging
+
+  platform:
+    build: .
+    image: ${GAME_PLATFORM_IMAGE:-yuo-game-platform:local}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["node", "services/platform/dist/server/index.js"]
+    environment:
+      DATABASE_URL: postgres://game_platform:${POSTGRES_PASSWORD:-game_platform}@postgres:5432/game_platform
+      DATABASE_POOL_SIZE: ${DATABASE_POOL_SIZE:-8}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://127.0.0.1:3100}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      LIFE_LAUNCH_URL: ${LIFE_LAUNCH_URL:-http://127.0.0.1:3101}
+      BILLIARDS_LAUNCH_URL: ${BILLIARDS_LAUNCH_URL:-http://127.0.0.1:3102}
+      SNAKE_LAUNCH_URL: ${SNAKE_LAUNCH_URL:-http://127.0.0.1:3103}
+      LIFE_SERVICE_TOKEN: ${LIFE_SERVICE_TOKEN:-dev-life-service-token-change-before-production-2026}
+      BILLIARDS_SERVICE_TOKEN: ${BILLIARDS_SERVICE_TOKEN:-dev-billiards-service-token-change-before-production-2026}
+      SNAKE_SERVICE_TOKEN: ${SNAKE_SERVICE_TOKEN:-dev-snake-service-token-change-before-production-2026}
+    ports:
+      - "127.0.0.1:3100:3100"
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    mem_limit: 256m
+    pids_limit: 128
+    stop_grace_period: 20s
+    logging: *default-logging
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3100/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+
+  life-commons:
+    build: .
+    image: ${GAME_PLATFORM_IMAGE:-yuo-game-platform:local}
+    restart: unless-stopped
+    depends_on:
+      platform:
+        condition: service_healthy
+    command: ["node", "games/life-commons/dist/server/index.js"]
+    environment:
+      PLATFORM_INTERNAL_URL: http://platform:3100
+      PLATFORM_SERVICE_TOKEN: ${LIFE_SERVICE_TOKEN:-dev-life-service-token-change-before-production-2026}
+      GAME_SESSION_SECRET: ${LIFE_GAME_SESSION_SECRET:-dev-life-game-session-secret-change-before-production-2026}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      DATA_PATH: /app/data/life/world.json.gz
+    ports:
+      - "127.0.0.1:3101:3101"
+    init: true
+    volumes:
+      - life-world:/app/data/life
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    mem_limit: 512m
+    cpus: 1.25
+    pids_limit: 128
+    stop_grace_period: 20s
+    logging: *default-logging
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3101/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+
+  billiards-arena:
+    build: .
+    image: ${GAME_PLATFORM_IMAGE:-yuo-game-platform:local}
+    restart: unless-stopped
+    depends_on:
+      platform:
+        condition: service_healthy
+    command: ["node", "games/billiards-arena/dist/server/index.js"]
+    environment:
+      PLATFORM_INTERNAL_URL: http://platform:3100
+      PLATFORM_SERVICE_TOKEN: ${BILLIARDS_SERVICE_TOKEN:-dev-billiards-service-token-change-before-production-2026}
+      GAME_SESSION_SECRET: ${BILLIARDS_GAME_SESSION_SECRET:-dev-billiards-game-session-secret-change-before-production-2026}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+    ports:
+      - "127.0.0.1:3102:3102"
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    mem_limit: 512m
+    cpus: 1.25
+    pids_limit: 128
+    stop_grace_period: 20s
+    logging: *default-logging
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3102/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+
+  neon-snake-arena:
+    build: .
+    image: ${GAME_PLATFORM_IMAGE:-yuo-game-platform:local}
+    restart: unless-stopped
+    depends_on:
+      platform:
+        condition: service_healthy
+    command: ["node", "games/neon-snake-arena/dist/server/index.js"]
+    environment:
+      PLATFORM_INTERNAL_URL: http://platform:3100
+      PLATFORM_SERVICE_TOKEN: ${SNAKE_SERVICE_TOKEN:-dev-snake-service-token-change-before-production-2026}
+      GAME_SESSION_SECRET: ${SNAKE_GAME_SESSION_SECRET:-dev-snake-game-session-secret-change-before-production-2026}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      DATA_PATH: /app/data/snake/profiles.json.gz
+    ports:
+      - "127.0.0.1:3103:3103"
+    init: true
+    volumes:
+      - snake-profiles:/app/data/snake
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    mem_limit: 512m
+    cpus: 1.25
+    pids_limit: 128
+    stop_grace_period: 20s
+    logging: *default-logging
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3103/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+
+volumes:
+  platform-postgres:
+  life-world:
+  snake-profiles:

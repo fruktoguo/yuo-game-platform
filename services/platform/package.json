@@ -1,0 +1,20 @@
+{
+  "name": "@yuo/platform-server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsup src/index.ts --format esm --platform node --target node22 --out-dir dist/server --sourcemap --clean",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "start": "NODE_ENV=production node dist/server/index.js"
+  },
+  "dependencies": {
+    "@yuo-platform/contracts": "1.0.0",
+    "@yuo-platform/persistence": "1.0.0",
+    "@yuo-platform/realtime": "1.0.0",
+    "express": "^5.2.1",
+    "pg": "^8.16.3"
+  }
+}

@@ -1,0 +1,26 @@
+game.yuohira.com {
+	redir https://pool.yuohira.com{uri} 308
+}
+
+pool.yuohira.com {
+	encode zstd gzip
+
+	redir /life /life/ 308
+	handle_path /life/* {
+		reverse_proxy 127.0.0.1:3101
+	}
+
+	redir /billiards /billiards/ 308
+	handle_path /billiards/* {
+		reverse_proxy 127.0.0.1:3102
+	}
+
+	redir /snake /snake/ 308
+	handle_path /snake/* {
+		reverse_proxy 127.0.0.1:3103
+	}
+
+	handle {
+		reverse_proxy 127.0.0.1:3100
+	}
+}
