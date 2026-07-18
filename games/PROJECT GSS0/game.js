@@ -249,6 +249,10 @@
   const SEGMENT_BIRTH_DURATION = 0.34;
   const LEVEL_UP_TRANSITION_DURATION = 0.9;
   const LEVEL_UP_TIME_SCALE = 0.15;
+  const NETWORK_BASE_SNAPSHOT_MS = 1000 / 12;
+  const NETWORK_INPUT_INTERVAL_MS = 1000 / 30;
+  const NETWORK_INPUT_HEARTBEAT_MS = 110;
+  const NETWORK_PROJECTILE_PREDICTION_MS = 120;
   const MAX_RENDER_DPR = 1.5;
   const AMBIENT_RENDER_INTERVAL = 1 / 30;
   const AMBIENT_RENDER_SCALE = 0.55;
@@ -310,13 +314,19 @@
     selfEntityId: null,
     principal: null,
     roster: [],
+    rosterByEntity: new Map(),
     previousSnapshot: null,
     snapshot: null,
+    previousIndexes: null,
+    snapshotIndexes: null,
     receivedAt: 0,
+    snapshotIntervalMs: NETWORK_BASE_SNAPSHOT_MS,
+    snapshotJitterMs: 0,
     lastSelfAlive: false,
     inputSequence: 0,
     lastSentAngle: NaN,
     lastInputAt: 0,
+    projectileViews: new Map(),
     upgradeOffer: null,
     moduleSignature: ""
   };
@@ -915,6 +925,9 @@
     });
     network.socket = socket;
     socket.on("connect", () => {
+      network.inputSequence = 0;
+      network.lastSentAngle = NaN;
+      network.lastInputAt = 0;
       setNetworkStatus("connecting", "TACTICAL SURVIVAL / 正在同步");
       socket.emit("ultra:join", (result) => {
         if (!result?.ok || !result.data) {
@@ -928,7 +941,12 @@
         network.roster = result.data.roster || [];
         network.previousSnapshot = result.data.snapshot;
         network.snapshot = result.data.snapshot;
+        network.previousIndexes = indexNetworkSnapshot(result.data.snapshot);
+        network.snapshotIndexes = network.previousIndexes;
         network.receivedAt = performance.now();
+        network.snapshotIntervalMs = NETWORK_BASE_SNAPSHOT_MS;
+        network.snapshotJitterMs = 0;
+        network.projectileViews.clear();
         network.lastSelfAlive = Boolean(result.data.snapshot.players.find((item) => item.entityId === network.selfEntityId)?.alive);
         bestScore = Math.max(bestScore, Number(result.data.profile?.bestScore) || 0);
         ui.best.textContent = Math.floor(bestScore).toLocaleString("zh-CN");
@@ -968,9 +986,23 @@
   }
 
   function receiveNetworkSnapshot(snapshot) {
+    const receivedAt = performance.now();
+    const previousSnapshot = network.snapshot;
+    if (previousSnapshot && network.receivedAt > 0) {
+      const arrivalInterval = receivedAt - network.receivedAt;
+      const serverInterval = snapshot.serverTime - previousSnapshot.serverTime;
+      if (arrivalInterval > 10 && arrivalInterval < 1000 && serverInterval > 10 && serverInterval < 1000) {
+        const cadence = clamp(serverInterval, 50, 180);
+        network.snapshotIntervalMs += (cadence - network.snapshotIntervalMs) * 0.18;
+        const jitter = Math.abs(arrivalInterval - serverInterval);
+        network.snapshotJitterMs += (jitter - network.snapshotJitterMs) * 0.2;
+      }
+    }
     network.previousSnapshot = network.snapshot || snapshot;
+    network.previousIndexes = network.snapshotIndexes || indexNetworkSnapshot(network.previousSnapshot);
     network.snapshot = snapshot;
-    network.receivedAt = performance.now();
+    network.snapshotIndexes = indexNetworkSnapshot(snapshot);
+    network.receivedAt = receivedAt;
     const self = snapshot.players.find((item) => item.entityId === network.selfEntityId);
     const selfAlive = Boolean(self?.alive);
     if (network.lastSelfAlive && self && !self.alive && state !== "menu" && state !== "gameover") {
@@ -992,6 +1024,7 @@
 
   function renderNetworkRoster() {
     const connected = network.roster.filter((item) => item.connected);
+    network.rosterByEntity = previousById(network.roster, "entityId");
     const multiplayer = connected.length > 1;
     network.multiplayer = multiplayer;
     ui.shell.classList.toggle("is-multiplayer", multiplayer);
@@ -1069,6 +1102,16 @@
     return new Map((items || []).map((item) => [item[key], item]));
   }
 
+  function indexNetworkSnapshot(snapshot) {
+    return {
+      players: previousById(snapshot?.players, "entityId"),
+      enemies: previousById(snapshot?.enemies),
+      foods: previousById(snapshot?.foods),
+      projectiles: previousById(snapshot?.projectiles),
+      hazards: previousById(snapshot?.hazards)
+    };
+  }
+
   function networkNode(current, previous, amount) {
     const col = interpolateNumber(previous?.col, current.col, amount);
     const row = interpolateNumber(previous?.row, current.row, amount);
@@ -1077,20 +1120,53 @@
     return node;
   }
 
-  function applyNetworkPresentation(amount) {
+  function updateNetworkProjectileViews(items, dt, elapsedMs) {
+    const predictionSeconds = clamp(elapsedMs, 0, NETWORK_PROJECTILE_PREDICTION_MS) / 1000;
+    const correction = 1 - Math.exp(-Math.min(dt, 0.05) * 18);
+    const activeTick = network.snapshot?.tick ?? 0;
+    const result = [];
+    for (const item of items) {
+      const targetCol = item.col + item.vx * predictionSeconds;
+      const targetRow = item.row + item.vy * predictionSeconds;
+      let view = network.projectileViews.get(item.id);
+      if (!view) {
+        view = { col: targetCol, row: targetRow, vx: item.vx, vy: item.vy, seenAtTick: activeTick };
+        network.projectileViews.set(item.id, view);
+      } else {
+        view.col += view.vx * dt;
+        view.row += view.vy * dt;
+        view.col += (targetCol - view.col) * correction;
+        view.row += (targetRow - view.row) * correction;
+        view.vx = item.vx;
+        view.vy = item.vy;
+        view.seenAtTick = activeTick;
+      }
+      const projectile = { ...item, col: view.col, row: view.row };
+      syncNodePosition(projectile);
+      projectile.vx *= arena.cellSize;
+      projectile.vy *= arena.cellSize;
+      result.push(projectile);
+    }
+    for (const [id, view] of network.projectileViews) {
+      if (view.seenAtTick !== activeTick) network.projectileViews.delete(id);
+    }
+    return result;
+  }
+
+  function applyNetworkPresentation(amount, dt = 0, elapsedMs = 0) {
     const current = network.snapshot;
     if (!current) return;
     const previous = network.previousSnapshot || current;
+    const previousIndexes = network.previousIndexes || indexNetworkSnapshot(previous);
     gameTime = current.gameTime;
     waveCount = current.waveCount;
     waveTimer = current.waveTimer;
-    const previousPlayers = previousById(previous.players, "entityId");
-    const rosterByEntity = previousById(network.roster, "entityId");
     visiblePlayers = current.players.filter((item) => item.alive).map((item) => {
-      const old = previousPlayers.get(item.entityId);
-      const rosterPlayer = rosterByEntity.get(item.entityId);
-      const view = networkNode(item, old, amount);
-      view.angle = interpolateAngle(old?.angle ?? item.angle, item.angle, amount);
+      const old = previousIndexes.players.get(item.entityId);
+      const rosterPlayer = network.rosterByEntity.get(item.entityId);
+      const playerAmount = item.entityId === network.selfEntityId ? clamp(amount * 1.2, 0, 1) : amount;
+      const view = networkNode(item, old, playerAmount);
+      view.angle = interpolateAngle(old?.angle ?? item.angle, item.angle, playerAmount);
       view.desiredAngle = item.desiredAngle;
       view.radius = playerHeadRadiusPixels();
       view.playerColor = PLAYER_COLORS[item.colorIndex % PLAYER_COLORS.length];
@@ -1099,8 +1175,8 @@
       view.protectedState = item.paused || item.choosingUpgrade;
       view.segments = item.segments.map((segment, index) => {
         const oldSegment = old?.segments[index];
-        const result = networkNode(segment, oldSegment, amount);
-        result.angle = interpolateAngle(oldSegment?.angle ?? segment.angle, segment.angle, amount);
+        const result = networkNode(segment, oldSegment, playerAmount);
+        result.angle = interpolateAngle(oldSegment?.angle ?? segment.angle, segment.angle, playerAmount);
         return result;
       });
       view.growth = item.growth;
@@ -1124,9 +1200,8 @@
       }
     }
 
-    const previousEnemies = previousById(previous.enemies);
     enemies = current.enemies.map((item) => {
-      const old = previousEnemies.get(item.id);
+      const old = previousIndexes.enemies.get(item.id);
       const enemy = networkNode(item, old, amount);
       enemy.angle = interpolateAngle(old?.angle ?? item.angle, item.angle, amount);
       enemy.radius = arena.cellSize * 0.28;
@@ -1135,29 +1210,23 @@
       updateEnemyHitBounds(enemy);
       return enemy;
     });
-    const previousFoods = previousById(previous.foods);
     foods = current.foods.map((item) => ({
-      ...networkNode(item, previousFoods.get(item.id), amount),
+      ...networkNode(item, previousIndexes.foods.get(item.id), amount),
       radius: arena.cellSize * 0.13
     }));
-    const previousProjectiles = previousById(previous.projectiles);
-    projectiles = current.projectiles.map((item) => {
-      const result = networkNode(item, previousProjectiles.get(item.id), amount);
-      result.vx *= arena.cellSize;
-      result.vy *= arena.cellSize;
-      return result;
-    });
-    const previousHazards = previousById(previous.hazards);
+    projectiles = updateNetworkProjectileViews(current.projectiles, dt, elapsedMs);
     hazards = current.hazards.map((item) => ({
-      ...networkNode(item, previousHazards.get(item.id), amount),
+      ...networkNode(item, previousIndexes.hazards.get(item.id), amount),
       radius: item.radius * arena.cellSize
     }));
     pendingEnemySpawns = current.pendingSpawns.map((item) => ({ ...item }));
   }
 
   function updateNetwork(dt) {
-    const blend = clamp((performance.now() - network.receivedAt) / (1000 / 12), 0, 1);
-    applyNetworkPresentation(blend);
+    const elapsedMs = performance.now() - network.receivedAt;
+    const interpolationMs = clamp(network.snapshotIntervalMs + Math.min(35, network.snapshotJitterMs * 0.65), 60, 140);
+    const blend = clamp(elapsedMs / interpolationMs, 0, 1);
+    applyNetworkPresentation(blend, dt, elapsedMs);
     if (state === "running" && player && !testMode) {
       updateInput(dt);
       sendNetworkInput();
@@ -1170,11 +1239,13 @@
     const socket = network.socket;
     if (!socket?.connected || !player) return;
     const now = performance.now();
+    const elapsed = now - network.lastInputAt;
     const difference = Number.isFinite(network.lastSentAngle) ? Math.abs(angleDelta(network.lastSentAngle, player.desiredAngle)) : Infinity;
-    if (difference < 0.006 && now - network.lastInputAt < 220) return;
+    if (elapsed < NETWORK_INPUT_INTERVAL_MS) return;
+    if (difference < 0.004 && elapsed < NETWORK_INPUT_HEARTBEAT_MS) return;
     network.lastSentAngle = player.desiredAngle;
     network.lastInputAt = now;
-    socket.emit("ultra:input", { sequence: ++network.inputSequence, desiredAngle: player.desiredAngle });
+    socket.volatile.emit("ultra:input", { sequence: ++network.inputSequence, desiredAngle: player.desiredAngle });
   }
 
   function emitNetworkAction(event, ...args) {

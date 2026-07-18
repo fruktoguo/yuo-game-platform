@@ -15,6 +15,7 @@ import type {
   ChatMessage,
   ClientToServerEvents,
   InterServerEvents,
+  InputPayload,
   ServerToClientEvents,
   SocketData,
   UltraEffect,
@@ -33,7 +34,7 @@ const CONTROL_CHARACTER_PATTERN = /[\u0000-\u001f\u007f]/u;
 export class ArenaHub {
   private readonly socketsByAccount = new Map<string, string>();
   private readonly socketsByEntity = new Map<number, string>();
-  private readonly inputGate = new IntervalGate(24);
+  private readonly pendingInputs = new Map<string, InputPayload>();
   private readonly chatGate = new IntervalGate(900);
   private readonly messages: ChatMessage[] = [];
   private readonly events: ArenaEvent[] = [];
@@ -86,6 +87,7 @@ export class ArenaHub {
     if (this.persistenceTimer) clearTimeout(this.persistenceTimer);
     this.simulationTimer = null;
     this.persistenceTimer = null;
+    this.pendingInputs.clear();
     this.dirty = false;
     await this.profiles.save();
   }
@@ -146,6 +148,7 @@ export class ArenaHub {
     if (typeof ack !== 'function') return;
     const accountId = this.getJoinedAccountId(socket);
     if (!accountId) return ack({ ok: false, error: '请先接入行动区域' });
+    this.pendingInputs.delete(socket.id);
     if (!this.world.spawn(accountId)) return ack({ ok: false, error: '当前无法开始行动，请稍候' });
     ack({ ok: true });
     this.broadcastMeta();
@@ -155,6 +158,7 @@ export class ArenaHub {
     if (typeof ack !== 'function') return;
     const accountId = this.getJoinedAccountId(socket);
     if (!accountId) return ack({ ok: false, error: '请先接入行动区域' });
+    this.pendingInputs.delete(socket.id);
     if (!this.world.restart(accountId)) return ack({ ok: false, error: '当前无法重新开始行动' });
     ack({ ok: true });
     this.broadcastMeta();
@@ -164,6 +168,7 @@ export class ArenaHub {
     if (typeof ack !== 'function') return;
     const accountId = this.getJoinedAccountId(socket);
     if (!accountId) return ack({ ok: false, error: '请先接入行动区域' });
+    this.pendingInputs.delete(socket.id);
     if (!this.world.leaveRun(accountId)) return ack({ ok: false, error: '当前没有进行中的行动' });
     ack({ ok: true });
     this.broadcastMeta();
@@ -173,7 +178,9 @@ export class ArenaHub {
     if (typeof ack !== 'function') return;
     const accountId = this.getJoinedAccountId(socket);
     if (!accountId) return ack({ ok: false, error: '请先接入行动区域' });
-    if (typeof enabled !== 'boolean' || !this.world.setAutopilot(accountId, enabled)) return ack({ ok: false, error: '当前无法切换自动驾驶' });
+    if (typeof enabled !== 'boolean') return ack({ ok: false, error: '当前无法切换自动驾驶' });
+    if (enabled) this.pendingInputs.delete(socket.id);
+    if (!this.world.setAutopilot(accountId, enabled)) return ack({ ok: false, error: '当前无法切换自动驾驶' });
     ack({ ok: true });
   }
 
@@ -181,15 +188,26 @@ export class ArenaHub {
     if (typeof ack !== 'function') return;
     const accountId = this.getJoinedAccountId(socket);
     if (!accountId) return ack({ ok: false, error: '请先接入行动区域' });
-    if (typeof paused !== 'boolean' || !this.world.setPaused(accountId, paused)) return ack({ ok: false, error: '当前无法切换暂停状态' });
+    if (typeof paused !== 'boolean') return ack({ ok: false, error: '当前无法切换暂停状态' });
+    if (paused) this.pendingInputs.delete(socket.id);
+    if (!this.world.setPaused(accountId, paused)) return ack({ ok: false, error: '当前无法切换暂停状态' });
     ack({ ok: true });
     this.broadcastMeta();
   }
 
   private handleInput(socket: UltraSocket, payload: Parameters<UltraWorld['applyInput']>[1]): void {
     const accountId = this.getJoinedAccountId(socket);
-    if (!accountId || !this.inputGate.allow(socket.id)) return;
-    this.world.applyInput(accountId, payload);
+    if (
+      !accountId
+      || !payload
+      || typeof payload !== 'object'
+      || !Number.isSafeInteger(payload.sequence)
+      || !Number.isFinite(payload.desiredAngle)
+      || Math.abs(payload.desiredAngle) > Math.PI * 8
+    ) return;
+    const pending = this.pendingInputs.get(socket.id);
+    if (pending && pending.sequence >= payload.sequence) return;
+    this.pendingInputs.set(socket.id, { sequence: payload.sequence, desiredAngle: payload.desiredAngle });
   }
 
   private handleUpgrade(socket: UltraSocket, moduleId: ModuleId, ack: (result: ActionResult) => void): void {
@@ -218,7 +236,7 @@ export class ArenaHub {
   }
 
   private handleDisconnect(socket: UltraSocket): void {
-    this.inputGate.clear(socket.id);
+    this.pendingInputs.delete(socket.id);
     this.chatGate.clear(socket.id);
     const principal = socket.data.platformPrincipal;
     const entityId = socket.data.arenaEntityId;
@@ -233,16 +251,26 @@ export class ArenaHub {
     const now = Date.now();
     const delta = (now - this.lastStepAt) / 1_000;
     this.lastStepAt = now;
+    this.flushPendingInputs();
     this.world.step(delta, now);
     const snapshotInterval = 1_000 / SNAPSHOT_HZ;
     if (this.socketsByAccount.size > 0 && now - this.lastSnapshotAt >= snapshotInterval) {
       this.lastSnapshotAt += Math.floor((now - this.lastSnapshotAt) / snapshotInterval) * snapshotInterval;
-      this.io.emit('ultra:snapshot', encodeUltraSnapshot(this.world.getSnapshot(now)));
+      this.io.volatile.emit('ultra:snapshot', encodeUltraSnapshot(this.world.getSnapshot(now)));
     }
-    if (now - this.lastMetaAt >= 500) {
+    if (this.socketsByAccount.size > 0 && now - this.lastMetaAt >= 500) {
       this.lastMetaAt = now;
       this.broadcastMeta();
     }
+  }
+
+  private flushPendingInputs(): void {
+    for (const [socketId, payload] of this.pendingInputs) {
+      const socket = this.io.sockets.sockets.get(socketId);
+      const accountId = socket ? this.getJoinedAccountId(socket) : null;
+      if (accountId) this.world.applyInput(accountId, payload);
+    }
+    this.pendingInputs.clear();
   }
 
   private broadcastMeta(): void {

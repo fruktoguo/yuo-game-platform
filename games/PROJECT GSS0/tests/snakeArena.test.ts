@@ -37,6 +37,18 @@ describe('UltraWorld 原版 PvE 与多人共享世界', () => {
     expect(after.row).toBeGreaterThan(before.row);
   });
 
+  it('玩家重新接入后允许客户端从新输入序号开始', () => {
+    const world = new UltraWorld({ random: () => 0.4 });
+    world.connectPlayer('account-a', '玩家甲', 0);
+    world.spawn('account-a', 0);
+    expect(world.applyInput('account-a', { sequence: 900, desiredAngle: Math.PI / 2 })).toBe(true);
+
+    world.disconnectPlayer('account-a', 50);
+    world.connectPlayer('account-a', '玩家甲', 100);
+
+    expect(world.applyInput('account-a', { sequence: 1, desiredAngle: Math.PI })).toBe(true);
+  });
+
   it('敌蛇在原版 1.5 秒预警后生成并自主移动', () => {
     const world = new UltraWorld({ random: () => 0.37 });
     world.connectPlayer('account-a', '玩家甲', 0);

@@ -202,6 +202,7 @@ export class UltraWorld {
       existing.paused = false;
       existing.name = normalizeName(name);
       existing.playerId = normalizePlayerId(playerId);
+      existing.lastInputSequence = -1;
       return toRosterPlayer(existing);
     }
     if (this.playersByAccount.size >= MAX_PLAYERS) return null;
