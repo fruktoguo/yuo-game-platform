@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { DISCONNECT_GRACE_MS } from '../src/shared/constants';
+import { DISCONNECT_GRACE_MS, RESPAWN_DELAY_MS } from '../src/shared/constants';
 import type { UltraEffect } from '../src/shared/protocol';
 import { UltraWorld } from '../src/server/UltraWorld';
 
@@ -178,6 +178,94 @@ describe('UltraWorld 原版 PvE 与多人共享世界', () => {
     expect(right.knockbackX).not.toBe(0);
   });
 
+  it('联机自动驾驶无需客户端输入也会持续转向并自动选择升级', () => {
+    const world = new UltraWorld({ random: () => 0.3 });
+    world.connectPlayer('account-a', '自动玩家', 0);
+    world.spawn('account-a', 0);
+    world.setAutopilot('account-a', true);
+    Reflect.set(world, 'waveTimer', 999);
+    Reflect.set(world, 'foods', [{ id: 1, col: 12, row: 18, color: '#b8f53f', phase: 0, special: false, isPulled: false, pullTimer: 0 }]);
+    const automatic = (Reflect.get(world, 'playersByAccount') as Map<string, TestPlayerEntity & {
+      autopilot: boolean;
+      desiredAngle: number;
+      upgradePending: boolean;
+      upgradeRevealTimer: number;
+      growth: null;
+      growthQueue: unknown[];
+      level: number;
+      choosingUpgrade: boolean;
+    }>).get('account-a')!;
+    automatic.col = 12;
+    automatic.row = 12;
+    automatic.angle = 0;
+    automatic.desiredAngle = 0;
+
+    expect(world.applyInput('account-a', { sequence: 1, desiredAngle: Math.PI })).toBe(false);
+    world.step(0.05, 50);
+    expect(automatic.angle).toBeGreaterThan(0);
+
+    automatic.upgradePending = true;
+    automatic.upgradeRevealTimer = 0.01;
+    automatic.growth = null;
+    automatic.growthQueue = [];
+    world.step(0.05, 100);
+    expect(automatic.level).toBe(1);
+    expect(automatic.choosingUpgrade).toBe(false);
+  });
+
+  it('自动玩家死亡后按重生冷却自行重新开始', () => {
+    const world = new UltraWorld({ random: () => 0.3 });
+    world.connectPlayer('account-a', '自动玩家', 0);
+    world.spawn('account-a', 0);
+    world.setAutopilot('account-a', true);
+    const automatic = (Reflect.get(world, 'playersByAccount') as Map<string, TestPlayerEntity>).get('account-a')!;
+    const eliminatePlayer = Reflect.get(world, 'eliminatePlayer') as (victim: TestPlayerEntity, killer: null, now: number, reason: string) => void;
+
+    eliminatePlayer.call(world, automatic, null, 100, '测试淘汰');
+    expect(world.getRoster()[0].alive).toBe(false);
+    world.step(0, 100 + RESPAWN_DELAY_MS - 1);
+    expect(world.getRoster()[0].alive).toBe(false);
+    world.step(0, 100 + RESPAWN_DELAY_MS + 1);
+    expect(world.getRoster()[0].alive).toBe(true);
+  });
+
+  it('高速敌蛇在反弹冷却期间也会被玩家身体截停', () => {
+    const world = new UltraWorld({ random: () => 0.3 });
+    world.connectPlayer('account-a', '玩家甲', 0);
+    world.spawn('account-a', 0);
+    Reflect.set(world, 'waveTimer', 999);
+    const owner = (Reflect.get(world, 'playersByAccount') as Map<string, TestPlayerEntity>).get('account-a')!;
+    owner.col = 14;
+    owner.row = 10;
+    owner.angle = 0;
+    owner.segments = Array.from({ length: 6 }, (_, index) => testSegment(13.42 - index * 0.58, 10));
+    Reflect.set(world, 'enemies', [testEnemy(9.5, 10, { speed: 30, collisionCooldown: 0.3 })]);
+
+    world.step(0.05, 50);
+
+    expect(world.getSnapshot(50).enemies).toHaveLength(0);
+    expect(world.getRoster()[0].kills).toBe(1);
+  });
+
+  it('高速敌蛇先扫到玩家头部时保持头碰头反弹规则', () => {
+    const world = new UltraWorld({ random: () => 0.3 });
+    world.connectPlayer('account-a', '玩家甲', 0);
+    world.spawn('account-a', 0);
+    Reflect.set(world, 'waveTimer', 999);
+    const owner = (Reflect.get(world, 'playersByAccount') as Map<string, TestPlayerEntity>).get('account-a')!;
+    owner.col = 12;
+    owner.row = 10;
+    owner.angle = 0;
+    owner.segments = Array.from({ length: 5 }, (_, index) => testSegment(11.42 - index * 0.58, 10));
+    Reflect.set(world, 'enemies', [testEnemy(14, 10, { angle: Math.PI, desiredAngle: Math.PI, speed: 70 })]);
+
+    world.step(0.05, 50);
+
+    expect(world.getSnapshot(50).enemies).toHaveLength(1);
+    expect(owner.collisionCooldown).toBeGreaterThan(0);
+    expect((Reflect.get(world, 'enemies') as Array<{ collisionCooldown: number }>)[0].collisionCooldown).toBeGreaterThan(0);
+  });
+
   it('最后一名玩家结束行动时立即重置共享场地', () => {
     const world = new UltraWorld({ random: () => 0.2 });
     world.connectPlayer('account-a', '玩家甲', 0);
@@ -228,4 +316,14 @@ interface TestPlayerEntity {
 
 function testSegment(col: number, row: number) {
   return { col, row, angle: 0, module: null, neutral: true, timer: 0, ready: true, cooldown: 0, orbit: 0, birthAge: null } as const;
+}
+
+function testEnemy(col: number, row: number, overrides: Record<string, unknown> = {}) {
+  return {
+    id: 99, col, row, angle: 0, color: '#ff5c62', captured: 0, segments: [], birthLength: 1,
+    speed: 0, desiredAngle: 0, targetFoodId: null, think: 999, wobble: 0, slow: 0,
+    knockbackX: 0, knockbackY: 0, poisonTicks: 0, poisonTimer: 0, poisonColor: null,
+    poisonOwnerEntityId: null, bladeCooldown: 0, sawCooldown: 0, collisionCooldown: 0, dead: false,
+    ...overrides,
+  };
 }

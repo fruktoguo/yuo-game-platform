@@ -217,6 +217,7 @@ export interface ClientToServerEvents {
   'ultra:spawn': (ack: (result: ActionResult) => void) => void;
   'ultra:restart': (ack: (result: ActionResult) => void) => void;
   'ultra:leave-run': (ack: (result: ActionResult) => void) => void;
+  'ultra:autopilot': (enabled: boolean, ack: (result: ActionResult) => void) => void;
   'ultra:pause': (paused: boolean, ack: (result: ActionResult) => void) => void;
   'ultra:input': (payload: InputPayload) => void;
   'ultra:upgrade': (moduleId: ModuleId, ack: (result: ActionResult) => void) => void;

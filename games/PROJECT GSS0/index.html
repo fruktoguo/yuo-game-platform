@@ -41,6 +41,9 @@
       </div>
 
       <div class="hud-actions">
+        <button id="lobby-button" class="icon-button lobby-icon" type="button" aria-label="返回大厅" title="返回大厅">
+          <span aria-hidden="true"></span>
+        </button>
         <div class="setting-control">
           <button id="font-button" class="icon-button font-icon" type="button" aria-label="调节字体大小" title="调节字体大小" aria-expanded="false" aria-controls="font-popover">
             <span aria-hidden="true">Aa</span>
@@ -77,6 +80,18 @@
             <label class="toggle-row" for="background-pause-toggle">
               <span>后台暂停</span>
               <input id="background-pause-toggle" type="checkbox" checked>
+              <i aria-hidden="true"></i>
+            </label>
+          </div>
+        </div>
+        <div class="setting-control">
+          <button id="description-button" class="icon-button description-icon" type="button" aria-label="机体详细描述已关闭" title="机体详细描述已关闭" aria-expanded="false" aria-controls="description-popover">
+            <span aria-hidden="true">i</span>
+          </button>
+          <div id="description-popover" class="setting-popover toggle-popover" role="group" aria-label="机体详细描述" aria-hidden="true">
+            <label class="toggle-row" for="description-toggle">
+              <span>机体详细描述</span>
+              <input id="description-toggle" type="checkbox">
               <i aria-hidden="true"></i>
             </label>
           </div>

@@ -394,6 +394,53 @@ input:focus-visible {
   font-weight: 900;
 }
 
+.description-icon span {
+  font-size: calc(17px * var(--font-scale));
+  font-weight: 900;
+  font-family: Georgia, serif;
+  font-style: italic;
+}
+
+.description-icon.is-active {
+  border-color: var(--yellow);
+  color: var(--yellow);
+}
+
+.lobby-icon span {
+  position: relative;
+  display: block;
+  width: 15px;
+  height: 12px;
+  border-left: 2px solid currentColor;
+}
+
+.lobby-icon span::before {
+  content: "";
+  position: absolute;
+  top: 5px;
+  left: 0;
+  width: 13px;
+  height: 2px;
+  background: currentColor;
+}
+
+.lobby-icon span::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 0;
+  width: 7px;
+  height: 7px;
+  border-bottom: 2px solid currentColor;
+  border-left: 2px solid currentColor;
+  transform: rotate(45deg);
+}
+
+.icon-button:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
 .pause-icon > span,
 .pause-icon > span::after {
   display: block;
@@ -1928,7 +1975,7 @@ input:focus-visible {
     grid-column: 1;
     grid-row: 1;
     min-height: 40px;
-    max-width: calc(100vw - 170px);
+    max-width: calc(100vw - 250px);
     gap: 6px;
     padding: 3px 8px 3px 6px;
   }
@@ -2178,6 +2225,17 @@ input:focus-visible {
   .card-action {
     min-height: 38px;
     padding: 7px 14px;
+  }
+}
+
+@media (max-width: 480px) {
+  .brand-lockup {
+    display: none;
+  }
+
+  .hud-actions {
+    grid-column: 1 / -1;
+    justify-self: end;
   }
 }
 

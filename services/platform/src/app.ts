@@ -107,6 +107,7 @@ export function createPlatformApp(config: PlatformConfig, repository: PlatformRe
     await repository.createLaunchTicket(context.session.account.id, game.manifest.id, hashToken(code), expiresAt);
     const launchUrl = new URL(game.launchUrl);
     launchUrl.searchParams.set('launch_code', code);
+    launchUrl.searchParams.set('lobby_url', config.publicBaseUrl);
     return sendSuccess(response, {
       gameId: game.manifest.id,
       launchUrl: launchUrl.toString(),

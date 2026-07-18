@@ -44,6 +44,7 @@
     codexList: document.querySelector("#codex-list"),
     codexCloseButton: document.querySelector("#codex-close-button"),
     levelUpBanner: document.querySelector("#level-up-banner"),
+    lobbyButton: document.querySelector("#lobby-button"),
     fontButton: document.querySelector("#font-button"),
     fontSlider: document.querySelector("#font-slider"),
     fontOutput: document.querySelector("#font-output"),
@@ -60,6 +61,9 @@
     backgroundPauseButton: document.querySelector("#background-pause-button"),
     backgroundPauseToggle: document.querySelector("#background-pause-toggle"),
     backgroundPausePopover: document.querySelector("#background-pause-popover"),
+    descriptionButton: document.querySelector("#description-button"),
+    descriptionToggle: document.querySelector("#description-toggle"),
+    descriptionPopover: document.querySelector("#description-popover"),
     resumeButton: document.querySelector("#resume-button"),
     pauseRestart: document.querySelector("#pause-restart-button"),
     pauseMenuButton: document.querySelector("#pause-menu-button"),
@@ -158,6 +162,67 @@
     { id: "cache", name: "战果缓存节", category: "恢复", color: "#b7e36b", shape: "hex", cooldown: "每5次击破", desc: "累计击破敌人后生成一枚球，多个模块会减少所需击破次数。" }
   ];
 
+  const SHORT_MODULE_DESCRIPTIONS = Object.freeze({
+    spark: "自动锁定并发射高速焰弹。",
+    frost: "发射冰晶弹，削减并减速敌蛇。",
+    prism: "朝目标扇形发射折射弹。",
+    nova: "向四周释放星屑弹幕。",
+    tesla: "在邻近敌蛇间释放连锁电弧。",
+    laser: "瞬间照射最近的敌蛇。",
+    missile: "发射自动追踪敌蛇的导弹。",
+    mine: "留下磁雷，炸伤敌蛇并击退玩家。",
+    blade: "让彩刃环绕机体并切割敌蛇。",
+    pulse: "释放命中周围敌蛇的冲击波。",
+    venom: "发射会持续腐蚀敌蛇的毒弹。",
+    echo: "头部开火时追加偏转弹。",
+    rail: "发射可贯穿多条敌蛇的高速弹。",
+    ricochet: "发射会反弹并连续命中敌蛇的晶体弹。",
+    cluster: "发射追踪爆弹，伤害落点附近敌蛇。",
+    fan: "近距离扇形喷射焰弹。",
+    gravity: "生成拉扯并减速敌蛇的引力井。",
+    shield: "抵消致命碰撞并短暂无敌。",
+    phase: "抵消致命碰撞并保持航向穿过。",
+    repulse: "持续干扰附近敌蛇的转向。",
+    armor: "加快护盾与相位的恢复。",
+    thorns: "敌蛇撞毁在身体上时触发反击弹幕和球。",
+    stabilizer: "缩短反弹后的减速与失控。",
+    magnet: "扩大蛇头吃球范围。",
+    haste: "提高移动速度和转向响应。",
+    chronos: "降低所有敌蛇的移动速度。",
+    tractor: "持续把附近的球拉向蛇头。",
+    fortune: "击破敌蛇时可能额外掉球。",
+    guidance: "强化子弹速度、距离和追踪能力。",
+    feast: "吃球后短暂加速。",
+    salvage: "技能削减敌蛇身体时可能回收成球。",
+    regen: "定期在前方培育球。",
+    bloom: "蓄能完成后，击破敌蛇会额外培育球。",
+    amplifier: "加快头部和定时输出模块的攻击节奏。",
+    needle: "发射可继续穿透下一目标的高速钨针。",
+    mortar: "发射追踪榴弹，爆炸伤害附近敌蛇。",
+    sweep: "释放贯穿全场的宽幅光栅。",
+    sniper: "锁定最近敌蛇并造成强力打击。",
+    flak: "在目标位置引爆范围弹幕。",
+    fork: "从两侧发射追踪电弹夹击目标。",
+    anchor: "发射会长时间减速敌蛇的锚弹。",
+    saw: "持续切割靠近身体节的敌蛇。",
+    flare: "发射会持续灼蚀敌蛇的信标。",
+    scatter: "近距离扇形发射碎晶弹幕。",
+    lance: "发射可贯穿多条敌蛇的大型光矛。",
+    execute: "对较短的敌蛇造成更强打击。",
+    crossfire: "朝多个方向同时发射重型弹体。",
+    phasebolt: "发射会反弹并追踪敌蛇的相位弹。",
+    ram: "蛇头互撞时额外削减敌蛇身体。",
+    buffer: "降低玩家受到的击退力度。",
+    decoy: "削弱敌蛇对玩家身体的避让。",
+    emergency: "身体吃球后获得短暂无敌。",
+    collector: "扩大所有身体节的吃球范围。",
+    beacon: "加快波次刷新速度。",
+    momentum: "提高敌蛇受到的击退力度。",
+    progressor: "升级进度越高，移动越快。",
+    nursery: "定期在蛇尾附近培育球。",
+    cache: "累计击破敌蛇后生成额外球。"
+  });
+
   const MODULE_BY_ID = Object.fromEntries(MODULES.map((module) => [module.id, module]));
   const TARGET_REQUIRED_MODULES = new Set([
     "spark", "frost", "prism", "tesla", "laser", "missile", "venom", "echo",
@@ -217,6 +282,7 @@
   let fontScale = loadSetting("ultra-snake-font-scale", 1, 0.5, 1.5);
   let uiMotionStrength = loadSetting("gss0-ui-motion-strength", 1, 1, 3);
   let backgroundPauseEnabled = loadSetting("gss0-background-pause", 1, 0, 1) >= 0.5;
+  let detailedDescriptionsEnabled = loadSetting("gss0-detailed-descriptions", 0, 0, 1) >= 0.5;
   let bestScore = loadBestScore();
   let recentPicks = [];
   const lastSoundAt = Object.create(null);
@@ -238,6 +304,7 @@
 
   const network = {
     enabled: false,
+    multiplayer: false,
     connecting: false,
     socket: null,
     selfEntityId: null,
@@ -353,6 +420,18 @@
     return dx * dx + dy * dy;
   }
 
+  function sweptContactProgress(start, end, point, radius) {
+    const pathCol = end.col - start.col;
+    const pathRow = end.row - start.row;
+    const pathLengthSquared = pathCol * pathCol + pathRow * pathRow;
+    const progress = pathLengthSquared > 0.000001
+      ? clamp(((point.col - start.col) * pathCol + (point.row - start.row) * pathRow) / pathLengthSquared, 0, 1)
+      : 0;
+    const closestCol = start.col + pathCol * progress;
+    const closestRow = start.row + pathRow * progress;
+    return (point.col - closestCol) ** 2 + (point.row - closestRow) ** 2 < radius * radius ? progress : null;
+  }
+
   function angleDelta(from, to) {
     let delta = (to - from + Math.PI) % TAU - Math.PI;
     if (delta < -Math.PI) delta += TAU;
@@ -451,6 +530,22 @@
     if (persist) saveSetting("gss0-background-pause", backgroundPauseEnabled ? 1 : 0);
   }
 
+  function applyDetailedDescriptions(enabled, persist = true) {
+    detailedDescriptionsEnabled = Boolean(enabled);
+    ui.descriptionToggle.checked = detailedDescriptionsEnabled;
+    ui.descriptionButton.classList.toggle("is-active", detailedDescriptionsEnabled);
+    const status = detailedDescriptionsEnabled ? "已开启" : "已关闭";
+    ui.descriptionButton.setAttribute("aria-label", `机体详细描述${status}`);
+    ui.descriptionButton.title = `机体详细描述${status}`;
+    for (const card of document.querySelectorAll(".module-card[data-module-id]")) {
+      const module = MODULE_BY_ID[card.dataset.moduleId];
+      const description = card.querySelector("p");
+      if (module && description) description.textContent = displayedModuleDescription(module);
+    }
+    renderModuleRack();
+    if (persist) saveSetting("gss0-detailed-descriptions", detailedDescriptionsEnabled ? 1 : 0);
+  }
+
   function setSettingPopover(button, popover, open) {
     const control = button.closest(".setting-control");
     control.classList.toggle("is-open", open);
@@ -464,7 +559,8 @@
       [ui.fontButton, ui.fontPopover],
       [ui.soundButton, ui.soundPopover],
       [ui.motionButton, ui.motionPopover],
-      [ui.backgroundPauseButton, ui.backgroundPausePopover]
+      [ui.backgroundPauseButton, ui.backgroundPausePopover],
+      [ui.descriptionButton, ui.descriptionPopover]
     ]) {
       const control = button.closest(".setting-control");
       if (control === except || !control.classList.contains("is-open")) continue;
@@ -726,6 +822,32 @@
     return new URL(String(relativePath).replace(/^\/+/, ""), new URL(".", window.location.href));
   }
 
+  function resolveLobbyUrl() {
+    const current = new URL(window.location.href);
+    const configured = current.searchParams.get("lobby_url");
+    if (configured) {
+      try {
+        const candidate = new URL(configured, current);
+        if (/^https?:$/.test(candidate.protocol)) return candidate.toString();
+      } catch {
+        // Continue with the deployment-aware fallbacks below.
+      }
+    }
+    if (current.hostname === "localhost" || current.hostname.startsWith("127.")) {
+      return `${current.protocol}//${current.hostname}:3100/`;
+    }
+    if (current.pathname === "/snake" || current.pathname.startsWith("/snake/")) return new URL("/", current.origin).toString();
+    if (document.referrer) {
+      try {
+        const referrer = new URL(document.referrer);
+        if (/^https?:$/.test(referrer.protocol) && referrer.origin !== current.origin) return new URL("/", referrer.origin).toString();
+      } catch {
+        // A malformed referrer should not prevent returning to the local lobby.
+      }
+    }
+    return new URL("/", current.origin).toString();
+  }
+
   function setNetworkStatus(kind, text) {
     ui.networkStatus.classList.remove("is-online", "is-connecting", "is-error");
     if (kind) ui.networkStatus.classList.add(`is-${kind}`);
@@ -850,15 +972,28 @@
     network.snapshot = snapshot;
     network.receivedAt = performance.now();
     const self = snapshot.players.find((item) => item.entityId === network.selfEntityId);
+    const selfAlive = Boolean(self?.alive);
     if (network.lastSelfAlive && self && !self.alive && state !== "menu" && state !== "gameover") {
-      showNetworkGameOver(self);
+      if (testMode) {
+        state = "running";
+        ui.upgrade.classList.remove("is-visible");
+        ui.gameOver.classList.remove("is-visible");
+      } else {
+        showNetworkGameOver(self);
+      }
     }
-    network.lastSelfAlive = Boolean(self?.alive);
+    if (!network.lastSelfAlive && selfAlive && testMode && state !== "menu") {
+      state = "running";
+      ui.upgrade.classList.remove("is-visible");
+      ui.gameOver.classList.remove("is-visible");
+    }
+    network.lastSelfAlive = selfAlive;
   }
 
   function renderNetworkRoster() {
     const connected = network.roster.filter((item) => item.connected);
     const multiplayer = connected.length > 1;
+    network.multiplayer = multiplayer;
     ui.shell.classList.toggle("is-multiplayer", multiplayer);
     ui.scoreboard.setAttribute("aria-hidden", String(!multiplayer));
     ui.scoreboardCount.textContent = `${connected.length}P`;
@@ -950,13 +1085,17 @@
     waveCount = current.waveCount;
     waveTimer = current.waveTimer;
     const previousPlayers = previousById(previous.players, "entityId");
+    const rosterByEntity = previousById(network.roster, "entityId");
     visiblePlayers = current.players.filter((item) => item.alive).map((item) => {
       const old = previousPlayers.get(item.entityId);
+      const rosterPlayer = rosterByEntity.get(item.entityId);
       const view = networkNode(item, old, amount);
       view.angle = interpolateAngle(old?.angle ?? item.angle, item.angle, amount);
       view.desiredAngle = item.desiredAngle;
       view.radius = playerHeadRadiusPixels();
       view.playerColor = PLAYER_COLORS[item.colorIndex % PLAYER_COLORS.length];
+      view.playerId = rosterPlayer?.playerId || item.name;
+      view.isSelf = item.entityId === network.selfEntityId;
       view.protectedState = item.paused || item.choosingUpgrade;
       view.segments = item.segments.map((segment, index) => {
         const oldSegment = old?.segments[index];
@@ -1019,7 +1158,7 @@
   function updateNetwork(dt) {
     const blend = clamp((performance.now() - network.receivedAt) / (1000 / 12), 0, 1);
     applyNetworkPresentation(blend);
-    if (state === "running" && player) {
+    if (state === "running" && player && !testMode) {
       updateInput(dt);
       sendNetworkInput();
     }
@@ -1049,6 +1188,11 @@
     ensureAudio();
     closeSettingPopovers();
     setTestMode(autopilot === true);
+    const modeResult = await emitNetworkAction("ultra:autopilot", testMode);
+    if (!modeResult?.ok) {
+      setNetworkStatus("error", `ULTRA LINK / ${modeResult?.error || "无法切换行动模式"}`);
+      return;
+    }
     const result = await emitNetworkAction(restart && network.lastSelfAlive ? "ultra:restart" : "ultra:spawn");
     if (!result?.ok) {
       setNetworkStatus("error", `ULTRA LINK / ${result?.error || "暂时无法开始"}`);
@@ -1573,6 +1717,19 @@
     sound("ui");
   }
 
+  async function returnToLobby() {
+    closeSettingPopovers();
+    ui.lobbyButton.disabled = true;
+    if (network.enabled && network.lastSelfAlive) {
+      await Promise.race([
+        emitNetworkAction("ultra:leave-run"),
+        new Promise((resolve) => window.setTimeout(resolve, 450))
+      ]);
+      network.lastSelfAlive = false;
+    }
+    window.location.assign(resolveLobbyUrl());
+  }
+
   function gameOver() {
     if (state !== "running") return;
     state = "gameover";
@@ -1843,6 +2000,12 @@
       : description;
   }
 
+  function displayedModuleDescription(module) {
+    return detailedDescriptionsEnabled
+      ? moduleDescription(module)
+      : SHORT_MODULE_DESCRIPTIONS[module.id] || module.desc;
+  }
+
   function resetModuleCardMotion(card) {
     card.style.setProperty("--card-tilt-x", "0deg");
     card.style.setProperty("--card-tilt-y", "0deg");
@@ -1876,13 +2039,14 @@
     const card = document.createElement(interactive ? "button" : "article");
     if (interactive) card.type = "button";
     card.className = "upgrade-card module-card";
+    card.dataset.moduleId = module.id;
     card.style.setProperty("--module-color", module.color);
     card.innerHTML = `
       <div class="card-top">
         <span class="module-swatch shape-${module.shape}" aria-hidden="true"><i></i></span>
         <div class="card-heading"><span>${module.category}型模块</span><h3>${module.name}</h3><small class="card-cooldown">冷却 · ${module.cooldown}</small></div>
       </div>
-      <p>${moduleDescription(module)}</p>
+      <p>${displayedModuleDescription(module)}</p>
       <span class="card-action">${options.actionLabel || "机体档案"} <b aria-hidden="true">${options.actionSymbol || "+"}</b></span>
     `;
     card.addEventListener("pointermove", (event) => updateModuleCardMotion(card, event));
@@ -2144,7 +2308,7 @@
       const item = document.createElement("span");
       item.className = `rack-module shape-${module.shape}`;
       item.style.setProperty("--module-color", module.color);
-      item.title = `${module.name}：${moduleDescription(module)}`;
+      item.title = `${module.name}：${displayedModuleDescription(module)}`;
       item.setAttribute("aria-label", `${module.name}，数量 ${count}`);
       item.innerHTML = `<i aria-hidden="true"></i>${count > 1 ? `<b>${count}</b>` : ""}`;
       ui.rack.append(item);
@@ -2985,8 +3149,61 @@
       }
       const statusMultiplier = enemy.slow > 0 ? 0.55 : 1;
       const speed = enemy.speed * chronosMultiplier * statusMultiplier;
+      const previousPosition = { col: enemy.col, row: enemy.row };
       const nextCol = enemy.col + (Math.cos(enemy.angle) * speed + enemy.knockbackX) * dt;
       const nextRow = enemy.row + (Math.sin(enemy.angle) * speed + enemy.knockbackY) * dt;
+      let playerCollision = null;
+      if (player.collisionCooldown <= 0 && enemy.collisionCooldown <= 0) {
+        const headProgress = sweptContactProgress(
+          previousPosition,
+          { col: nextCol, row: nextRow },
+          player,
+          (player.radius + enemy.radius) / arena.cellSize
+        );
+        if (headProgress !== null) playerCollision = { kind: "head", progress: headProgress };
+      }
+      for (const segment of player.segments) {
+        const progress = sweptContactProgress(previousPosition, { col: nextCol, row: nextRow }, segment, 0.46);
+        if (progress === null || (playerCollision && playerCollision.progress <= progress)) continue;
+        playerCollision = { kind: "body", segment, progress };
+      }
+      if (playerCollision) {
+        enemy.col = previousPosition.col + (nextCol - previousPosition.col) * playerCollision.progress;
+        enemy.row = previousPosition.row + (nextRow - previousPosition.row) * playerCollision.progress;
+        syncNodePosition(enemy);
+        updateEnemyHitBounds(enemy);
+        if (playerCollision.kind === "body") {
+          const thorns = moduleCount("thorns");
+          const thornsReady = thorns > 0 && player.thornsCooldown <= 0;
+          killEnemy(enemy);
+          if (thornsReady) {
+            triggerBodyIntercept(enemy, playerCollision.segment, thorns);
+            player.thornsCooldown = MODULE_TUNING.thorns.baseCooldown
+              * Math.pow(MODULE_TUNING.thorns.extraStackMultiplier, thorns - 1);
+          }
+        } else {
+          let normalX = player.col - enemy.col;
+          let normalY = player.row - enemy.row;
+          if (Math.hypot(normalX, normalY) < 0.001) {
+            normalX = Math.cos(player.angle) - Math.cos(enemy.angle);
+            normalY = Math.sin(player.angle) - Math.sin(enemy.angle);
+          }
+          if (Math.hypot(normalX, normalY) < 0.001) {
+            normalX = -Math.cos(player.angle);
+            normalY = -Math.sin(player.angle);
+          }
+          const ram = moduleCount("ram");
+          if (ram > 0 && player.ramCooldown <= 0) {
+            damageEnemy(enemy, 1, enemy.x, enemy.y, MODULE_BY_ID.ram.color);
+            player.ramCooldown = MODULE_TUNING.ram.baseCooldown * Math.pow(MODULE_TUNING.ram.extraStackMultiplier, ram - 1);
+            effects.push({ type: "ring", x: player.x, y: player.y, color: MODULE_BY_ID.ram.color, life: 0.42, maxLife: 0.42, radius: 6, endRadius: arena.cellSize });
+            playSkillSound("ram");
+          }
+          bounceEntity(player, normalX, normalY, "#dffcff", 0.58);
+          if (!enemy.dead) bounceEntity(enemy, -normalX, -normalY, enemy.color, 0.54);
+        }
+        continue;
+      }
       const wallNormal = wallBounceNormal(nextCol, nextRow);
       if (wallNormal) {
         enemy.col = clamp(nextCol, 0, GRID_SIZE - 1);
@@ -3022,21 +3239,6 @@
         burst(collector.x, collector.y, enemy.color, 5, 55);
         effects.push({ type: "text", x: collector.x, y: collector.y - arena.cellSize * 0.4, text: `×${enemy.captured}`, color: enemy.color, life: 0.55, maxLife: 0.55 });
         break;
-      }
-
-      if (enemy.collisionCooldown <= 0) {
-        const playerBodyHit = player.segments.find((segment) => Math.hypot(enemy.col - segment.col, enemy.row - segment.row) < 0.46);
-        if (playerBodyHit) {
-          const thorns = moduleCount("thorns");
-          const thornsReady = thorns > 0 && player.thornsCooldown <= 0;
-          killEnemy(enemy);
-          if (thornsReady) {
-            triggerBodyIntercept(enemy, playerBodyHit, thorns);
-            player.thornsCooldown = MODULE_TUNING.thorns.baseCooldown
-              * Math.pow(MODULE_TUNING.thorns.extraStackMultiplier, thorns - 1);
-          }
-          continue;
-        }
       }
 
     }
@@ -3851,6 +4053,59 @@
     }
   }
 
+  function drawPlayerHighlight(target, pieceScale) {
+    const pulse = 1 + Math.sin(performance.now() / 180) * 0.08;
+    const radius = 25 * pieceScale * pulse;
+    ctx.save();
+    ctx.translate(target.x, target.y);
+    ctx.rotate(Math.PI / 8);
+    ctx.strokeStyle = "#f3c600";
+    ctx.shadowColor = "#f3c600";
+    ctx.shadowBlur = 12;
+    ctx.lineWidth = Math.max(1.8, 2.4 * pieceScale);
+    ctx.setLineDash([6 * pieceScale, 4 * pieceScale]);
+    ctx.strokeRect(-radius, -radius, radius * 2, radius * 2);
+    ctx.setLineDash([]);
+    ctx.strokeStyle = "rgba(255,255,255,0.9)";
+    ctx.shadowBlur = 0;
+    ctx.lineWidth = Math.max(1, 1.2 * pieceScale);
+    ctx.strokeRect(-radius + 4 * pieceScale, -radius + 4 * pieceScale, (radius - 4 * pieceScale) * 2, (radius - 4 * pieceScale) * 2);
+    ctx.restore();
+  }
+
+  function drawPlayerIdLabel(target, pieceScale) {
+    const label = `@${target.playerId || target.name || "PLAYER"}`;
+    const maxWidth = clamp(arena.cellSize * 5.2, 112, 172);
+    let fontSize = clamp(10 * pieceScale, 8, 11);
+    ctx.save();
+    ctx.font = `900 ${fontSize}px Bahnschrift, Arial Narrow, sans-serif`;
+    while (fontSize > 7 && ctx.measureText(label).width > maxWidth - 14) {
+      fontSize -= 0.5;
+      ctx.font = `900 ${fontSize}px Bahnschrift, Arial Narrow, sans-serif`;
+    }
+    const textWidth = Math.min(maxWidth - 14, ctx.measureText(label).width);
+    const widthValue = textWidth + 14;
+    const heightValue = fontSize + 10;
+    const x = target.x - widthValue / 2;
+    const y = target.y - 31 * pieceScale - heightValue;
+    ctx.fillStyle = target.isSelf ? "rgba(243,198,0,0.96)" : "rgba(8,11,13,0.9)";
+    ctx.strokeStyle = target.isSelf ? "#ffffff" : target.playerColor;
+    ctx.lineWidth = target.isSelf ? 1.4 : 1;
+    ctx.beginPath();
+    ctx.moveTo(x + 5, y);
+    ctx.lineTo(x + widthValue, y);
+    ctx.lineTo(x + widthValue - 5, y + heightValue);
+    ctx.lineTo(x, y + heightValue);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = target.isSelf ? "#090b0c" : "#f6f7f6";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(label, target.x, y + heightValue / 2 + 0.5, maxWidth - 14);
+    ctx.restore();
+  }
+
   function drawPlayer(target = player) {
     if (!target) return;
     const previousPlayer = player;
@@ -3858,8 +4113,9 @@
     player = target;
     activeGrowth = target.growth || (target === previousPlayer ? previousGrowth : null);
     ctx.save();
-    if (player.protectedState) ctx.globalAlpha = 0.48 + Math.sin(gameTime * 28) * 0.28;
     const pieceScale = clamp(arena.cellSize / 34, 0.55, 1);
+    if (network.multiplayer && player.isSelf) drawPlayerHighlight(player, pieceScale);
+    if (player.protectedState) ctx.globalAlpha = 0.48 + Math.sin(gameTime * 28) * 0.28;
     const repulseRange = repulseRangePixels();
     if (repulseRange > 0) {
       ctx.save();
@@ -4022,6 +4278,7 @@
     ctx.fillRect(-5, -10, 8, 2);
     ctx.restore();
     ctx.restore();
+    if (network.multiplayer) drawPlayerIdLabel(player, pieceScale);
     player = previousPlayer;
     activeGrowth = previousGrowth;
   }
@@ -4357,6 +4614,7 @@
 
   ui.startButton.addEventListener("click", () => startGame(false));
   ui.autoTestButton.addEventListener("click", () => startGame(true));
+  ui.lobbyButton.addEventListener("click", () => void returnToLobby());
   ui.codexButton.addEventListener("click", openCodex);
   ui.codexCloseButton.addEventListener("click", closeCodex);
   ui.restartButton.addEventListener("click", () => startGame(testMode));
@@ -4409,10 +4667,21 @@
     sound("ui");
   });
 
+  ui.descriptionButton.addEventListener("click", (event) => {
+    event.stopPropagation();
+    ensureAudio();
+    const control = ui.descriptionButton.closest(".setting-control");
+    const open = !control.classList.contains("is-open");
+    closeSettingPopovers(control);
+    setSettingPopover(ui.descriptionButton, ui.descriptionPopover, open);
+    sound("ui");
+  });
+
   ui.fontPopover.addEventListener("click", (event) => event.stopPropagation());
   ui.soundPopover.addEventListener("click", (event) => event.stopPropagation());
   ui.motionPopover.addEventListener("click", (event) => event.stopPropagation());
   ui.backgroundPausePopover.addEventListener("click", (event) => event.stopPropagation());
+  ui.descriptionPopover.addEventListener("click", (event) => event.stopPropagation());
   ui.fontSlider.addEventListener("input", () => applyFontScale(Number(ui.fontSlider.value) / 100));
   ui.fontSlider.addEventListener("change", () => {
     ensureAudio();
@@ -4433,12 +4702,18 @@
     applyBackgroundPause(ui.backgroundPauseToggle.checked);
     sound("ui");
   });
+  ui.descriptionToggle.addEventListener("change", () => {
+    ensureAudio();
+    applyDetailedDescriptions(ui.descriptionToggle.checked);
+    sound("ui");
+  });
   document.addEventListener("click", () => closeSettingPopovers());
 
   applyFontScale(fontScale, false);
   applySoundVolume(soundVolume, false);
   applyUIMotionStrength(uiMotionStrength, false);
   applyBackgroundPause(backgroundPauseEnabled, false);
+  applyDetailedDescriptions(detailedDescriptionsEnabled, false);
   setTestMode(false);
   ui.best.textContent = Math.floor(bestScore).toLocaleString("zh-CN");
   resize();
