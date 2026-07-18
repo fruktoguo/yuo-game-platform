@@ -1028,8 +1028,9 @@ input:focus-visible {
 
 .start-screen {
   overflow: hidden;
-  place-items: center start;
-  padding-left: clamp(32px, 9vw, 150px);
+  place-items: center;
+  padding-right: clamp(28px, 5vw, 90px);
+  padding-left: clamp(32px, 6vw, 110px);
 }
 
 .start-screen::before {
@@ -1070,11 +1071,21 @@ input:focus-visible {
   will-change: transform;
 }
 
-.start-content {
+.start-layout {
   position: relative;
   z-index: 2;
+  display: grid;
+  width: min(1220px, 100%);
+  grid-template-columns: minmax(430px, 520px) minmax(320px, 420px);
+  align-items: center;
+  justify-content: space-between;
+  gap: clamp(44px, 7vw, 120px);
+}
+
+.start-content {
+  position: relative;
   display: flex;
-  min-width: min(500px, 80vw);
+  min-width: 0;
   align-items: flex-start;
   flex-direction: column;
   color: var(--ink);
@@ -1084,6 +1095,73 @@ input:focus-visible {
   transform-origin: 0 50%;
   transform-style: preserve-3d;
   will-change: transform, filter;
+}
+
+.start-guide {
+  position: relative;
+  color: var(--white);
+  background: rgba(16, 20, 23, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-left: 6px solid var(--yellow);
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.34);
+  clip-path: var(--cut-lg);
+}
+
+.start-guide::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 42px;
+  height: 5px;
+  background: var(--cyan);
+}
+
+.start-guide header {
+  padding: 22px 24px 18px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+.start-guide header span {
+  color: var(--yellow);
+  font-size: calc(9px * var(--font-scale));
+  font-weight: 900;
+}
+
+.start-guide h2 {
+  margin: 5px 0 0;
+  font-size: calc(25px * var(--font-scale));
+  line-height: 1.05;
+}
+
+.start-guide section {
+  padding: 19px 24px 20px;
+}
+
+.start-guide section + section {
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.start-guide section strong {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--white);
+  font-size: calc(14px * var(--font-scale));
+}
+
+.start-guide section strong span {
+  color: var(--cyan);
+  font-size: calc(11px * var(--font-scale));
+  font-variant-numeric: tabular-nums;
+}
+
+.start-guide section p {
+  margin: 9px 0 0;
+  color: #c5cbcd;
+  font-size: calc(11px * var(--font-scale));
+  font-weight: 700;
+  line-height: 1.75;
 }
 
 .title-kicker,
@@ -1940,6 +2018,31 @@ input:focus-visible {
 }
 
 @media (max-width: 900px) {
+  .start-screen {
+    overflow-x: hidden;
+    overflow-y: auto;
+    place-items: start center;
+    padding: calc(28px + var(--safe-top)) 20px calc(28px + var(--safe-bottom));
+  }
+
+  .start-layout {
+    width: min(620px, 100%);
+    grid-template-columns: minmax(0, 1fr);
+    gap: 24px;
+  }
+
+  .start-content {
+    width: 100%;
+    align-items: center;
+    text-align: center;
+    transform-origin: 50% 50%;
+  }
+
+  .start-guide {
+    width: min(500px, 100%);
+    justify-self: center;
+  }
+
   .hud-top {
     grid-template-columns: minmax(190px, 1fr) auto minmax(130px, 1fr);
     padding-right: 10px;
@@ -2071,7 +2174,8 @@ input:focus-visible {
   }
 
   .start-screen {
-    place-items: center;
+    overflow-y: auto;
+    place-items: start center;
     padding-left: 14px;
     background:
       linear-gradient(155deg, rgba(229, 231, 231, 0.96) 0 70%, rgba(10, 13, 15, 0.94) 70.2% 100%);
@@ -2102,6 +2206,31 @@ input:focus-visible {
     width: min(330px, 88vw);
     align-items: center;
     text-align: center;
+  }
+
+  .start-layout {
+    gap: 20px;
+    padding: 18px 0 24px;
+  }
+
+  .start-guide {
+    width: min(360px, 92vw);
+  }
+
+  .start-guide header {
+    padding: 18px 19px 14px;
+  }
+
+  .start-guide h2 {
+    font-size: calc(21px * var(--font-scale));
+  }
+
+  .start-guide section {
+    padding: 15px 19px 16px;
+  }
+
+  .start-guide section p {
+    line-height: 1.62;
   }
 
   .start-actions {
@@ -2250,6 +2379,15 @@ input:focus-visible {
 }
 
 @media (max-height: 640px) and (orientation: landscape) {
+  .start-screen {
+    overflow-y: auto;
+  }
+
+  .start-layout {
+    padding-top: 18px;
+    padding-bottom: 18px;
+  }
+
   .hud-top {
     min-height: 58px;
     padding-top: 6px;
@@ -2283,6 +2421,8 @@ input:focus-visible {
   .start-content h1 span { font-size: calc(38px * var(--font-scale)); }
   .start-content h1 em { font-size: calc(24px * var(--font-scale)); }
   .start-content > p { margin-bottom: 16px; }
+  .start-guide header { padding-top: 15px; padding-bottom: 12px; }
+  .start-guide section { padding-top: 12px; padding-bottom: 12px; }
 
   .upgrade-options { gap: 8px; }
   .upgrade-card { min-height: 192px; }

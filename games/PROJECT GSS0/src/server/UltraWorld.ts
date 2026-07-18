@@ -45,6 +45,15 @@ import type {
 const TAU = Math.PI * 2;
 const PROJECTILE_MIN = -0.5;
 const PROJECTILE_MAX = GRID_SIZE - 0.5;
+const HEAD_TARGET_RANGE = 560;
+const MODULE_TARGET_RANGE = 620;
+const PROJECTILE_RANGE_MULTIPLIER = 1.2;
+const TARGET_REQUIRED_MODULES = new Set<ModuleId>([
+  'spark', 'frost', 'prism', 'tesla', 'laser', 'missile', 'venom', 'echo',
+  'rail', 'ricochet', 'cluster', 'fan', 'gravity', 'needle', 'mortar', 'sweep',
+  'sniper', 'flak', 'fork', 'anchor', 'flare', 'scatter', 'lance', 'execute',
+  'crossfire', 'phasebolt',
+]);
 
 interface PlayerEntity extends UltraPlayerView {
   accountId: string;
@@ -135,6 +144,7 @@ interface HazardEntity extends UltraHazardView {
 interface ShotOptions {
   speed?: number;
   life?: number;
+  range?: number;
   color?: string;
   size?: number;
   pierce?: number;
@@ -1022,18 +1032,28 @@ export class UltraWorld {
   private updateHeadWeapon(player: PlayerEntity, delta: number): void {
     player.headFireTimer -= delta;
     if (player.headFireTimer > 0) return;
-    const target = this.nearestTarget(player, player, this.pixelsToCells(560));
-    if (target) {
-      const fired = this.spawnShot(player, player, target, { color: '#dffcff', speed: 360, size: 3.7 });
-      const echoes = this.moduleCount(player, 'echo');
-      for (let index = 0; index < echoes; index += 1) {
-        const direction = index % 2 ? 1 : -1;
-        const tier = Math.floor(index / 2) + 1;
-        this.spawnShot(player, player, target, { color: MODULE_BY_ID.echo.color, speed: 330, size: 3.4, angleOffset: direction * tier * 0.13 });
-      }
-      if (fired) this.effectSound('shoot', player.entityId);
+    const target = this.nearestTarget(player, player, this.pixelsToCells(HEAD_TARGET_RANGE));
+    if (!target) {
+      player.headFireTimer = 0;
+      return;
     }
-    player.headFireTimer = 1.9 * this.outputRateMultiplier(player) * ATTACK_INTERVAL_SCALE;
+    const fired = this.spawnShot(player, player, target, { color: '#dffcff', speed: 360, size: 3.7, range: HEAD_TARGET_RANGE });
+    const echoes = this.moduleCount(player, 'echo');
+    for (let index = 0; index < echoes; index += 1) {
+      const direction = index % 2 ? 1 : -1;
+      const tier = Math.floor(index / 2) + 1;
+      this.spawnShot(player, player, target, {
+        color: MODULE_BY_ID.echo.color,
+        speed: 330,
+        size: 3.4,
+        angleOffset: direction * tier * 0.13,
+        range: HEAD_TARGET_RANGE,
+      });
+    }
+    if (fired) {
+      this.effectSound('shoot', player.entityId);
+      player.headFireTimer = 1.9 * this.outputRateMultiplier(player) * ATTACK_INTERVAL_SCALE;
+    }
   }
 
   private updateModules(player: PlayerEntity, delta: number): void {
@@ -1098,7 +1118,11 @@ export class UltraWorld {
       }
 
       if (segment.timer > 0) continue;
-      const target = this.nearestTarget(player, segment, this.pixelsToCells(620));
+      const target = this.nearestTarget(player, segment, this.pixelsToCells(MODULE_TARGET_RANGE));
+      if (TARGET_REQUIRED_MODULES.has(segment.module) && !target) {
+        segment.timer = 0;
+        continue;
+      }
       switch (segment.module) {
         case 'spark':
           if (this.spawnShot(player, segment, target, { color: MODULE_BY_ID.spark.color, speed: 390, size: 4.5 })) this.playSkillSound(player, 'spark');
@@ -1282,7 +1306,7 @@ export class UltraWorld {
   private spawnShot(player: PlayerEntity, origin: GridPoint, target: EnemyEntity | null, options: ShotOptions = {}): boolean {
     if (!target || !this.isTargetAlive(target)) return false;
     const angle = Math.atan2(target.row - origin.row, target.col - origin.col) + (options.angleOffset ?? 0);
-    this.createProjectile(player, origin, angle, options, this.targetRef(target));
+    this.createProjectile(player, origin, angle, { range: MODULE_TARGET_RANGE, ...options }, this.targetRef(target));
     return true;
   }
 
@@ -1290,6 +1314,10 @@ export class UltraWorld {
     const guidance = this.moduleCount(player, 'guidance');
     const guidanceMultiplier = 1 + guidance * 0.12;
     const speed = this.pixelsToCells((options.speed ?? 300) * guidanceMultiplier * PROJECTILE_SPEED_SCALE);
+    const baseLife = (options.life ?? 2.1) * guidanceMultiplier;
+    const rangeLife = options.range
+      ? this.pixelsToCells(options.range * PROJECTILE_RANGE_MULTIPLIER * guidanceMultiplier) / speed
+      : Number.POSITIVE_INFINITY;
     this.projectiles.push({
       id: this.allocateProjectileId(),
       ownerEntityId: player.entityId,
@@ -1298,7 +1326,7 @@ export class UltraWorld {
       vx: Math.cos(angle) * speed,
       vy: Math.sin(angle) * speed,
       speed,
-      life: (options.life ?? 2.1) * guidanceMultiplier,
+      life: Math.min(baseLife, rangeLife),
       color: options.color ?? '#dffcff',
       size: options.size ?? 4,
       pierce: options.pierce ?? 0,
@@ -1376,7 +1404,7 @@ export class UltraWorld {
 
   private fireCrossfire(player: PlayerEntity, origin: GridPoint, target: EnemyEntity): void {
     const baseAngle = Math.atan2(target.row - origin.row, target.col - origin.col);
-    for (let index = 0; index < 4; index += 1) this.createProjectile(player, origin, baseAngle + index * Math.PI / 2, { speed: 285, life: 1.7, color: MODULE_BY_ID.crossfire.color, size: 6.2, pierce: 1 });
+    for (let index = 0; index < 4; index += 1) this.createProjectile(player, origin, baseAngle + index * Math.PI / 2, { speed: 285, life: 1.7, range: MODULE_TARGET_RANGE, color: MODULE_BY_ID.crossfire.color, size: 6.2, pierce: 1 });
     this.ring(origin.col, origin.row, MODULE_BY_ID.crossfire.color, 0.4, 5, 1, player.entityId);
   }
 
@@ -1580,6 +1608,7 @@ export class UltraWorld {
     this.refreshProjectileHitBounds();
     for (const projectile of this.projectiles) {
       projectile.life -= delta;
+      let endedByImpact = false;
       const owner = this.playersByEntity.get(projectile.ownerEntityId);
       if (!owner) {
         projectile.life = 0;
@@ -1619,40 +1648,51 @@ export class UltraWorld {
         const progress = this.sweptHitsTarget(start, end, radius, hostile);
         if (progress !== null) (contacts ??= []).push({ hostile, progress, order });
       }
-      if (!contacts) continue;
-      contacts.sort((left, right) => left.progress - right.progress || left.order - right.order);
-      for (const { hostile, progress } of contacts) {
-        if (projectile.life <= 0) break;
-        const key = targetKey(hostile);
-        if (hostile.dead || projectile.hitIds.includes(key)) continue;
-        const hitPoint = {
-          col: start.col + (end.col - start.col) * progress,
-          row: start.row + (end.row - start.row) * progress,
-        };
-        if (projectile.blastRadius > 0) {
-          projectile.col = hitPoint.col;
-          projectile.row = hitPoint.row;
-          this.explodeProjectile(owner, projectile);
-          projectile.life = 0;
-          break;
-        }
-        this.damageTarget(owner, hostile, 1, hitPoint, projectile.color);
-        projectile.hitIds.push(key);
-        if (projectile.slow) hostile.slow = Math.max(hostile.slow, projectile.slow);
-        if (projectile.poison) {
-          hostile.poisonTicks += projectile.poison;
-          hostile.poisonTimer = 0.7 * ATTACK_INTERVAL_SCALE;
-          hostile.poisonColor = projectile.color;
-          hostile.poisonOwnerEntityId = owner.entityId;
-        }
-        if (projectile.pierce > 0) projectile.pierce -= 1;
-        else {
-          projectile.col = hitPoint.col;
-          projectile.row = hitPoint.row;
-          projectile.life = 0;
+      if (contacts) {
+        contacts.sort((left, right) => left.progress - right.progress || left.order - right.order);
+        for (const { hostile, progress } of contacts) {
+          const key = targetKey(hostile);
+          if (hostile.dead || projectile.hitIds.includes(key)) continue;
+          const hitPoint = {
+            col: start.col + (end.col - start.col) * progress,
+            row: start.row + (end.row - start.row) * progress,
+          };
+          if (projectile.blastRadius > 0) {
+            projectile.col = hitPoint.col;
+            projectile.row = hitPoint.row;
+            this.explodeProjectile(owner, projectile);
+            projectile.life = 0;
+            endedByImpact = true;
+            break;
+          }
+          this.damageTarget(owner, hostile, 1, hitPoint, projectile.color);
+          projectile.hitIds.push(key);
+          if (projectile.slow) hostile.slow = Math.max(hostile.slow, projectile.slow);
+          if (projectile.poison) {
+            hostile.poisonTicks += projectile.poison;
+            hostile.poisonTimer = 0.7 * ATTACK_INTERVAL_SCALE;
+            hostile.poisonColor = projectile.color;
+            hostile.poisonOwnerEntityId = owner.entityId;
+          }
+          if (projectile.pierce > 0) projectile.pierce -= 1;
+          else {
+            projectile.col = hitPoint.col;
+            projectile.row = hitPoint.row;
+            projectile.life = 0;
+            endedByImpact = true;
+            break;
+          }
         }
       }
+      if (projectile.life <= 0 && !endedByImpact) this.expireProjectile(owner, projectile);
     }
+  }
+
+  private expireProjectile(owner: PlayerEntity, projectile: ProjectileEntity): void {
+    const col = clamp(projectile.col, PROJECTILE_MIN, PROJECTILE_MAX);
+    const row = clamp(projectile.row, PROJECTILE_MIN, PROJECTILE_MAX);
+    this.ring(col, row, projectile.color, 0.26, Math.max(2, projectile.size * 0.65), Math.max(9, projectile.size * 2.4), owner.entityId, 'pixels');
+    this.burst(col, row, projectile.color, 4, 55, owner.entityId);
   }
 
   private explodeProjectile(owner: PlayerEntity, projectile: ProjectileEntity): void {

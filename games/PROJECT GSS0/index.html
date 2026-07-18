@@ -138,25 +138,42 @@
 
     <section id="start-screen" class="modal-layer start-screen is-visible" aria-labelledby="game-title">
       <div class="start-glow" aria-hidden="true"></div>
-      <div class="start-content">
-        <div id="network-status" class="title-kicker">TACTICAL SURVIVAL / LOCAL</div>
-        <h1 id="game-title"><span>PROJECT GSS0</span></h1>
-        <p>吞噬 / 构筑 / 生存</p>
-        <div class="start-actions">
-          <button id="start-button" class="primary-button" type="button">
-            <span aria-hidden="true">▶</span>
-            开始行动
-          </button>
-          <button id="auto-test-button" class="secondary-button auto-test-button" type="button">
-            <span aria-hidden="true">A</span>
-            自动测试
-          </button>
-          <button id="codex-button" class="secondary-button codex-button" type="button">
-            <span aria-hidden="true">M</span>
-            机体图鉴
-          </button>
+      <div class="start-layout">
+        <div class="start-content">
+          <div id="network-status" class="title-kicker">TACTICAL SURVIVAL / LOCAL</div>
+          <h1 id="game-title"><span>PROJECT GSS0</span></h1>
+          <p>吞噬 / 构筑 / 生存</p>
+          <div class="start-actions">
+            <button id="start-button" class="primary-button" type="button">
+              <span aria-hidden="true">▶</span>
+              开始行动
+            </button>
+            <button id="auto-test-button" class="secondary-button auto-test-button" type="button">
+              <span aria-hidden="true">A</span>
+              自动测试
+            </button>
+            <button id="codex-button" class="secondary-button codex-button" type="button">
+              <span aria-hidden="true">M</span>
+              机体图鉴
+            </button>
+          </div>
+          <div class="best-line">本地最高分 <strong id="best-value">0</strong></div>
         </div>
-        <div class="best-line">本地最高分 <strong id="best-value">0</strong></div>
+
+        <aside class="start-guide" aria-labelledby="start-guide-title">
+          <header>
+            <span>HOW TO PLAY</span>
+            <h2 id="start-guide-title">行动简报</h2>
+          </header>
+          <section>
+            <strong><span>01</span> 单人行动</strong>
+            <p>吞吃球体延长机体，升级时选择模块构筑火力。避开敌蛇身体；用蛇头与敌蛇头碰撞会将双方弹开。暂停和升级会冻结整片战场。</p>
+          </section>
+          <section>
+            <strong><span>02</span> 多人共斗</strong>
+            <p>第二名玩家加入后自动切换多人模式，波次规模随人数增加。玩家攻击不会误伤队友；蛇头相撞会互相弹开，蛇头撞上其他玩家的身体则会死亡。只要仍有人存活，战斗就会继续。</p>
+          </section>
+        </aside>
       </div>
     </section>
 

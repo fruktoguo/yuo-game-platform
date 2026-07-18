@@ -243,6 +243,9 @@
   const WAVE_BASE_INTERVAL = 6;
   const ATTACK_INTERVAL_SCALE = 2;
   const PROJECTILE_SPEED_SCALE = 3;
+  const HEAD_TARGET_RANGE = 560;
+  const MODULE_TARGET_RANGE = 620;
+  const PROJECTILE_RANGE_MULTIPLIER = 1.2;
   const ENEMY_SPEED_SCALE = 0.8;
   const GROWTH_NODE_DELAY = 0.045;
   const GROWTH_PULSE_DURATION = 0.3;
@@ -1293,6 +1296,11 @@
       enemy.radius = arena.cellSize * 0.28;
       enemy.dead = false;
       syncNetworkSegments(enemy.segments, item.segments, old?.segments, amount);
+      let previousNode = enemy;
+      for (const segment of enemy.segments) {
+        segment.angle = Math.atan2(previousNode.row - segment.row, previousNode.col - segment.col);
+        previousNode = segment;
+      }
       enemy.seenAtTick = activeTick;
       enemies.push(enemy);
     }
@@ -2183,7 +2191,7 @@
     };
     const description = descriptions[module.id] || module.desc;
     return TARGET_REQUIRED_MODULES.has(module.id)
-      ? `${description} 冷却结束时若锁定范围内没有目标，本轮空转。`
+      ? `${description} 锁定范围内没有目标时会保留充能，成功释放后才进入冷却。`
       : description;
   }
 
@@ -2774,6 +2782,10 @@
     const speed = (options.speed || 300) * guidanceMultiplier * PROJECTILE_SPEED_SCALE;
     const homing = (options.homing || 0) + guidance * MODULE_TUNING.guidance.homingPerStack;
     const target = options.target && !options.target.dead ? options.target : null;
+    const baseLife = (options.life || 2.1) * guidanceMultiplier;
+    const rangeLife = options.range
+      ? options.range * PROJECTILE_RANGE_MULTIPLIER * guidanceMultiplier / speed
+      : Infinity;
     const projectile = {
       kind: "shot",
       x: origin.x,
@@ -2781,7 +2793,7 @@
       vx: Math.cos(angle) * speed,
       vy: Math.sin(angle) * speed,
       speed,
-      life: (options.life || 2.1) * guidanceMultiplier,
+      life: Math.min(baseLife, rangeLife),
       color: options.color || "#dffcff",
       size: options.size || 4,
       pierce: options.pierce || 0,
@@ -2800,30 +2812,35 @@
   function spawnShot(origin, target, options = {}) {
     if (!target || target.dead) return false;
     const angle = Math.atan2(target.y - origin.y, target.x - origin.x) + (options.angleOffset || 0);
-    createPlayerProjectile(origin, angle, { ...options, target });
+    createPlayerProjectile(origin, angle, { range: MODULE_TARGET_RANGE, ...options, target });
     return true;
   }
 
   function updateHeadWeapon(dt) {
     headFireTimer -= dt;
     if (headFireTimer > 0) return;
-    const target = nearestEnemy(player, 560);
-    if (target) {
-      const fired = spawnShot(player, target, { color: "#dffcff", speed: 360, size: 3.7 });
-      const echoes = moduleCount("echo");
-      for (let index = 0; index < echoes; index += 1) {
-        const direction = index % 2 ? 1 : -1;
-        const tier = Math.floor(index / 2) + 1;
-        spawnShot(player, target, {
-          color: MODULE_BY_ID.echo.color,
-          speed: 330,
-          size: 3.4,
-          angleOffset: direction * tier * 0.13
-        });
-      }
-      if (fired) sound("shoot");
+    const target = nearestEnemy(player, HEAD_TARGET_RANGE);
+    if (!target) {
+      headFireTimer = 0;
+      return;
     }
-    headFireTimer = 1.9 * outputRateMultiplier() * ATTACK_INTERVAL_SCALE;
+    const fired = spawnShot(player, target, { color: "#dffcff", speed: 360, size: 3.7, range: HEAD_TARGET_RANGE });
+    const echoes = moduleCount("echo");
+    for (let index = 0; index < echoes; index += 1) {
+      const direction = index % 2 ? 1 : -1;
+      const tier = Math.floor(index / 2) + 1;
+      spawnShot(player, target, {
+        color: MODULE_BY_ID.echo.color,
+        speed: 330,
+        size: 3.4,
+        angleOffset: direction * tier * 0.13,
+        range: HEAD_TARGET_RANGE
+      });
+    }
+    if (fired) {
+      sound("shoot");
+      headFireTimer = 1.9 * outputRateMultiplier() * ATTACK_INTERVAL_SCALE;
+    }
   }
 
   function playSkillSound(moduleId) {
@@ -2906,7 +2923,11 @@
       }
 
       if (segment.timer > 0) continue;
-      const target = nearestEnemy(segment, 620);
+      const target = nearestEnemy(segment, MODULE_TARGET_RANGE);
+      if (TARGET_REQUIRED_MODULES.has(segment.module) && !target) {
+        segment.timer = 0;
+        continue;
+      }
 
       switch (segment.module) {
         case "spark":
@@ -3174,6 +3195,7 @@
         target,
         speed: 285,
         life: 1.7,
+        range: MODULE_TARGET_RANGE,
         color: MODULE_BY_ID.crossfire.color,
         size: 6.2,
         pierce: 1
@@ -3479,9 +3501,26 @@
     shake = Math.max(shake, 5);
   }
 
+  function expireProjectile(projectile) {
+    const x = clamp(projectile.x, arena.left, arena.right);
+    const y = clamp(projectile.y, arena.top, arena.bottom);
+    effects.push({
+      type: "ring",
+      x,
+      y,
+      color: projectile.color,
+      life: 0.26,
+      maxLife: 0.26,
+      radius: Math.max(2, projectile.size * 0.65),
+      endRadius: Math.max(9, projectile.size * 2.4)
+    });
+    burst(x, y, projectile.color, 4, 55);
+  }
+
   function updateProjectiles(dt) {
     for (const projectile of projectiles) {
       projectile.life -= dt;
+      let endedByImpact = false;
       if (projectile.homing && projectile.target && !projectile.target.dead) {
         const current = Math.atan2(projectile.vy, projectile.vx);
         const target = Math.atan2(projectile.target.y - projectile.y, projectile.target.x - projectile.x);
@@ -3508,12 +3547,13 @@
       }
 
       for (const enemy of enemies) {
-        if (enemy.dead || projectile.life <= 0) continue;
+        if (enemy.dead) continue;
         if (projectile.hitIds?.includes(enemy.id)) continue;
         if (pointHitsEnemy(projectile.x, projectile.y, projectile.size, enemy)) {
           if (projectile.blastRadius) {
             explodeProjectile(projectile);
             projectile.life = 0;
+            endedByImpact = true;
             break;
           }
           damageEnemy(enemy, 1, projectile.x, projectile.y, projectile.color);
@@ -3525,9 +3565,14 @@
             enemy.poisonColor = projectile.color;
           }
           if (projectile.pierce > 0) projectile.pierce -= 1;
-          else projectile.life = 0;
+          else {
+            projectile.life = 0;
+            endedByImpact = true;
+            break;
+          }
         }
       }
+      if (projectile.life <= 0 && !endedByImpact) expireProjectile(projectile);
     }
     projectiles = projectiles.filter((projectile) => projectile.life > 0 && projectile.x >= arena.left && projectile.x <= arena.right && projectile.y >= arena.top && projectile.y <= arena.bottom);
   }

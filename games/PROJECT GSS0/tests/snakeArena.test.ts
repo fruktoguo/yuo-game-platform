@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { DISCONNECT_GRACE_MS, RESPAWN_DELAY_MS } from '../src/shared/constants';
+import { CANONICAL_CELL_SIZE, DISCONNECT_GRACE_MS, RESPAWN_DELAY_MS } from '../src/shared/constants';
 import type { UltraEffect } from '../src/shared/protocol';
 import { UltraWorld } from '../src/server/UltraWorld';
 
@@ -143,6 +143,73 @@ describe('UltraWorld 原版 PvE 与多人共享世界', () => {
     for (let step = 1; step <= 100; step += 1) world.step(0.05, step * 50);
 
     expect(world.getSnapshot(5_000).projectiles).toHaveLength(0);
+  });
+
+  it('锁定技能会等到找到目标并成功释放后才进入冷却', () => {
+    const world = new UltraWorld({ random: () => 0.3 });
+    world.connectPlayer('account-a', '玩家甲', 0);
+    world.spawn('account-a', 0);
+    Reflect.set(world, 'waveTimer', 999);
+    const owner = (Reflect.get(world, 'playersByAccount') as Map<string, TestPlayerEntity & { headFireTimer: number }>).get('account-a')!;
+    const spark = { ...testSegment(owner.col - 0.5, owner.row), module: 'spark' as const, neutral: false, timer: 0 };
+    Reflect.set(owner, 'segments', [spark]);
+    owner.headFireTimer = 0;
+    const updateHeadWeapon = Reflect.get(world, 'updateHeadWeapon') as (player: unknown, delta: number) => void;
+    const updateModules = Reflect.get(world, 'updateModules') as (player: unknown, delta: number) => void;
+
+    updateHeadWeapon.call(world, owner, 0.05);
+    updateModules.call(world, owner, 0.05);
+
+    expect(owner.headFireTimer).toBe(0);
+    expect(spark.timer).toBe(0);
+    expect(Reflect.get(world, 'projectiles')).toHaveLength(0);
+
+    Reflect.set(world, 'enemies', [testEnemy(owner.col + 3, owner.row)]);
+    updateHeadWeapon.call(world, owner, 0.05);
+    updateModules.call(world, owner, 0.05);
+
+    expect(owner.headFireTimer).toBeGreaterThan(0);
+    expect(spark.timer).toBeGreaterThan(0);
+    expect(Reflect.get(world, 'projectiles')).toHaveLength(2);
+  });
+
+  it('有锁定距离的子弹最多飞行对应距离的 1.2 倍', () => {
+    const world = new UltraWorld({ random: () => 0.3 });
+    world.connectPlayer('account-a', '玩家甲', 0);
+    world.spawn('account-a', 0);
+    const owner = (Reflect.get(world, 'playersByAccount') as Map<string, TestPlayerEntity>).get('account-a')!;
+    const createProjectile = Reflect.get(world, 'createProjectile') as (
+      player: unknown,
+      origin: { col: number; row: number },
+      angle: number,
+      options: Record<string, number>,
+    ) => void;
+
+    createProjectile.call(world, owner, owner, 0, { speed: 300, life: 99, range: 620 });
+    const projectile = (Reflect.get(world, 'projectiles') as Array<{ speed: number; life: number }>)[0];
+
+    expect(projectile.speed * projectile.life).toBeCloseTo(620 * 1.2 / CANONICAL_CELL_SIZE, 5);
+  });
+
+  it('子弹未命中而结束飞行时生成轻量消散动画', () => {
+    const world = new UltraWorld({ random: () => 0.3 });
+    world.connectPlayer('account-a', '玩家甲', 0);
+    world.spawn('account-a', 0);
+    const owner = (Reflect.get(world, 'playersByAccount') as Map<string, TestPlayerEntity>).get('account-a')!;
+    const createProjectile = Reflect.get(world, 'createProjectile') as (
+      player: unknown,
+      origin: { col: number; row: number },
+      angle: number,
+      options: Record<string, number | string>,
+    ) => void;
+    const updateProjectiles = Reflect.get(world, 'updateProjectiles') as (delta: number) => void;
+
+    createProjectile.call(world, owner, owner, 0, { speed: 50, life: 0.01, color: '#123456' });
+    updateProjectiles.call(world, 0.05);
+    const expiryEffects = (Reflect.get(world, 'pendingEffects') as UltraEffect[]).filter((effect) => 'color' in effect && effect.color === '#123456');
+
+    expect(expiryEffects.map((effect) => effect.type)).toEqual(expect.arrayContaining(['ring', 'burst']));
+    expect(expiryEffects.every((effect) => effect.audienceEntityId === Reflect.get(owner, 'entityId'))).toBe(true);
   });
 
   it('玩家头撞身体直接死亡，头碰头则双方反弹', () => {
@@ -293,7 +360,7 @@ describe('UltraWorld 原版 PvE 与多人共享世界', () => {
     ) => void;
     const updateProjectiles = Reflect.get(world, 'updateProjectiles') as (delta: number) => void;
 
-    createProjectile.call(world, owner, { col: 5, row: 10 }, 0, { speed: 590, size: 7, life: 1 });
+    createProjectile.call(world, owner, { col: 5, row: 10 }, 0, { speed: 590, size: 7, life: 0.01 });
     updateProjectiles.call(world, 0.05);
 
     expect(target.segments).toHaveLength(0);
