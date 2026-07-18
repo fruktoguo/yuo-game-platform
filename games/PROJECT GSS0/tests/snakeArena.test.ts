@@ -278,6 +278,28 @@ describe('UltraWorld 原版 PvE 与多人共享世界', () => {
     expect((Reflect.get(world, 'enemies') as Array<{ collisionCooldown: number }>)[0].collisionCooldown).toBeGreaterThan(0);
   });
 
+  it('高速投射物跨过敌蛇身体时仍按运动轨迹命中', () => {
+    const world = new UltraWorld({ random: () => 0.3 });
+    world.connectPlayer('account-a', '玩家甲', 0);
+    world.spawn('account-a', 0);
+    const owner = (Reflect.get(world, 'playersByAccount') as Map<string, TestPlayerEntity>).get('account-a')!;
+    const target = testEnemy(18, 10, { segments: [testSegment(6.2, 10)] });
+    Reflect.set(world, 'enemies', [target]);
+    const createProjectile = Reflect.get(world, 'createProjectile') as (
+      player: unknown,
+      origin: { col: number; row: number },
+      angle: number,
+      options: Record<string, number>,
+    ) => void;
+    const updateProjectiles = Reflect.get(world, 'updateProjectiles') as (delta: number) => void;
+
+    createProjectile.call(world, owner, { col: 5, row: 10 }, 0, { speed: 590, size: 7, life: 1 });
+    updateProjectiles.call(world, 0.05);
+
+    expect(target.segments).toHaveLength(0);
+    expect((Reflect.get(world, 'projectiles') as Array<{ life: number }>)[0].life).toBe(0);
+  });
+
   it('最后一名玩家结束行动时立即重置共享场地', () => {
     const world = new UltraWorld({ random: () => 0.2 });
     world.connectPlayer('account-a', '玩家甲', 0);

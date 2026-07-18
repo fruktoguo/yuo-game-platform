@@ -92,6 +92,10 @@ interface EnemyEntity extends UltraEnemyView {
   bladeCooldown: number;
   sawCooldown: number;
   collisionCooldown: number;
+  projectileMinCol: number;
+  projectileMaxCol: number;
+  projectileMinRow: number;
+  projectileMaxRow: number;
   dead: boolean;
 }
 
@@ -910,6 +914,10 @@ export class UltraWorld {
       bladeCooldown: 0,
       sawCooldown: 0,
       collisionCooldown: 0,
+      projectileMinCol: spawn.headCell.col,
+      projectileMaxCol: spawn.headCell.col,
+      projectileMinRow: spawn.headCell.row,
+      projectileMaxRow: spawn.headCell.row,
       dead: false,
     });
     this.burst(spawn.headCell.col, spawn.headCell.row, spawn.color, 22, 145);
@@ -1569,6 +1577,7 @@ export class UltraWorld {
   }
 
   private updateProjectiles(delta: number): void {
+    this.refreshProjectileHitBounds();
     for (const projectile of this.projectiles) {
       projectile.life -= delta;
       const owner = this.playersByEntity.get(projectile.ownerEntityId);
@@ -1584,6 +1593,7 @@ export class UltraWorld {
         projectile.vx = Math.cos(angle) * projectile.speed;
         projectile.vy = Math.sin(angle) * projectile.speed;
       }
+      const start = { col: projectile.col, row: projectile.row };
       projectile.col += projectile.vx * delta;
       projectile.row += projectile.vy * delta;
       const hitHorizontal = projectile.col < PROJECTILE_MIN || projectile.col > PROJECTILE_MAX;
@@ -1598,16 +1608,35 @@ export class UltraWorld {
           projectile.target = null;
         } else projectile.life = 0;
       }
-      for (const hostile of this.hostileTargets(owner)) {
+      const end = { col: projectile.col, row: projectile.row };
+      const radius = this.pixelsToCells(projectile.size);
+      let contacts: Array<{ hostile: EnemyEntity; progress: number; order: number }> | null = null;
+      for (let order = 0; order < this.enemies.length; order += 1) {
+        const hostile = this.enemies[order];
+        if (hostile.dead) continue;
+        const key = targetKey(hostile);
+        if (projectile.hitIds.includes(key)) continue;
+        const progress = this.sweptHitsTarget(start, end, radius, hostile);
+        if (progress !== null) (contacts ??= []).push({ hostile, progress, order });
+      }
+      if (!contacts) continue;
+      contacts.sort((left, right) => left.progress - right.progress || left.order - right.order);
+      for (const { hostile, progress } of contacts) {
         if (projectile.life <= 0) break;
         const key = targetKey(hostile);
-        if (projectile.hitIds.includes(key) || !this.pointHitsTarget(projectile, this.pixelsToCells(projectile.size), hostile)) continue;
+        if (hostile.dead || projectile.hitIds.includes(key)) continue;
+        const hitPoint = {
+          col: start.col + (end.col - start.col) * progress,
+          row: start.row + (end.row - start.row) * progress,
+        };
         if (projectile.blastRadius > 0) {
+          projectile.col = hitPoint.col;
+          projectile.row = hitPoint.row;
           this.explodeProjectile(owner, projectile);
           projectile.life = 0;
           break;
         }
-        this.damageTarget(owner, hostile, 1, projectile, projectile.color);
+        this.damageTarget(owner, hostile, 1, hitPoint, projectile.color);
         projectile.hitIds.push(key);
         if (projectile.slow) hostile.slow = Math.max(hostile.slow, projectile.slow);
         if (projectile.poison) {
@@ -1617,7 +1646,11 @@ export class UltraWorld {
           hostile.poisonOwnerEntityId = owner.entityId;
         }
         if (projectile.pierce > 0) projectile.pierce -= 1;
-        else projectile.life = 0;
+        else {
+          projectile.col = hitPoint.col;
+          projectile.row = hitPoint.row;
+          projectile.life = 0;
+        }
       }
     }
   }
@@ -1849,6 +1882,43 @@ export class UltraWorld {
   private pointHitsTarget(point: GridPoint, radius: number, target: EnemyEntity): boolean {
     if (distanceSquared(point, target) < (radius + 0.28) ** 2) return true;
     return target.segments.some((segment) => distanceSquared(point, segment) < (radius + this.pixelsToCells(9)) ** 2);
+  }
+
+  private refreshProjectileHitBounds(): void {
+    for (const target of this.enemies) {
+      if (target.dead) continue;
+      let minCol = target.col;
+      let maxCol = target.col;
+      let minRow = target.row;
+      let maxRow = target.row;
+      for (const segment of target.segments) {
+        minCol = Math.min(minCol, segment.col);
+        maxCol = Math.max(maxCol, segment.col);
+        minRow = Math.min(minRow, segment.row);
+        maxRow = Math.max(maxRow, segment.row);
+      }
+      target.projectileMinCol = minCol;
+      target.projectileMaxCol = maxCol;
+      target.projectileMinRow = minRow;
+      target.projectileMaxRow = maxRow;
+    }
+  }
+
+  private sweptHitsTarget(start: GridPoint, end: GridPoint, radius: number, target: EnemyEntity): number | null {
+    const padding = radius + 0.28;
+    if (
+      Math.max(start.col, end.col) < target.projectileMinCol - padding
+      || Math.min(start.col, end.col) > target.projectileMaxCol + padding
+      || Math.max(start.row, end.row) < target.projectileMinRow - padding
+      || Math.min(start.row, end.row) > target.projectileMaxRow + padding
+    ) return null;
+    let nearest = sweptContactProgress(start, end, target, radius + 0.28);
+    const segmentRadius = radius + this.pixelsToCells(9);
+    for (const segment of target.segments) {
+      const progress = sweptContactProgress(start, end, segment, segmentRadius);
+      if (progress !== null && (nearest === null || progress < nearest)) nearest = progress;
+    }
+    return nearest;
   }
 
   private isTargetAlive(target: EnemyEntity): boolean {

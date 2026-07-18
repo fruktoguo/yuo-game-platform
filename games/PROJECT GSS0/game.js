@@ -252,7 +252,6 @@
   const NETWORK_BASE_SNAPSHOT_MS = 1000 / 12;
   const NETWORK_INPUT_INTERVAL_MS = 1000 / 30;
   const NETWORK_INPUT_HEARTBEAT_MS = 110;
-  const NETWORK_PROJECTILE_PREDICTION_MS = 120;
   const MAX_RENDER_DPR = 1.5;
   const AMBIENT_RENDER_INTERVAL = 1 / 30;
   const AMBIENT_RENDER_SCALE = 0.55;
@@ -322,11 +321,17 @@
     receivedAt: 0,
     snapshotIntervalMs: NETWORK_BASE_SNAPSHOT_MS,
     snapshotJitterMs: 0,
+    presentationSnapshot: null,
+    lastHudTick: -1,
     lastSelfAlive: false,
     inputSequence: 0,
     lastSentAngle: NaN,
     lastInputAt: 0,
+    playerViews: new Map(),
+    enemyViews: new Map(),
+    foodViews: new Map(),
     projectileViews: new Map(),
+    hazardViews: new Map(),
     upgradeOffer: null,
     moduleSignature: ""
   };
@@ -946,7 +951,7 @@
         network.receivedAt = performance.now();
         network.snapshotIntervalMs = NETWORK_BASE_SNAPSHOT_MS;
         network.snapshotJitterMs = 0;
-        network.projectileViews.clear();
+        clearNetworkViews();
         network.lastSelfAlive = Boolean(result.data.snapshot.players.find((item) => item.entityId === network.selfEntityId)?.alive);
         bestScore = Math.max(bestScore, Number(result.data.profile?.bestScore) || 0);
         ui.best.textContent = Math.floor(bestScore).toLocaleString("zh-CN");
@@ -1112,60 +1117,93 @@
     };
   }
 
-  function networkNode(current, previous, amount) {
-    const col = interpolateNumber(previous?.col, current.col, amount);
-    const row = interpolateNumber(previous?.row, current.row, amount);
-    const node = { ...current, col, row };
-    syncNodePosition(node);
-    return node;
+  function clearNetworkViews() {
+    network.presentationSnapshot = null;
+    network.lastHudTick = -1;
+    network.playerViews.clear();
+    network.enemyViews.clear();
+    network.foodViews.clear();
+    network.projectileViews.clear();
+    network.hazardViews.clear();
   }
 
-  function updateNetworkProjectileViews(items, dt, elapsedMs) {
-    const predictionSeconds = clamp(elapsedMs, 0, NETWORK_PROJECTILE_PREDICTION_MS) / 1000;
-    const correction = 1 - Math.exp(-Math.min(dt, 0.05) * 18);
-    const activeTick = network.snapshot?.tick ?? 0;
-    const result = [];
+  function syncNetworkNode(view, current, previous, amount) {
+    if (view.source !== current) {
+      const segments = view.segments;
+      Object.assign(view, current);
+      if (segments) view.segments = segments;
+      view.source = current;
+    }
+    view.col = interpolateNumber(previous?.col, current.col, amount);
+    view.row = interpolateNumber(previous?.row, current.row, amount);
+    view.x = arena.left + (view.col + 0.5) * arena.cellSize;
+    view.y = arena.top + (view.row + 0.5) * arena.cellSize;
+    return view;
+  }
+
+  function syncNetworkSegments(views, items, previousItems, amount, interpolateAngles = false) {
+    for (let index = 0; index < items.length; index += 1) {
+      const item = items[index];
+      const old = previousItems?.[index];
+      const view = views[index] || {};
+      syncNetworkNode(view, item, old, amount);
+      if (interpolateAngles) view.angle = interpolateAngle(old?.angle ?? item.angle, item.angle, amount);
+      views[index] = view;
+    }
+    views.length = items.length;
+  }
+
+  function pruneNetworkViews(views, activeTick) {
+    for (const [id, view] of views) if (view.seenAtTick !== activeTick) views.delete(id);
+  }
+
+  function networkModuleCounts(segments) {
+    const counts = Object.create(null);
+    for (const segment of segments) if (segment.module) counts[segment.module] = (counts[segment.module] || 0) + 1;
+    return counts;
+  }
+
+  function updateNetworkProjectileViews(items, previousItems, amount) {
+    const activeTick = network.snapshot.tick;
+    projectiles.length = 0;
     for (const item of items) {
-      const targetCol = item.col + item.vx * predictionSeconds;
-      const targetRow = item.row + item.vy * predictionSeconds;
       let view = network.projectileViews.get(item.id);
       if (!view) {
-        view = { col: targetCol, row: targetRow, vx: item.vx, vy: item.vy, seenAtTick: activeTick };
+        view = {};
         network.projectileViews.set(item.id, view);
-      } else {
-        view.col += view.vx * dt;
-        view.row += view.vy * dt;
-        view.col += (targetCol - view.col) * correction;
-        view.row += (targetRow - view.row) * correction;
-        view.vx = item.vx;
-        view.vy = item.vy;
-        view.seenAtTick = activeTick;
       }
-      const projectile = { ...item, col: view.col, row: view.row };
-      syncNodePosition(projectile);
-      projectile.vx *= arena.cellSize;
-      projectile.vy *= arena.cellSize;
-      result.push(projectile);
+      syncNetworkNode(view, item, previousItems.get(item.id), amount);
+      view.vx = item.vx * arena.cellSize;
+      view.vy = item.vy * arena.cellSize;
+      view.seenAtTick = activeTick;
+      projectiles.push(view);
     }
-    for (const [id, view] of network.projectileViews) {
-      if (view.seenAtTick !== activeTick) network.projectileViews.delete(id);
-    }
-    return result;
+    pruneNetworkViews(network.projectileViews, activeTick);
   }
 
-  function applyNetworkPresentation(amount, dt = 0, elapsedMs = 0) {
+  function applyNetworkPresentation(amount) {
     const current = network.snapshot;
     if (!current) return;
     const previous = network.previousSnapshot || current;
     const previousIndexes = network.previousIndexes || indexNetworkSnapshot(previous);
+    const snapshotChanged = network.presentationSnapshot !== current;
+    const activeTick = current.tick;
     gameTime = current.gameTime;
     waveCount = current.waveCount;
     waveTimer = current.waveTimer;
-    visiblePlayers = current.players.filter((item) => item.alive).map((item) => {
+    visiblePlayers.length = 0;
+    for (const item of current.players) {
+      if (!item.alive) continue;
       const old = previousIndexes.players.get(item.entityId);
       const rosterPlayer = network.rosterByEntity.get(item.entityId);
       const playerAmount = item.entityId === network.selfEntityId ? clamp(amount * 1.2, 0, 1) : amount;
-      const view = networkNode(item, old, playerAmount);
+      let view = network.playerViews.get(item.entityId);
+      if (!view) {
+        view = { segments: [] };
+        network.playerViews.set(item.entityId, view);
+      }
+      const sourceChanged = view.source !== item;
+      syncNetworkNode(view, item, old, playerAmount);
       view.angle = interpolateAngle(old?.angle ?? item.angle, item.angle, playerAmount);
       view.desiredAngle = item.desiredAngle;
       view.radius = playerHeadRadiusPixels();
@@ -1173,15 +1211,13 @@
       view.playerId = rosterPlayer?.playerId || item.name;
       view.isSelf = item.entityId === network.selfEntityId;
       view.protectedState = item.paused || item.choosingUpgrade;
-      view.segments = item.segments.map((segment, index) => {
-        const oldSegment = old?.segments[index];
-        const result = networkNode(segment, oldSegment, playerAmount);
-        result.angle = interpolateAngle(oldSegment?.angle ?? segment.angle, segment.angle, playerAmount);
-        return result;
-      });
+      syncNetworkSegments(view.segments, item.segments, old?.segments, playerAmount, true);
+      if (sourceChanged) view.networkModuleCounts = networkModuleCounts(item.segments);
       view.growth = item.growth;
-      return view;
-    });
+      view.seenAtTick = activeTick;
+      visiblePlayers.push(view);
+    }
+    pruneNetworkViews(network.playerViews, activeTick);
     const selfRaw = current.players.find((item) => item.entityId === network.selfEntityId);
     const self = visiblePlayers.find((item) => item.entityId === network.selfEntityId) || null;
     player = self;
@@ -1192,47 +1228,81 @@
       xp = selfRaw.xp;
       xpNeeded = selfRaw.xpNeeded;
       gameTime = selfRaw.survivalTime;
-      activeGrowth = selfRaw.growth ? { ...selfRaw.growth } : null;
-      const moduleSignature = selfRaw.segments.map((segment) => segment.module || "-").join("|");
-      if (moduleSignature !== network.moduleSignature) {
-        network.moduleSignature = moduleSignature;
-        renderModuleRack();
+      activeGrowth = selfRaw.growth;
+      if (snapshotChanged) {
+        const moduleSignature = selfRaw.segments.map((segment) => segment.module || "-").join("|");
+        if (moduleSignature !== network.moduleSignature) {
+          network.moduleSignature = moduleSignature;
+          renderModuleRack();
+        }
       }
     }
 
-    enemies = current.enemies.map((item) => {
+    enemies.length = 0;
+    for (const item of current.enemies) {
       const old = previousIndexes.enemies.get(item.id);
-      const enemy = networkNode(item, old, amount);
+      let enemy = network.enemyViews.get(item.id);
+      if (!enemy) {
+        enemy = { segments: [] };
+        network.enemyViews.set(item.id, enemy);
+      }
+      syncNetworkNode(enemy, item, old, amount);
       enemy.angle = interpolateAngle(old?.angle ?? item.angle, item.angle, amount);
       enemy.radius = arena.cellSize * 0.28;
       enemy.dead = false;
-      enemy.segments = item.segments.map((segment, index) => networkNode(segment, old?.segments[index], amount));
-      updateEnemyHitBounds(enemy);
-      return enemy;
-    });
-    foods = current.foods.map((item) => ({
-      ...networkNode(item, previousIndexes.foods.get(item.id), amount),
-      radius: arena.cellSize * 0.13
-    }));
-    projectiles = updateNetworkProjectileViews(current.projectiles, dt, elapsedMs);
-    hazards = current.hazards.map((item) => ({
-      ...networkNode(item, previousIndexes.hazards.get(item.id), amount),
-      radius: item.radius * arena.cellSize
-    }));
-    pendingEnemySpawns = current.pendingSpawns.map((item) => ({ ...item }));
+      syncNetworkSegments(enemy.segments, item.segments, old?.segments, amount);
+      enemy.seenAtTick = activeTick;
+      enemies.push(enemy);
+    }
+    pruneNetworkViews(network.enemyViews, activeTick);
+
+    foods.length = 0;
+    for (const item of current.foods) {
+      let food = network.foodViews.get(item.id);
+      if (!food) {
+        food = {};
+        network.foodViews.set(item.id, food);
+      }
+      syncNetworkNode(food, item, previousIndexes.foods.get(item.id), amount);
+      food.radius = arena.cellSize * 0.13;
+      food.seenAtTick = activeTick;
+      foods.push(food);
+    }
+    pruneNetworkViews(network.foodViews, activeTick);
+
+    updateNetworkProjectileViews(current.projectiles, previousIndexes.projectiles, amount);
+
+    hazards.length = 0;
+    for (const item of current.hazards) {
+      let hazard = network.hazardViews.get(item.id);
+      if (!hazard) {
+        hazard = {};
+        network.hazardViews.set(item.id, hazard);
+      }
+      syncNetworkNode(hazard, item, previousIndexes.hazards.get(item.id), amount);
+      hazard.radius = item.radius * arena.cellSize;
+      hazard.seenAtTick = activeTick;
+      hazards.push(hazard);
+    }
+    pruneNetworkViews(network.hazardViews, activeTick);
+    pendingEnemySpawns = current.pendingSpawns;
+    network.presentationSnapshot = current;
   }
 
   function updateNetwork(dt) {
     const elapsedMs = performance.now() - network.receivedAt;
     const interpolationMs = clamp(network.snapshotIntervalMs + Math.min(35, network.snapshotJitterMs * 0.65), 60, 140);
     const blend = clamp(elapsedMs / interpolationMs, 0, 1);
-    applyNetworkPresentation(blend, dt, elapsedMs);
+    applyNetworkPresentation(blend);
     if (state === "running" && player && !testMode) {
       updateInput(dt);
       sendNetworkInput();
     }
     updateEffects(dt);
-    updateHud();
+    if (network.lastHudTick !== network.snapshot?.tick) {
+      network.lastHudTick = network.snapshot?.tick ?? -1;
+      updateHud();
+    }
   }
 
   function sendNetworkInput() {
@@ -1975,6 +2045,7 @@
   }
 
   function moduleCount(id) {
+    if (network.enabled && player?.networkModuleCounts) return player.networkModuleCounts[id] || 0;
     let count = 0;
     for (const segment of player.segments) if (segment.module === id) count += 1;
     return count;
