@@ -148,7 +148,7 @@ services:
     depends_on:
       platform:
         condition: service_healthy
-    command: ["node", "games/neon-snake-arena/dist/server/index.js"]
+    command: ["node", "games/PROJECT GSS0/dist/server/index.js"]
     environment:
       PLATFORM_INTERNAL_URL: http://platform:3100
       PLATFORM_SERVICE_TOKEN: ${SNAKE_SERVICE_TOKEN:-dev-snake-service-token-change-before-production-2026}

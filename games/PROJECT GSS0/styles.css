@@ -633,6 +633,143 @@ input:focus-visible {
   will-change: transform;
 }
 
+.multiplayer-scoreboard {
+  position: absolute;
+  z-index: 12;
+  top: calc(88px + var(--safe-top));
+  left: 15px;
+  display: none;
+  width: min(290px, calc(100vw - 30px));
+  max-height: calc(100vh - 190px);
+  overflow: hidden;
+  border-left: 3px solid var(--yellow);
+  background: rgba(9, 12, 14, 0.92);
+  box-shadow: var(--ui-shadow-x) var(--ui-shadow-y) 22px rgba(0, 0, 0, 0.38);
+  filter: drop-shadow(0 20px 30px rgba(0, 0, 0, 0.5));
+  transform: perspective(1200px) translate3d(var(--ui-shift-x), var(--ui-shift-y), 22px) rotateX(var(--ui-tilt-x)) rotateY(var(--ui-tilt-y));
+  transform-origin: 0 50%;
+  pointer-events: none;
+}
+
+#game-shell.is-multiplayer .module-rack {
+  display: none;
+}
+
+#game-shell.is-multiplayer:not(.is-menu) .multiplayer-scoreboard {
+  display: block;
+}
+
+.multiplayer-scoreboard > header,
+.scoreboard-columns,
+.multiplayer-scoreboard li {
+  display: grid;
+  align-items: center;
+}
+
+.multiplayer-scoreboard > header {
+  grid-template-columns: 1fr auto;
+  min-height: 38px;
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.18);
+  background: #171b1e;
+}
+
+.multiplayer-scoreboard > header strong {
+  font-size: calc(11px * var(--font-scale));
+  font-weight: 900;
+}
+
+.multiplayer-scoreboard > header span {
+  color: var(--yellow);
+  font-size: calc(10px * var(--font-scale));
+  font-weight: 900;
+}
+
+.scoreboard-columns,
+.multiplayer-scoreboard li {
+  grid-template-columns: minmax(0, 1fr) 42px 76px;
+  gap: 8px;
+}
+
+.scoreboard-columns {
+  padding: 6px 10px 4px;
+  color: var(--muted);
+  font-size: calc(8px * var(--font-scale));
+  font-weight: 800;
+}
+
+.scoreboard-columns span:nth-child(n + 2) {
+  text-align: right;
+}
+
+.multiplayer-scoreboard ol {
+  max-height: calc(100vh - 275px);
+  margin: 0;
+  padding: 0 7px 7px;
+  overflow: hidden auto;
+  list-style: none;
+}
+
+.multiplayer-scoreboard li {
+  position: relative;
+  min-height: 34px;
+  padding: 6px 4px 6px 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  font-variant-numeric: tabular-nums;
+}
+
+.multiplayer-scoreboard li::before {
+  content: "";
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  left: 2px;
+  width: 3px;
+  background: var(--player-color, var(--cyan));
+}
+
+.multiplayer-scoreboard li.is-self {
+  background: rgba(243, 198, 0, 0.09);
+}
+
+.multiplayer-scoreboard li.is-out {
+  opacity: 0.48;
+}
+
+.multiplayer-scoreboard li strong {
+  overflow: hidden;
+  font-size: calc(10px * var(--font-scale));
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.multiplayer-scoreboard li span,
+.multiplayer-scoreboard li em {
+  text-align: right;
+  font-size: calc(10px * var(--font-scale));
+  font-style: normal;
+  font-weight: 900;
+}
+
+.multiplayer-scoreboard li em {
+  color: var(--yellow);
+}
+
+.title-kicker.is-online::before,
+.title-kicker.is-connecting::before,
+.title-kicker.is-error::before {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 7px;
+  background: currentColor;
+}
+
+.title-kicker.is-online { color: #078795; }
+.title-kicker.is-connecting { color: #8a7310; }
+.title-kicker.is-error { color: #b4232f; }
+
 .rack-module {
   position: relative;
   display: grid;
@@ -1852,6 +1989,19 @@ input:focus-visible {
     padding: 5px;
   }
 
+  .multiplayer-scoreboard {
+    top: auto;
+    bottom: calc(82px + var(--safe-bottom));
+    left: 11px;
+    width: min(250px, calc(100vw - 22px));
+    max-height: min(36vh, 230px);
+    transform: none;
+  }
+
+  .multiplayer-scoreboard ol {
+    max-height: min(25vh, 150px);
+  }
+
   .rack-module {
     width: 28px;
     height: 28px;
@@ -2060,6 +2210,18 @@ input:focus-visible {
     grid-template-columns: repeat(4, 28px);
   }
 
+
+  .multiplayer-scoreboard {
+    top: 70px;
+    bottom: auto;
+    width: 250px;
+    max-height: calc(100vh - 145px);
+  }
+
+  .multiplayer-scoreboard ol {
+    max-height: calc(100vh - 225px);
+  }
+
   .start-content h1 span { font-size: calc(38px * var(--font-scale)); }
   .start-content h1 em { font-size: calc(24px * var(--font-scale)); }
   .start-content > p { margin-bottom: 16px; }
@@ -2111,6 +2273,7 @@ input:focus-visible {
 
   .hud-top,
   .module-rack,
+  .multiplayer-scoreboard,
   .start-content,
   .dialog,
   .upgrade-wrap,

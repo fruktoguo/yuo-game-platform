@@ -190,22 +190,21 @@ try {
   await Promise.all([enterSnakeUltra(firstPage), enterSnakeUltra(secondPage, '自动测试')]);
   await firstPage.locator('.multiplayer-scoreboard').waitFor({ timeout: 10_000 });
   await firstPage.getByText(`@${secondAccount.username}`, { exact: true }).waitFor({ timeout: 10_000 });
-  await firstPage.getByTitle('联机信息').click();
-  await firstPage.getByText(secondAccount.displayName, { exact: true }).waitFor({ timeout: 10_000 });
-  await secondPage.getByTitle('联机信息').click();
-  await secondPage.getByTitle('全服聊天').click();
-  await secondPage.getByLabel('聊天消息').fill(`蛇域联机-${runId}`);
-  await secondPage.getByRole('button', { name: '发送消息' }).click();
-  await firstPage.getByTitle('全服聊天').click();
-  await firstPage.getByText(`蛇域联机-${runId}`, { exact: true }).waitFor({ timeout: 10_000 });
-  await firstPage.getByTitle('实时排行').click();
-  await firstPage.waitForFunction(() => {
-    const summary = document.querySelector('.network-panel header small')?.textContent ?? '';
-    const counts = summary.match(/^(\d+) PLAYER · (\d+) AI$/);
-    return counts !== null && Number(counts[1]) >= 2 && Number(counts[2]) >= 2;
+  assert.equal(await firstPage.locator('#multiplayer-players > li').count(), 2, '多人记分板应显示两名玩家');
+  assert.equal(await firstPage.locator('#game-shell.is-test-mode').count(), 0, '手动玩家不应被自动测试模式影响');
+  assert.equal(await secondPage.locator('#game-shell.is-test-mode').count(), 1, '自动测试只应作用于自己的玩家');
+  await firstPage.getByRole('button', { name: '暂停', exact: true }).click();
+  await firstPage.locator('#pause-screen.is-visible').waitFor();
+  const secondScoreBefore = await secondPage.locator('#score-value').textContent();
+  await secondPage.waitForTimeout(700);
+  const secondScoreAfter = await secondPage.locator('#score-value').textContent();
+  assert.notEqual(secondScoreAfter, secondScoreBefore, '一名玩家暂停时其他玩家应继续行动');
+  await firstPage.getByRole('button', { name: '继续游戏' }).click();
+  await firstPage.waitForFunction(async () => {
+    const health = await fetch('./health').then((response) => response.json());
+    return health.online >= 2 && health.alive >= 2 && health.enemies >= 2;
   }, undefined, { timeout: 10_000 });
   assert.ok(await firstPage.evaluate(() => window.__ultraOscillatorCount > 0), '原版 WebAudio 音效未触发');
-  await firstPage.getByRole('button', { name: '关闭联机信息' }).click();
   await assertTwoDimensionalCanvas(firstPage, 'canvas#game', '贪吃蛇画布');
   const snakeStage = firstPage.locator('#game-shell');
   const snakeCanvasBounds = await firstPage.locator('canvas#game').boundingBox();
@@ -446,7 +445,7 @@ function logStep(message) {
 }
 
 async function enterSnakeUltra(page, mode = '开始行动') {
-  await page.locator('.network-button.is-joined').waitFor({ timeout: 15_000 });
+  await page.locator('#network-status.is-online').waitFor({ timeout: 15_000 });
   const startScreen = page.locator('#start-screen');
   if (await startScreen.evaluate((element) => element.classList.contains('is-visible'))) {
     await page.getByRole('button', { name: mode }).evaluate((button) => button.click());

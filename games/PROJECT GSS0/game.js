@@ -10,6 +10,7 @@
   const arenaShadowCanvas = document.createElement("canvas");
   const arenaShadowCtx = arenaShadowCanvas.getContext("2d");
   let testMode = false;
+  const PLAYER_COLORS = ["#f3c600", "#08c7dc", "#ef3e4a", "#8be04e", "#b49cff", "#ff8a5b", "#70d6ff", "#ff88c7"];
 
   const ui = {
     shell: document.querySelector("#game-shell"),
@@ -63,7 +64,11 @@
     pauseRestart: document.querySelector("#pause-restart-button"),
     pauseMenuButton: document.querySelector("#pause-menu-button"),
     restartButton: document.querySelector("#restart-button"),
-    gameOverMenuButton: document.querySelector("#game-over-menu-button")
+    gameOverMenuButton: document.querySelector("#game-over-menu-button"),
+    networkStatus: document.querySelector("#network-status"),
+    scoreboard: document.querySelector("#multiplayer-scoreboard"),
+    scoreboardCount: document.querySelector("#multiplayer-count"),
+    scoreboardPlayers: document.querySelector("#multiplayer-players")
   };
 
   const TAU = Math.PI * 2;
@@ -217,6 +222,7 @@
   const lastSoundAt = Object.create(null);
 
   let player = null;
+  let visiblePlayers = [];
   let foods = [];
   let enemies = [];
   let projectiles = [];
@@ -229,6 +235,24 @@
   let upgradePending = false;
   let upgradeRevealTimer = 0;
   let lastAmbientRender = -Infinity;
+
+  const network = {
+    enabled: false,
+    connecting: false,
+    socket: null,
+    selfEntityId: null,
+    principal: null,
+    roster: [],
+    previousSnapshot: null,
+    snapshot: null,
+    receivedAt: 0,
+    lastSelfAlive: false,
+    inputSequence: 0,
+    lastSentAngle: NaN,
+    lastInputAt: 0,
+    upgradeOffer: null,
+    moduleSignature: ""
+  };
 
   const keys = new Set();
   const pointer = { active: false, x: 0, y: 0, touchId: null };
@@ -698,6 +722,475 @@
     return makeSegment(point.x, point.y, { ...options, col, row });
   }
 
+  function gameEndpoint(relativePath) {
+    return new URL(String(relativePath).replace(/^\/+/, ""), new URL(".", window.location.href));
+  }
+
+  function setNetworkStatus(kind, text) {
+    ui.networkStatus.classList.remove("is-online", "is-connecting", "is-error");
+    if (kind) ui.networkStatus.classList.add(`is-${kind}`);
+    ui.networkStatus.textContent = text;
+  }
+
+  function setNetworkButtonsDisabled(disabled) {
+    ui.startButton.disabled = disabled;
+    ui.autoTestButton.disabled = disabled;
+  }
+
+  function loadSocketClient() {
+    if (typeof window.io === "function") return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = gameEndpoint("socket.io/socket.io.js").toString();
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error("无法加载联机客户端"));
+      document.head.append(script);
+    });
+  }
+
+  async function bootstrapNetwork() {
+    if (!/^https?:$/.test(window.location.protocol)) return;
+    const url = new URL(window.location.href);
+    const launchCode = url.searchParams.get("launch_code");
+    if (launchCode) {
+      network.connecting = true;
+      setNetworkButtonsDisabled(true);
+      setNetworkStatus("connecting", "TACTICAL SURVIVAL / 正在接入");
+    }
+    try {
+      const response = await fetch(gameEndpoint("api/platform/session"), {
+        method: launchCode ? "POST" : "GET",
+        credentials: "include",
+        headers: launchCode ? { "content-type": "application/json" } : undefined,
+        body: launchCode ? JSON.stringify({ code: launchCode }) : undefined
+      });
+      if (!response.ok) {
+        if (!launchCode && response.status === 401) return;
+        const result = await response.json().catch(() => null);
+        throw new Error(result?.error?.message || "无法建立游戏会话");
+      }
+      const result = await response.json();
+      if (!result?.ok || !result.data) throw new Error(result?.error?.message || "游戏会话无效");
+      network.principal = result.data;
+      if (launchCode) {
+        url.searchParams.delete("launch_code");
+        window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+      }
+      await loadSocketClient();
+      connectNetworkSocket();
+    } catch (error) {
+      network.connecting = false;
+      setNetworkButtonsDisabled(false);
+      setNetworkStatus("error", `联机接入失败 / ${error instanceof Error ? error.message : "请刷新重试"}`);
+    }
+  }
+
+  function connectNetworkSocket() {
+    const socket = window.io({
+      path: gameEndpoint("socket.io").pathname,
+      transports: ["websocket", "polling"],
+      timeout: 8000
+    });
+    network.socket = socket;
+    socket.on("connect", () => {
+      setNetworkStatus("connecting", "TACTICAL SURVIVAL / 正在同步");
+      socket.emit("ultra:join", (result) => {
+        if (!result?.ok || !result.data) {
+          setNetworkStatus("error", `联机接入失败 / ${result?.error || "会话无效"}`);
+          setNetworkButtonsDisabled(false);
+          return;
+        }
+        network.enabled = true;
+        network.connecting = false;
+        network.selfEntityId = result.data.selfEntityId;
+        network.roster = result.data.roster || [];
+        network.previousSnapshot = result.data.snapshot;
+        network.snapshot = result.data.snapshot;
+        network.receivedAt = performance.now();
+        network.lastSelfAlive = Boolean(result.data.snapshot.players.find((item) => item.entityId === network.selfEntityId)?.alive);
+        bestScore = Math.max(bestScore, Number(result.data.profile?.bestScore) || 0);
+        ui.best.textContent = Math.floor(bestScore).toLocaleString("zh-CN");
+        setNetworkButtonsDisabled(false);
+        setNetworkStatus("online", `ULTRA LINK / @${network.principal.username}`);
+        renderNetworkRoster();
+        applyNetworkPresentation(1);
+      });
+    });
+    socket.on("ultra:snapshot", (payload) => {
+      try {
+        receiveNetworkSnapshot(decodeNetworkSnapshot(payload));
+      } catch (error) {
+        console.error("PROJECT GSS0 快照无效", error);
+      }
+    });
+    socket.on("ultra:effects", receiveNetworkEffects);
+    socket.on("ultra:roster", (roster) => {
+      network.roster = Array.isArray(roster) ? roster : [];
+      renderNetworkRoster();
+    });
+    socket.on("ultra:upgrade", (offer) => {
+      network.upgradeOffer = offer;
+      if (offer) showUpgrade(offer.options.map((id) => MODULE_BY_ID[id]).filter(Boolean));
+      else if (state === "upgrade") {
+        ui.upgrade.classList.remove("is-visible");
+        state = "running";
+      }
+    });
+    socket.on("disconnect", () => {
+      if (!network.enabled) return;
+      setNetworkStatus("connecting", "ULTRA LINK / 正在重连");
+    });
+    socket.on("connect_error", () => {
+      if (network.principal) setNetworkStatus("error", "ULTRA LINK / 连接中断");
+    });
+  }
+
+  function receiveNetworkSnapshot(snapshot) {
+    network.previousSnapshot = network.snapshot || snapshot;
+    network.snapshot = snapshot;
+    network.receivedAt = performance.now();
+    const self = snapshot.players.find((item) => item.entityId === network.selfEntityId);
+    if (network.lastSelfAlive && self && !self.alive && state !== "menu" && state !== "gameover") {
+      showNetworkGameOver(self);
+    }
+    network.lastSelfAlive = Boolean(self?.alive);
+  }
+
+  function renderNetworkRoster() {
+    const connected = network.roster.filter((item) => item.connected);
+    const multiplayer = connected.length > 1;
+    ui.shell.classList.toggle("is-multiplayer", multiplayer);
+    ui.scoreboard.setAttribute("aria-hidden", String(!multiplayer));
+    ui.scoreboardCount.textContent = `${connected.length}P`;
+    const ordered = [...connected].sort((left, right) => right.score - left.score || right.level - left.level || left.playerId.localeCompare(right.playerId));
+    ui.scoreboardPlayers.replaceChildren(...ordered.map((item) => {
+      const row = document.createElement("li");
+      row.classList.toggle("is-self", item.entityId === network.selfEntityId);
+      row.classList.toggle("is-out", !item.alive);
+      row.style.setProperty("--player-color", PLAYER_COLORS[item.colorIndex % PLAYER_COLORS.length]);
+      const id = document.createElement("strong");
+      id.textContent = `@${item.playerId}`;
+      id.title = item.name;
+      const levelCell = document.createElement("span");
+      levelCell.textContent = item.level;
+      const scoreCell = document.createElement("em");
+      scoreCell.textContent = Math.floor(item.score).toLocaleString("zh-CN");
+      row.append(id, levelCell, scoreCell);
+      return row;
+    }));
+  }
+
+  function receiveNetworkEffects(items) {
+    if (!Array.isArray(items)) return;
+    for (const item of items) {
+      if (item.audienceEntityId != null && item.audienceEntityId !== network.selfEntityId) continue;
+      if (item.type === "sound") {
+        if (item.kind === "levelCharge") {
+          ui.levelUpBanner.classList.remove("is-active");
+          ui.shell.classList.remove("is-leveling");
+          void ui.levelUpBanner.offsetWidth;
+          ui.levelUpBanner.classList.add("is-active");
+          ui.shell.classList.add("is-leveling");
+          window.setTimeout(() => {
+            ui.levelUpBanner.classList.remove("is-active");
+            ui.shell.classList.remove("is-leveling");
+          }, LEVEL_UP_TRANSITION_DURATION * 1000);
+        }
+        sound(item.kind, item.detail || 0);
+        continue;
+      }
+      if (item.type === "shake") {
+        shake = Math.max(shake, item.strength || 0);
+        continue;
+      }
+      if (item.type === "flash") {
+        flash = Math.max(flash, item.strength || 0);
+        continue;
+      }
+      const from = cellCenter(item.col, item.row);
+      if (item.type === "burst") {
+        burst(from.x, from.y, item.color, item.count, item.speed);
+      } else if (item.type === "ring") {
+        const endRadius = item.endRadiusUnit === "pixels" ? item.endRadius : item.endRadius * arena.cellSize;
+        effects.push({ type: "ring", x: from.x, y: from.y, color: item.color, life: item.life, maxLife: item.life, radius: item.radius, endRadius });
+      } else if (item.type === "beam" || item.type === "lightning") {
+        const to = cellCenter(item.col2, item.row2);
+        effects.push({ type: item.type, x: from.x, y: from.y, x2: to.x, y2: to.y, color: item.color, life: item.life, maxLife: item.life });
+      } else if (item.type === "text") {
+        effects.push({ type: "text", x: from.x, y: from.y, text: item.text, color: item.color, life: item.life, maxLife: item.life });
+      }
+    }
+  }
+
+  function interpolateNumber(from, to, amount) {
+    return Number.isFinite(from) ? from + (to - from) * amount : to;
+  }
+
+  function interpolateAngle(from, to, amount) {
+    return from + angleDelta(from, to) * amount;
+  }
+
+  function previousById(items, key = "id") {
+    return new Map((items || []).map((item) => [item[key], item]));
+  }
+
+  function networkNode(current, previous, amount) {
+    const col = interpolateNumber(previous?.col, current.col, amount);
+    const row = interpolateNumber(previous?.row, current.row, amount);
+    const node = { ...current, col, row };
+    syncNodePosition(node);
+    return node;
+  }
+
+  function applyNetworkPresentation(amount) {
+    const current = network.snapshot;
+    if (!current) return;
+    const previous = network.previousSnapshot || current;
+    gameTime = current.gameTime;
+    waveCount = current.waveCount;
+    waveTimer = current.waveTimer;
+    const previousPlayers = previousById(previous.players, "entityId");
+    visiblePlayers = current.players.filter((item) => item.alive).map((item) => {
+      const old = previousPlayers.get(item.entityId);
+      const view = networkNode(item, old, amount);
+      view.angle = interpolateAngle(old?.angle ?? item.angle, item.angle, amount);
+      view.desiredAngle = item.desiredAngle;
+      view.radius = playerHeadRadiusPixels();
+      view.playerColor = PLAYER_COLORS[item.colorIndex % PLAYER_COLORS.length];
+      view.protectedState = item.paused || item.choosingUpgrade;
+      view.segments = item.segments.map((segment, index) => {
+        const oldSegment = old?.segments[index];
+        const result = networkNode(segment, oldSegment, amount);
+        result.angle = interpolateAngle(oldSegment?.angle ?? segment.angle, segment.angle, amount);
+        return result;
+      });
+      view.growth = item.growth;
+      return view;
+    });
+    const selfRaw = current.players.find((item) => item.entityId === network.selfEntityId);
+    const self = visiblePlayers.find((item) => item.entityId === network.selfEntityId) || null;
+    player = self;
+    if (selfRaw) {
+      score = selfRaw.score;
+      kills = selfRaw.kills;
+      level = selfRaw.level;
+      xp = selfRaw.xp;
+      xpNeeded = selfRaw.xpNeeded;
+      gameTime = selfRaw.survivalTime;
+      activeGrowth = selfRaw.growth ? { ...selfRaw.growth } : null;
+      const moduleSignature = selfRaw.segments.map((segment) => segment.module || "-").join("|");
+      if (moduleSignature !== network.moduleSignature) {
+        network.moduleSignature = moduleSignature;
+        renderModuleRack();
+      }
+    }
+
+    const previousEnemies = previousById(previous.enemies);
+    enemies = current.enemies.map((item) => {
+      const old = previousEnemies.get(item.id);
+      const enemy = networkNode(item, old, amount);
+      enemy.angle = interpolateAngle(old?.angle ?? item.angle, item.angle, amount);
+      enemy.radius = arena.cellSize * 0.28;
+      enemy.dead = false;
+      enemy.segments = item.segments.map((segment, index) => networkNode(segment, old?.segments[index], amount));
+      updateEnemyHitBounds(enemy);
+      return enemy;
+    });
+    const previousFoods = previousById(previous.foods);
+    foods = current.foods.map((item) => ({
+      ...networkNode(item, previousFoods.get(item.id), amount),
+      radius: arena.cellSize * 0.13
+    }));
+    const previousProjectiles = previousById(previous.projectiles);
+    projectiles = current.projectiles.map((item) => {
+      const result = networkNode(item, previousProjectiles.get(item.id), amount);
+      result.vx *= arena.cellSize;
+      result.vy *= arena.cellSize;
+      return result;
+    });
+    const previousHazards = previousById(previous.hazards);
+    hazards = current.hazards.map((item) => ({
+      ...networkNode(item, previousHazards.get(item.id), amount),
+      radius: item.radius * arena.cellSize
+    }));
+    pendingEnemySpawns = current.pendingSpawns.map((item) => ({ ...item }));
+  }
+
+  function updateNetwork(dt) {
+    const blend = clamp((performance.now() - network.receivedAt) / (1000 / 12), 0, 1);
+    applyNetworkPresentation(blend);
+    if (state === "running" && player) {
+      updateInput(dt);
+      sendNetworkInput();
+    }
+    updateEffects(dt);
+    updateHud();
+  }
+
+  function sendNetworkInput() {
+    const socket = network.socket;
+    if (!socket?.connected || !player) return;
+    const now = performance.now();
+    const difference = Number.isFinite(network.lastSentAngle) ? Math.abs(angleDelta(network.lastSentAngle, player.desiredAngle)) : Infinity;
+    if (difference < 0.006 && now - network.lastInputAt < 220) return;
+    network.lastSentAngle = player.desiredAngle;
+    network.lastInputAt = now;
+    socket.emit("ultra:input", { sequence: ++network.inputSequence, desiredAngle: player.desiredAngle });
+  }
+
+  function emitNetworkAction(event, ...args) {
+    return new Promise((resolve) => {
+      if (!network.socket?.connected) return resolve({ ok: false, error: "联机连接尚未就绪" });
+      network.socket.emit(event, ...args, (result) => resolve(result));
+    });
+  }
+
+  async function startNetworkGame(autopilot = false, restart = false) {
+    ensureAudio();
+    closeSettingPopovers();
+    setTestMode(autopilot === true);
+    const result = await emitNetworkAction(restart && network.lastSelfAlive ? "ultra:restart" : "ultra:spawn");
+    if (!result?.ok) {
+      setNetworkStatus("error", `ULTRA LINK / ${result?.error || "暂时无法开始"}`);
+      return;
+    }
+    state = "running";
+    network.lastSelfAlive = true;
+    network.upgradeOffer = null;
+    hideAllModals();
+    particles = [];
+    effects = [];
+    sound("start");
+  }
+
+  function showNetworkGameOver(result) {
+    state = "gameover";
+    shake = 16;
+    flash = 0.5;
+    sound("death");
+    const isNewBest = result.score > bestScore;
+    if (isNewBest) {
+      bestScore = Math.floor(result.score);
+      saveBestScore(bestScore);
+    }
+    ui.finalScore.textContent = Math.floor(result.score).toLocaleString("zh-CN");
+    ui.finalLevel.textContent = result.level;
+    ui.finalKills.textContent = result.kills;
+    ui.finalTime.textContent = formatTime(result.survivalTime);
+    ui.newBest.classList.toggle("is-visible", isNewBest);
+    ui.best.textContent = Math.floor(bestScore).toLocaleString("zh-CN");
+    window.setTimeout(() => {
+      if (state === "gameover") ui.gameOver.classList.add("is-visible");
+    }, 330);
+  }
+
+  function decodeNetworkSnapshot(payload) {
+    const bytes = payload instanceof ArrayBuffer
+      ? new Uint8Array(payload)
+      : ArrayBuffer.isView(payload)
+        ? new Uint8Array(payload.buffer, payload.byteOffset, payload.byteLength)
+        : new Uint8Array(payload);
+    const reader = new NetworkBinaryReader(bytes);
+    if (reader.u32() !== 0x55534e50 || reader.u8() !== 1) throw new Error("快照格式无效");
+    const snapshot = {
+      tick: reader.u32(), serverTime: reader.f64(), gameTime: reader.f32(), waveCount: reader.u16(), waveTimer: reader.f32(), threatLevel: reader.u16(),
+      players: [], enemies: [], foods: [], projectiles: [], hazards: [], pendingSpawns: []
+    };
+    const counts = [reader.u8(), reader.u16(), reader.u16(), reader.u16(), reader.u16(), reader.u16()];
+    for (let index = 0; index < counts[0]; index += 1) snapshot.players.push(readNetworkPlayer(reader));
+    for (let index = 0; index < counts[1]; index += 1) snapshot.enemies.push(readNetworkEnemy(reader));
+    for (let index = 0; index < counts[2]; index += 1) snapshot.foods.push(readNetworkFood(reader));
+    for (let index = 0; index < counts[3]; index += 1) snapshot.projectiles.push(readNetworkProjectile(reader));
+    for (let index = 0; index < counts[4]; index += 1) snapshot.hazards.push(readNetworkHazard(reader));
+    for (let index = 0; index < counts[5]; index += 1) snapshot.pendingSpawns.push(readNetworkSpawn(reader));
+    reader.complete();
+    return snapshot;
+  }
+
+  function readNetworkPlayer(reader) {
+    const entityId = reader.u16();
+    const name = reader.string();
+    const colorIndex = reader.u8();
+    const flags = reader.u8();
+    const result = {
+      entityId, name, colorIndex,
+      connected: Boolean(flags & 1), alive: Boolean(flags & 2), paused: Boolean(flags & 4), choosingUpgrade: Boolean(flags & 8),
+      col: reader.f32(), row: reader.f32(), angle: reader.f32(), desiredAngle: reader.f32(),
+      invulnerable: reader.f32(), collisionCooldown: reader.f32(), score: reader.f32(), kills: reader.u16(), botKills: reader.u16(), pvpKills: reader.u16(),
+      survivalTime: reader.f32(), level: reader.u16(), xp: reader.u16(), xpNeeded: reader.u16(), respawnAt: null, segments: [], growth: null
+    };
+    const respawnAt = reader.f64();
+    result.respawnAt = respawnAt < 0 ? null : respawnAt;
+    const segmentCount = reader.u16();
+    for (let index = 0; index < segmentCount; index += 1) result.segments.push(readNetworkSegment(reader));
+    if (reader.u8()) result.growth = { color: reader.color(), special: Boolean(reader.u8()), elapsed: reader.f32(), nodeCount: reader.u16() };
+    return result;
+  }
+
+  function readNetworkSegment(reader) {
+    const moduleIndex = reader.u8();
+    const flags = reader.u8();
+    return {
+      module: moduleIndex ? MODULES[moduleIndex - 1]?.id || null : null,
+      neutral: Boolean(flags & 1), ready: Boolean(flags & 2),
+      col: reader.f32(), row: reader.f32(), angle: reader.f32(), timer: reader.f32(), cooldown: reader.f32(), orbit: reader.f32(),
+      birthAge: flags & 4 ? reader.f32() : null
+    };
+  }
+
+  function readNetworkEnemy(reader) {
+    const result = { id: reader.u16(), col: reader.f32(), row: reader.f32(), angle: reader.f32(), color: reader.color(), captured: reader.u16(), segments: [] };
+    const count = reader.u16();
+    for (let index = 0; index < count; index += 1) result.segments.push({ col: reader.f32(), row: reader.f32() });
+    return result;
+  }
+
+  function readNetworkFood(reader) {
+    const result = { id: reader.u16(), col: reader.f32(), row: reader.f32(), color: reader.color(), phase: reader.f32(), special: false, isPulled: false };
+    const flags = reader.u8();
+    result.special = Boolean(flags & 1);
+    result.isPulled = Boolean(flags & 2);
+    return result;
+  }
+
+  function readNetworkProjectile(reader) {
+    return { id: reader.u16(), col: reader.f32(), row: reader.f32(), vx: reader.f32(), vy: reader.f32(), color: reader.color(), size: reader.f32() };
+  }
+
+  function readNetworkHazard(reader) {
+    const id = reader.u16();
+    const kind = reader.u8() === 0 ? "mine" : "gravity";
+    return { id, kind, col: reader.f32(), row: reader.f32(), radius: reader.f32(), color: reader.color(), phase: reader.f32() };
+  }
+
+  function readNetworkSpawn(reader) {
+    const id = reader.u16();
+    const color = reader.color();
+    const headCell = { col: reader.f32(), row: reader.f32() };
+    const bodyCells = [];
+    const count = reader.u16();
+    for (let index = 0; index < count; index += 1) bodyCells.push({ col: reader.f32(), row: reader.f32() });
+    return { id, color, headCell, bodyCells, timer: reader.f32(), maxTimer: reader.f32() };
+  }
+
+  class NetworkBinaryReader {
+    constructor(bytes) {
+      this.bytes = bytes;
+      this.view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+      this.offset = 0;
+      this.decoder = new TextDecoder("utf-8", { fatal: true });
+    }
+    ensure(length) { if (this.offset + length > this.bytes.byteLength) throw new Error("快照数据不完整"); }
+    u8() { this.ensure(1); const value = this.view.getUint8(this.offset); this.offset += 1; return value; }
+    u16() { this.ensure(2); const value = this.view.getUint16(this.offset, true); this.offset += 2; return value; }
+    u32() { this.ensure(4); const value = this.view.getUint32(this.offset, true); this.offset += 4; return value; }
+    f32() { this.ensure(4); const value = this.view.getFloat32(this.offset, true); this.offset += 4; return value; }
+    f64() { this.ensure(8); const value = this.view.getFloat64(this.offset, true); this.offset += 8; return value; }
+    string() { const length = this.u8(); this.ensure(length); const value = this.decoder.decode(this.bytes.subarray(this.offset, this.offset + length)); this.offset += length; return value; }
+    color() { return `#${this.u32().toString(16).padStart(6, "0")}`; }
+    complete() { if (this.offset !== this.bytes.byteLength) throw new Error("快照包含多余数据"); }
+  }
+
   function resetGame() {
     gameTime = 0;
     score = 0;
@@ -751,6 +1244,7 @@
       cacheKills: 0,
       segments: []
     };
+    visiblePlayers = [];
 
     renderModuleRack();
     updateHud(true);
@@ -1002,6 +1496,10 @@
   }
 
   function startGame(autopilot = false) {
+    if (network.enabled) {
+      void startNetworkGame(autopilot, network.lastSelfAlive);
+      return;
+    }
     ensureAudio();
     closeSettingPopovers();
     setTestMode(autopilot === true);
@@ -1020,6 +1518,23 @@
   }
 
   function setPaused(paused) {
+    if (network.enabled) {
+      if (paused && state === "running") {
+        state = "paused";
+        ui.pause.classList.add("is-visible");
+        sound("pause");
+        void emitNetworkAction("ultra:pause", true).then((result) => {
+          if (!result?.ok && state === "paused") setPaused(false);
+        });
+      } else if (!paused && state === "paused") {
+        state = "running";
+        ui.pause.classList.remove("is-visible");
+        lastFrame = performance.now();
+        sound("resume");
+        void emitNetworkAction("ultra:pause", false);
+      }
+      return;
+    }
     if (paused && state === "running") {
       state = "paused";
       ui.pause.classList.add("is-visible");
@@ -1033,6 +1548,21 @@
   }
 
   function returnToMenu() {
+    if (network.enabled) {
+      closeSettingPopovers();
+      if (network.lastSelfAlive) void emitNetworkAction("ultra:leave-run");
+      network.lastSelfAlive = false;
+      network.upgradeOffer = null;
+      setTestMode(false);
+      state = "menu";
+      player = null;
+      visiblePlayers = [];
+      hideAllModals();
+      ui.start.classList.add("is-visible");
+      lastFrame = performance.now();
+      sound("ui");
+      return;
+    }
     closeSettingPopovers();
     setTestMode(false);
     resetGame();
@@ -1407,7 +1937,7 @@
     return choices;
   }
 
-  function showUpgrade() {
+  function showUpgrade(networkChoices = null) {
     state = "upgrade";
     ui.levelUpBanner.classList.remove("is-active");
     ui.shell.classList.remove("is-leveling");
@@ -1415,7 +1945,7 @@
     ui.upgradeLevel.textContent = level + 1;
     ui.options.replaceChildren();
 
-    const choices = chooseUpgradeOptions();
+    const choices = networkChoices || chooseUpgradeOptions();
     ui.options.append(...choices.map((module) => createModuleCard(module, {
       actionLabel: "装载到尾部",
       actionSymbol: "+",
@@ -1433,6 +1963,17 @@
 
   function selectUpgrade(module) {
     if (state !== "upgrade") return;
+    if (network.enabled) {
+      void emitNetworkAction("ultra:upgrade", module.id).then((result) => {
+        if (!result?.ok) return;
+        network.upgradeOffer = null;
+        ui.upgrade.classList.remove("is-visible");
+        state = "running";
+        sound("select");
+        lastFrame = performance.now();
+      });
+      return;
+    }
     const required = xpNeeded;
     let removed = 0;
     player.segments = player.segments.filter((segment) => {
@@ -1619,7 +2160,7 @@
     setText(ui.time, formatTime(gameTime));
     setText(ui.kills, kills);
     const population = fieldPopulationCount();
-    const nextWave = waveCount ? (Math.max(0, waveTimer) / waveCountdownRate()).toFixed(1) : "--";
+    const nextWave = waveCount ? (network.enabled ? Math.max(0, waveTimer) : Math.max(0, waveTimer) / waveCountdownRate()).toFixed(1) : "--";
     setText(ui.wave, `${waveCount}/${population} · ${nextWave}`);
     setText(ui.score, Math.floor(score).toLocaleString("zh-CN"));
     setText(ui.level, level);
@@ -1683,6 +2224,13 @@
       if (enemy.dead) continue;
       repel(enemy, 3.2, 3.5);
       for (const segment of enemy.segments) repel(segment, 2.4, 2.8);
+    }
+    if (network.enabled) {
+      for (const other of visiblePlayers) {
+        if (other === player || other.protectedState) continue;
+        repel(other, 3.2, 3.5);
+        for (const segment of other.segments) repel(segment, 2.8, 3);
+      }
     }
 
     return Math.atan2(vectorY, vectorX);
@@ -2826,6 +3374,10 @@
   }
 
   function update(dt) {
+    if (network.enabled) {
+      updateNetwork(dt);
+      return;
+    }
     if (state !== "running") {
       if (state === "upgrade" && player) updateSegmentBirthAnimations(dt);
       updateEffects(dt);
@@ -3056,14 +3608,17 @@
     for (const food of foods) {
       const pulse = 1 + Math.sin(time * 5 + food.phase) * 0.08;
       ctx.save();
-      if (food.isPulled) {
+      const pullTarget = network.enabled
+        ? visiblePlayers.reduce((nearest, candidate) => !nearest || distanceSquared(candidate, food) < distanceSquared(nearest, food) ? candidate : nearest, null)
+        : player;
+      if (food.isPulled && pullTarget) {
         ctx.globalAlpha = 0.45 + Math.sin(time * 12 + food.phase) * 0.12;
         ctx.strokeStyle = MODULE_BY_ID.tractor.color;
         ctx.lineWidth = Math.max(1, arena.cellSize * 0.045);
         ctx.setLineDash([arena.cellSize * 0.2, arena.cellSize * 0.12]);
         ctx.beginPath();
         ctx.moveTo(food.x, food.y);
-        ctx.lineTo(player.x, player.y);
+        ctx.lineTo(pullTarget.x, pullTarget.y);
         ctx.stroke();
         ctx.setLineDash([]);
         ctx.globalAlpha = 1;
@@ -3296,7 +3851,14 @@
     }
   }
 
-  function drawPlayer() {
+  function drawPlayer(target = player) {
+    if (!target) return;
+    const previousPlayer = player;
+    const previousGrowth = activeGrowth;
+    player = target;
+    activeGrowth = target.growth || (target === previousPlayer ? previousGrowth : null);
+    ctx.save();
+    if (player.protectedState) ctx.globalAlpha = 0.48 + Math.sin(gameTime * 28) * 0.28;
     const pieceScale = clamp(arena.cellSize / 34, 0.55, 1);
     const repulseRange = repulseRangePixels();
     if (repulseRange > 0) {
@@ -3424,7 +3986,7 @@
     ctx.scale(pieceScale * headScale, pieceScale * headScale);
     ctx.rotate(player.angle);
     if (player.invulnerable > 0) ctx.globalAlpha = 0.6 + Math.sin(gameTime * 28) * 0.25;
-    ctx.shadowColor = headGrowthPulse > 0 ? activeGrowth.color : "rgba(243,198,0,0.7)";
+    ctx.shadowColor = headGrowthPulse > 0 ? activeGrowth.color : (player.playerColor || "rgba(243,198,0,0.7)");
     ctx.shadowBlur = 14 + headGrowthPulse * 9;
     ctx.fillStyle = "#e7e9e8";
     ctx.strokeStyle = "#090b0c";
@@ -3451,7 +4013,7 @@
     ctx.lineTo(7, -7);
     ctx.closePath();
     ctx.fill();
-    ctx.fillStyle = "#f3c600";
+    ctx.fillStyle = player.playerColor || "#f3c600";
     ctx.fillRect(-12, -9, 4, 18);
     ctx.fillStyle = "#08c7dc";
     ctx.fillRect(4, -6, 7, 3);
@@ -3459,6 +4021,9 @@
     ctx.fillStyle = "rgba(255,255,255,0.85)";
     ctx.fillRect(-5, -10, 8, 2);
     ctx.restore();
+    ctx.restore();
+    player = previousPlayer;
+    activeGrowth = previousGrowth;
   }
 
   function drawPolygonPath(x, y, radius, sides = 8, rotation = -Math.PI / 8) {
@@ -3674,7 +4239,11 @@
     drawEnemySpawnWarnings(visualTime);
     drawHazards(visualTime);
     for (const enemy of enemies) drawEnemy(enemy);
-    if (player) drawPlayer();
+    if (network.enabled) {
+      for (const networkPlayer of visiblePlayers) drawPlayer(networkPlayer);
+    } else if (player) {
+      drawPlayer();
+    }
     drawProjectiles();
     drawEffects();
     ctx.restore();
@@ -3875,5 +4444,6 @@
   resize();
   resetGame();
   state = "menu";
+  void bootstrapNetwork();
   requestAnimationFrame(frame);
 })();

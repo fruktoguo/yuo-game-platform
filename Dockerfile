@@ -11,7 +11,7 @@ COPY packages/persistence/package.json packages/persistence/package.json
 COPY packages/realtime/package.json packages/realtime/package.json
 COPY games/life-commons/package.json games/life-commons/package.json
 COPY games/billiards-arena/package.json games/billiards-arena/package.json
-COPY games/neon-snake-arena/package.json games/neon-snake-arena/package.json
+COPY ["games/PROJECT GSS0/package.json", "games/PROJECT GSS0/package.json"]
 RUN npm ci
 
 COPY . .
@@ -47,8 +47,8 @@ COPY --from=build --chown=platform:platform /app/games/life-commons/package.json
 COPY --from=build --chown=platform:platform /app/games/life-commons/dist ./games/life-commons/dist
 COPY --from=build --chown=platform:platform /app/games/billiards-arena/package.json ./games/billiards-arena/package.json
 COPY --from=build --chown=platform:platform /app/games/billiards-arena/dist ./games/billiards-arena/dist
-COPY --from=build --chown=platform:platform /app/games/neon-snake-arena/package.json ./games/neon-snake-arena/package.json
-COPY --from=build --chown=platform:platform /app/games/neon-snake-arena/dist ./games/neon-snake-arena/dist
+COPY --from=build --chown=platform:platform ["/app/games/PROJECT GSS0/package.json", "./games/PROJECT GSS0/package.json"]
+COPY --from=build --chown=platform:platform ["/app/games/PROJECT GSS0/dist", "./games/PROJECT GSS0/dist"]
 
 USER platform
 
