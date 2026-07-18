@@ -33,7 +33,7 @@ import type {
 import { groupLabel } from '../../shared/rules';
 import type { CameraMode, SceneInteraction } from '../game/BilliardsRenderer';
 import { GameAudio } from '../game/audio';
-import { GameCanvas } from './GameCanvas';
+import { GameCanvas, type ShotVisual } from './GameCanvas';
 import { SpinControl } from './SpinControl';
 
 interface GameRoomProps {
@@ -72,15 +72,18 @@ export function GameRoom({
   const [aimAngle, setAimAngle] = useState(0);
   const [power, setPower] = useState(0.58);
   const [spin, setSpin] = useState({ x: 0, y: 0 });
-  const [cameraMode, setCameraMode] = useState<CameraMode>('overhead');
+  const [cameraMode, setCameraMode] = useState<CameraMode>('cinematic');
   const [activePanel, setActivePanel] = useState<'controls' | 'chat'>('controls');
   const [chatText, setChatText] = useState('');
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [showRules, setShowRules] = useState(false);
   const [copied, setCopied] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [isShooting, setIsShooting] = useState(false);
+  const [shotVisual, setShotVisual] = useState<ShotVisual | null>(null);
   const audioRef = useRef<GameAudio | null>(null);
   const lastEventIdRef = useRef<string | null>(null);
+  const shotSequenceRef = useRef(0);
   const shootRef = useRef<() => Promise<void>>(async () => undefined);
 
   if (!audioRef.current) audioRef.current = new GameAudio();
@@ -112,7 +115,8 @@ export function GameRoom({
     power,
     calledPocket: snapshot?.calledPocket ?? null,
     cameraMode,
-  }), [aimAngle, cameraMode, canAim, canCallPocket, canPlace, power, snapshot?.calledPocket]);
+    placementConstraint: snapshot?.ballInHand?.constraint ?? null,
+  }), [aimAngle, cameraMode, canAim, canCallPocket, canPlace, power, snapshot?.ballInHand?.constraint, snapshot?.calledPocket]);
 
   const runAction = async (promise: Promise<ActionResult>) => {
     const result = await promise;
@@ -121,27 +125,48 @@ export function GameRoom({
   };
 
   const shoot = async () => {
-    if (!canAim) return;
+    if (!canAim || isShooting) return;
     void audioRef.current?.unlock();
-    const ok = await runAction(onShoot({ angle: aimAngle, power, spinX: spin.x, spinY: spin.y }));
-    if (ok) {
-      setSpin({ x: 0, y: 0 });
-      setPower(0.58);
+    const shot = { angle: aimAngle, power, spinX: spin.x, spinY: spin.y };
+    setIsShooting(true);
+    try {
+      const ok = await runAction(onShoot(shot));
+      if (ok) {
+        shotSequenceRef.current += 1;
+        setShotVisual({ id: shotSequenceRef.current, angle: shot.angle, power: shot.power });
+        navigator.vibrate?.(Math.round(7 + shot.power * 9));
+        setSpin({ x: 0, y: 0 });
+        setPower(0.58);
+      }
+    } finally {
+      setIsShooting(false);
     }
   };
   shootRef.current = shoot;
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.code !== 'Space' || event.repeat || !canAim || (canCallPocket && snapshot?.calledPocket === null)) return;
       const target = event.target instanceof HTMLElement ? event.target : null;
       if (target?.closest('input, textarea, select, button, [contenteditable="true"]')) return;
-      event.preventDefault();
-      void shootRef.current();
+      if (event.code === 'Space' && !event.repeat && canAim && !isShooting && !(canCallPocket && snapshot?.calledPocket === null)) {
+        event.preventDefault();
+        void shootRef.current();
+        return;
+      }
+      if (!canAim) return;
+      const fineStep = event.shiftKey ? Math.PI / 1_800 : Math.PI / 360;
+      if (event.code === 'ArrowLeft' || event.code === 'ArrowRight') {
+        event.preventDefault();
+        setAimAngle((angle) => angle + (event.code === 'ArrowLeft' ? -fineStep : fineStep));
+      }
+      if (event.code === 'ArrowUp' || event.code === 'ArrowDown') {
+        event.preventDefault();
+        setPower((value) => Math.min(1, Math.max(0.05, value + (event.code === 'ArrowUp' ? 0.025 : -0.025))));
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [canAim, canCallPocket, snapshot?.calledPocket]);
+  }, [canAim, canCallPocket, isShooting, snapshot?.calledPocket]);
 
   const sendMessage = async () => {
     const text = chatText.trim();
@@ -175,8 +200,11 @@ export function GameRoom({
       <div className="table-stage">
         <GameCanvas
           snapshot={snapshot}
+          event={events.at(-1) ?? null}
+          shotVisual={shotVisual}
           interaction={interaction}
           onAim={setAimAngle}
+          onPowerChange={setPower}
           onPlaceCue={(position) => void runAction(onPlaceCue(position))}
           onCallPocket={(pocket) => void runAction(onCallPocket(pocket))}
           onInteraction={() => void audioRef.current?.unlock()}
@@ -275,17 +303,21 @@ export function GameRoom({
 
             <div className="control-section power-section">
               <div className="control-label"><span>击球力度</span><output>{Math.round(power * 100)}%</output></div>
-              <input
-                type="range"
-                min="0.05"
-                max="1"
-                step="0.01"
-                value={power}
-                disabled={!canAim}
-                aria-label="击球力度"
-                style={{ '--power': `${power * 100}%` } as React.CSSProperties}
-                onChange={(event) => setPower(Number(event.target.value))}
-              />
+              <div className="power-input-wrap">
+                <input
+                  type="range"
+                  min="0.05"
+                  max="1"
+                  step="0.01"
+                  value={power}
+                  disabled={!canAim}
+                  aria-label="击球力度"
+                  aria-valuetext={`${Math.round(power * 100)}%`}
+                  style={{ '--power': `${power * 100}%` } as React.CSSProperties}
+                  onChange={(event) => setPower(Number(event.target.value))}
+                />
+                <span className="power-ticks" aria-hidden="true"><i /><i /><i /><i /><i /></span>
+              </div>
             </div>
 
             <div className="aim-fine-row">
@@ -311,9 +343,15 @@ export function GameRoom({
               </div>
             )}
 
-            <button className="shoot-command" aria-keyshortcuts="Space" disabled={!canAim || (canCallPocket && snapshot?.calledPocket === null)} onClick={() => void shoot()}>
+            <button
+              className={`shoot-command ${canAim && !isShooting ? 'is-armed' : ''}`}
+              aria-keyshortcuts="Space"
+              disabled={!canAim || isShooting || (canCallPocket && snapshot?.calledPocket === null)}
+              style={{ '--shot-power': `${power * 100}%` } as React.CSSProperties}
+              onClick={() => void shoot()}
+            >
               <Crosshair size={21} />
-              {isPlayer ? (isTurn ? '击球' : '等待对手') : '观战中'}
+              {isShooting ? '出杆中' : isPlayer ? (isTurn ? '击球' : '等待对手') : '观战中'}
             </button>
           </div>
         ) : (

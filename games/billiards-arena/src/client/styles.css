@@ -2,7 +2,7 @@
   color-scheme: dark;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   color: #f3f0e8;
-  background: #050c0a;
+  background: #080b0c;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   --ink: #f3f0e8;
@@ -13,8 +13,8 @@
   --brass: #d1ad68;
   --brass-soft: #9e7c44;
   --burgundy: #9d3540;
-  --panel: #0c1513;
-  --panel-strong: #101b18;
+  --panel: #101416;
+  --panel-strong: #151a1b;
   --line: rgba(232, 225, 207, 0.12);
   --shadow: 0 24px 70px rgba(0, 0, 0, 0.42);
 }
@@ -35,7 +35,7 @@ body,
 }
 
 body {
-  background: #050c0a;
+  background: #080b0c;
 }
 
 button,
@@ -593,11 +593,11 @@ input:disabled {
 
 .game-screen {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 318px;
+  grid-template-columns: minmax(0, 1fr) 328px;
   width: 100%;
   height: 100dvh;
   overflow: hidden;
-  background: #050b09;
+  background: #080b0c;
 }
 
 .table-stage {
@@ -605,6 +605,18 @@ input:disabled {
   min-width: 0;
   min-height: 0;
   overflow: hidden;
+  background: #0c1111;
+  box-shadow: inset 0 0 90px rgba(0, 0, 0, 0.72);
+}
+
+.table-stage::after {
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  border: 1px solid rgba(223, 205, 167, 0.055);
+  box-shadow: inset 0 0 58px rgba(0, 0, 0, 0.25);
+  content: "";
+  pointer-events: none;
 }
 
 .game-canvas-host,
@@ -628,6 +640,10 @@ input:disabled {
   cursor: crosshair;
 }
 
+.game-canvas.is-aiming {
+  cursor: grabbing;
+}
+
 .game-toolbar {
   position: absolute;
   z-index: 5;
@@ -648,7 +664,7 @@ input:disabled {
   width: 40px;
   height: 40px;
   border-color: rgba(255, 255, 255, 0.13);
-  background: rgba(7, 14, 12, 0.82);
+  background: rgba(12, 16, 17, 0.86);
   backdrop-filter: blur(12px);
 }
 
@@ -661,7 +677,7 @@ input:disabled {
   border: 1px solid rgba(255, 255, 255, 0.13);
   border-radius: 6px;
   color: var(--ink);
-  background: rgba(7, 14, 12, 0.82);
+  background: rgba(12, 16, 17, 0.86);
   backdrop-filter: blur(12px);
   cursor: pointer;
 }
@@ -721,7 +737,7 @@ input:disabled {
   height: 54px;
   padding: 7px 10px;
   border: 1px solid rgba(255, 255, 255, 0.11);
-  background: rgba(6, 14, 12, 0.83);
+  background: rgba(11, 15, 16, 0.88);
   backdrop-filter: blur(14px);
   transition: border-color 200ms ease, background 200ms ease, transform 200ms ease;
 }
@@ -731,7 +747,7 @@ input:disabled {
 .player-hud.is-active {
   z-index: 1;
   border-color: rgba(209, 173, 104, 0.66);
-  background: rgba(25, 41, 33, 0.93);
+  background: rgba(31, 37, 34, 0.94);
   transform: scale(1.025);
 }
 .player-hud.is-disconnected { opacity: 0.52; }
@@ -793,7 +809,7 @@ input:disabled {
   min-width: 0;
   padding: 7px 14px;
   color: var(--muted);
-  background: rgba(4, 10, 8, 0.9);
+  background: rgba(8, 11, 12, 0.94);
   text-align: center;
   backdrop-filter: blur(14px);
 }
@@ -844,7 +860,8 @@ input:disabled {
   min-width: 0;
   min-height: 0;
   border-left: 1px solid var(--line);
-  background: #091210;
+  background: #0c1011;
+  box-shadow: -16px 0 38px rgba(0, 0, 0, 0.18);
 }
 
 .dock-tabs {
@@ -870,7 +887,7 @@ input:disabled {
 .dock-tabs button.is-active {
   color: var(--ink);
   border-bottom-color: var(--brass);
-  background: #0d1815;
+  background: #151a1a;
 }
 
 .controls-panel {
@@ -889,7 +906,7 @@ input:disabled {
   padding: 3px;
   border: 1px solid var(--line);
   border-radius: 6px;
-  background: #07100e;
+  background: #090d0e;
 }
 
 .camera-segment button {
@@ -904,7 +921,7 @@ input:disabled {
 
 .camera-segment button.is-active {
   color: var(--brass);
-  background: #17231f;
+  background: #222724;
 }
 
 .control-section {
@@ -937,11 +954,32 @@ input:disabled {
   width: 126px;
   aspect-ratio: 1;
   overflow: hidden;
-  border: 5px solid #d8d1c3;
+  border: 5px solid #ded8cc;
   border-radius: 50%;
-  background: #eee7da;
-  box-shadow: inset -14px -16px 24px rgba(66, 54, 39, 0.22), 0 12px 22px rgba(0, 0, 0, 0.2);
+  background: radial-gradient(circle at 34% 27%, #fffdf5 0 7%, #eee9df 22%, #c5c2b9 68%, #858980 100%);
+  box-shadow: inset -14px -16px 24px rgba(43, 47, 43, 0.27), inset 7px 7px 16px rgba(255, 255, 255, 0.45), 0 12px 22px rgba(0, 0, 0, 0.25);
   touch-action: none;
+}
+
+.spin-depth-ring {
+  position: absolute;
+  inset: 12%;
+  border: 1px solid rgba(18, 35, 29, 0.13);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.spin-highlight {
+  position: absolute;
+  top: 17%;
+  left: 22%;
+  width: 20%;
+  height: 12%;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.34);
+  filter: blur(2px);
+  transform: rotate(-28deg);
+  pointer-events: none;
 }
 
 .spin-axis {
@@ -979,6 +1017,28 @@ input:disabled {
   border-radius: 999px;
   appearance: none;
   background: linear-gradient(to right, var(--brass) 0 var(--power), #22302b var(--power) 100%);
+}
+
+.power-input-wrap {
+  position: relative;
+  padding-bottom: 10px;
+}
+
+.power-ticks {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  left: 2px;
+  display: flex;
+  justify-content: space-between;
+  height: 4px;
+  pointer-events: none;
+}
+
+.power-ticks i {
+  width: 1px;
+  height: 4px;
+  background: rgba(220, 213, 197, 0.24);
 }
 
 .power-section input[type="range"]::-webkit-slider-thumb {
@@ -1039,9 +1099,31 @@ input:disabled {
 }
 
 .shoot-command {
+  position: relative;
   width: 100%;
   min-height: 52px;
   margin-top: auto;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.shoot-command::after {
+  position: absolute;
+  z-index: -1;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  width: var(--shot-power, 0%);
+  height: 4px;
+  background: #f6e2ac;
+  box-shadow: 0 -3px 12px rgba(246, 226, 172, 0.28);
+  content: "";
+  transition: width 100ms ease;
+}
+
+.shoot-command.is-armed {
+  border-color: rgba(255, 236, 187, 0.42);
+  box-shadow: 0 12px 34px rgba(98, 68, 24, 0.34), inset 0 1px rgba(255, 255, 255, 0.2);
 }
 
 .chat-panel {
@@ -1113,7 +1195,7 @@ input:disabled {
   border-radius: 6px;
   padding: 0 11px;
   color: var(--ink);
-  background: #07100e;
+  background: #090d0e;
 }
 
 .match-overlay,
@@ -1270,7 +1352,7 @@ input:disabled {
   }
   .entry-panel { padding-right: 32px; }
   .rooms-panel { padding-left: 32px; }
-  .game-screen { grid-template-columns: minmax(0, 1fr) 286px; }
+  .game-screen { grid-template-columns: minmax(0, 1fr) 294px; }
   .controls-panel { padding: 14px; }
   .players-hud { grid-template-columns: minmax(125px, 180px) minmax(120px, 200px) minmax(125px, 180px); }
 }
@@ -1312,7 +1394,7 @@ input:disabled {
   .game-screen {
     display: grid;
     grid-template-columns: 1fr;
-    grid-template-rows: minmax(330px, 58dvh) minmax(270px, 42dvh);
+    grid-template-rows: minmax(300px, 47dvh) minmax(0, 53dvh);
     height: 100dvh;
     overflow: hidden;
   }
@@ -1320,6 +1402,7 @@ input:disabled {
   .control-dock {
     border-top: 1px solid var(--line);
     border-left: 0;
+    box-shadow: 0 -14px 32px rgba(0, 0, 0, 0.2);
   }
 
   .game-toolbar {
@@ -1350,7 +1433,16 @@ input:disabled {
   .player-details span { font-size: 8px; }
   .group-token { display: none; }
   .turn-display { padding: 5px; }
-  .turn-display strong { font-size: 8px; white-space: normal; line-height: 1.25; }
+  .turn-display strong {
+    display: -webkit-box;
+    max-height: 30px;
+    overflow: hidden;
+    font-size: 8px;
+    line-height: 1.25;
+    white-space: normal;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+  }
   .turn-display span { display: none; }
 
   .context-prompt {
@@ -1389,6 +1481,7 @@ input:disabled {
   .spin-point { width: 13px; height: 13px; border-width: 2px; }
   .micro-icon { width: 23px; height: 23px; }
   .power-section { align-self: center; }
+  .power-input-wrap { padding-bottom: 7px; }
   .aim-fine-row {
     grid-template-columns: 34px 1fr 34px;
     gap: 3px;
@@ -1437,7 +1530,7 @@ input:disabled {
   .live-badge { display: none; }
   .players-hud { grid-template-columns: 1fr 72px 1fr; }
   .player-details span { display: none; }
-  .game-screen { grid-template-rows: minmax(310px, 56dvh) minmax(290px, 44dvh); }
+  .game-screen { grid-template-rows: minmax(294px, 47dvh) minmax(0, 53dvh); }
   .controls-panel { grid-template-columns: 76px minmax(110px, 1fr) 92px; gap: 7px; padding-inline: 8px; }
   .spin-control-wrap,
   .spin-control { width: 72px; }
