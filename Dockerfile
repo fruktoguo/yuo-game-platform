@@ -49,6 +49,10 @@ COPY --from=build --chown=platform:platform /app/games/billiards-arena/package.j
 COPY --from=build --chown=platform:platform /app/games/billiards-arena/dist ./games/billiards-arena/dist
 COPY --from=build --chown=platform:platform ["/app/games/PROJECT GSS0/package.json", "./games/PROJECT GSS0/package.json"]
 COPY --from=build --chown=platform:platform ["/app/games/PROJECT GSS0/dist", "./games/PROJECT GSS0/dist"]
+# The installed production Compose file still starts the service through this legacy path.
+RUN mkdir -p games/neon-snake-arena \
+  && ln -s "../PROJECT GSS0/package.json" games/neon-snake-arena/package.json \
+  && ln -s "../PROJECT GSS0/dist" games/neon-snake-arena/dist
 
 USER platform
 
