@@ -370,6 +370,11 @@
     principal: null,
     roster: [],
     rosterByEntity: new Map(),
+    rosterStateByEntity: new Map(),
+    connectedRoster: [],
+    scoreboardRows: new Map(),
+    scoreboardOrder: [],
+    activeScoreboardIds: new Set(),
     snapshot: null,
     snapshotBuffer: [],
     receivedAt: 0,
@@ -384,13 +389,15 @@
     inputSequence: 0,
     lastSentAngle: NaN,
     lastInputAt: 0,
+    selfPredictionAngle: NaN,
+    localDesiredAngle: NaN,
     lastFoodContactAt: 0,
     playerViews: new Map(),
     enemyViews: new Map(),
     foodViews: new Map(),
     hazardViews: new Map(),
     upgradeOffer: null,
-    moduleSignature: ""
+    moduleIds: []
   };
   const networkProjectileRuntime = globalThis.GSS0ProjectileRuntime?.create(GRID_SIZE);
   if (!networkProjectileRuntime) throw new Error("PROJECT GSS0 投射物运行时未加载");
@@ -1093,20 +1100,27 @@
         network.renderServerTime = NaN;
         network.lastPresentationAt = 0;
         clearNetworkViews();
+        const joinedSelf = result.data.snapshot.players.find((item) => item.entityId === network.selfEntityId);
+        network.selfPredictionAngle = joinedSelf?.angle ?? NaN;
+        network.localDesiredAngle = joinedSelf?.desiredAngle ?? NaN;
         networkProjectileRuntime.reset(result.data.projectiles || result.data.snapshot.projectiles || []);
         projectiles = networkProjectileRuntime.items;
-        network.lastSelfAlive = Boolean(result.data.snapshot.players.find((item) => item.entityId === network.selfEntityId)?.alive);
+        network.lastSelfAlive = Boolean(joinedSelf?.alive);
         bestScore = Math.max(bestScore, Number(result.data.profile?.bestScore) || 0);
         ui.best.textContent = Math.floor(bestScore).toLocaleString("zh-CN");
         setNetworkButtonsDisabled(false);
         setNetworkStatus("online", `ULTRA LINK / @${network.principal.username}`);
-        renderNetworkRoster();
+        renderNetworkRoster(result.data.snapshot.players);
         applyNetworkPresentation(result.data.snapshot, result.data.snapshot, network.snapshotBuffer[0].indexes, 1);
       });
     });
     socket.on("ultra:snapshot", (payload) => {
+      const reusableEntry = network.snapshotBuffer.length >= NETWORK_SNAPSHOT_BUFFER_SIZE
+        && network.snapshotBuffer[0]?.snapshot !== network.presentationSnapshot
+        ? network.snapshotBuffer.shift()
+        : null;
       try {
-        receiveNetworkSnapshot(globalThis.GSS0NetworkCodec.decode(payload, MODULES));
+        receiveNetworkSnapshot(globalThis.GSS0NetworkCodec.decode(payload, MODULES, reusableEntry?.snapshot), reusableEntry);
       } catch (error) {
         console.error("PROJECT GSS0 快照无效", error);
       }
@@ -1118,7 +1132,7 @@
     socket.on("ultra:effects", receiveNetworkEffects);
     socket.on("ultra:roster", (roster) => {
       network.roster = Array.isArray(roster) ? roster : [];
-      renderNetworkRoster();
+      renderNetworkRoster(network.snapshot?.players);
     });
     socket.on("ultra:upgrade", (offer) => {
       network.upgradeOffer = offer;
@@ -1137,7 +1151,7 @@
     });
   }
 
-  function receiveNetworkSnapshot(snapshot) {
+  function receiveNetworkSnapshot(snapshot, reusableEntry = null) {
     const receivedAt = performance.now();
     const previousSnapshot = network.snapshot;
     if (previousSnapshot && snapshot.serverTime <= previousSnapshot.serverTime) return;
@@ -1154,10 +1168,23 @@
       }
     }
     network.snapshot = snapshot;
-    network.snapshotBuffer.push(networkSnapshotEntry(snapshot));
+    network.snapshotBuffer.push(networkSnapshotEntry(snapshot, reusableEntry));
     if (network.snapshotBuffer.length > NETWORK_SNAPSHOT_BUFFER_SIZE) network.snapshotBuffer.splice(0, network.snapshotBuffer.length - NETWORK_SNAPSHOT_BUFFER_SIZE);
     network.receivedAt = receivedAt;
     const self = snapshot.players.find((item) => item.entityId === network.selfEntityId);
+    if (self) {
+      const serverHasCurrentInput = Number.isFinite(network.localDesiredAngle)
+        && Math.abs(angleDelta(self.desiredAngle, network.localDesiredAngle)) < 0.004;
+      if (
+        !Number.isFinite(network.selfPredictionAngle)
+        || testMode
+        || self.collisionCooldown > 0
+        || self.paused
+        || self.choosingUpgrade
+        || serverHasCurrentInput
+      ) network.selfPredictionAngle = self.angle;
+      if (!Number.isFinite(network.localDesiredAngle)) network.localDesiredAngle = self.desiredAngle;
+    }
     const selfAlive = Boolean(self?.alive);
     if (network.lastSelfAlive && self && !self.alive && state !== "menu" && state !== "gameover") {
       if (testMode) {
@@ -1174,32 +1201,88 @@
       ui.gameOver.classList.remove("is-visible");
     }
     network.lastSelfAlive = selfAlive;
+    renderNetworkRoster(snapshot.players);
   }
 
-  function renderNetworkRoster() {
-    const connected = network.roster.filter((item) => item.connected);
-    network.rosterByEntity = previousById(network.roster, "entityId");
+  function renderNetworkRoster(snapshotPlayers = []) {
+    const connected = network.connectedRoster;
+    const stateByEntity = network.rosterStateByEntity;
+    connected.length = 0;
+    network.rosterByEntity.clear();
+    stateByEntity.clear();
+    for (const stateItem of snapshotPlayers || []) stateByEntity.set(stateItem.entityId, stateItem);
+    for (const item of network.roster) {
+      network.rosterByEntity.set(item.entityId, item);
+      const stateItem = stateByEntity.get(item.entityId);
+      if (stateItem?.connected ?? item.connected) connected.push(item);
+    }
     const multiplayer = connected.length > 1;
     network.multiplayer = multiplayer;
     ui.shell.classList.toggle("is-multiplayer", multiplayer);
     ui.scoreboard.setAttribute("aria-hidden", String(!multiplayer));
     ui.scoreboardCount.textContent = `${connected.length}P`;
-    const ordered = [...connected].sort((left, right) => right.score - left.score || right.level - left.level || left.playerId.localeCompare(right.playerId));
-    ui.scoreboardPlayers.replaceChildren(...ordered.map((item) => {
-      const row = document.createElement("li");
-      row.classList.toggle("is-self", item.entityId === network.selfEntityId);
-      row.classList.toggle("is-out", !item.alive);
-      row.style.setProperty("--player-color", PLAYER_COLORS[item.colorIndex % PLAYER_COLORS.length]);
-      const id = document.createElement("strong");
-      id.textContent = `@${item.playerId}`;
-      id.title = item.name;
-      const levelCell = document.createElement("span");
-      levelCell.textContent = item.level;
-      const scoreCell = document.createElement("em");
-      scoreCell.textContent = Math.floor(item.score).toLocaleString("zh-CN");
-      row.append(id, levelCell, scoreCell);
-      return row;
-    }));
+    connected.sort((left, right) => {
+      const leftState = stateByEntity.get(left.entityId) || left;
+      const rightState = stateByEntity.get(right.entityId) || right;
+      return rightState.score - leftState.score || rightState.level - leftState.level || left.playerId.localeCompare(right.playerId);
+    });
+    const activeIds = network.activeScoreboardIds;
+    activeIds.clear();
+    let orderChanged = network.scoreboardOrder.length !== connected.length;
+    for (let index = 0; index < connected.length; index += 1) {
+      const item = connected[index];
+      const stateItem = stateByEntity.get(item.entityId) || item;
+      activeIds.add(item.entityId);
+      if (network.scoreboardOrder[index] !== item.entityId) orderChanged = true;
+      let cells = network.scoreboardRows.get(item.entityId);
+      if (!cells) {
+        const row = document.createElement("li");
+        const id = document.createElement("strong");
+        const levelCell = document.createElement("span");
+        const scoreCell = document.createElement("em");
+        row.append(id, levelCell, scoreCell);
+        cells = { row, id, levelCell, scoreCell, colorIndex: -1, level: NaN, score: NaN, playerId: "", name: "" };
+        network.scoreboardRows.set(item.entityId, cells);
+        orderChanged = true;
+      }
+      cells.row.classList.toggle("is-self", item.entityId === network.selfEntityId);
+      cells.row.classList.toggle("is-out", !stateItem.alive);
+      if (cells.colorIndex !== item.colorIndex) {
+        cells.colorIndex = item.colorIndex;
+        cells.row.style.setProperty("--player-color", PLAYER_COLORS[item.colorIndex % PLAYER_COLORS.length]);
+      }
+      if (cells.playerId !== item.playerId) {
+        cells.playerId = item.playerId;
+        cells.id.textContent = `@${item.playerId}`;
+      }
+      if (cells.name !== item.name) {
+        cells.name = item.name;
+        cells.id.title = item.name;
+      }
+      if (cells.level !== stateItem.level) {
+        cells.level = stateItem.level;
+        cells.levelCell.textContent = stateItem.level;
+      }
+      const nextScore = Math.floor(stateItem.score);
+      if (cells.score !== nextScore) {
+        cells.score = nextScore;
+        cells.scoreCell.textContent = nextScore.toLocaleString("zh-CN");
+      }
+    }
+    for (const [entityId, cells] of network.scoreboardRows) {
+      if (activeIds.has(entityId)) continue;
+      cells.row.remove();
+      network.scoreboardRows.delete(entityId);
+      orderChanged = true;
+    }
+    if (orderChanged) {
+      network.scoreboardOrder.length = connected.length;
+      for (let index = 0; index < connected.length; index += 1) {
+        const entityId = connected[index].entityId;
+        network.scoreboardOrder[index] = entityId;
+        ui.scoreboardPlayers.append(network.scoreboardRows.get(entityId).row);
+      }
+    }
   }
 
   function receiveNetworkEffects(items) {
@@ -1262,23 +1345,26 @@
     return from + angleDelta(from, to) * amount;
   }
 
-  function previousById(items, key = "id") {
-    const index = new Map();
+  function previousById(items, key = "id", index = new Map()) {
+    index.clear();
     for (const item of items || []) index.set(item[key], item);
     return index;
   }
 
-  function indexNetworkSnapshot(snapshot) {
-    return {
-      players: previousById(snapshot?.players, "entityId"),
-      enemies: previousById(snapshot?.enemies),
-      foods: previousById(snapshot?.foods),
-      hazards: previousById(snapshot?.hazards)
-    };
+  function indexNetworkSnapshot(snapshot, indexes = null) {
+    const target = indexes || { players: new Map(), enemies: new Map(), foods: new Map(), hazards: new Map() };
+    previousById(snapshot?.players, "entityId", target.players);
+    previousById(snapshot?.enemies, "id", target.enemies);
+    previousById(snapshot?.foods, "id", target.foods);
+    previousById(snapshot?.hazards, "id", target.hazards);
+    return target;
   }
 
-  function networkSnapshotEntry(snapshot) {
-    return { snapshot, indexes: indexNetworkSnapshot(snapshot) };
+  function networkSnapshotEntry(snapshot, entry = null) {
+    const target = entry || { snapshot: null, indexes: null };
+    target.snapshot = snapshot;
+    target.indexes = indexNetworkSnapshot(snapshot, target.indexes);
+    return target;
   }
 
   function selectNetworkPresentation() {
@@ -1334,6 +1420,7 @@
     network.foodViews.clear();
     network.hazardViews.clear();
     network.lastFoodContactAt = 0;
+    network.moduleIds.length = 0;
     networkProjectileRuntime.clear();
     networkFoodClaimRuntime.clear();
   }
@@ -1377,10 +1464,23 @@
     for (const [id, view] of views) if (view.seenAtTick !== activeTick) views.delete(id);
   }
 
-  function networkModuleCounts(segments) {
-    const counts = Object.create(null);
-    for (const segment of segments) if (segment.module) counts[segment.module] = (counts[segment.module] || 0) + 1;
-    return counts;
+  function updateSelfNetworkModules(view, segments) {
+    const moduleIds = network.moduleIds;
+    let changed = !view.networkModuleCounts || moduleIds.length !== segments.length;
+    for (let index = 0; index < segments.length && !changed; index += 1) {
+      if (moduleIds[index] !== segments[index].module) changed = true;
+    }
+    if (!changed) return false;
+    const counts = view.networkModuleCounts || Object.create(null);
+    for (const id of Object.keys(counts)) delete counts[id];
+    moduleIds.length = segments.length;
+    for (let index = 0; index < segments.length; index += 1) {
+      const id = segments[index].module;
+      moduleIds[index] = id;
+      if (id) counts[id] = (counts[id] || 0) + 1;
+    }
+    view.networkModuleCounts = counts;
+    return true;
   }
 
   function applyNetworkPresentation(previous, current, previousIndexes, amount) {
@@ -1403,12 +1503,19 @@
       }
       const sourceChanged = view.source !== item;
       syncNetworkNode(view, item, old, playerAmount);
-      view.angle = interpolateAngle(old?.angle ?? item.angle, item.angle, playerAmount);
-      view.desiredAngle = item.desiredAngle;
+      const authoritativeAngle = interpolateAngle(old?.angle ?? item.angle, item.angle, playerAmount);
       view.radius = playerHeadRadiusPixels();
       view.playerColor = PLAYER_COLORS[item.colorIndex % PLAYER_COLORS.length];
       view.playerId = rosterPlayer?.playerId || item.name;
       view.isSelf = item.entityId === network.selfEntityId;
+      if (view.isSelf && !testMode) {
+        if (!Number.isFinite(network.selfPredictionAngle)) network.selfPredictionAngle = item.angle;
+        view.angle = network.selfPredictionAngle;
+        view.desiredAngle = Number.isFinite(network.localDesiredAngle) ? network.localDesiredAngle : item.desiredAngle;
+      } else {
+        view.angle = authoritativeAngle;
+        view.desiredAngle = item.desiredAngle;
+      }
       view.protectedState = item.paused || item.choosingUpgrade || item.invulnerable > 0;
       syncNetworkSegments(view.segments, item.segments, old?.segments, playerAmount);
       let previousNode = view;
@@ -1417,8 +1524,14 @@
         previousNode = segment;
       }
       if (sourceChanged) {
-        view.networkModuleCounts = networkModuleCounts(item.segments);
-        view.growth = item.growth ? { ...item.growth } : null;
+        if (item.growth) {
+          const growth = view.growth || {};
+          growth.color = item.growth.color;
+          growth.special = item.growth.special;
+          growth.elapsed = item.growth.elapsed;
+          growth.nodeCount = item.growth.nodeCount;
+          view.growth = growth;
+        } else view.growth = null;
       }
       view.seenAtTick = activeTick;
       visiblePlayers.push(view);
@@ -1435,13 +1548,7 @@
       xpNeeded = selfRaw.xpNeeded;
       gameTime = selfRaw.survivalTime;
       activeGrowth = self?.growth || null;
-      if (snapshotChanged) {
-        const moduleSignature = selfRaw.segments.map((segment) => segment.module || "-").join("|");
-        if (moduleSignature !== network.moduleSignature) {
-          network.moduleSignature = moduleSignature;
-          renderModuleRack();
-        }
-      }
+      if (self && snapshotChanged && updateSelfNetworkModules(self, selfRaw.segments)) renderModuleRack();
     }
 
     enemies.length = 0;
@@ -1469,7 +1576,7 @@
 
     if (snapshotChanged) {
       foods.length = 0;
-      networkFoodClaimRuntime.reconcile(current.foods.map((item) => item.id), performance.now());
+      networkFoodClaimRuntime.reconcile(current.foods, performance.now());
     }
     for (const item of current.foods) {
       const old = previousIndexes.foods.get(item.id);
@@ -1538,7 +1645,12 @@
     if (state === "running" && player) {
       claimNetworkFoodContacts();
       if (!testMode) {
-        updateInput(dt);
+        updateInput(dt, false);
+        network.localDesiredAngle = player.desiredAngle;
+        if (!Number.isFinite(network.selfPredictionAngle)) network.selfPredictionAngle = player.angle;
+        const turnRate = PLAYER_TURN_RATE + moduleCount("haste") * MODULE_TUNING.haste.turnRatePerStack;
+        network.selfPredictionAngle = rotateToward(network.selfPredictionAngle, network.localDesiredAngle, turnRate * dt);
+        player.angle = network.selfPredictionAngle;
         sendNetworkInput();
       }
     }
@@ -2717,7 +2829,7 @@
     return Math.atan2(vectorY, vectorX);
   }
 
-  function updateInput(dt) {
+  function updateInput(dt, applyTurn = true) {
     if (player.collisionCooldown > 0) {
       player.desiredAngle = player.angle;
       return;
@@ -2740,7 +2852,7 @@
       if (px * px + py * py > 16) player.desiredAngle = Math.atan2(py, px);
     }
     const turnRate = PLAYER_TURN_RATE + moduleCount("haste") * MODULE_TUNING.haste.turnRatePerStack;
-    player.angle = rotateToward(player.angle, player.desiredAngle, turnRate * dt);
+    if (applyTurn) player.angle = rotateToward(player.angle, player.desiredAngle, turnRate * dt);
   }
 
   function followContinuousSegments(headCol, headRow, segments, spacing) {

@@ -4,6 +4,21 @@ import { SIMULATION_HZ, SNAPSHOT_HZ } from '../src/shared/constants';
 import type { ActionResult, FoodClaimPayload, FoodClaimResult, UltraEffect, UltraProjectileEvent } from '../src/shared/protocol';
 
 describe('ArenaHub 联机投递', () => {
+  it('合法转向输入立即进入权威世界，不额外等待下一次模拟刷新', () => {
+    const applyInput = vi.fn(() => true);
+    const hub = Object.create(ArenaHub.prototype) as ArenaHub;
+    Reflect.set(hub, 'world', { applyInput });
+    const socket = {
+      id: 'socket-a',
+      data: { joinedArena: true, platformPrincipal: { accountId: 'account-a' } },
+    };
+    const handleInput = Reflect.get(hub, 'handleInput') as (socket: unknown, payload: { sequence: number; desiredAngle: number }) => void;
+
+    handleInput.call(hub, socket, { sequence: 7, desiredAngle: 1.25 });
+
+    expect(applyInput).toHaveBeenCalledWith('account-a', { sequence: 7, desiredAngle: 1.25 });
+  });
+
   it('快照保持易失低延迟，战斗反馈与投射物生命周期使用可靠通道', () => {
     expect(SIMULATION_HZ % SNAPSHOT_HZ).toBe(0);
     const globalEmit = vi.fn();
@@ -36,6 +51,21 @@ describe('ArenaHub 联机投递', () => {
     const publishProjectiles = Reflect.get(hub, 'publishProjectiles') as (events: UltraProjectileEvent[]) => void;
     publishProjectiles.call(hub, projectileEvents);
     expect(reliableEmit).toHaveBeenCalledWith('ultra:projectiles', projectileEvents);
+  });
+
+  it('玩家名单只在状态事件发生时可靠广播，不依赖周期性易失刷新', () => {
+    const reliableEmit = vi.fn();
+    const volatileEmit = vi.fn();
+    const roster = [{ entityId: 1 }];
+    const hub = Object.create(ArenaHub.prototype) as ArenaHub;
+    Reflect.set(hub, 'io', { emit: reliableEmit, volatile: { emit: volatileEmit } });
+    Reflect.set(hub, 'world', { getRoster: () => roster });
+    const broadcastMeta = Reflect.get(hub, 'broadcastMeta') as () => void;
+
+    broadcastMeta.call(hub);
+
+    expect(reliableEmit).toHaveBeenCalledWith('ultra:roster', roster);
+    expect(volatileEmit).not.toHaveBeenCalled();
   });
 
   it('批量吃球请求先去重，再交给权威世界确认', () => {

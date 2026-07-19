@@ -19,6 +19,7 @@ describe('Ultra 二进制快照', () => {
     const encoded = encodeUltraSnapshot(snapshot);
     const later = encodeUltraSnapshot(snapshotAt(43, 9.5));
     const decoded = decodeUltraSnapshot(encoded);
+    expect(encoded).toBeInstanceOf(Uint8Array);
     expect(encoded.byteLength).toBeLessThan(Buffer.byteLength(JSON.stringify(snapshot)));
     expect(decoded).toMatchObject({ tick: 42, waveCount: 1, players: [{ name: '联机玩家甲' }] });
     expect(decoded.players[0].segments[0]).toMatchObject({ module: 'spark', neutral: false });

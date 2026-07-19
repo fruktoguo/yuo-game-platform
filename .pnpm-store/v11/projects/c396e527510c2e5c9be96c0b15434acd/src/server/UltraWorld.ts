@@ -232,6 +232,9 @@ export class UltraWorld {
   private readonly enemyMovementEnd: GridPoint = { col: 0, row: 0 };
   private readonly projectileMovementStart: GridPoint = { col: 0, row: 0 };
   private readonly projectileMovementEnd: GridPoint = { col: 0, row: 0 };
+  private readonly stepAlivePlayers: PlayerEntity[] = [];
+  private readonly stepPresentPlayers: PlayerEntity[] = [];
+  private readonly stepActivePlayers: PlayerEntity[] = [];
   private readonly networkPlayers: PlayerEntity[] = [];
   private readonly networkProjectiles: UltraProjectileView[] = [];
   private networkSnapshotCache: UltraSnapshot | null = null;
@@ -389,15 +392,25 @@ export class UltraWorld {
     this.now = now;
     this.removeExpiredPlayers(now);
     this.respawnAutopilotPlayers(now);
-    const alive = this.alivePlayers();
-    const present = alive.filter((player) => player.connected);
+    const alive = this.stepAlivePlayers;
+    const present = this.stepPresentPlayers;
+    const active = this.stepActivePlayers;
+    alive.length = 0;
+    present.length = 0;
+    active.length = 0;
+    for (const player of this.playersByEntity.values()) {
+      if (!player.alive) continue;
+      alive.push(player);
+      if (!player.connected) continue;
+      present.push(player);
+      if (!player.paused && !player.choosingUpgrade) active.push(player);
+    }
     this.updateArenaSize(delta, present);
     if (alive.length === 0) {
       this.flushOutputs();
       return;
     }
 
-    let active = present.filter((player) => !player.paused && !player.choosingUpgrade);
     if (active.length === 0) {
       this.flushOutputs();
       return;
@@ -412,7 +425,8 @@ export class UltraWorld {
       this.updatePlayerGrowth(player, worldDelta, delta, now);
       this.updatePlayerTimers(player, worldDelta);
     }
-    active = present.filter((player) => !player.paused && !player.choosingUpgrade);
+    active.length = 0;
+    for (const player of present) if (!player.paused && !player.choosingUpgrade) active.push(player);
     if (active.length === 0) {
       this.flushOutputs();
       return;
@@ -2499,12 +2513,14 @@ export class UltraWorld {
 
   private flushEffects(): void {
     if (this.pendingEffects.length === 0) return;
-    this.callbacks.onEffects?.(this.pendingEffects.splice(0));
+    this.callbacks.onEffects?.(this.pendingEffects);
+    this.pendingEffects.length = 0;
   }
 
   private flushProjectileEvents(): void {
     if (this.pendingProjectileEvents.length === 0) return;
-    this.callbacks.onProjectiles?.(this.pendingProjectileEvents.splice(0));
+    this.callbacks.onProjectiles?.(this.pendingProjectileEvents);
+    this.pendingProjectileEvents.length = 0;
   }
 
   private flushOutputs(): void {

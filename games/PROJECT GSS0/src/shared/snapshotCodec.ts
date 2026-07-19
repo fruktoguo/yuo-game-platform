@@ -24,10 +24,16 @@ const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder('utf-8', { fatal: true });
 const encodedStrings = new Map<string, Uint8Array>();
 const encodedColors = new Map<string, number>();
-let reusableWriter: BinaryWriter | null = null;
+// Volatile packets are never queued behind a blocked transport; the ring keeps
+// recent writable sends on distinct backing stores without per-snapshot copies.
+const WRITER_POOL_SIZE = 32;
+const writerPool: BinaryWriter[] = [];
+let nextWriterIndex = 0;
 
-export function encodeUltraSnapshot(snapshot: UltraSnapshot): ArrayBuffer {
-  const writer = reusableWriter ??= new BinaryWriter();
+export function encodeUltraSnapshot(snapshot: UltraSnapshot): Uint8Array {
+  const writerIndex = nextWriterIndex;
+  nextWriterIndex = (nextWriterIndex + 1) % WRITER_POOL_SIZE;
+  const writer = writerPool[writerIndex] ??= new BinaryWriter();
   writer.reset();
   writer.u32(MAGIC);
   writer.u8(VERSION);
@@ -283,8 +289,8 @@ class BinaryWriter {
     this.u32(encoded);
   }
 
-  finish(): ArrayBuffer {
-    return this.bytes.buffer.slice(0, this.offset);
+  finish(): Uint8Array {
+    return this.bytes.subarray(0, this.offset);
   }
 
   private ensure(length: number): void {

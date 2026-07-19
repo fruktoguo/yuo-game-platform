@@ -23,9 +23,12 @@
       bodyBuckets.clear();
     }
 
-    function reconcile(authoritativeFoodIds, now) {
+    function reconcile(authoritativeFoods, now) {
       present.clear();
-      for (const id of authoritativeFoodIds) present.add(id);
+      for (const item of authoritativeFoods) {
+        const id = typeof item === "number" ? item : item?.id;
+        if (Number.isSafeInteger(id)) present.add(id);
+      }
       for (const id of confirmed) if (!present.has(id)) confirmed.delete(id);
       for (const [id, sentAt] of pending) {
         if (!present.has(id) || now - sentAt >= retryAfterMs) pending.delete(id);

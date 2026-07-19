@@ -1,4 +1,6 @@
 (function installNetworkCodec(root) {
+  "use strict";
+
   const MAGIC = 0x55534e50;
   const VERSION = 3;
   const GRID_SIZE = 24;
@@ -6,12 +8,14 @@
   const TAU = Math.PI * 2;
   const textDecoder = new TextDecoder("utf-8", { fatal: true });
   const colorCache = new Map();
+  let reusableReader = null;
 
   class Reader {
-    constructor(bytes) {
+    reset(bytes) {
       this.bytes = bytes;
       this.view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
       this.offset = 0;
+      this.arenaSize = GRID_SIZE;
     }
 
     ensure(length) { if (this.offset + length > this.bytes.byteLength) throw new Error("快照数据不完整"); }
@@ -40,102 +44,186 @@
     complete() { if (this.offset !== this.bytes.byteLength) throw new Error("快照包含多余数据"); }
   }
 
-  function readSegment(reader, modules) {
+  function itemAt(items, index) {
+    return items[index] || (items[index] = {});
+  }
+
+  function readSegment(reader, modules, result) {
+    result ||= {};
     const moduleIndex = reader.u8();
     const flags = reader.u8();
     const definition = moduleIndex ? modules[moduleIndex - 1] : null;
-    const result = {
-      module: typeof definition === "string" ? definition : definition?.id || null,
-      neutral: Boolean(flags & 1),
-      ready: Boolean(flags & 2),
-      col: reader.coordinate(),
-      row: reader.coordinate(),
-      angle: 0,
-      timer: 0,
-      cooldown: 0,
-      orbit: flags & 4 ? reader.angle() : 0,
-      birthAge: null,
-    };
+    result.module = typeof definition === "string" ? definition : definition?.id || null;
+    result.neutral = Boolean(flags & 1);
+    result.ready = Boolean(flags & 2);
+    result.col = reader.coordinate();
+    result.row = reader.coordinate();
+    result.angle = 0;
+    result.timer = 0;
+    result.orbit = flags & 4 ? reader.angle() : 0;
     result.cooldown = flags & 8 ? reader.f32() : 0;
+    result.birthAge = null;
     return result;
   }
 
-  function readPlayer(reader, modules) {
-    const entityId = reader.u16();
-    const name = reader.string();
-    const colorIndex = reader.u8();
+  function readPlayer(reader, modules, result) {
+    result ||= {};
+    result.entityId = reader.u16();
+    result.name = reader.string();
+    result.colorIndex = reader.u8();
     const flags = reader.u8();
-    const result = {
-      entityId, name, colorIndex,
-      connected: Boolean(flags & 1), alive: Boolean(flags & 2), paused: Boolean(flags & 4), choosingUpgrade: Boolean(flags & 8),
-      col: reader.coordinate(), row: reader.coordinate(), angle: reader.angle(), desiredAngle: reader.angle(),
-      invulnerable: reader.f32(), collisionCooldown: reader.f32(), score: reader.f32(), kills: reader.u16(), botKills: reader.u16(), pvpKills: reader.u16(),
-      survivalTime: reader.f32(), level: reader.u16(), xp: reader.u16(), xpNeeded: reader.u16(), respawnAt: null, segments: [], growth: null,
-    };
+    result.connected = Boolean(flags & 1);
+    result.alive = Boolean(flags & 2);
+    result.paused = Boolean(flags & 4);
+    result.choosingUpgrade = Boolean(flags & 8);
+    result.col = reader.coordinate();
+    result.row = reader.coordinate();
+    result.angle = reader.angle();
+    result.desiredAngle = reader.angle();
+    result.invulnerable = reader.f32();
+    result.collisionCooldown = reader.f32();
+    result.score = reader.f32();
+    result.kills = reader.u16();
+    result.botKills = reader.u16();
+    result.pvpKills = reader.u16();
+    result.survivalTime = reader.f32();
+    result.level = reader.u16();
+    result.xp = reader.u16();
+    result.xpNeeded = reader.u16();
     const respawnAt = reader.f64();
     result.respawnAt = respawnAt < 0 ? null : respawnAt;
+    const segments = result.segments || (result.segments = []);
     const segmentCount = reader.u16();
-    for (let index = 0; index < segmentCount; index += 1) result.segments.push(readSegment(reader, modules));
-    if (reader.u8()) result.growth = { color: reader.color(), special: Boolean(reader.u8()), elapsed: reader.f32(), nodeCount: reader.u16() };
+    for (let index = 0; index < segmentCount; index += 1) readSegment(reader, modules, itemAt(segments, index));
+    segments.length = segmentCount;
+    if (reader.u8()) {
+      const growth = result.growth || (result.growth = {});
+      growth.color = reader.color();
+      growth.special = Boolean(reader.u8());
+      growth.elapsed = reader.f32();
+      growth.nodeCount = reader.u16();
+    } else result.growth = null;
     return result;
   }
 
-  function readEnemy(reader) {
-    const result = { id: reader.u16(), col: reader.coordinate(), row: reader.coordinate(), angle: reader.angle(), color: reader.color(), captured: reader.u16(), segments: [] };
+  function readEnemy(reader, result) {
+    result ||= {};
+    result.id = reader.u16();
+    result.col = reader.coordinate();
+    result.row = reader.coordinate();
+    result.angle = reader.angle();
+    result.color = reader.color();
+    result.captured = reader.u16();
+    const segments = result.segments || (result.segments = []);
     const count = reader.u16();
-    for (let index = 0; index < count; index += 1) result.segments.push({ col: reader.coordinate(), row: reader.coordinate() });
+    for (let index = 0; index < count; index += 1) {
+      const segment = itemAt(segments, index);
+      segment.col = reader.coordinate();
+      segment.row = reader.coordinate();
+    }
+    segments.length = count;
     return result;
   }
 
-  function readFood(reader) {
-    const id = reader.u16();
-    const result = { id, col: reader.coordinate(), row: reader.coordinate(), color: reader.color(), phase: id * 2.399963229728653 % TAU, special: false, isPulled: false };
+  function readFood(reader, result) {
+    result ||= {};
+    result.id = reader.u16();
+    result.col = reader.coordinate();
+    result.row = reader.coordinate();
+    result.color = reader.color();
+    result.phase = result.id * 2.399963229728653 % TAU;
     const flags = reader.u8();
     result.special = Boolean(flags & 1);
     result.isPulled = Boolean(flags & 2);
     return result;
   }
 
-  function readProjectile(reader) {
-    return { id: reader.u16(), col: reader.coordinate(), row: reader.coordinate(), vx: reader.velocity(), vy: reader.velocity(), color: reader.color(), size: reader.u16() / 256 };
+  function readProjectile(reader, result) {
+    result ||= {};
+    result.id = reader.u16();
+    result.col = reader.coordinate();
+    result.row = reader.coordinate();
+    result.vx = reader.velocity();
+    result.vy = reader.velocity();
+    result.color = reader.color();
+    result.size = reader.u16() / 256;
+    return result;
   }
 
-  function readHazard(reader) {
-    const id = reader.u16();
-    const kind = reader.u8() === 0 ? "mine" : "gravity";
-    return { id, kind, col: reader.coordinate(), row: reader.coordinate(), radius: reader.u16() / 256, color: reader.color(), phase: id * 2.399963229728653 % TAU };
+  function readHazard(reader, result) {
+    result ||= {};
+    result.id = reader.u16();
+    result.kind = reader.u8() === 0 ? "mine" : "gravity";
+    result.col = reader.coordinate();
+    result.row = reader.coordinate();
+    result.radius = reader.u16() / 256;
+    result.color = reader.color();
+    result.phase = result.id * 2.399963229728653 % TAU;
+    return result;
   }
 
-  function readSpawn(reader) {
-    const id = reader.u16();
-    const color = reader.color();
-    const headCell = { col: reader.coordinate(), row: reader.coordinate() };
-    const bodyCells = [];
+  function readSpawn(reader, result) {
+    result ||= {};
+    result.id = reader.u16();
+    result.color = reader.color();
+    const headCell = result.headCell || (result.headCell = {});
+    headCell.col = reader.coordinate();
+    headCell.row = reader.coordinate();
+    const bodyCells = result.bodyCells || (result.bodyCells = []);
     const count = reader.u16();
-    for (let index = 0; index < count; index += 1) bodyCells.push({ col: reader.coordinate(), row: reader.coordinate() });
-    return { id, color, headCell, bodyCells, timer: reader.f32(), maxTimer: reader.f32() };
+    for (let index = 0; index < count; index += 1) {
+      const cell = itemAt(bodyCells, index);
+      cell.col = reader.coordinate();
+      cell.row = reader.coordinate();
+    }
+    bodyCells.length = count;
+    result.timer = reader.f32();
+    result.maxTimer = reader.f32();
+    return result;
   }
 
-  function decode(payload, modules) {
+  function decode(payload, modules, target) {
     const bytes = payload instanceof ArrayBuffer
       ? new Uint8Array(payload)
       : ArrayBuffer.isView(payload)
         ? new Uint8Array(payload.buffer, payload.byteOffset, payload.byteLength)
         : new Uint8Array(payload);
-    const reader = new Reader(bytes);
+    const reader = reusableReader ||= new Reader();
+    reader.reset(bytes);
     if (reader.u32() !== MAGIC || reader.u8() !== VERSION) throw new Error("快照格式无效");
-    const snapshot = {
-      tick: reader.u32(), serverTime: reader.f64(), gameTime: reader.f32(), waveCount: reader.u16(), waveTimer: reader.f32(), threatLevel: reader.u16(), arenaSize: reader.f32(),
-      players: [], enemies: [], foods: [], projectiles: [], hazards: [], pendingSpawns: [],
-    };
+    const snapshot = target || {};
+    snapshot.tick = reader.u32();
+    snapshot.serverTime = reader.f64();
+    snapshot.gameTime = reader.f32();
+    snapshot.waveCount = reader.u16();
+    snapshot.waveTimer = reader.f32();
+    snapshot.threatLevel = reader.u16();
+    snapshot.arenaSize = reader.f32();
     reader.arenaSize = snapshot.arenaSize;
-    const counts = [reader.u8(), reader.u16(), reader.u16(), reader.u16(), reader.u16(), reader.u16()];
-    for (let index = 0; index < counts[0]; index += 1) snapshot.players.push(readPlayer(reader, modules));
-    for (let index = 0; index < counts[1]; index += 1) snapshot.enemies.push(readEnemy(reader));
-    for (let index = 0; index < counts[2]; index += 1) snapshot.foods.push(readFood(reader));
-    for (let index = 0; index < counts[3]; index += 1) snapshot.projectiles.push(readProjectile(reader));
-    for (let index = 0; index < counts[4]; index += 1) snapshot.hazards.push(readHazard(reader));
-    for (let index = 0; index < counts[5]; index += 1) snapshot.pendingSpawns.push(readSpawn(reader));
+    const playerCount = reader.u8();
+    const enemyCount = reader.u16();
+    const foodCount = reader.u16();
+    const projectileCount = reader.u16();
+    const hazardCount = reader.u16();
+    const spawnCount = reader.u16();
+    const players = snapshot.players || (snapshot.players = []);
+    const enemies = snapshot.enemies || (snapshot.enemies = []);
+    const foods = snapshot.foods || (snapshot.foods = []);
+    const projectiles = snapshot.projectiles || (snapshot.projectiles = []);
+    const hazards = snapshot.hazards || (snapshot.hazards = []);
+    const pendingSpawns = snapshot.pendingSpawns || (snapshot.pendingSpawns = []);
+    for (let index = 0; index < playerCount; index += 1) readPlayer(reader, modules, itemAt(players, index));
+    for (let index = 0; index < enemyCount; index += 1) readEnemy(reader, itemAt(enemies, index));
+    for (let index = 0; index < foodCount; index += 1) readFood(reader, itemAt(foods, index));
+    for (let index = 0; index < projectileCount; index += 1) readProjectile(reader, itemAt(projectiles, index));
+    for (let index = 0; index < hazardCount; index += 1) readHazard(reader, itemAt(hazards, index));
+    for (let index = 0; index < spawnCount; index += 1) readSpawn(reader, itemAt(pendingSpawns, index));
+    players.length = playerCount;
+    enemies.length = enemyCount;
+    foods.length = foodCount;
+    projectiles.length = projectileCount;
+    hazards.length = hazardCount;
+    pendingSpawns.length = spawnCount;
     reader.complete();
     return snapshot;
   }

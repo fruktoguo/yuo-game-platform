@@ -221,7 +221,7 @@ export interface ActionResult<T = undefined> {
 }
 
 export interface ServerToClientEvents {
-  'ultra:snapshot': (snapshot: ArrayBuffer) => void;
+  'ultra:snapshot': (snapshot: Uint8Array) => void;
   'ultra:projectiles': (events: UltraProjectileEvent[]) => void;
   'ultra:effects': (effects: UltraEffect[]) => void;
   'ultra:roster': (players: RosterPlayer[]) => void;
