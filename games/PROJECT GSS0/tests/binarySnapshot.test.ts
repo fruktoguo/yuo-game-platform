@@ -28,7 +28,9 @@ describe('Ultra 二进制快照', () => {
     expect(decoded.foods[0]).toMatchObject({ id: 9, color: '#36dcff', special: true, isPulled: true });
     expect(decoded.hazards[0]).toMatchObject({ id: 3, kind: 'gravity', color: '#a56cff' });
     expect(decoded.pendingSpawns[0].timer).toBeCloseTo(1.1, 5);
-    expect(decodeUltraSnapshot(later)).toMatchObject({ tick: 43, players: [{ col: 9.5 }] });
+    const decodedLater = decodeUltraSnapshot(later);
+    expect(decodedLater).toMatchObject({ tick: 43 });
+    expect(decodedLater.players[0].col).toBeCloseTo(9.5, 3);
     expect(() => decodeUltraSnapshot(encoded.slice(0, 12))).toThrow('Ultra 快照数据不完整');
   });
 

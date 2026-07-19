@@ -284,6 +284,8 @@
   const NETWORK_INPUT_HEARTBEAT_MS = 110;
   const NETWORK_FOOD_CONTACT_INTERVAL_MS = 1000 / 30;
   const MAX_RENDER_DPR = 1.5;
+  const MIN_RENDER_DPR = 1;
+  const RENDER_DPR_SESSION_KEY = "gss0-render-dpr-limit";
   const AMBIENT_RENDER_INTERVAL = 1 / 30;
   const AMBIENT_RENDER_SCALE = 0.55;
   const MAX_DECORATIVE_PARTICLES = 720;
@@ -300,10 +302,12 @@
   let lastCanvasRender = 0;
   let fpsWindowStartedAt = performance.now();
   let fpsFrameCount = 0;
+  let smoothedFps = 0;
+  let estimatedRefreshRate = 60;
+  let fastestFrameIntervals = [];
   let lastMenuFrameState = null;
-  let renderDprLimit = MAX_RENDER_DPR;
+  let renderDprLimit = loadRenderDprLimit();
   let lowFpsWindows = 0;
-  let highFpsWindows = 0;
   let gameTime = 0;
   let score = 0;
   let kills = 0;
@@ -378,6 +382,8 @@
   if (!networkProjectileRuntime) throw new Error("PROJECT GSS0 投射物运行时未加载");
   const networkFoodClaimRuntime = globalThis.GSS0FoodClaimRuntime?.create({ maximumBatchSize: 32, retryAfterMs: 750 });
   if (!networkFoodClaimRuntime) throw new Error("PROJECT GSS0 吃球检测运行时未加载");
+  const spawnPlanner = globalThis.GSS0SpawnPlanner;
+  if (!spawnPlanner) throw new Error("PROJECT GSS0 出生规划器未加载");
 
   const keys = new Set();
   const pointer = { active: false, x: 0, y: 0, touchId: null };
@@ -767,13 +773,24 @@
     }
   }
 
-  function setArenaWorldSize(nextSize) {
+  function setArenaWorldSize(nextSize, constrainContents = false) {
     const safeSize = Math.max(GRID_SIZE, Number(nextSize) || GRID_SIZE);
     if (Math.abs(safeSize - arenaWorldSize) < 0.00001) return;
     const previousArena = arena;
     arenaWorldSize = safeSize;
     updateArenaBounds();
     transformArenaVisuals(previousArena);
+    if (constrainContents) {
+      for (const food of foods) {
+        food.col = clamp(food.col, arena.worldMin, arena.worldMax);
+        food.row = clamp(food.row, arena.worldMin, arena.worldMax);
+      }
+      for (const hazard of hazards) {
+        if (!Number.isFinite(hazard.col) || !Number.isFinite(hazard.row)) continue;
+        hazard.col = clamp(hazard.col, arena.worldMin, arena.worldMax);
+        hazard.row = clamp(hazard.row, arena.worldMin, arena.worldMax);
+      }
+    }
     const playersToSync = network.enabled ? visiblePlayers : player ? [player] : [];
     for (const arenaPlayer of playersToSync) {
       syncNodePosition(arenaPlayer);
@@ -796,18 +813,7 @@
     const target = GRID_SIZE * Math.sqrt(1 + Math.max(0, highestLevel) * 0.1);
     const amount = 1 - Math.exp(-ARENA_RESIZE_RATE * dt);
     const nextSize = arenaWorldSize + (target - arenaWorldSize) * amount;
-    setArenaWorldSize(Math.abs(target - nextSize) < 0.0001 ? target : nextSize);
-    for (const food of foods) {
-      food.col = clamp(food.col, arena.worldMin, arena.worldMax);
-      food.row = clamp(food.row, arena.worldMin, arena.worldMax);
-      syncNodePosition(food);
-    }
-    for (const hazard of hazards) {
-      if (!Number.isFinite(hazard.col) || !Number.isFinite(hazard.row)) continue;
-      hazard.col = clamp(hazard.col, arena.worldMin, arena.worldMax);
-      hazard.row = clamp(hazard.row, arena.worldMin, arena.worldMax);
-      syncNodePosition(hazard);
-    }
+    setArenaWorldSize(Math.abs(target - nextSize) < 0.0001 ? target : nextSize, true);
   }
 
   function cameraPosition() {
@@ -1675,6 +1681,10 @@
     return `${col},${row}`;
   }
 
+  function cellCode(col, row) {
+    return (Math.round(row) & 0xffff) << 16 | (Math.round(col) & 0xffff);
+  }
+
   function occupiedCellKeys() {
     const occupied = new Set();
     const occupyNode = (node) => occupied.add(cellKey(Math.round(node.col), Math.round(node.row)));
@@ -1694,8 +1704,27 @@
     return occupied;
   }
 
-  function findFreeCell(preferred = null, wallMargin = 0) {
-    const occupied = occupiedCellKeys();
+  function occupiedCellCodes() {
+    const occupied = new Set();
+    const occupyNode = (node) => occupied.add(cellCode(node.col, node.row));
+    if (player) {
+      occupyNode(player);
+      for (const segment of player.segments) occupyNode(segment);
+    }
+    for (const food of foods) occupyNode(food);
+    for (const enemy of enemies) {
+      if (enemy.dead) continue;
+      occupyNode(enemy);
+      for (const segment of enemy.segments) occupyNode(segment);
+    }
+    for (const spawn of pendingEnemySpawns) {
+      occupyNode(spawn.headCell);
+      for (const cell of spawn.bodyCells) occupyNode(cell);
+    }
+    return occupied;
+  }
+
+  function freeCells(wallMargin = 0, occupied = occupiedCellKeys()) {
     const cells = [];
     const margin = clamp(Math.ceil(wallMargin), 0, Math.floor((arena.worldSize - 1) / 2));
     const minimum = Math.ceil(arena.worldMin + margin);
@@ -1705,6 +1734,12 @@
         if (!occupied.has(cellKey(col, row))) cells.push({ col, row });
       }
     }
+    return cells;
+  }
+
+  function findFreeCell(preferred = null, wallMargin = 0) {
+    const cells = freeCells(wallMargin);
+    const margin = clamp(Math.ceil(wallMargin), 0, Math.floor((arena.worldSize - 1) / 2));
     if (!cells.length) {
       if (margin > 0) return null;
       return preferred || { col: Math.floor(random(arena.worldMin, arena.worldMax + 1)), row: Math.floor(random(arena.worldMin, arena.worldMax + 1)) };
@@ -1724,6 +1759,20 @@
     const preferred = x == null || y == null ? null : pixelToCell(x, y);
     const cell = findFreeCell(preferred, FOOD_WALL_MARGIN);
     if (!cell) return false;
+    materializeFood(cell, special);
+    return true;
+  }
+
+  function spawnWaveFoods(count) {
+    const cells = freeCells(FOOD_WALL_MARGIN);
+    for (let index = 0; index < count && cells.length > 0; index += 1) {
+      const selectedIndex = Math.floor(Math.random() * cells.length);
+      const cell = cells.splice(selectedIndex, 1)[0];
+      materializeFood(cell, false);
+    }
+  }
+
+  function materializeFood(cell, special) {
     const point = cellCenter(cell.col, cell.row);
     const color = FOOD_COLORS[Math.floor(Math.random() * FOOD_COLORS.length)];
     foods.push({
@@ -1740,80 +1789,28 @@
     burst(point.x, point.y, color, special ? 10 : 7, 62);
     effects.push({ type: "ring", x: point.x, y: point.y, color, life: 0.42, maxLife: 0.42, radius: 3, endRadius: arena.cellSize * 0.42 });
     sound("foodSpawn");
-    return true;
   }
 
-  function buildSerpentinePaths() {
-    const minimum = Math.ceil(arena.worldMin);
-    const maximum = Math.floor(arena.worldMax);
-    const base = [];
-    for (let row = minimum; row <= maximum; row += 1) {
-      for (let step = minimum; step <= maximum; step += 1) {
-        base.push({ col: (row - minimum) % 2 === 0 ? step : minimum + maximum - step, row });
-      }
-    }
-    const transforms = [
-      (cell) => ({ col: cell.col, row: cell.row }),
-      (cell) => ({ col: minimum + maximum - cell.col, row: cell.row }),
-      (cell) => ({ col: cell.col, row: minimum + maximum - cell.row }),
-      (cell) => ({ col: cell.row, row: cell.col }),
-      (cell) => ({ col: minimum + maximum - cell.row, row: cell.col }),
-      (cell) => ({ col: cell.row, row: minimum + maximum - cell.col })
-    ];
-    const paths = [];
-    for (const transform of transforms) {
-      const path = base.map(transform);
-      paths.push(path, [...path].reverse());
-    }
-    return paths;
+  function chooseEnemySpawn(bodySegmentCount, minimumHeadDistance, occupied = occupiedCellCodes()) {
+    return spawnPlanner.choose({
+      minimum: Math.ceil(arena.worldMin),
+      maximum: Math.floor(arena.worldMax),
+      bodySegmentCount,
+      minimumHeadDistance,
+      occupiedCells: occupied,
+      players: player ? [player] : [],
+      fallbackDistance: arena.worldSize,
+      random: Math.random
+    });
   }
 
-  function chooseEnemySpawn(bodySegmentCount, minimumHeadDistance) {
-    const occupied = occupiedCellKeys();
-    const gridWidth = Math.max(1, Math.floor(arena.worldMax) - Math.ceil(arena.worldMin) + 1);
-    const visibleLength = Math.min(bodySegmentCount, gridWidth * gridWidth - 2);
-    const candidates = [];
-    for (const path of buildSerpentinePaths()) {
-      for (let index = visibleLength; index < path.length - 1; index += 1) {
-        const head = path[index];
-        const body = [];
-        let conflicts = occupied.has(cellKey(head.col, head.row)) ? 1 : 0;
-        for (let offset = 1; offset <= visibleLength; offset += 1) {
-          const cell = path[index - offset];
-          body.push(cell);
-          if (occupied.has(cellKey(cell.col, cell.row))) conflicts += 1;
-        }
-        const next = path[index + 1];
-        if (occupied.has(cellKey(next.col, next.row))) conflicts += 1;
-        if (conflicts > 0) continue;
-        const headDistance = player ? Math.hypot(head.col - player.col, head.row - player.row) : arena.worldSize;
-        if (headDistance < minimumHeadDistance) continue;
-        const spawnCells = [head, ...body, next];
-        const nearestPlayerDistance = player
-          ? Math.min(...spawnCells.map((cell) => Math.hypot(cell.col - player.col, cell.row - player.row)))
-          : arena.worldSize;
-        candidates.push({ head, body, next, headDistance, nearestPlayerDistance });
-      }
-    }
-    if (!candidates.length) return null;
-    candidates.sort((a, b) => (
-      b.headDistance - a.headDistance
-      || b.nearestPlayerDistance - a.nearestPlayerDistance
-    ));
-    const farthestDistance = candidates[0].headDistance;
-    const farthest = candidates.filter((candidate) => Math.abs(candidate.headDistance - farthestDistance) < 0.001);
-    const safestDistance = farthest[0].nearestPlayerDistance;
-    const safest = farthest.filter((candidate) => Math.abs(candidate.nearestPlayerDistance - safestDistance) < 0.001);
-    return safest[Math.floor(Math.random() * safest.length)];
-  }
-
-  function queueEnemySpawn() {
+  function queueEnemySpawn(occupied = occupiedCellCodes()) {
     if (!player) return;
     const healthMinimum = Math.min(ENEMY_HEALTH_PER_LEVEL_MIN, ENEMY_HEALTH_PER_LEVEL_MAX);
     const healthMaximum = Math.max(ENEMY_HEALTH_PER_LEVEL_MIN, ENEMY_HEALTH_PER_LEVEL_MAX);
     const totalLength = Math.max(1, Math.round(level * random(healthMinimum, healthMaximum)) + ENEMY_BASE_HEALTH);
     const bodySegmentCount = totalLength - 1;
-    const placement = chooseEnemySpawn(bodySegmentCount, playerBaseSpeed() * 2);
+    const placement = chooseEnemySpawn(bodySegmentCount, playerBaseSpeed() * 2, occupied);
     if (!placement) return false;
     const headCell = placement.head;
     const nextCell = placement.next;
@@ -1829,6 +1826,8 @@
       timer: ENEMY_SPAWN_WARNING_TIME,
       maxTimer: ENEMY_SPAWN_WARNING_TIME
     });
+    occupied.add(cellCode(headCell.col, headCell.row));
+    for (const cell of bodyCells) occupied.add(cellCode(cell.col, cell.row));
     sound("enemyWarning");
     return true;
   }
@@ -1904,8 +1903,9 @@
   function updateSpawns(dt) {
     waveTimer -= dt * waveCountdownRate();
     if (waveTimer <= 0) {
-      for (let index = 0; index < FOODS_PER_PLAYER_PER_WAVE; index += 1) spawnFood();
-      for (let index = 0; index < ENEMIES_PER_PLAYER_PER_WAVE; index += 1) queueEnemySpawn();
+      spawnWaveFoods(FOODS_PER_PLAYER_PER_WAVE);
+      const occupied = occupiedCellCodes();
+      for (let index = 0; index < ENEMIES_PER_PLAYER_PER_WAVE; index += 1) queueEnemySpawn(occupied);
       waveCount += 1;
       waveTimer = WAVE_BASE_INTERVAL;
     }
@@ -2832,13 +2832,13 @@
 
     if (upgradePending) return;
     const magnetRange = moduleCount("magnet") * MODULE_TUNING.magnet.pickupRangeCellsPerStack;
+    const pieceScale = arenaPieceScale();
+    const collectorBonus = moduleCount("collector") * arena.cellSize * MODULE_TUNING.collector.pickupRadiusCellsPerStack;
     for (let index = foods.length - 1; index >= 0; index -= 1) {
       const food = foods[index];
       const pickupRadius = player.radius + food.radius + magnetRange * arena.cellSize;
       let collector = Math.hypot(player.x - food.x, player.y - food.y) <= pickupRadius ? player : null;
       if (!collector) {
-        const pieceScale = arenaPieceScale();
-        const collectorBonus = moduleCount("collector") * arena.cellSize * MODULE_TUNING.collector.pickupRadiusCellsPerStack;
         collector = player.segments.find((segment) => {
           const visualRadius = (segment.module ? 11 : segment.neutral ? 10 : 8) * pieceScale;
           return Math.hypot(segment.x - food.x, segment.y - food.y) <= visualRadius + food.radius + collectorBonus;
@@ -4254,11 +4254,10 @@
 
   function drawEnemySpawnWarnings(time) {
     const warningColor = "#ff3d5d";
+    const blink = 0.48 + Math.abs(Math.sin(time * 12)) * 0.52;
     for (const spawn of pendingEnemySpawns) {
       const progress = 1 - clamp(spawn.timer / spawn.maxTimer, 0, 1);
-      const blink = 0.48 + Math.abs(Math.sin(time * 12)) * 0.52;
       const head = cellCenter(spawn.headCell.col, spawn.headCell.row);
-      const body = spawn.bodyCells.map((cell) => cellCenter(cell.col, cell.row));
       const markerSize = arena.cellSize * 0.28;
 
       ctx.save();
@@ -4269,20 +4268,26 @@
       ctx.lineWidth = Math.max(1, arena.cellSize * 0.045);
       ctx.beginPath();
       ctx.moveTo(head.x, head.y);
-      for (const point of body) ctx.lineTo(point.x, point.y);
+      for (const cell of spawn.bodyCells) {
+        const x = arena.left + (cell.col - arena.worldMin + 0.5) * arena.cellSize;
+        const y = arena.top + (cell.row - arena.worldMin + 0.5) * arena.cellSize;
+        ctx.lineTo(x, y);
+      }
       ctx.stroke();
       ctx.setLineDash([]);
 
-      for (const point of body) {
-        const size = markerSize * 0.52;
-        ctx.globalAlpha = 0.24 + blink * 0.3;
-        ctx.beginPath();
-        ctx.moveTo(point.x - size, point.y - size);
-        ctx.lineTo(point.x + size, point.y + size);
-        ctx.moveTo(point.x + size, point.y - size);
-        ctx.lineTo(point.x - size, point.y + size);
-        ctx.stroke();
+      const size = markerSize * 0.52;
+      ctx.globalAlpha = 0.24 + blink * 0.3;
+      ctx.beginPath();
+      for (const cell of spawn.bodyCells) {
+        const x = arena.left + (cell.col - arena.worldMin + 0.5) * arena.cellSize;
+        const y = arena.top + (cell.row - arena.worldMin + 0.5) * arena.cellSize;
+        ctx.moveTo(x - size, y - size);
+        ctx.lineTo(x + size, y + size);
+        ctx.moveTo(x + size, y - size);
+        ctx.lineTo(x - size, y + size);
       }
+      ctx.stroke();
 
       const ringRadius = arena.cellSize * (0.68 - progress * 0.28);
       ctx.globalAlpha = 0.28 + blink * 0.52;
@@ -4319,14 +4324,25 @@
     ctx.restore();
   }
 
+  function drawLinkedPath(head, segments, color, widthValue, alpha = 1) {
+    if (segments.length === 0) return;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.lineWidth = widthValue;
+    ctx.strokeStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(head.x, head.y);
+    for (const segment of segments) ctx.lineTo(segment.x, segment.y);
+    ctx.stroke();
+    ctx.restore();
+  }
+
   function drawEnemy(enemy) {
     const pieceScale = arenaPieceScale();
-    let previous = enemy;
-    for (const segment of enemy.segments) {
-      drawLink(previous, segment, "rgba(4, 6, 7, 0.92)", 11 * pieceScale);
-      drawLink(previous, segment, enemy.color, 2.2 * pieceScale, 0.72);
-      previous = segment;
-    }
+    drawLinkedPath(enemy, enemy.segments, "rgba(4, 6, 7, 0.92)", 11 * pieceScale);
+    drawLinkedPath(enemy, enemy.segments, enemy.color, 2.2 * pieceScale, 0.72);
 
     for (let index = enemy.segments.length - 1; index >= 0; index -= 1) {
       const segment = enemy.segments[index];
@@ -4890,41 +4906,70 @@
     }
   }
 
-  function updateFpsMeter(now) {
+  function updateFpsMeter(now, frameInterval) {
     fpsFrameCount += 1;
+    if (frameInterval >= 4 && frameInterval <= 50) recordFastFrameInterval(frameInterval);
     const elapsed = now - fpsWindowStartedAt;
     if (elapsed < 500) return;
-    const fps = fpsFrameCount * 1000 / Math.max(1, elapsed);
-    const rounded = Math.round(fps);
+    const rawFps = fpsFrameCount * 1000 / Math.max(1, elapsed);
+    const observedRefreshRate = sampledRefreshRate();
+    if (observedRefreshRate >= 50) estimatedRefreshRate = Math.max(estimatedRefreshRate, observedRefreshRate);
+    smoothedFps = smoothedFps > 0 ? smoothedFps + (rawFps - smoothedFps) * 0.32 : rawFps;
+    const rounded = Math.round(smoothedFps);
     ui.fpsValue.textContent = String(rounded);
-    ui.fpsMeter.classList.toggle("is-low", fps < 55);
-    tuneRenderResolution(fps);
+    ui.fpsMeter.classList.toggle("is-low", rawFps < Math.max(52, estimatedRefreshRate * 0.72));
+    tuneRenderResolution(rawFps);
     fpsWindowStartedAt = now;
     fpsFrameCount = 0;
   }
 
   function tuneRenderResolution(fps) {
-    if (state !== "running" || document.hidden || (window.devicePixelRatio || 1) <= 1) {
+    if (state !== "running" || document.hidden) {
       lowFpsWindows = 0;
-      highFpsWindows = 0;
       return;
     }
-    lowFpsWindows = fps < 53 ? lowFpsWindows + 1 : 0;
-    highFpsWindows = fps > 59 ? highFpsWindows + 1 : 0;
-    let nextLimit = renderDprLimit;
-    if (lowFpsWindows >= 3) nextLimit = Math.max(1, renderDprLimit - 0.125);
-    else if (highFpsWindows >= 8) nextLimit = Math.min(MAX_RENDER_DPR, renderDprLimit + 0.125);
-    if (nextLimit === renderDprLimit) return;
+    const targetFps = Math.max(52, estimatedRefreshRate * 0.78);
+    lowFpsWindows = fps < targetFps ? lowFpsWindows + 1 : 0;
+    if (lowFpsWindows < 2 || renderDprLimit <= MIN_RENDER_DPR) return;
+    const step = fps < targetFps * 0.65 ? 0.25 : 0.125;
+    const nextLimit = Math.max(MIN_RENDER_DPR, renderDprLimit - step);
     renderDprLimit = nextLimit;
     lowFpsWindows = 0;
-    highFpsWindows = 0;
+    try { sessionStorage.setItem(RENDER_DPR_SESSION_KEY, String(renderDprLimit)); } catch {}
     resize();
   }
 
+  function recordFastFrameInterval(interval) {
+    let insertAt = fastestFrameIntervals.length;
+    while (insertAt > 0 && interval < fastestFrameIntervals[insertAt - 1]) insertAt -= 1;
+    fastestFrameIntervals.splice(insertAt, 0, interval);
+    if (fastestFrameIntervals.length > 5) fastestFrameIntervals.pop();
+  }
+
+  function sampledRefreshRate() {
+    if (fastestFrameIntervals.length === 0) return estimatedRefreshRate;
+    const averageInterval = fastestFrameIntervals.reduce((total, interval) => total + interval, 0) / fastestFrameIntervals.length;
+    fastestFrameIntervals = [];
+    const observed = 1000 / averageInterval;
+    const commonRates = [50, 60, 75, 90, 100, 120, 144, 165, 180, 240];
+    let nearest = commonRates[0];
+    for (const rate of commonRates) if (Math.abs(rate - observed) < Math.abs(nearest - observed)) nearest = rate;
+    return Math.abs(nearest - observed) / nearest <= 0.12 ? nearest : clamp(observed, 50, 240);
+  }
+
+  function loadRenderDprLimit() {
+    try {
+      const stored = Number(sessionStorage.getItem(RENDER_DPR_SESSION_KEY));
+      if (Number.isFinite(stored)) return clamp(stored, MIN_RENDER_DPR, MAX_RENDER_DPR);
+    } catch {}
+    return MAX_RENDER_DPR;
+  }
+
   function frame(now) {
-    const dt = Math.min(0.033, Math.max(0, (now - lastFrame) / 1000));
+    const frameInterval = Math.max(0, now - lastFrame);
+    const dt = Math.min(0.033, frameInterval / 1000);
     lastFrame = now;
-    updateFpsMeter(now);
+    updateFpsMeter(now, frameInterval);
     updateUIMotion(dt);
     update(dt);
     const menuFrameState = state === "menu";

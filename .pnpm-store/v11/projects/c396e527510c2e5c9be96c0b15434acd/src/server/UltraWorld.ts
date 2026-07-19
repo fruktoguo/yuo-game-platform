@@ -36,6 +36,7 @@ import {
   WAVE_BASE_INTERVAL,
 } from '../shared/constants';
 import { isModuleId, MODULE_BY_ID, UPGRADE_MODULES, type ModuleId } from '../shared/modules';
+import { chooseSerpentineSpawn } from '../shared/spawnPlanner';
 import type {
   ArenaEvent,
   GridPoint,
@@ -390,7 +391,7 @@ export class UltraWorld {
     }
 
     this.updateEnemySpawnWarnings(worldDelta);
-    this.updateSpawns(worldDelta);
+    this.updateSpawns(worldDelta, present, active);
     this.enemyKnockbackMultiplier = 1 + this.maximumModuleCount('momentum', active) * 0.18;
     for (const player of active) if (player.autopilot && player.collisionCooldown <= 0) player.desiredAngle = this.autopilotAngle(player, present);
     for (const player of active) this.movePlayer(player, worldDelta);
@@ -894,22 +895,30 @@ export class UltraWorld {
   }
 
   private updateFood(delta: number, activePlayers: PlayerEntity[]): void {
+    const profiles = activePlayers.map((player) => {
+      const tractor = this.moduleCount(player, 'tractor');
+      return {
+        player,
+        tractor,
+        tractorRange: 3.5 + Math.max(0, tractor - 1) * 1.1,
+        tractorSpeed: 1.8 + Math.max(0, tractor - 1) * 0.45,
+        headRange: this.playerHeadRadiusCells() + 0.13 + this.moduleCount(player, 'magnet') * 0.55,
+        bodyRange: 0.42 + this.moduleCount(player, 'collector') * 0.09,
+      };
+    });
     for (const food of this.foods) {
       food.isPulled = false;
-      let puller: { player: PlayerEntity; distance: number; tractor: number } | null = null;
-      for (const player of activePlayers) {
-        const tractor = this.moduleCount(player, 'tractor');
-        if (tractor <= 0) continue;
-        const distance = Math.hypot(player.col - food.col, player.row - food.row);
-        const range = 3.5 + Math.max(0, tractor - 1) * 1.1;
-        if (distance <= 0.001 || distance > range || (puller && puller.distance <= distance)) continue;
-        puller = { player, distance, tractor };
+      let puller: { profile: typeof profiles[number]; distance: number } | null = null;
+      for (const profile of profiles) {
+        if (profile.tractor <= 0) continue;
+        const distance = Math.hypot(profile.player.col - food.col, profile.player.row - food.row);
+        if (distance <= 0.001 || distance > profile.tractorRange || (puller && puller.distance <= distance)) continue;
+        puller = { profile, distance };
       }
       if (puller) {
-        const speed = 1.8 + Math.max(0, puller.tractor - 1) * 0.45;
-        const step = Math.min(puller.distance, speed * delta);
-        food.col += (puller.player.col - food.col) / puller.distance * step;
-        food.row += (puller.player.row - food.row) / puller.distance * step;
+        const step = Math.min(puller.distance, puller.profile.tractorSpeed * delta);
+        food.col += (puller.profile.player.col - food.col) / puller.distance * step;
+        food.row += (puller.profile.player.row - food.row) / puller.distance * step;
         food.isPulled = true;
       }
     }
@@ -917,20 +926,24 @@ export class UltraWorld {
     for (let index = this.foods.length - 1; index >= 0; index -= 1) {
       const food = this.foods[index];
       let winner: { player: PlayerEntity; collector: GridPoint; distance: number } | null = null;
-      for (const player of activePlayers) {
-        if (player.upgradePending) continue;
-        const contact = this.findFoodCollector(player, food);
-        if (contact && (!winner || contact.distance < winner.distance)) winner = { player, ...contact };
+      for (const profile of profiles) {
+        if (profile.player.upgradePending) continue;
+        const contact = this.findFoodCollectorWithin(profile.player, food, profile.headRange, profile.bodyRange);
+        if (contact && (!winner || contact.distance < winner.distance)) winner = { player: profile.player, ...contact };
       }
       if (winner) this.collectFood(winner.player, index, winner.collector);
     }
   }
 
   private findFoodCollector(player: PlayerEntity, food: FoodEntity, extraRange = 0): { collector: GridPoint; distance: number } | null {
-    const headDistance = Math.hypot(player.col - food.col, player.row - food.row);
     const headRange = this.playerHeadRadiusCells() + 0.13 + this.moduleCount(player, 'magnet') * 0.55 + extraRange;
-    let nearest = headDistance <= headRange ? { collector: player as GridPoint, distance: headDistance } : null;
     const bodyRange = 0.42 + this.moduleCount(player, 'collector') * 0.09 + extraRange;
+    return this.findFoodCollectorWithin(player, food, headRange, bodyRange);
+  }
+
+  private findFoodCollectorWithin(player: PlayerEntity, food: FoodEntity, headRange: number, bodyRange: number): { collector: GridPoint; distance: number } | null {
+    const headDistance = Math.hypot(player.col - food.col, player.row - food.row);
+    let nearest = headDistance <= headRange ? { collector: player as GridPoint, distance: headDistance } : null;
     for (const segment of player.segments) {
       const distance = Math.hypot(segment.col - food.col, segment.row - food.row);
       if (distance <= bodyRange && (!nearest || distance < nearest.distance)) nearest = { collector: segment, distance };
@@ -939,11 +952,12 @@ export class UltraWorld {
   }
 
   private fieldPopulationCount(): number {
-    return this.foods.length + this.enemies.filter((enemy) => !enemy.dead).length;
+    let population = this.foods.length;
+    for (const enemy of this.enemies) if (!enemy.dead) population += 1;
+    return population;
   }
 
-  private waveCountdownRate(): number {
-    const players = this.activePlayers();
+  private waveCountdownRate(players = this.activePlayers()): number {
     let best = 1;
     for (const player of players) {
       best = Math.max(best, (1 + player.level * 0.1) * (1 + this.moduleCount(player, 'beacon') * 0.07));
@@ -952,13 +966,14 @@ export class UltraWorld {
     return best / (1 + overflow * 0.1);
   }
 
-  private updateSpawns(delta: number): void {
-    this.waveTimer -= delta * this.waveCountdownRate();
+  private updateSpawns(delta: number, players = this.presentPlayers(), activePlayers = this.activePlayers()): void {
+    this.waveTimer -= delta * this.waveCountdownRate(activePlayers);
     if (this.waveTimer > 0) return;
-    const players = this.presentPlayers();
+    const playerCount = activePlayers.length;
     for (const player of players) {
-      for (let index = 0; index < FOODS_PER_PLAYER_PER_WAVE; index += 1) this.spawnFood();
-      for (let index = 0; index < ENEMIES_PER_PLAYER_PER_WAVE; index += 1) this.queueEnemySpawn(player);
+      this.spawnWaveFoods(FOODS_PER_PLAYER_PER_WAVE);
+      const occupied = this.occupiedCellCodes();
+      for (let index = 0; index < ENEMIES_PER_PLAYER_PER_WAVE; index += 1) this.queueEnemySpawn(player, playerCount, occupied);
     }
     this.waveCount += 1;
     this.waveTimer = WAVE_BASE_INTERVAL;
@@ -967,6 +982,20 @@ export class UltraWorld {
   private spawnFood(preferred?: GridPoint, special = false): boolean {
     const cell = this.findFreeCell(preferred ?? null, FOOD_WALL_MARGIN);
     if (!cell) return false;
+    this.materializeFood(cell, special);
+    return true;
+  }
+
+  private spawnWaveFoods(count: number): void {
+    const cells = this.freeCells(FOOD_WALL_MARGIN);
+    for (let index = 0; index < count && cells.length > 0; index += 1) {
+      const selectedIndex = Math.floor(this.random() * cells.length);
+      const [cell] = cells.splice(selectedIndex, 1);
+      this.materializeFood(cell, false);
+    }
+  }
+
+  private materializeFood(cell: GridPoint, special: boolean): void {
     const color = FOOD_COLORS[Math.floor(this.random() * FOOD_COLORS.length)];
     this.foods.push({
       id: this.allocateFoodId(),
@@ -981,7 +1010,6 @@ export class UltraWorld {
     this.burst(cell.col, cell.row, color, special ? 10 : 7, 62);
     this.ring(cell.col, cell.row, color, 0.42, 3, 0.42);
     this.effectSound('foodSpawn');
-    return true;
   }
 
   private updateEnemySpawnWarnings(delta: number): void {
@@ -994,14 +1022,13 @@ export class UltraWorld {
     }
   }
 
-  private queueEnemySpawn(sourcePlayer: PlayerEntity): boolean {
+  private queueEnemySpawn(sourcePlayer: PlayerEntity, playerCount = this.activePlayers().length, occupied = this.occupiedCellCodes()): boolean {
     const totalLength = Math.max(
       1,
       Math.round(sourcePlayer.level * this.randomBetween(ENEMY_HEALTH_PER_LEVEL_MIN, ENEMY_HEALTH_PER_LEVEL_MAX)) + ENEMY_BASE_HEALTH,
     );
-    const playerCount = this.activePlayers().length;
     const multiplayerScale = playerCount <= 1 ? 1 : Math.max(0.35, 1 / Math.sqrt(playerCount));
-    const placement = this.chooseEnemySpawn(totalLength - 1, this.playerBaseSpeed(sourcePlayer) * 2 * multiplayerScale);
+    const placement = this.chooseEnemySpawn(totalLength - 1, this.playerBaseSpeed(sourcePlayer) * 2 * multiplayerScale, occupied);
     if (!placement) return false;
     const color = ENEMY_COLORS[(this.nextEnemyId - 1) % ENEMY_COLORS.length];
     this.pendingSpawns.push({
@@ -1014,6 +1041,8 @@ export class UltraWorld {
       timer: ENEMY_SPAWN_WARNING_TIME,
       maxTimer: ENEMY_SPAWN_WARNING_TIME,
     });
+    occupied.add(cellCode(placement.head));
+    for (const cell of placement.body) occupied.add(cellCode(cell));
     this.effectSound('enemyWarning');
     return true;
   }
@@ -1058,41 +1087,19 @@ export class UltraWorld {
     this.shake(4);
   }
 
-  private chooseEnemySpawn(bodySegmentCount: number, minimumHeadDistance: number): { head: GridPoint; body: GridPoint[]; next: GridPoint } | null {
-    const occupied = this.occupiedCellKeys();
+  private chooseEnemySpawn(bodySegmentCount: number, minimumHeadDistance: number, occupied = this.occupiedCellCodes()): { head: GridPoint; body: GridPoint[]; next: GridPoint } | null {
     const bounds = this.arenaIntegerBounds();
-    const gridWidth = Math.max(1, bounds.maximum - bounds.minimum + 1);
-    const visibleLength = Math.min(bodySegmentCount, gridWidth * gridWidth - 2);
-    const candidates: Array<{ head: GridPoint; body: GridPoint[]; next: GridPoint; headDistance: number; nearestPlayerDistance: number }> = [];
     const players = this.alivePlayers();
-    for (const path of buildSerpentinePaths(bounds.minimum, bounds.maximum)) {
-      for (let index = visibleLength; index < path.length - 1; index += 1) {
-        const head = path[index];
-        const body: GridPoint[] = [];
-        let conflicts = occupied.has(cellKey(head)) ? 1 : 0;
-        for (let offset = 1; offset <= visibleLength; offset += 1) {
-          const cell = path[index - offset];
-          body.push(cell);
-          if (occupied.has(cellKey(cell))) conflicts += 1;
-        }
-        const next = path[index + 1];
-        if (occupied.has(cellKey(next))) conflicts += 1;
-        if (conflicts > 0) continue;
-        const headDistance = players.length > 0 ? Math.min(...players.map((player) => Math.hypot(head.col - player.col, head.row - player.row))) : this.arenaSize;
-        if (headDistance < minimumHeadDistance) continue;
-        const spawnCells = [head, ...body, next];
-        const nearestPlayerDistance = players.length > 0
-          ? Math.min(...players.flatMap((player) => spawnCells.map((cell) => Math.hypot(cell.col - player.col, cell.row - player.row))))
-          : this.arenaSize;
-        candidates.push({ head, body, next, headDistance, nearestPlayerDistance });
-      }
-    }
-    if (candidates.length === 0) return null;
-    candidates.sort((left, right) => right.headDistance - left.headDistance || right.nearestPlayerDistance - left.nearestPlayerDistance);
-    const farthest = candidates.filter((candidate) => Math.abs(candidate.headDistance - candidates[0].headDistance) < 0.001);
-    const safestDistance = farthest[0].nearestPlayerDistance;
-    const safest = farthest.filter((candidate) => Math.abs(candidate.nearestPlayerDistance - safestDistance) < 0.001);
-    return safest[Math.floor(this.random() * safest.length)];
+    return chooseSerpentineSpawn({
+      minimum: bounds.minimum,
+      maximum: bounds.maximum,
+      bodySegmentCount,
+      minimumHeadDistance,
+      occupiedCells: occupied,
+      players,
+      fallbackDistance: this.arenaSize,
+      random: () => this.random(),
+    });
   }
 
   private occupiedCellKeys(): Set<string> {
@@ -1113,8 +1120,26 @@ export class UltraWorld {
     return occupied;
   }
 
-  private findFreeCell(preferred: GridPoint | null, wallMargin = 0): GridPoint | null {
-    const occupied = this.occupiedCellKeys();
+  private occupiedCellCodes(): Set<number> {
+    const occupied = new Set<number>();
+    for (const player of this.alivePlayers()) {
+      occupied.add(cellCode(player));
+      for (const segment of player.segments) occupied.add(cellCode(segment));
+    }
+    for (const food of this.foods) occupied.add(cellCode(food));
+    for (const enemy of this.enemies) {
+      if (enemy.dead) continue;
+      occupied.add(cellCode(enemy));
+      for (const segment of enemy.segments) occupied.add(cellCode(segment));
+    }
+    for (const spawn of this.pendingSpawns) {
+      occupied.add(cellCode(spawn.headCell));
+      for (const cell of spawn.bodyCells) occupied.add(cellCode(cell));
+    }
+    return occupied;
+  }
+
+  private freeCells(wallMargin = 0, occupied = this.occupiedCellKeys()): GridPoint[] {
     const cells: GridPoint[] = [];
     const margin = clamp(Math.ceil(wallMargin), 0, Math.floor((this.arenaSize - 1) / 2));
     const bounds = this.arenaIntegerBounds(margin);
@@ -1123,6 +1148,12 @@ export class UltraWorld {
         if (!occupied.has(cellKey({ col, row }))) cells.push({ col, row });
       }
     }
+    return cells;
+  }
+
+  private findFreeCell(preferred: GridPoint | null, wallMargin = 0): GridPoint | null {
+    const cells = this.freeCells(wallMargin);
+    const margin = clamp(Math.ceil(wallMargin), 0, Math.floor((this.arenaSize - 1) / 2));
     if (cells.length === 0) return margin > 0 ? null : preferred;
     if (!preferred) return cells[Math.floor(this.random() * cells.length)];
     cells.sort((left, right) => manhattan(left, preferred) - manhattan(right, preferred));
@@ -2471,30 +2502,6 @@ function followContinuousSegments(headCol: number, headRow: number, segments: Gr
   }
 }
 
-function buildSerpentinePaths(minimum: number, maximum: number): GridPoint[][] {
-  const base: GridPoint[] = [];
-  for (let row = minimum; row <= maximum; row += 1) {
-    for (let step = minimum; step <= maximum; step += 1) {
-      base.push({ col: (row - minimum) % 2 === 0 ? step : minimum + maximum - step, row });
-    }
-  }
-
-  const transforms = [
-    (cell: GridPoint) => ({ col: cell.col, row: cell.row }),
-    (cell: GridPoint) => ({ col: minimum + maximum - cell.col, row: cell.row }),
-    (cell: GridPoint) => ({ col: cell.col, row: minimum + maximum - cell.row }),
-    (cell: GridPoint) => ({ col: cell.row, row: cell.col }),
-    (cell: GridPoint) => ({ col: minimum + maximum - cell.row, row: cell.col }),
-    (cell: GridPoint) => ({ col: cell.row, row: minimum + maximum - cell.col }),
-  ];
-  const paths: GridPoint[][] = [];
-  for (const transform of transforms) {
-    const path = base.map(transform);
-    paths.push(path, [...path].reverse());
-  }
-  return paths;
-}
-
 function toRosterPlayer(player: PlayerEntity): RosterPlayer {
   return {
     entityId: player.entityId,
@@ -2569,6 +2576,10 @@ function toPendingSpawnView(spawn: PendingSpawn): PendingSpawnView {
 
 function cellKey(point: GridPoint): string {
   return `${Math.round(point.col)},${Math.round(point.row)}`;
+}
+
+function cellCode(point: GridPoint): number {
+  return (Math.round(point.row) & 0xffff) << 16 | (Math.round(point.col) & 0xffff);
 }
 
 function manhattan(left: GridPoint, right: GridPoint): number {
