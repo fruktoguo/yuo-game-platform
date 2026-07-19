@@ -254,6 +254,7 @@
   const LEVEL_UP_TIME_SCALE = 0.15;
   const NETWORK_BASE_SNAPSHOT_MS = 1000 / 15;
   const NETWORK_SNAPSHOT_BUFFER_SIZE = 12;
+  const NETWORK_MAX_EXTRAPOLATION_MS = 90;
   const NETWORK_INPUT_INTERVAL_MS = 1000 / 30;
   const NETWORK_INPUT_HEARTBEAT_MS = 110;
   const MAX_RENDER_DPR = 1.5;
@@ -335,11 +336,12 @@
     playerViews: new Map(),
     enemyViews: new Map(),
     foodViews: new Map(),
-    projectileViews: new Map(),
     hazardViews: new Map(),
     upgradeOffer: null,
     moduleSignature: ""
   };
+  const networkProjectileRuntime = globalThis.GSS0ProjectileRuntime?.create(GRID_SIZE);
+  if (!networkProjectileRuntime) throw new Error("PROJECT GSS0 投射物运行时未加载");
 
   const keys = new Set();
   const pointer = { active: false, x: 0, y: 0, touchId: null };
@@ -958,6 +960,8 @@
         network.renderServerTime = NaN;
         network.lastPresentationAt = 0;
         clearNetworkViews();
+        networkProjectileRuntime.reset(result.data.projectiles || result.data.snapshot.projectiles || []);
+        projectiles = networkProjectileRuntime.items;
         network.lastSelfAlive = Boolean(result.data.snapshot.players.find((item) => item.entityId === network.selfEntityId)?.alive);
         bestScore = Math.max(bestScore, Number(result.data.profile?.bestScore) || 0);
         ui.best.textContent = Math.floor(bestScore).toLocaleString("zh-CN");
@@ -969,10 +973,14 @@
     });
     socket.on("ultra:snapshot", (payload) => {
       try {
-        receiveNetworkSnapshot(decodeNetworkSnapshot(payload));
+        receiveNetworkSnapshot(globalThis.GSS0NetworkCodec.decode(payload, MODULES));
       } catch (error) {
         console.error("PROJECT GSS0 快照无效", error);
       }
+    });
+    socket.on("ultra:projectiles", (events) => {
+      networkProjectileRuntime.applyEvents(events);
+      projectiles = networkProjectileRuntime.items;
     });
     socket.on("ultra:effects", receiveNetworkEffects);
     socket.on("ultra:roster", (roster) => {
@@ -1006,7 +1014,8 @@
       if (arrivalInterval > 10 && arrivalInterval < 1000 && serverInterval > 10 && serverInterval < 1000) {
         const cadence = clamp(serverInterval, 50, 180);
         network.snapshotIntervalMs += (cadence - network.snapshotIntervalMs) * 0.18;
-        network.snapshotGapMs = Math.max(serverInterval, network.snapshotGapMs * 0.96);
+        const gapBlend = serverInterval > network.snapshotGapMs ? 0.45 : 0.16;
+        network.snapshotGapMs += (serverInterval - network.snapshotGapMs) * gapBlend;
         const jitter = Math.abs(arrivalInterval - serverInterval);
         network.snapshotJitterMs += (jitter - network.snapshotJitterMs) * 0.2;
       }
@@ -1119,7 +1128,6 @@
       players: previousById(snapshot?.players, "entityId"),
       enemies: previousById(snapshot?.enemies),
       foods: previousById(snapshot?.foods),
-      projectiles: previousById(snapshot?.projectiles),
       hazards: previousById(snapshot?.hazards)
     };
   }
@@ -1137,9 +1145,9 @@
     const latest = buffer[buffer.length - 1];
     const elapsedSinceLatest = Math.max(0, now - network.receivedAt);
     const interpolationDelay = clamp(
-      Math.max(network.snapshotIntervalMs * 2.1, network.snapshotGapMs * 1.15) + network.snapshotJitterMs * 1.5,
-      130,
-      320
+      Math.max(network.snapshotIntervalMs * 1.55, network.snapshotGapMs * 0.85) + network.snapshotJitterMs * 1.2,
+      90,
+      240
     );
     const desiredServerTime = latest.snapshot.serverTime + elapsedSinceLatest - interpolationDelay;
     if (!Number.isFinite(network.renderServerTime) || Math.abs(desiredServerTime - network.renderServerTime) > 1000) {
@@ -1147,14 +1155,20 @@
     } else {
       const timingError = desiredServerTime - network.renderServerTime;
       const playbackRate = clamp(1 + timingError / 350, 0.92, 1.08);
-      network.renderServerTime = Math.min(latest.snapshot.serverTime, network.renderServerTime + frameElapsed * playbackRate);
+      network.renderServerTime = Math.min(
+        latest.snapshot.serverTime + NETWORK_MAX_EXTRAPOLATION_MS,
+        network.renderServerTime + frameElapsed * playbackRate
+      );
     }
 
     if (buffer.length === 1 || network.renderServerTime <= buffer[0].snapshot.serverTime) {
       return { previous: buffer[0], current: buffer[0], amount: 1 };
     }
     if (network.renderServerTime >= latest.snapshot.serverTime) {
-      return { previous: buffer[Math.max(0, buffer.length - 2)], current: latest, amount: 1 };
+      const previous = buffer[Math.max(0, buffer.length - 2)];
+      const duration = Math.max(1, latest.snapshot.serverTime - previous.snapshot.serverTime);
+      const extrapolation = Math.min(NETWORK_MAX_EXTRAPOLATION_MS, network.renderServerTime - latest.snapshot.serverTime);
+      return { previous, current: latest, amount: 1 + extrapolation / duration };
     }
     for (let index = 1; index < buffer.length; index += 1) {
       const current = buffer[index];
@@ -1173,15 +1187,21 @@
     network.playerViews.clear();
     network.enemyViews.clear();
     network.foodViews.clear();
-    network.projectileViews.clear();
     network.hazardViews.clear();
+    networkProjectileRuntime.clear();
   }
 
   function syncNetworkNode(view, current, previous, amount) {
     if (view.source !== current) {
       const segments = view.segments;
+      const orbit = view.orbit;
+      const phase = view.phase;
+      const birthAge = view.birthAge;
       Object.assign(view, current);
       if (segments) view.segments = segments;
+      if (Number.isFinite(orbit)) view.orbit = orbit;
+      if (Number.isFinite(phase)) view.phase = phase;
+      if (birthAge !== undefined) view.birthAge = birthAge;
       view.source = current;
     }
     view.col = interpolateNumber(previous?.col, current.col, amount);
@@ -1191,13 +1211,16 @@
     return view;
   }
 
-  function syncNetworkSegments(views, items, previousItems, amount, interpolateAngles = false) {
+  function syncNetworkSegments(views, items, previousItems, amount) {
     for (let index = 0; index < items.length; index += 1) {
       const item = items[index];
       const old = previousItems?.[index];
+      const isNew = !views[index];
       const view = views[index] || {};
       syncNetworkNode(view, item, old, amount);
-      if (interpolateAngles) view.angle = interpolateAngle(old?.angle ?? item.angle, item.angle, amount);
+      if (item.module === "blade") view.orbit = interpolateAngle(old?.orbit ?? item.orbit, item.orbit, amount);
+      else if (isNew) view.orbit = index * 2.399963229728653 % TAU;
+      if (!old && previousItems) view.birthAge = 0;
       views[index] = view;
     }
     views.length = items.length;
@@ -1211,23 +1234,6 @@
     const counts = Object.create(null);
     for (const segment of segments) if (segment.module) counts[segment.module] = (counts[segment.module] || 0) + 1;
     return counts;
-  }
-
-  function updateNetworkProjectileViews(items, previousItems, amount, activeTick) {
-    projectiles.length = 0;
-    for (const item of items) {
-      let view = network.projectileViews.get(item.id);
-      if (!view) {
-        view = {};
-        network.projectileViews.set(item.id, view);
-      }
-      syncNetworkNode(view, item, previousItems.get(item.id), amount);
-      view.vx = item.vx * arena.cellSize;
-      view.vy = item.vy * arena.cellSize;
-      view.seenAtTick = activeTick;
-      projectiles.push(view);
-    }
-    pruneNetworkViews(network.projectileViews, activeTick);
   }
 
   function applyNetworkPresentation(previous, current, previousIndexes, amount) {
@@ -1256,9 +1262,16 @@
       view.playerId = rosterPlayer?.playerId || item.name;
       view.isSelf = item.entityId === network.selfEntityId;
       view.protectedState = item.paused || item.choosingUpgrade;
-      syncNetworkSegments(view.segments, item.segments, old?.segments, playerAmount, true);
-      if (sourceChanged) view.networkModuleCounts = networkModuleCounts(item.segments);
-      view.growth = item.growth;
+      syncNetworkSegments(view.segments, item.segments, old?.segments, playerAmount);
+      let previousNode = view;
+      for (const segment of view.segments) {
+        segment.angle = Math.atan2(previousNode.row - segment.row, previousNode.col - segment.col);
+        previousNode = segment;
+      }
+      if (sourceChanged) {
+        view.networkModuleCounts = networkModuleCounts(item.segments);
+        view.growth = item.growth ? { ...item.growth } : null;
+      }
       view.seenAtTick = activeTick;
       visiblePlayers.push(view);
     }
@@ -1273,7 +1286,7 @@
       xp = selfRaw.xp;
       xpNeeded = selfRaw.xpNeeded;
       gameTime = selfRaw.survivalTime;
-      activeGrowth = selfRaw.growth;
+      activeGrowth = self?.growth || null;
       if (snapshotChanged) {
         const moduleSignature = selfRaw.segments.map((segment) => segment.module || "-").join("|");
         if (moduleSignature !== network.moduleSignature) {
@@ -1306,36 +1319,43 @@
     }
     pruneNetworkViews(network.enemyViews, activeTick);
 
-    foods.length = 0;
+    if (snapshotChanged) foods.length = 0;
     for (const item of current.foods) {
+      const old = previousIndexes.foods.get(item.id);
       let food = network.foodViews.get(item.id);
       if (!food) {
         food = {};
         network.foodViews.set(item.id, food);
       }
-      syncNetworkNode(food, item, previousIndexes.foods.get(item.id), amount);
-      food.radius = arena.cellSize * 0.13;
-      food.seenAtTick = activeTick;
-      foods.push(food);
-    }
-    pruneNetworkViews(network.foodViews, activeTick);
-
-    updateNetworkProjectileViews(current.projectiles, previousIndexes.projectiles, amount, activeTick);
-
-    hazards.length = 0;
-    for (const item of current.hazards) {
-      let hazard = network.hazardViews.get(item.id);
-      if (!hazard) {
-        hazard = {};
-        network.hazardViews.set(item.id, hazard);
+      if (snapshotChanged || item.isPulled || old?.isPulled) syncNetworkNode(food, item, old, amount);
+      if (snapshotChanged) {
+        food.radius = arena.cellSize * 0.13;
+        food.seenAtTick = activeTick;
+        foods.push(food);
       }
-      syncNetworkNode(hazard, item, previousIndexes.hazards.get(item.id), amount);
-      hazard.radius = item.radius * arena.cellSize;
-      hazard.seenAtTick = activeTick;
-      hazards.push(hazard);
     }
-    pruneNetworkViews(network.hazardViews, activeTick);
-    pendingEnemySpawns = current.pendingSpawns;
+    if (snapshotChanged) pruneNetworkViews(network.foodViews, activeTick);
+
+    if (snapshotChanged) {
+      hazards.length = 0;
+      for (const item of current.hazards) {
+        let hazard = network.hazardViews.get(item.id);
+        if (!hazard) {
+          hazard = {};
+          network.hazardViews.set(item.id, hazard);
+        }
+        syncNetworkNode(hazard, item, previousIndexes.hazards.get(item.id), amount);
+        hazard.radius = item.radius * arena.cellSize;
+        hazard.seenAtTick = activeTick;
+        hazards.push(hazard);
+      }
+      pruneNetworkViews(network.hazardViews, activeTick);
+      pendingEnemySpawns = current.pendingSpawns.map((spawn) => ({
+        ...spawn,
+        headCell: { ...spawn.headCell },
+        bodyCells: spawn.bodyCells.map((cell) => ({ ...cell }))
+      }));
+    }
     network.presentationSnapshot = current;
   }
 
@@ -1347,6 +1367,23 @@
       presentation.previous.indexes,
       presentation.amount
     );
+    networkProjectileRuntime.update(dt, (id) => network.enemyViews.get(id) || null, arena);
+    projectiles = networkProjectileRuntime.items;
+    for (const visiblePlayer of visiblePlayers) {
+      if (visiblePlayer.growth) visiblePlayer.growth.elapsed += dt;
+      for (const segment of visiblePlayer.segments) {
+        if (segment.module !== "blade") segment.orbit = (segment.orbit || 0) + dt * 3.8;
+        if (!segment.ready && (segment.module === "shield" || segment.module === "phase")) {
+          segment.cooldown = Math.max(0, segment.cooldown - dt);
+        }
+        if (segment.birthAge !== null) {
+          segment.birthAge += dt;
+          if (segment.birthAge >= SEGMENT_BIRTH_DURATION) segment.birthAge = null;
+        }
+      }
+    }
+    for (const hazard of hazards) hazard.phase += dt * 4;
+    for (const spawn of pendingEnemySpawns) spawn.timer = Math.max(0, spawn.timer - dt);
     if (state === "running" && player && !testMode) {
       updateInput(dt);
       sendNetworkInput();
@@ -1420,113 +1457,6 @@
     window.setTimeout(() => {
       if (state === "gameover") ui.gameOver.classList.add("is-visible");
     }, 330);
-  }
-
-  function decodeNetworkSnapshot(payload) {
-    const bytes = payload instanceof ArrayBuffer
-      ? new Uint8Array(payload)
-      : ArrayBuffer.isView(payload)
-        ? new Uint8Array(payload.buffer, payload.byteOffset, payload.byteLength)
-        : new Uint8Array(payload);
-    const reader = new NetworkBinaryReader(bytes);
-    if (reader.u32() !== 0x55534e50 || reader.u8() !== 1) throw new Error("快照格式无效");
-    const snapshot = {
-      tick: reader.u32(), serverTime: reader.f64(), gameTime: reader.f32(), waveCount: reader.u16(), waveTimer: reader.f32(), threatLevel: reader.u16(),
-      players: [], enemies: [], foods: [], projectiles: [], hazards: [], pendingSpawns: []
-    };
-    const counts = [reader.u8(), reader.u16(), reader.u16(), reader.u16(), reader.u16(), reader.u16()];
-    for (let index = 0; index < counts[0]; index += 1) snapshot.players.push(readNetworkPlayer(reader));
-    for (let index = 0; index < counts[1]; index += 1) snapshot.enemies.push(readNetworkEnemy(reader));
-    for (let index = 0; index < counts[2]; index += 1) snapshot.foods.push(readNetworkFood(reader));
-    for (let index = 0; index < counts[3]; index += 1) snapshot.projectiles.push(readNetworkProjectile(reader));
-    for (let index = 0; index < counts[4]; index += 1) snapshot.hazards.push(readNetworkHazard(reader));
-    for (let index = 0; index < counts[5]; index += 1) snapshot.pendingSpawns.push(readNetworkSpawn(reader));
-    reader.complete();
-    return snapshot;
-  }
-
-  function readNetworkPlayer(reader) {
-    const entityId = reader.u16();
-    const name = reader.string();
-    const colorIndex = reader.u8();
-    const flags = reader.u8();
-    const result = {
-      entityId, name, colorIndex,
-      connected: Boolean(flags & 1), alive: Boolean(flags & 2), paused: Boolean(flags & 4), choosingUpgrade: Boolean(flags & 8),
-      col: reader.f32(), row: reader.f32(), angle: reader.f32(), desiredAngle: reader.f32(),
-      invulnerable: reader.f32(), collisionCooldown: reader.f32(), score: reader.f32(), kills: reader.u16(), botKills: reader.u16(), pvpKills: reader.u16(),
-      survivalTime: reader.f32(), level: reader.u16(), xp: reader.u16(), xpNeeded: reader.u16(), respawnAt: null, segments: [], growth: null
-    };
-    const respawnAt = reader.f64();
-    result.respawnAt = respawnAt < 0 ? null : respawnAt;
-    const segmentCount = reader.u16();
-    for (let index = 0; index < segmentCount; index += 1) result.segments.push(readNetworkSegment(reader));
-    if (reader.u8()) result.growth = { color: reader.color(), special: Boolean(reader.u8()), elapsed: reader.f32(), nodeCount: reader.u16() };
-    return result;
-  }
-
-  function readNetworkSegment(reader) {
-    const moduleIndex = reader.u8();
-    const flags = reader.u8();
-    return {
-      module: moduleIndex ? MODULES[moduleIndex - 1]?.id || null : null,
-      neutral: Boolean(flags & 1), ready: Boolean(flags & 2),
-      col: reader.f32(), row: reader.f32(), angle: reader.f32(), timer: reader.f32(), cooldown: reader.f32(), orbit: reader.f32(),
-      birthAge: flags & 4 ? reader.f32() : null
-    };
-  }
-
-  function readNetworkEnemy(reader) {
-    const result = { id: reader.u16(), col: reader.f32(), row: reader.f32(), angle: reader.f32(), color: reader.color(), captured: reader.u16(), segments: [] };
-    const count = reader.u16();
-    for (let index = 0; index < count; index += 1) result.segments.push({ col: reader.f32(), row: reader.f32() });
-    return result;
-  }
-
-  function readNetworkFood(reader) {
-    const result = { id: reader.u16(), col: reader.f32(), row: reader.f32(), color: reader.color(), phase: reader.f32(), special: false, isPulled: false };
-    const flags = reader.u8();
-    result.special = Boolean(flags & 1);
-    result.isPulled = Boolean(flags & 2);
-    return result;
-  }
-
-  function readNetworkProjectile(reader) {
-    return { id: reader.u16(), col: reader.f32(), row: reader.f32(), vx: reader.f32(), vy: reader.f32(), color: reader.color(), size: reader.f32() };
-  }
-
-  function readNetworkHazard(reader) {
-    const id = reader.u16();
-    const kind = reader.u8() === 0 ? "mine" : "gravity";
-    return { id, kind, col: reader.f32(), row: reader.f32(), radius: reader.f32(), color: reader.color(), phase: reader.f32() };
-  }
-
-  function readNetworkSpawn(reader) {
-    const id = reader.u16();
-    const color = reader.color();
-    const headCell = { col: reader.f32(), row: reader.f32() };
-    const bodyCells = [];
-    const count = reader.u16();
-    for (let index = 0; index < count; index += 1) bodyCells.push({ col: reader.f32(), row: reader.f32() });
-    return { id, color, headCell, bodyCells, timer: reader.f32(), maxTimer: reader.f32() };
-  }
-
-  class NetworkBinaryReader {
-    constructor(bytes) {
-      this.bytes = bytes;
-      this.view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-      this.offset = 0;
-      this.decoder = new TextDecoder("utf-8", { fatal: true });
-    }
-    ensure(length) { if (this.offset + length > this.bytes.byteLength) throw new Error("快照数据不完整"); }
-    u8() { this.ensure(1); const value = this.view.getUint8(this.offset); this.offset += 1; return value; }
-    u16() { this.ensure(2); const value = this.view.getUint16(this.offset, true); this.offset += 2; return value; }
-    u32() { this.ensure(4); const value = this.view.getUint32(this.offset, true); this.offset += 4; return value; }
-    f32() { this.ensure(4); const value = this.view.getFloat32(this.offset, true); this.offset += 4; return value; }
-    f64() { this.ensure(8); const value = this.view.getFloat64(this.offset, true); this.offset += 8; return value; }
-    string() { const length = this.u8(); this.ensure(length); const value = this.decoder.decode(this.bytes.subarray(this.offset, this.offset + length)); this.offset += length; return value; }
-    color() { return `#${this.u32().toString(16).padStart(6, "0")}`; }
-    complete() { if (this.offset !== this.bytes.byteLength) throw new Error("快照包含多余数据"); }
   }
 
   function resetGame() {
@@ -4291,30 +4221,21 @@
     let fontSize = clamp(10 * pieceScale, 8, 11);
     ctx.save();
     ctx.font = `900 ${fontSize}px Bahnschrift, Arial Narrow, sans-serif`;
-    while (fontSize > 7 && ctx.measureText(label).width > maxWidth - 14) {
+    while (fontSize > 7 && ctx.measureText(label).width > maxWidth) {
       fontSize -= 0.5;
       ctx.font = `900 ${fontSize}px Bahnschrift, Arial Narrow, sans-serif`;
     }
-    const textWidth = Math.min(maxWidth - 14, ctx.measureText(label).width);
-    const widthValue = textWidth + 14;
-    const heightValue = fontSize + 10;
-    const x = target.x - widthValue / 2;
-    const y = target.y - 31 * pieceScale - heightValue;
-    ctx.fillStyle = target.isSelf ? "rgba(243,198,0,0.96)" : "rgba(8,11,13,0.9)";
-    ctx.strokeStyle = target.isSelf ? "#ffffff" : target.playerColor;
-    ctx.lineWidth = target.isSelf ? 1.4 : 1;
-    ctx.beginPath();
-    ctx.moveTo(x + 5, y);
-    ctx.lineTo(x + widthValue, y);
-    ctx.lineTo(x + widthValue - 5, y + heightValue);
-    ctx.lineTo(x, y + heightValue);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-    ctx.fillStyle = target.isSelf ? "#090b0c" : "#f6f7f6";
+    const y = target.y - 37 * pieceScale;
+    ctx.fillStyle = target.isSelf ? "#f3c600" : "#f6f7f6";
+    ctx.strokeStyle = "rgba(5, 7, 8, 0.94)";
+    ctx.lineWidth = 3.5;
+    ctx.lineJoin = "round";
+    ctx.shadowColor = "rgba(0, 0, 0, 0.9)";
+    ctx.shadowBlur = 7;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(label, target.x, y + heightValue / 2 + 0.5, maxWidth - 14);
+    ctx.strokeText(label, target.x, y, maxWidth);
+    ctx.fillText(label, target.x, y, maxWidth);
     ctx.restore();
   }
 

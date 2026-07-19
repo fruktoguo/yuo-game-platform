@@ -3,12 +3,13 @@ import type { UltraSnapshot } from '../src/shared/protocol';
 import { decodeUltraSnapshot, encodeUltraSnapshot } from '../src/shared/snapshotCodec';
 
 describe('Ultra 二进制快照', () => {
-  it('版本化二进制格式完整往返 Ultra 世界并拒绝截断数据', () => {
+  it('版本化二进制格式恢复客户端所需状态并拒绝截断数据', () => {
     const snapshot = snapshotAt(42, 8.25);
     snapshot.players[0].name = '联机玩家甲';
     snapshot.players[0].segments[0].module = 'spark';
     snapshot.players[0].segments[0].neutral = false;
     snapshot.players[0].segments[0].birthAge = 0.12;
+    snapshot.players[0].segments.push({ ...snapshot.players[0].segments[0], col: 7.5, module: 'blade', orbit: 1.25 });
     snapshot.players[0].growth = { color: '#b8f53f', special: true, elapsed: 0.18, nodeCount: 3 };
     snapshot.foods.push({ id: 9, col: 2.5, row: 3.5, color: '#36dcff', phase: 1.2, special: true, isPulled: true });
     snapshot.projectiles.push({ id: 7, col: 4, row: 5, vx: 6, vy: -7, color: '#ff9f43', size: 4.5 });
@@ -21,13 +22,71 @@ describe('Ultra 二进制快照', () => {
     expect(encoded.byteLength).toBeLessThan(Buffer.byteLength(JSON.stringify(snapshot)));
     expect(decoded).toMatchObject({ tick: 42, waveCount: 1, players: [{ name: '联机玩家甲' }] });
     expect(decoded.players[0].segments[0]).toMatchObject({ module: 'spark', neutral: false });
-    expect(decoded.players[0].segments[0].birthAge).toBeCloseTo(0.12, 5);
+    expect(decoded.players[0].segments[0].birthAge).toBeNull();
+    expect(decoded.players[0].segments[1].orbit).toBeCloseTo(1.25, 3);
     expect(decoded.players[0].growth?.elapsed).toBeCloseTo(0.18, 5);
     expect(decoded.foods[0]).toMatchObject({ id: 9, color: '#36dcff', special: true, isPulled: true });
     expect(decoded.hazards[0]).toMatchObject({ id: 3, kind: 'gravity', color: '#a56cff' });
     expect(decoded.pendingSpawns[0].timer).toBeCloseTo(1.1, 5);
     expect(decodeUltraSnapshot(later)).toMatchObject({ tick: 43, players: [{ col: 9.5 }] });
     expect(() => decodeUltraSnapshot(encoded.slice(0, 12))).toThrow('Ultra 快照数据不完整');
+  });
+
+  it('高对象数量下仍保持紧凑包体', () => {
+    const crowded = snapshotAt(99, 12);
+    const seedPlayer = crowded.players[0];
+    const seedSegment = seedPlayer.segments[0];
+    crowded.players = Array.from({ length: 12 }, (_, playerIndex) => ({
+      ...seedPlayer,
+      entityId: playerIndex + 1,
+      name: `玩家${playerIndex + 1}`,
+      col: 8 + playerIndex % 8,
+      segments: Array.from({ length: 40 }, (_, segmentIndex) => ({
+        ...seedSegment,
+        col: 8 + playerIndex % 8 - segmentIndex * 0.12,
+        row: 5 + Math.sin(segmentIndex * 0.2),
+        angle: segmentIndex * 0.11,
+      })),
+    }));
+    crowded.enemies = Array.from({ length: 40 }, (_, enemyIndex) => ({
+      id: enemyIndex + 1,
+      col: 4 + enemyIndex % 16,
+      row: 2 + enemyIndex % 18,
+      angle: enemyIndex * 0.13,
+      color: '#ff5c62',
+      captured: enemyIndex,
+      segments: Array.from({ length: 20 }, (_, segmentIndex) => ({
+        col: 4 + enemyIndex % 16 - segmentIndex * 0.12,
+        row: 2 + enemyIndex % 18,
+      })),
+    }));
+    crowded.foods = Array.from({ length: 200 }, (_, index) => ({
+      id: index + 1,
+      col: index % 24,
+      row: Math.floor(index / 24) % 24,
+      color: '#36dcff',
+      phase: index * 0.17,
+      special: index % 7 === 0,
+      isPulled: index % 5 === 0,
+    }));
+    crowded.projectiles = Array.from({ length: 300 }, (_, index) => ({
+      id: index + 1,
+      col: index % 24,
+      row: Math.floor(index / 24) % 24,
+      vx: (index % 31) - 15,
+      vy: 15 - index % 29,
+      color: '#ff9f43',
+      size: 4.5,
+    }));
+
+    const encoded = encodeUltraSnapshot(crowded);
+    const decoded = decodeUltraSnapshot(encoded);
+
+    expect(encoded.byteLength).toBeLessThan(22_000);
+    expect(decoded.players).toHaveLength(12);
+    expect(decoded.enemies).toHaveLength(40);
+    expect(decoded.foods).toHaveLength(200);
+    expect(decoded.projectiles).toHaveLength(300);
   });
 });
 

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { CANONICAL_CELL_SIZE, DISCONNECT_GRACE_MS, RESPAWN_DELAY_MS } from '../src/shared/constants';
-import type { UltraEffect } from '../src/shared/protocol';
+import type { UltraEffect, UltraProjectileEvent } from '../src/shared/protocol';
 import { UltraWorld } from '../src/server/UltraWorld';
 
 describe('UltraWorld 原版 PvE 与多人共享世界', () => {
@@ -19,6 +19,129 @@ describe('UltraWorld 原版 PvE 与多人共享世界', () => {
     expect(snapshot.pendingSpawns).toHaveLength(1);
     expect(snapshot.pendingSpawns[0].timer).toBeCloseTo(1.5, 2);
     expect(effects.filter((effect) => effect.type === 'sound').map((effect) => effect.kind)).toEqual(expect.arrayContaining(['start', 'foodSpawn', 'enemyWarning']));
+  });
+
+  it('广播快照复用世界实体，普通快照仍保持隔离副本', () => {
+    const world = new UltraWorld({ random: () => 0.25 });
+    world.connectPlayer('account-a', '玩家甲', 0);
+    world.spawn('account-a', 0);
+    const internal = (Reflect.get(world, 'playersByAccount') as Map<string, TestPlayerEntity>).get('account-a')!;
+
+    const networkSnapshot = world.getNetworkSnapshot(100);
+    const isolatedSnapshot = world.getSnapshot(100);
+
+    expect(networkSnapshot.players[0]).toBe(internal);
+    expect(networkSnapshot.players[0].segments).toBe(internal.segments);
+    expect(isolatedSnapshot.players[0]).not.toBe(internal);
+    expect(isolatedSnapshot.players[0].segments).not.toBe(internal.segments);
+  });
+
+  it('空间特效和战斗音效广播给全场，纯个人反馈仍定向发送', () => {
+    const effects: UltraEffect[] = [];
+    const world = new UltraWorld({ callbacks: { onEffects: (items) => effects.push(...items) } });
+    const burst = Reflect.get(world, 'burst') as (...args: unknown[]) => void;
+    const ring = Reflect.get(world, 'ring') as (...args: unknown[]) => void;
+    const beam = Reflect.get(world, 'beam') as (...args: unknown[]) => void;
+    const textEffect = Reflect.get(world, 'textEffect') as (...args: unknown[]) => void;
+    const effectSound = Reflect.get(world, 'effectSound') as (...args: unknown[]) => void;
+    const flushEffects = Reflect.get(world, 'flushEffects') as () => void;
+
+    burst.call(world, 4, 5, '#ff5c62', 20, 150, 7);
+    ring.call(world, 4, 5, '#ff5c62', 0.5, 4, 2, 7);
+    beam.call(world, 'beam', { col: 4, row: 5 }, { col: 6, row: 5 }, '#ffffff', 0.2, 7);
+    textEffect.call(world, 4, 5, '击破', '#ffffff', 0.8, 7);
+    effectSound.call(world, 'kill', 7);
+    effectSound.call(world, 'level', 7);
+    flushEffects.call(world);
+
+    expect(effects.filter((effect) => effect.type !== 'sound').every((effect) => effect.audienceEntityId === undefined)).toBe(true);
+    expect(effects.find((effect) => effect.type === 'sound' && effect.kind === 'kill')?.audienceEntityId).toBeUndefined();
+    expect(effects.find((effect) => effect.type === 'sound' && effect.kind === 'level')?.audienceEntityId).toBe(7);
+  });
+
+  it('投射物只通过生命周期事件同步，常规广播快照不再携带逐帧位置', () => {
+    const projectileEvents: UltraProjectileEvent[] = [];
+    const world = new UltraWorld({ random: () => 0.3, callbacks: { onProjectiles: (items) => projectileEvents.push(...items) } });
+    world.connectPlayer('account-a', '玩家甲', 0);
+    world.spawn('account-a', 0);
+    const owner = (Reflect.get(world, 'playersByAccount') as Map<string, TestPlayerEntity>).get('account-a')!;
+    const createProjectile = Reflect.get(world, 'createProjectile') as (
+      player: unknown,
+      origin: { col: number; row: number },
+      angle: number,
+      options: Record<string, number | string>,
+    ) => void;
+    const flushProjectileEvents = Reflect.get(world, 'flushProjectileEvents') as () => void;
+
+    createProjectile.call(world, owner, owner, 0, { speed: 100, life: 1, color: '#123456' });
+    flushProjectileEvents.call(world);
+    expect(projectileEvents[0]).toMatchObject({ type: 'spawn', projectile: { id: 1, color: '#123456' } });
+    expect(world.getProjectileStates()).toHaveLength(1);
+    expect(world.getNetworkSnapshot(0).projectiles).toHaveLength(0);
+    expect(world.getSnapshot(0, false).projectiles).toHaveLength(0);
+    expect(world.getSnapshot(0).projectiles).toHaveLength(1);
+
+    (Reflect.get(world, 'projectiles') as Array<{ life: number }>)[0].life = 0;
+    world.step(0, 50);
+    expect(projectileEvents).toContainEqual(expect.objectContaining({ type: 'destroy', id: 1 }));
+    expect(world.getProjectileStates()).toHaveLength(0);
+
+    createProjectile.call(world, owner, { col: 23.49, row: 12 }, 0, { speed: 10, life: 1, color: '#654321', bounces: 1 });
+    const updateProjectiles = Reflect.get(world, 'updateProjectiles') as (delta: number) => void;
+    updateProjectiles.call(world, 0.05);
+    flushProjectileEvents.call(world);
+    expect(projectileEvents.map((event) => event.type).slice(0, 2)).toEqual(['spawn', 'destroy']);
+    expect(projectileEvents.at(-1)).toMatchObject({
+      type: 'update',
+      projectile: { id: 2, bounces: 0, targetId: null },
+    });
+    const bounced = projectileEvents.at(-1);
+    if (bounced?.type !== 'update') throw new Error('预期收到投射物反弹更新');
+    expect(bounced.projectile.vx).toBeLessThan(0);
+  });
+
+  it('击破敌人会保留原版普通球掉落，并向全场广播对应视听事件', () => {
+    const effects: UltraEffect[] = [];
+    const world = new UltraWorld({ random: () => 0.3, callbacks: { onEffects: (items) => effects.push(...items) } });
+    world.connectPlayer('account-a', '玩家甲', 0);
+    world.spawn('account-a', 0);
+    const flushEffects = Reflect.get(world, 'flushEffects') as () => void;
+    flushEffects.call(world);
+    effects.length = 0;
+
+    const owner = (Reflect.get(world, 'playersByAccount') as Map<string, TestPlayerEntity>).get('account-a')!;
+    const enemy = testEnemy(18, 18);
+    Reflect.set(world, 'enemies', [enemy]);
+    const killEnemy = Reflect.get(world, 'killEnemy') as (target: unknown, player: unknown) => void;
+    killEnemy.call(world, enemy, owner);
+    flushEffects.call(world);
+
+    expect(world.getSnapshot(0).foods).toHaveLength(1);
+    expect(effects.map((effect) => effect.type)).toEqual(expect.arrayContaining(['burst', 'ring', 'text', 'sound']));
+    expect(effects.filter((effect) => effect.type === 'sound').map((effect) => effect.kind)).toEqual(expect.arrayContaining(['kill', 'foodSpawn']));
+    expect(effects.filter((effect) => effect.type !== 'shake').every((effect) => effect.audienceEntityId === undefined)).toBe(true);
+  });
+
+  it('最后一名玩家死亡并重置场地后仍保留本次死亡演出', () => {
+    const effects: UltraEffect[] = [];
+    const world = new UltraWorld({ callbacks: { onEffects: (items) => effects.push(...items) } });
+    world.connectPlayer('account-a', '玩家甲', 0);
+    world.spawn('account-a', 0);
+    const flushEffects = Reflect.get(world, 'flushEffects') as () => void;
+    flushEffects.call(world);
+    effects.length = 0;
+
+    const player = (Reflect.get(world, 'playersByAccount') as Map<string, TestPlayerEntity>).get('account-a')!;
+    const eliminatePlayer = Reflect.get(world, 'eliminatePlayer') as (victim: unknown, killer: null, now: number, reason: string) => void;
+    eliminatePlayer.call(world, player, null, 100, '测试');
+    flushEffects.call(world);
+
+    expect(world.getSnapshot(100)).toMatchObject({ gameTime: 0, foods: [], enemies: [], projectiles: [] });
+    expect(effects).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: 'burst' }),
+      expect.objectContaining({ type: 'sound', kind: 'death' }),
+      expect.objectContaining({ type: 'flash', audienceEntityId: 1 }),
+    ]));
   });
 
   it('只接受递增输入序号并按原版转向速率移动', () => {

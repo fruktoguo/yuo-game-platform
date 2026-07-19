@@ -12,10 +12,17 @@ import type {
 } from './protocol';
 
 const MAGIC = 0x5553_4e50;
-const VERSION = 1;
+const VERSION = 2;
+const COORDINATE_SCALE = 2_048;
+const COORDINATE_OFFSET = 1;
+const VELOCITY_SCALE = 64;
+const SIZE_SCALE = 256;
+const ANGLE_SCALE = 65_535 / (Math.PI * 2);
 const MODULE_INDEX = new Map<ModuleId, number>(MODULES.map((module, index) => [module.id, index + 1]));
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder('utf-8', { fatal: true });
+const encodedStrings = new Map<string, Uint8Array>();
+const encodedColors = new Map<string, number>();
 let reusableWriter: BinaryWriter | null = null;
 
 export function encodeUltraSnapshot(snapshot: UltraSnapshot): ArrayBuffer {
@@ -85,7 +92,7 @@ function writePlayer(writer: BinaryWriter, player: UltraPlayerView): void {
   writer.string(player.name);
   writer.u8(player.colorIndex);
   writer.u8(Number(player.connected) | Number(player.alive) << 1 | Number(player.paused) << 2 | Number(player.choosingUpgrade) << 3);
-  writer.f32(player.col); writer.f32(player.row); writer.f32(player.angle); writer.f32(player.desiredAngle);
+  writeCoordinate(writer, player.col); writeCoordinate(writer, player.row); writeAngle(writer, player.angle); writeAngle(writer, player.desiredAngle);
   writer.f32(player.invulnerable); writer.f32(player.collisionCooldown);
   writer.f32(player.score); writer.u16(player.kills); writer.u16(player.botKills); writer.u16(player.pvpKills);
   writer.f32(player.survivalTime); writer.u16(player.level); writer.u16(player.xp); writer.u16(player.xpNeeded);
@@ -109,7 +116,7 @@ function readPlayer(reader: BinaryReader): UltraPlayerView {
     alive: Boolean(flags & 2),
     paused: Boolean(flags & 4),
     choosingUpgrade: Boolean(flags & 8),
-    col: reader.f32(), row: reader.f32(), angle: reader.f32(), desiredAngle: reader.f32(),
+    col: readCoordinate(reader), row: readCoordinate(reader), angle: readAngle(reader), desiredAngle: readAngle(reader),
     invulnerable: reader.f32(), collisionCooldown: reader.f32(),
     score: reader.f32(), kills: reader.u16(), botKills: reader.u16(), pvpKills: reader.u16(),
     survivalTime: reader.f32(), level: reader.u16(), xp: reader.u16(), xpNeeded: reader.u16(),
@@ -128,11 +135,13 @@ function readPlayer(reader: BinaryReader): UltraPlayerView {
 function writeSegment(writer: BinaryWriter, segment: UltraSegment): void {
   const moduleIndex = segment.module ? MODULE_INDEX.get(segment.module) : 0;
   if (segment.module && !moduleIndex) throw new Error(`无法编码未知模块：${segment.module}`);
+  const hasOrbit = segment.module === 'blade';
+  const hasCooldown = (segment.module === 'shield' || segment.module === 'phase') && !segment.ready;
   writer.u8(moduleIndex ?? 0);
-  writer.u8(Number(segment.neutral) | Number(segment.ready) << 1 | Number(segment.birthAge !== null) << 2);
-  writer.f32(segment.col); writer.f32(segment.row); writer.f32(segment.angle);
-  writer.f32(segment.timer); writer.f32(segment.cooldown); writer.f32(segment.orbit);
-  if (segment.birthAge !== null) writer.f32(segment.birthAge);
+  writer.u8(Number(segment.neutral) | Number(segment.ready) << 1 | Number(hasOrbit) << 2 | Number(hasCooldown) << 3);
+  writeCoordinate(writer, segment.col); writeCoordinate(writer, segment.row);
+  if (hasOrbit) writeAngle(writer, segment.orbit);
+  if (hasCooldown) writer.f32(segment.cooldown);
 }
 
 function readSegment(reader: BinaryReader): UltraSegment {
@@ -140,14 +149,16 @@ function readSegment(reader: BinaryReader): UltraSegment {
   const flags = reader.u8();
   const module = moduleIndex === 0 ? null : MODULES[moduleIndex - 1]?.id;
   if (moduleIndex !== 0 && !module) throw new Error('Ultra 快照包含未知模块');
-  return {
+  const segment: UltraSegment = {
     module,
     neutral: Boolean(flags & 1),
     ready: Boolean(flags & 2),
-    col: reader.f32(), row: reader.f32(), angle: reader.f32(),
-    timer: reader.f32(), cooldown: reader.f32(), orbit: reader.f32(),
-    birthAge: flags & 4 ? reader.f32() : null,
+    col: readCoordinate(reader), row: readCoordinate(reader), angle: 0,
+    timer: 0, cooldown: 0, orbit: flags & 4 ? readAngle(reader) : 0,
+    birthAge: null,
   };
+  segment.cooldown = flags & 8 ? reader.f32() : 0;
+  return segment;
 }
 
 function writeGrowth(writer: BinaryWriter, growth: GrowthView): void {
@@ -162,74 +173,73 @@ function readGrowth(reader: BinaryReader): GrowthView {
 }
 
 function writeEnemy(writer: BinaryWriter, enemy: UltraEnemyView): void {
-  writer.u16(enemy.id); writer.f32(enemy.col); writer.f32(enemy.row); writer.f32(enemy.angle);
+  writer.u16(enemy.id); writeCoordinate(writer, enemy.col); writeCoordinate(writer, enemy.row); writeAngle(writer, enemy.angle);
   writer.color(enemy.color); writer.u16(enemy.captured); writer.u16(enemy.segments.length);
-  for (const segment of enemy.segments) { writer.f32(segment.col); writer.f32(segment.row); }
+  for (const segment of enemy.segments) { writeCoordinate(writer, segment.col); writeCoordinate(writer, segment.row); }
 }
 
 function readEnemy(reader: BinaryReader): UltraEnemyView {
   const enemy: UltraEnemyView = {
-    id: reader.u16(), col: reader.f32(), row: reader.f32(), angle: reader.f32(),
+    id: reader.u16(), col: readCoordinate(reader), row: readCoordinate(reader), angle: readAngle(reader),
     color: reader.color(), captured: reader.u16(), segments: [],
   };
   const count = reader.u16();
-  for (let index = 0; index < count; index += 1) enemy.segments.push({ col: reader.f32(), row: reader.f32() });
+  for (let index = 0; index < count; index += 1) enemy.segments.push({ col: readCoordinate(reader), row: readCoordinate(reader) });
   return enemy;
 }
 
 function writeFood(writer: BinaryWriter, food: UltraFoodView): void {
-  writer.u16(food.id); writer.f32(food.col); writer.f32(food.row); writer.color(food.color); writer.f32(food.phase);
+  writer.u16(food.id); writeCoordinate(writer, food.col); writeCoordinate(writer, food.row); writer.color(food.color);
   writer.u8(Number(food.special) | Number(food.isPulled) << 1);
 }
 
 function readFood(reader: BinaryReader): UltraFoodView {
   const id = reader.u16();
-  const col = reader.f32();
-  const row = reader.f32();
+  const col = readCoordinate(reader);
+  const row = readCoordinate(reader);
   const color = reader.color();
-  const phase = reader.f32();
   const flags = reader.u8();
-  return { id, col, row, color, phase, special: Boolean(flags & 1), isPulled: Boolean(flags & 2) };
+  return { id, col, row, color, phase: visualPhase(id), special: Boolean(flags & 1), isPulled: Boolean(flags & 2) };
 }
 
 function writeProjectile(writer: BinaryWriter, projectile: UltraProjectileView): void {
-  writer.u16(projectile.id); writer.f32(projectile.col); writer.f32(projectile.row);
-  writer.f32(projectile.vx); writer.f32(projectile.vy); writer.color(projectile.color); writer.f32(projectile.size);
+  writer.u16(projectile.id); writeCoordinate(writer, projectile.col); writeCoordinate(writer, projectile.row);
+  writeVelocity(writer, projectile.vx); writeVelocity(writer, projectile.vy); writer.color(projectile.color); writer.u16(Math.round(projectile.size * SIZE_SCALE));
 }
 
 function readProjectile(reader: BinaryReader): UltraProjectileView {
   return {
-    id: reader.u16(), col: reader.f32(), row: reader.f32(), vx: reader.f32(), vy: reader.f32(),
-    color: reader.color(), size: reader.f32(),
+    id: reader.u16(), col: readCoordinate(reader), row: readCoordinate(reader), vx: readVelocity(reader), vy: readVelocity(reader),
+    color: reader.color(), size: reader.u16() / SIZE_SCALE,
   };
 }
 
 function writeHazard(writer: BinaryWriter, hazard: UltraHazardView): void {
   writer.u16(hazard.id); writer.u8(hazard.kind === 'mine' ? 0 : 1);
-  writer.f32(hazard.col); writer.f32(hazard.row); writer.f32(hazard.radius); writer.color(hazard.color); writer.f32(hazard.phase);
+  writeCoordinate(writer, hazard.col); writeCoordinate(writer, hazard.row); writer.u16(Math.round(hazard.radius * SIZE_SCALE)); writer.color(hazard.color);
 }
 
 function readHazard(reader: BinaryReader): UltraHazardView {
   const id = reader.u16();
   const kind = reader.u8() === 0 ? 'mine' : 'gravity';
-  return { id, kind, col: reader.f32(), row: reader.f32(), radius: reader.f32(), color: reader.color(), phase: reader.f32() };
+  return { id, kind, col: readCoordinate(reader), row: readCoordinate(reader), radius: reader.u16() / SIZE_SCALE, color: reader.color(), phase: visualPhase(id) };
 }
 
 function writeSpawn(writer: BinaryWriter, spawn: PendingSpawnView): void {
   writer.u16(spawn.id); writer.color(spawn.color);
-  writer.f32(spawn.headCell.col); writer.f32(spawn.headCell.row);
+  writeCoordinate(writer, spawn.headCell.col); writeCoordinate(writer, spawn.headCell.row);
   writer.u16(spawn.bodyCells.length);
-  for (const cell of spawn.bodyCells) { writer.f32(cell.col); writer.f32(cell.row); }
+  for (const cell of spawn.bodyCells) { writeCoordinate(writer, cell.col); writeCoordinate(writer, cell.row); }
   writer.f32(spawn.timer); writer.f32(spawn.maxTimer);
 }
 
 function readSpawn(reader: BinaryReader): PendingSpawnView {
   const id = reader.u16();
   const color = reader.color();
-  const headCell = { col: reader.f32(), row: reader.f32() };
+  const headCell = { col: readCoordinate(reader), row: readCoordinate(reader) };
   const bodyCells: PendingSpawnView['bodyCells'] = [];
   const count = reader.u16();
-  for (let index = 0; index < count; index += 1) bodyCells.push({ col: reader.f32(), row: reader.f32() });
+  for (let index = 0; index < count; index += 1) bodyCells.push({ col: readCoordinate(reader), row: readCoordinate(reader) });
   return { id, color, headCell, bodyCells, timer: reader.f32(), maxTimer: reader.f32() };
 }
 
@@ -242,12 +252,17 @@ class BinaryWriter {
 
   u8(value: number): void { this.ensure(1); this.view.setUint8(this.offset, value); this.offset += 1; }
   u16(value: number): void { this.ensure(2); this.view.setUint16(this.offset, value, true); this.offset += 2; }
+  i16(value: number): void { this.ensure(2); this.view.setInt16(this.offset, value, true); this.offset += 2; }
   u32(value: number): void { this.ensure(4); this.view.setUint32(this.offset, value >>> 0, true); this.offset += 4; }
   f32(value: number): void { this.ensure(4); this.view.setFloat32(this.offset, value, true); this.offset += 4; }
   f64(value: number): void { this.ensure(8); this.view.setFloat64(this.offset, value, true); this.offset += 8; }
 
   string(value: string): void {
-    const encoded = textEncoder.encode(value);
+    let encoded = encodedStrings.get(value);
+    if (!encoded) {
+      encoded = textEncoder.encode(value);
+      if (encodedStrings.size < 64) encodedStrings.set(value, encoded);
+    }
     if (encoded.length > 255) throw new Error('Ultra 快照字符串过长');
     this.u8(encoded.length);
     this.ensure(encoded.length);
@@ -257,7 +272,12 @@ class BinaryWriter {
 
   color(value: string): void {
     if (!/^#[0-9a-f]{6}$/iu.test(value)) throw new Error(`Ultra 快照颜色格式无效：${value}`);
-    this.u32(Number.parseInt(value.slice(1), 16));
+    let encoded = encodedColors.get(value);
+    if (encoded === undefined) {
+      encoded = Number.parseInt(value.slice(1), 16);
+      if (encodedColors.size < 128) encodedColors.set(value, encoded);
+    }
+    this.u32(encoded);
   }
 
   finish(): ArrayBuffer {
@@ -283,6 +303,7 @@ class BinaryReader {
 
   u8(): number { this.ensure(1); const value = this.view.getUint8(this.offset); this.offset += 1; return value; }
   u16(): number { this.ensure(2); const value = this.view.getUint16(this.offset, true); this.offset += 2; return value; }
+  i16(): number { this.ensure(2); const value = this.view.getInt16(this.offset, true); this.offset += 2; return value; }
   u32(): number { this.ensure(4); const value = this.view.getUint32(this.offset, true); this.offset += 4; return value; }
   f32(): number { this.ensure(4); const value = this.view.getFloat32(this.offset, true); this.offset += 4; return value; }
   f64(): number { this.ensure(8); const value = this.view.getFloat64(this.offset, true); this.offset += 8; return value; }
@@ -306,4 +327,37 @@ class BinaryReader {
   private ensure(length: number): void {
     if (this.offset + length > this.bytes.byteLength) throw new Error('Ultra 快照数据不完整');
   }
+}
+
+function writeCoordinate(writer: BinaryWriter, value: number): void {
+  writer.u16(clampInteger(Math.round((value + COORDINATE_OFFSET) * COORDINATE_SCALE), 0, 65_535));
+}
+
+function readCoordinate(reader: BinaryReader): number {
+  return reader.u16() / COORDINATE_SCALE - COORDINATE_OFFSET;
+}
+
+function writeAngle(writer: BinaryWriter, value: number): void {
+  const normalized = ((value % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+  writer.u16(Math.round(normalized * ANGLE_SCALE));
+}
+
+function readAngle(reader: BinaryReader): number {
+  return reader.u16() / ANGLE_SCALE;
+}
+
+function writeVelocity(writer: BinaryWriter, value: number): void {
+  writer.i16(clampInteger(Math.round(value * VELOCITY_SCALE), -32_768, 32_767));
+}
+
+function readVelocity(reader: BinaryReader): number {
+  return reader.i16() / VELOCITY_SCALE;
+}
+
+function clampInteger(value: number, minimum: number, maximum: number): number {
+  return Math.max(minimum, Math.min(maximum, value));
+}
+
+function visualPhase(id: number): number {
+  return id * 2.399_963_229_728_653 % (Math.PI * 2);
 }

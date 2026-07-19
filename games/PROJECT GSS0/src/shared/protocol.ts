@@ -75,6 +75,16 @@ export interface UltraProjectileView {
   size: number;
 }
 
+export interface UltraProjectileState extends UltraProjectileView {
+  homing: number;
+  targetId: number | null;
+  bounces: number;
+}
+
+export type UltraProjectileEvent =
+  | { type: 'spawn' | 'update'; projectile: UltraProjectileState }
+  | { type: 'destroy'; id: number; col: number; row: number };
+
 export interface UltraHazardView {
   id: number;
   kind: 'mine' | 'gravity';
@@ -167,6 +177,7 @@ export interface ArenaJoinData {
   selfEntityId: number;
   profile: UltraProfileView;
   snapshot: UltraSnapshot;
+  projectiles: UltraProjectileState[];
   roster: RosterPlayer[];
   leaderboard: LeaderboardEntry[];
   messages: ChatMessage[];
@@ -202,6 +213,7 @@ export interface ActionResult<T = undefined> {
 
 export interface ServerToClientEvents {
   'ultra:snapshot': (snapshot: ArrayBuffer) => void;
+  'ultra:projectiles': (events: UltraProjectileEvent[]) => void;
   'ultra:effects': (effects: UltraEffect[]) => void;
   'ultra:roster': (players: RosterPlayer[]) => void;
   'ultra:leaderboard': (entries: LeaderboardEntry[]) => void;

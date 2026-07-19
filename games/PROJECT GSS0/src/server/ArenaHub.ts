@@ -19,6 +19,7 @@ import type {
   ServerToClientEvents,
   SocketData,
   UltraEffect,
+  UltraProjectileEvent,
   UpgradeOffer,
 } from '../shared/protocol';
 import type { ModuleId } from '../shared/modules';
@@ -58,11 +59,13 @@ export class ArenaHub {
     const profiles = await SnakeProfileStore.open(dataPath);
     let publishEvent: (event: ArenaEvent) => void = () => undefined;
     let publishEffects: (effects: UltraEffect[]) => void = () => undefined;
+    let publishProjectiles: (events: UltraProjectileEvent[]) => void = () => undefined;
     let finishRun: (result: RunResult) => void = () => undefined;
     let publishUpgrade: (entityId: number, offer: UpgradeOffer | null) => void = () => undefined;
     const world = new UltraWorld({
       callbacks: {
         onEffects: (effects) => publishEffects(effects),
+        onProjectiles: (events) => publishProjectiles(events),
         onEvent: (event) => publishEvent(event),
         onRunEnded: (result) => finishRun(result),
         onUpgrade: (entityId, offer) => publishUpgrade(entityId, offer),
@@ -71,6 +74,7 @@ export class ArenaHub {
     const hub = new ArenaHub(io, world, profiles);
     publishEvent = (event) => hub.publishEvent(event);
     publishEffects = (effects) => hub.publishEffects(effects);
+    publishProjectiles = (events) => hub.publishProjectiles(events);
     finishRun = (result) => hub.finishRun(result);
     publishUpgrade = (entityId, offer) => hub.sendUpgrade(entityId, offer);
     return hub;
@@ -135,7 +139,8 @@ export class ArenaHub {
       data: {
         selfEntityId: player.entityId,
         profile: this.profiles.get(principal.accountId),
-        snapshot: this.world.getSnapshot(),
+        snapshot: this.world.getSnapshot(Date.now(), false),
+        projectiles: this.world.getProjectileStates(),
         roster: this.world.getRoster(),
         leaderboard: this.world.getLeaderboard(),
         messages: this.messages.slice(-MAX_CHAT_HISTORY),
@@ -257,7 +262,7 @@ export class ArenaHub {
     this.ticksSinceSnapshot += 1;
     if (this.socketsByAccount.size > 0 && this.ticksSinceSnapshot >= SNAPSHOT_TICK_INTERVAL) {
       this.ticksSinceSnapshot = 0;
-      this.io.volatile.emit('ultra:snapshot', encodeUltraSnapshot(this.world.getSnapshot(now)));
+      this.io.volatile.emit('ultra:snapshot', encodeUltraSnapshot(this.world.getNetworkSnapshot(now)));
     }
     if (this.socketsByAccount.size > 0 && now - this.lastMetaAt >= 500) {
       this.lastMetaAt = now;
@@ -296,6 +301,10 @@ export class ArenaHub {
       const socketId = this.socketsByEntity.get(entityId);
       if (socketId) this.io.sockets.sockets.get(socketId)?.volatile.emit('ultra:effects', items);
     }
+  }
+
+  private publishProjectiles(events: UltraProjectileEvent[]): void {
+    if (events.length > 0 && this.socketsByAccount.size > 0) this.io.emit('ultra:projectiles', events);
   }
 
   private sendUpgrade(entityId: number, offer: UpgradeOffer | null): void {

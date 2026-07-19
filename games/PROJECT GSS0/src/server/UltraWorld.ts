@@ -20,7 +20,6 @@ import {
   PLAYER_COLORS,
   PROJECTILE_SPEED_SCALE,
   RESPAWN_DELAY_MS,
-  SEGMENT_BIRTH_DURATION,
   WAVE_BASE_INTERVAL,
 } from '../shared/constants';
 import { isModuleId, MODULE_BY_ID, MODULES, type ModuleId } from '../shared/modules';
@@ -36,6 +35,8 @@ import type {
   UltraFoodView,
   UltraHazardView,
   UltraPlayerView,
+  UltraProjectileEvent,
+  UltraProjectileState,
   UltraProjectileView,
   UltraSegment,
   UltraSnapshot,
@@ -53,6 +54,9 @@ const TARGET_REQUIRED_MODULES = new Set<ModuleId>([
   'rail', 'ricochet', 'cluster', 'fan', 'gravity', 'needle', 'mortar', 'sweep',
   'sniper', 'flak', 'fork', 'anchor', 'flare', 'scatter', 'lance', 'execute',
   'crossfire', 'phasebolt',
+]);
+const PERSONAL_SOUND_KINDS = new Set<Extract<UltraEffect, { type: 'sound' }>['kind']>([
+  'ui', 'start', 'pause', 'resume', 'level', 'levelCharge', 'select',
 ]);
 
 interface PlayerEntity extends UltraPlayerView {
@@ -170,6 +174,7 @@ export interface RunResult {
 
 export interface UltraWorldCallbacks {
   onEffects?: (effects: UltraEffect[]) => void;
+  onProjectiles?: (events: UltraProjectileEvent[]) => void;
   onUpgrade?: (entityId: number, offer: UpgradeOffer | null) => void;
   onRunEnded?: (result: RunResult) => void;
   onEvent?: (event: ArenaEvent) => void;
@@ -191,6 +196,7 @@ export class UltraWorld {
   private hazards: HazardEntity[] = [];
   private pendingSpawns: PendingSpawn[] = [];
   private pendingEffects: UltraEffect[] = [];
+  private pendingProjectileEvents: UltraProjectileEvent[] = [];
   private tick = 0;
   private gameTime = 0;
   private waveTimer = 0;
@@ -327,13 +333,13 @@ export class UltraWorld {
     this.respawnAutopilotPlayers(now);
     const alive = this.alivePlayers();
     if (alive.length === 0) {
-      this.flushEffects();
+      this.flushOutputs();
       return;
     }
 
     let active = this.activePlayers();
     if (active.length === 0) {
-      this.flushEffects();
+      this.flushOutputs();
       return;
     }
 
@@ -349,7 +355,7 @@ export class UltraWorld {
     }
     active = this.activePlayers();
     if (active.length === 0) {
-      this.flushEffects();
+      this.flushOutputs();
       return;
     }
 
@@ -357,23 +363,28 @@ export class UltraWorld {
     this.updateSpawns(worldDelta);
     for (const player of active) if (player.autopilot && player.collisionCooldown <= 0) player.desiredAngle = this.autopilotAngle(player);
     for (const player of active) this.movePlayer(player, worldDelta);
-    this.updateFood(worldDelta);
+    this.updateFood(worldDelta, active);
     for (const player of active) {
       this.updateHeadWeapon(player, worldDelta);
       this.updateModules(player, worldDelta);
     }
     this.updateTargetStatuses(worldDelta);
-    this.updateEnemies(worldDelta);
+    this.updateEnemies(worldDelta, active, present);
     this.updateProjectiles(worldDelta);
     this.updateHazards(worldDelta);
     this.checkCollisions(now);
     this.enemies = this.enemies.filter((enemy) => !enemy.dead);
+    for (const projectile of this.projectiles) {
+      if (projectile.life <= 0 || !isProjectileInside(projectile)) {
+        this.pendingProjectileEvents.push({ type: 'destroy', id: projectile.id, col: projectile.col, row: projectile.row });
+      }
+    }
     this.projectiles = this.projectiles.filter((projectile) => projectile.life > 0 && isProjectileInside(projectile));
     this.hazards = this.hazards.filter((hazard) => hazard.life > 0);
-    this.flushEffects();
+    this.flushOutputs();
   }
 
-  getSnapshot(now = Date.now()): UltraSnapshot {
+  getSnapshot(now = Date.now(), includeProjectiles = true): UltraSnapshot {
     return {
       tick: this.tick,
       serverTime: now,
@@ -384,10 +395,32 @@ export class UltraWorld {
       players: [...this.playersByEntity.values()].map(toPlayerView),
       enemies: this.enemies.map(toEnemyView),
       foods: this.foods.map(({ pullTimer: _pullTimer, ...food }) => ({ ...food })),
-      projectiles: this.projectiles.map(toProjectileView),
+      projectiles: includeProjectiles ? this.projectiles.map(toProjectileView) : [],
       hazards: this.hazards.map(toHazardView),
       pendingSpawns: this.pendingSpawns.map(toPendingSpawnView),
     };
+  }
+
+  getNetworkSnapshot(now = Date.now()): UltraSnapshot {
+    // Encoding is synchronous, so the broadcaster can safely borrow live entity arrays without cloning them.
+    return {
+      tick: this.tick,
+      serverTime: now,
+      gameTime: this.gameTime,
+      waveCount: this.waveCount,
+      waveTimer: Math.max(0, this.waveTimer / this.waveCountdownRate()),
+      threatLevel: this.threatLevel(),
+      players: [...this.playersByEntity.values()],
+      enemies: this.enemies,
+      foods: this.foods,
+      projectiles: [],
+      hazards: this.hazards,
+      pendingSpawns: this.pendingSpawns,
+    };
+  }
+
+  getProjectileStates(): UltraProjectileState[] {
+    return this.projectiles.map(toProjectileState);
   }
 
   getRoster(): RosterPlayer[] {
@@ -535,6 +568,9 @@ export class UltraWorld {
     this.nextEnemyId = 1;
     this.foods = [];
     this.enemies = [];
+    for (const projectile of this.projectiles) {
+      this.pendingProjectileEvents.push({ type: 'destroy', id: projectile.id, col: projectile.col, row: projectile.row });
+    }
     this.projectiles = [];
     this.hazards = [];
     this.pendingSpawns = [];
@@ -644,12 +680,6 @@ export class UltraWorld {
     player.thornsCooldown = Math.max(0, player.thornsCooldown - delta);
     player.ramCooldown = Math.max(0, player.ramCooldown - delta);
     player.bloomCooldown = Math.max(0, player.bloomCooldown - delta);
-    for (const segment of player.segments) {
-      if (segment.birthAge !== null) {
-        segment.birthAge += delta;
-        if (segment.birthAge >= SEGMENT_BIRTH_DURATION) segment.birthAge = null;
-      }
-    }
   }
 
   private updatePlayerGrowth(player: PlayerEntity, delta: number, realDelta: number, now: number): void {
@@ -667,7 +697,7 @@ export class UltraWorld {
     if (player.growth.elapsed < totalDuration) return;
     const completed = player.growth;
     const tail = player.segments.at(-1) ?? player;
-    player.segments.push(makeSegment(tail.col, tail.row, { neutral: true, birthAge: 0 }, this.randomSource));
+    player.segments.push(makeSegment(tail.col, tail.row, { neutral: true }, this.randomSource));
     this.burst(tail.col, tail.row, completed.color, completed.special ? 28 : 22, completed.special ? 175 : 145, player.entityId);
     this.burst(tail.col, tail.row, '#eef5ff', completed.special ? 18 : 12, completed.special ? 135 : 105, player.entityId);
     this.ring(tail.col, tail.row, completed.color, 0.46, 3, 0.78, player.entityId);
@@ -779,11 +809,11 @@ export class UltraWorld {
     this.shake(food.special ? 4 : 2.8, player.entityId);
   }
 
-  private updateFood(delta: number): void {
+  private updateFood(delta: number, activePlayers: PlayerEntity[]): void {
     for (const food of this.foods) {
       food.isPulled = false;
       let puller: { player: PlayerEntity; distance: number; tractor: number } | null = null;
-      for (const player of this.activePlayers()) {
+      for (const player of activePlayers) {
         const tractor = this.moduleCount(player, 'tractor');
         if (tractor <= 0) continue;
         const distance = Math.hypot(player.col - food.col, player.row - food.row);
@@ -803,7 +833,7 @@ export class UltraWorld {
     for (let index = this.foods.length - 1; index >= 0; index -= 1) {
       const food = this.foods[index];
       let winner: { player: PlayerEntity; collector: GridPoint; distance: number } | null = null;
-      for (const player of this.activePlayers()) {
+      for (const player of activePlayers) {
         if (player.upgradePending) continue;
         const headDistance = Math.hypot(player.col - food.col, player.row - food.row);
         const headRange = this.playerHeadRadiusCells() + 0.13 + this.moduleCount(player, 'magnet') * 0.55;
@@ -1079,8 +1109,8 @@ export class UltraWorld {
           col: segment.col + Math.cos(segment.orbit) * 2.9,
           row: segment.row + Math.sin(segment.orbit) * 2.9,
         };
-        for (const target of this.hostileTargets(player)) {
-          if (target.bladeCooldown > 0 || !this.pointHitsTarget(blade, this.pixelsToCells(10), target)) continue;
+        for (const target of this.enemies) {
+          if (target.dead || target.bladeCooldown > 0 || !this.pointHitsTarget(blade, this.pixelsToCells(10), target)) continue;
           target.bladeCooldown = 0.48 * ATTACK_INTERVAL_SCALE;
           this.damageTarget(player, target, 1, blade, MODULE_BY_ID.blade.color);
         }
@@ -1088,8 +1118,8 @@ export class UltraWorld {
       }
 
       if (segment.module === 'saw') {
-        for (const target of this.hostileTargets(player)) {
-          if (target.sawCooldown > 0 || !this.pointHitsTarget(segment, 0.82, target)) continue;
+        for (const target of this.enemies) {
+          if (target.dead || target.sawCooldown > 0 || !this.pointHitsTarget(segment, 0.82, target)) continue;
           target.sawCooldown = 1.4;
           this.damageTarget(player, target, 1, target, MODULE_BY_ID.saw.color);
           this.ring(segment.col, segment.row, MODULE_BY_ID.saw.color, 0.3, 5, 0.82, player.entityId);
@@ -1204,8 +1234,8 @@ export class UltraWorld {
           if (target) {
             const point = { col: target.col, row: target.row };
             this.hazards.push({ id: this.allocateHazardId(), ownerEntityId: player.entityId, kind: 'gravity', ...point, life: 6, arm: 0, radius: this.pixelsToCells(95), color: MODULE_BY_ID.gravity.color, phase: this.randomBetween(0, TAU) });
-            for (const hostile of this.hostileTargets(player)) {
-              if (distanceSquared(point, hostile) < this.pixelsToCells(95) ** 2) this.damageTarget(player, hostile, 1, hostile, MODULE_BY_ID.gravity.color);
+            for (const hostile of this.enemies) {
+              if (!hostile.dead && distanceSquared(point, hostile) < this.pixelsToCells(95) ** 2) this.damageTarget(player, hostile, 1, hostile, MODULE_BY_ID.gravity.color);
             }
             this.playSkillSound(player, 'gravity');
           }
@@ -1290,8 +1320,8 @@ export class UltraWorld {
     const repulse = this.moduleCount(player, 'repulse');
     if (repulse > 0) {
       const range = this.pixelsToCells(90 + repulse * 20);
-      for (const target of this.hostileTargets(player)) {
-        if (Math.sqrt(distanceSquared(player, target)) < range) target.desiredAngle = Math.atan2(target.row - player.row, target.col - player.col);
+      for (const target of this.enemies) {
+        if (!target.dead && Math.sqrt(distanceSquared(player, target)) < range) target.desiredAngle = Math.atan2(target.row - player.row, target.col - player.col);
       }
     }
   }
@@ -1318,7 +1348,7 @@ export class UltraWorld {
     const rangeLife = options.range
       ? this.pixelsToCells(options.range * PROJECTILE_RANGE_MULTIPLIER * guidanceMultiplier) / speed
       : Number.POSITIVE_INFINITY;
-    this.projectiles.push({
+    const projectile: ProjectileEntity = {
       id: this.allocateProjectileId(),
       ownerEntityId: player.entityId,
       col: origin.col,
@@ -1337,7 +1367,9 @@ export class UltraWorld {
       homing: (options.homing ?? 0) + guidance * 0.35,
       target: options.homing || guidance ? target : null,
       hitIds: [],
-    });
+    };
+    this.projectiles.push(projectile);
+    this.pendingProjectileEvents.push({ type: 'spawn', projectile: toProjectileState(projectile) });
   }
 
   private fireTesla(player: PlayerEntity, origin: GridPoint, first: EnemyEntity): void {
@@ -1351,8 +1383,8 @@ export class UltraWorld {
       from = current;
       let next: EnemyEntity | null = null;
       let best = this.pixelsToCells(155) ** 2;
-      for (const target of this.hostileTargets(player)) {
-        if (hit.includes(target)) continue;
+      for (const target of this.enemies) {
+        if (target.dead || hit.includes(target)) continue;
         const distance = distanceSquared(from, target);
         if (distance < best) {
           best = distance;
@@ -1366,7 +1398,9 @@ export class UltraWorld {
   private firePulse(player: PlayerEntity, origin: GridPoint): void {
     const radius = this.pixelsToCells(105);
     this.ring(origin.col, origin.row, MODULE_BY_ID.pulse.color, 0.55, 16, radius, player.entityId);
-    for (const target of this.hostileTargets(player)) if (distanceSquared(origin, target) < radius * radius) this.damageTarget(player, target, 1, target, MODULE_BY_ID.pulse.color);
+    for (const target of this.enemies) {
+      if (!target.dead && distanceSquared(origin, target) < radius * radius) this.damageTarget(player, target, 1, target, MODULE_BY_ID.pulse.color);
+    }
   }
 
   private fireSweepBeam(player: PlayerEntity, origin: GridPoint, target: EnemyEntity): boolean {
@@ -1376,7 +1410,8 @@ export class UltraWorld {
     const range = GRID_SIZE * 1.15;
     const end = { col: origin.col + directionX * range, row: origin.row + directionY * range };
     let hits = 0;
-    for (const hostile of this.hostileTargets(player)) {
+    for (const hostile of this.enemies) {
+      if (hostile.dead) continue;
       const relativeX = hostile.col - origin.col;
       const relativeY = hostile.row - origin.row;
       const projection = relativeX * directionX + relativeY * directionY;
@@ -1394,8 +1429,8 @@ export class UltraWorld {
     let hits = 0;
     this.ring(target.col, target.row, MODULE_BY_ID.flak.color, 0.5, 8, radius, player.entityId);
     this.burst(target.col, target.row, MODULE_BY_ID.flak.color, 18, 155, player.entityId);
-    for (const hostile of this.hostileTargets(player)) {
-      if (distanceSquared(target, hostile) > radius * radius) continue;
+    for (const hostile of this.enemies) {
+      if (hostile.dead || distanceSquared(target, hostile) > radius * radius) continue;
       this.damageTarget(player, hostile, 1, hostile, MODULE_BY_ID.flak.color);
       hits += 1;
     }
@@ -1423,8 +1458,10 @@ export class UltraWorld {
     }
   }
 
-  private updateEnemies(delta: number): void {
-    const chronosMultiplier = Math.pow(0.92, this.maximumModuleCount('chronos'));
+  private updateEnemies(delta: number, activePlayers: PlayerEntity[], presentPlayers: PlayerEntity[]): void {
+    const chronosMultiplier = Math.pow(0.92, this.maximumModuleCount('chronos', activePlayers));
+    const foodsById = new Map<number, FoodEntity>();
+    for (const food of this.foods) foodsById.set(food.id, food);
     for (const enemy of this.enemies) {
       if (enemy.dead) continue;
       enemy.collisionCooldown = Math.max(0, enemy.collisionCooldown - delta);
@@ -1432,14 +1469,19 @@ export class UltraWorld {
         enemy.think -= delta;
         if (enemy.think <= 0) {
           enemy.think = this.randomBetween(0.24, 0.62);
-          const candidates = this.foods
-            .map((food) => ({ food, distance: distanceSquared(food, enemy) }))
-            .sort((left, right) => left.distance - right.distance)
-            .slice(0, Math.min(6, this.foods.length));
+          const candidates: Array<{ food: FoodEntity; distance: number }> = [];
+          for (const food of this.foods) {
+            const candidate = { food, distance: distanceSquared(food, enemy) };
+            let insertAt = candidates.length;
+            while (insertAt > 0 && candidate.distance < candidates[insertAt - 1].distance) insertAt -= 1;
+            if (insertAt >= 6) continue;
+            candidates.splice(insertAt, 0, candidate);
+            if (candidates.length > 6) candidates.pop();
+          }
           enemy.targetFoodId = candidates.length > 0 ? candidates[Math.floor(Math.pow(this.random(), 1.8) * candidates.length)].food.id : null;
           enemy.wobble += this.randomBetween(-1.2, 1.2);
         }
-        const targetFood = enemy.targetFoodId === null ? null : this.foods.find((food) => food.id === enemy.targetFoodId) ?? null;
+        const targetFood = enemy.targetFoodId === null ? null : foodsById.get(enemy.targetFoodId) ?? null;
         if (targetFood) {
           const ideal = Math.atan2(targetFood.row - enemy.row, targetFood.col - enemy.col);
           const error = Math.sin(this.gameTime * 1.7 + enemy.wobble) * 0.42 + Math.sin(this.gameTime * 0.47 + enemy.id) * 0.2;
@@ -1452,7 +1494,7 @@ export class UltraWorld {
         if (enemy.col < wallDistance || enemy.col > GRID_SIZE - 1 - wallDistance || enemy.row < wallDistance || enemy.row > GRID_SIZE - 1 - wallDistance) {
           enemy.desiredAngle = Math.atan2((GRID_SIZE - 1) / 2 - enemy.row, (GRID_SIZE - 1) / 2 - enemy.col) + Math.sin(enemy.wobble) * 0.18;
         }
-        const avoidance = this.playerBodyAvoidance(enemy);
+        const avoidance = this.playerBodyAvoidance(enemy, activePlayers);
         if (avoidance) enemy.desiredAngle += angleDifference(enemy.desiredAngle, avoidance.angle) * avoidance.strength;
         enemy.angle = rotateToward(enemy.angle, enemy.desiredAngle, delta * this.randomBetween(2.05, 2.75));
       }
@@ -1460,7 +1502,7 @@ export class UltraWorld {
       const previousPosition = { col: enemy.col, row: enemy.row };
       const nextCol = enemy.col + (Math.cos(enemy.angle) * speed + enemy.knockbackX) * delta;
       const nextRow = enemy.row + (Math.sin(enemy.angle) * speed + enemy.knockbackY) * delta;
-      const playerCollision = this.findPlayerCollision(enemy, previousPosition, { col: nextCol, row: nextRow });
+      const playerCollision = this.findPlayerCollision(enemy, previousPosition, { col: nextCol, row: nextRow }, presentPlayers);
       if (playerCollision) {
         enemy.col = previousPosition.col + (nextCol - previousPosition.col) * playerCollision.progress;
         enemy.row = previousPosition.row + (nextRow - previousPosition.row) * playerCollision.progress;
@@ -1511,6 +1553,7 @@ export class UltraWorld {
           : enemy.segments.find((segment) => Math.hypot(segment.col - food.col, segment.row - food.row) <= 0.4);
         if (!collector) continue;
         this.foods.splice(index, 1);
+        foodsById.delete(food.id);
         enemy.captured += 1;
         enemy.targetFoodId = null;
         this.burst(collector.col, collector.row, enemy.color, 5, 55);
@@ -1521,7 +1564,7 @@ export class UltraWorld {
     this.resolveEnemyCollisions();
   }
 
-  private findPlayerCollision(enemy: EnemyEntity, start: GridPoint, end: GridPoint):
+  private findPlayerCollision(enemy: EnemyEntity, start: GridPoint, end: GridPoint, presentPlayers: PlayerEntity[]):
     | { kind: 'head'; player: PlayerEntity; progress: number }
     | { kind: 'body'; player: PlayerEntity; segment: UltraSegment; progress: number }
     | null {
@@ -1529,7 +1572,7 @@ export class UltraWorld {
       | { kind: 'head'; player: PlayerEntity; progress: number }
       | { kind: 'body'; player: PlayerEntity; segment: UltraSegment; progress: number }
       | null = null;
-    for (const player of this.presentPlayers()) {
+    for (const player of presentPlayers) {
       if (!player.paused && !player.choosingUpgrade && player.collisionCooldown <= 0 && enemy.collisionCooldown <= 0) {
         const headProgress = sweptContactProgress(start, end, player, this.playerHeadRadiusCells() + 0.28);
         if (headProgress !== null && (!nearest || headProgress < nearest.progress)) nearest = { kind: 'head', player, progress: headProgress };
@@ -1570,14 +1613,14 @@ export class UltraWorld {
     }
   }
 
-  private playerBodyAvoidance(enemy: EnemyEntity): { angle: number; strength: number } | null {
+  private playerBodyAvoidance(enemy: EnemyEntity, activePlayers: PlayerEntity[]): { angle: number; strength: number } | null {
     let combinedX = 0;
     let combinedY = 0;
     let combinedWeight = 0;
     const forwardX = Math.cos(enemy.desiredAngle);
     const forwardY = Math.sin(enemy.desiredAngle);
     const probe = { col: enemy.col + forwardX * 0.7, row: enemy.row + forwardY * 0.7 };
-    for (const player of this.activePlayers()) {
+    for (const player of activePlayers) {
       let awayX = 0;
       let awayY = 0;
       let totalWeight = 0;
@@ -1606,6 +1649,8 @@ export class UltraWorld {
 
   private updateProjectiles(delta: number): void {
     this.refreshProjectileHitBounds();
+    const targetsById = new Map<number, EnemyEntity>();
+    for (const target of this.enemies) if (!target.dead) targetsById.set(target.id, target);
     for (const projectile of this.projectiles) {
       projectile.life -= delta;
       let endedByImpact = false;
@@ -1614,7 +1659,7 @@ export class UltraWorld {
         projectile.life = 0;
         continue;
       }
-      const target = projectile.target ? this.resolveTarget(projectile.target) : null;
+      const target = projectile.target ? targetsById.get(projectile.target.id) ?? null : null;
       if (projectile.homing && target && this.isTargetAlive(target)) {
         const currentAngle = Math.atan2(projectile.vy, projectile.vx);
         const targetAngle = Math.atan2(target.row - projectile.row, target.col - projectile.col);
@@ -1635,6 +1680,7 @@ export class UltraWorld {
           if (hitVertical) projectile.vy *= -1;
           projectile.bounces -= 1;
           projectile.target = null;
+          this.pendingProjectileEvents.push({ type: 'update', projectile: toProjectileState(projectile) });
         } else projectile.life = 0;
       }
       const end = { col: projectile.col, row: projectile.row };
@@ -1699,20 +1745,22 @@ export class UltraWorld {
     this.ring(projectile.col, projectile.row, projectile.color, 0.52, 7, projectile.blastRadius, owner.entityId);
     this.burst(projectile.col, projectile.row, projectile.color, 20, 165, owner.entityId);
     this.shake(5, owner.entityId);
-    for (const hostile of this.hostileTargets(owner)) if (this.pointHitsTarget(projectile, projectile.blastRadius, hostile)) this.damageTarget(owner, hostile, 1, hostile, projectile.color);
+    for (const hostile of this.enemies) {
+      if (!hostile.dead && this.pointHitsTarget(projectile, projectile.blastRadius, hostile)) this.damageTarget(owner, hostile, 1, hostile, projectile.color);
+    }
   }
 
   private updateHazards(delta: number): void {
     for (const hazard of this.hazards) {
       hazard.life -= delta;
-      hazard.phase += delta * 4;
       const owner = this.playersByEntity.get(hazard.ownerEntityId);
       if (!owner) {
         hazard.life = 0;
         continue;
       }
       if (hazard.kind === 'gravity') {
-        for (const hostile of this.hostileTargets(owner)) {
+        for (const hostile of this.enemies) {
+          if (hostile.dead) continue;
           const dx = hazard.col - hostile.col;
           const dy = hazard.row - hostile.row;
           const distance = Math.hypot(dx, dy);
@@ -1727,14 +1775,20 @@ export class UltraWorld {
       }
       hazard.arm -= delta;
       if (hazard.arm > 0) continue;
-      const trigger = this.hostileTargets(owner).find((hostile) => Math.hypot(hostile.col - hazard.col, hostile.row - hazard.row) < hazard.radius);
+      let trigger: EnemyEntity | null = null;
+      for (const hostile of this.enemies) {
+        if (!hostile.dead && Math.hypot(hostile.col - hazard.col, hostile.row - hazard.row) < hazard.radius) {
+          trigger = hostile;
+          break;
+        }
+      }
       const ownerTriggered = owner.alive && Math.hypot(owner.col - hazard.col, owner.row - hazard.row) < this.playerHeadRadiusCells() + this.pixelsToCells(6);
       if (!trigger && !ownerTriggered) continue;
       this.ring(hazard.col, hazard.row, hazard.color, 0.5, 10, hazard.radius, owner.entityId);
       this.burst(hazard.col, hazard.row, hazard.color, 18, 150, owner.entityId);
       this.shake(5, owner.entityId);
-      for (const hostile of this.hostileTargets(owner)) {
-        if (distanceSquared(hazard, hostile) < hazard.radius * hazard.radius) {
+      for (const hostile of this.enemies) {
+        if (!hostile.dead && distanceSquared(hazard, hostile) < hazard.radius * hazard.radius) {
           this.damageTarget(owner, hostile, 1, hostile, hazard.color);
         }
       }
@@ -1890,6 +1944,7 @@ export class UltraWorld {
     this.ring(enemy.col, enemy.row, enemy.color, 0.72, 12, 88, owner?.entityId, 'pixels');
     this.textEffect(enemy.col, enemy.row - 0.65, '击破', '#ffffff', 0.9, owner?.entityId);
     this.shake(7, owner?.entityId);
+    this.spawnFood(enemy);
   }
 
   private triggerBodyIntercept(player: PlayerEntity, point: GridPoint, defeatedAt: GridPoint, stacks: number): void {
@@ -1902,14 +1957,11 @@ export class UltraWorld {
     this.playSkillSound(player, 'thorns');
   }
 
-  private hostileTargets(_owner: PlayerEntity): EnemyEntity[] {
-    return this.enemies.filter((enemy) => !enemy.dead);
-  }
-
-  private nearestTarget(owner: PlayerEntity, origin: GridPoint, maximumDistance: number): EnemyEntity | null {
+  private nearestTarget(_owner: PlayerEntity, origin: GridPoint, maximumDistance: number): EnemyEntity | null {
     let nearest: EnemyEntity | null = null;
     let best = maximumDistance * maximumDistance;
-    for (const target of this.hostileTargets(owner)) {
+    for (const target of this.enemies) {
+      if (target.dead) continue;
       const distance = distanceSquared(origin, target);
       if (distance < best) {
         best = distance;
@@ -1967,10 +2019,6 @@ export class UltraWorld {
 
   private targetRef(target: EnemyEntity): TargetRef {
     return { id: target.id };
-  }
-
-  private resolveTarget(ref: TargetRef): EnemyEntity | null {
-    return this.enemies.find((enemy) => enemy.id === ref.id) ?? null;
   }
 
   private pixelsToCells(value: number): number {
@@ -2058,10 +2106,6 @@ export class UltraWorld {
       const distance = 0.65 + Math.sqrt(index + 1) * 0.35;
       this.spawnFood({ col: victim.col + Math.cos(angle) * distance, row: victim.row + Math.sin(angle) * distance }, true);
     }
-    this.burst(victim.col, victim.row, '#b8f53f', 28, 170, victim.entityId);
-    this.effectSound('death', victim.entityId);
-    this.shake(16, victim.entityId);
-    this.pendingEffects.push({ id: this.effectId(), type: 'flash', color: '#ff4f70', strength: 0.5, audienceEntityId: victim.entityId });
     victim.alive = false;
     victim.paused = false;
     victim.choosingUpgrade = false;
@@ -2072,6 +2116,10 @@ export class UltraWorld {
     victim.respawnAt = victim.connected ? now + RESPAWN_DELAY_MS : null;
     this.callbacks.onRunEnded?.(result);
     if (this.alivePlayers().length === 0) this.resetSharedWorld();
+    this.burst(victim.col, victim.row, '#b8f53f', 28, 170, victim.entityId);
+    this.effectSound('death', victim.entityId);
+    this.shake(16, victim.entityId);
+    this.pendingEffects.push({ id: this.effectId(), type: 'flash', color: '#ff4f70', strength: 0.5, audienceEntityId: victim.entityId });
   }
 
   private createRunResult(player: PlayerEntity): RunResult {
@@ -2123,12 +2171,12 @@ export class UltraWorld {
     this.effectSound('bounce');
   }
 
-  private maximumModuleCount(id: ModuleId): number {
-    return this.activePlayers().reduce((maximum, player) => Math.max(maximum, this.moduleCount(player, id)), 0);
+  private maximumModuleCount(id: ModuleId, players = this.activePlayers()): number {
+    return players.reduce((maximum, player) => Math.max(maximum, this.moduleCount(player, id)), 0);
   }
 
   private burst(col: number, row: number, color: string, count: number, speed: number, audienceEntityId?: number): void {
-    this.pendingEffects.push({ id: this.effectId(), type: 'burst', col, row, color, count, speed, audienceEntityId });
+    this.pendingEffects.push({ id: this.effectId(), type: 'burst', col, row, color, count, speed });
   }
 
   private ring(
@@ -2141,7 +2189,7 @@ export class UltraWorld {
     audienceEntityId?: number,
     endRadiusUnit: 'pixels' | 'cells' = 'cells',
   ): void {
-    this.pendingEffects.push({ id: this.effectId(), type: 'ring', col, row, color, life, radius, endRadius, endRadiusUnit, audienceEntityId });
+    this.pendingEffects.push({ id: this.effectId(), type: 'ring', col, row, color, life, radius, endRadius, endRadiusUnit });
   }
 
   private shake(strength: number, audienceEntityId?: number): void {
@@ -2149,20 +2197,36 @@ export class UltraWorld {
   }
 
   private beam(type: 'beam' | 'lightning', from: GridPoint, to: GridPoint, color: string, life: number, audienceEntityId?: number): void {
-    this.pendingEffects.push({ id: this.effectId(), type, col: from.col, row: from.row, col2: to.col, row2: to.row, color, life, audienceEntityId });
+    this.pendingEffects.push({ id: this.effectId(), type, col: from.col, row: from.row, col2: to.col, row2: to.row, color, life });
   }
 
   private textEffect(col: number, row: number, text: string, color: string, life: number, audienceEntityId?: number): void {
-    this.pendingEffects.push({ id: this.effectId(), type: 'text', col, row, text, color, life, audienceEntityId });
+    this.pendingEffects.push({ id: this.effectId(), type: 'text', col, row, text, color, life });
   }
 
   private effectSound(kind: Extract<UltraEffect, { type: 'sound' }>['kind'], audienceEntityId?: number, detail?: number): void {
-    this.pendingEffects.push({ id: this.effectId(), type: 'sound', kind, detail, audienceEntityId });
+    this.pendingEffects.push({
+      id: this.effectId(),
+      type: 'sound',
+      kind,
+      detail,
+      audienceEntityId: PERSONAL_SOUND_KINDS.has(kind) ? audienceEntityId : undefined,
+    });
   }
 
   private flushEffects(): void {
     if (this.pendingEffects.length === 0) return;
     this.callbacks.onEffects?.(this.pendingEffects.splice(0));
+  }
+
+  private flushProjectileEvents(): void {
+    if (this.pendingProjectileEvents.length === 0) return;
+    this.callbacks.onProjectiles?.(this.pendingProjectileEvents.splice(0));
+  }
+
+  private flushOutputs(): void {
+    this.flushProjectileEvents();
+    this.flushEffects();
   }
 
   private emitEvent(type: ArenaEvent['type'], text: string, at: number, entityId?: number): void {
@@ -2228,7 +2292,6 @@ function followContinuousSegments(headCol: number, headRow: number, segments: Gr
     const dx = previous.col - segment.col;
     const dy = previous.row - segment.row;
     const distance = Math.hypot(dx, dy) || 1;
-    if ('angle' in segment) (segment as UltraSegment).angle = Math.atan2(dy, dx);
     if (distance > spacing) {
       segment.col = previous.col - dx / distance * spacing;
       segment.row = previous.row - dy / distance * spacing;
@@ -2311,6 +2374,15 @@ function toEnemyView(enemy: EnemyEntity): UltraEnemyView {
 
 function toProjectileView(projectile: ProjectileEntity): UltraProjectileView {
   return { id: projectile.id, col: projectile.col, row: projectile.row, vx: projectile.vx, vy: projectile.vy, color: projectile.color, size: projectile.size };
+}
+
+function toProjectileState(projectile: ProjectileEntity): UltraProjectileState {
+  return {
+    ...toProjectileView(projectile),
+    homing: projectile.homing,
+    targetId: projectile.target?.id ?? null,
+    bounces: projectile.bounces,
+  };
 }
 
 function toHazardView(hazard: HazardEntity): UltraHazardView {
