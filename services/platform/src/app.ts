@@ -18,6 +18,11 @@ import type {
 import { SlidingWindowRateLimiter } from '@yuo-platform/realtime';
 import { AuthError, AuthService, hashToken } from './auth';
 import type { PlatformConfig, RegisteredGame } from './config';
+import {
+  ExternalIdentityError,
+  HandoffReplayGuard,
+  type ExternalIdentityAdapter,
+} from './externalIdentity';
 import { PlatformRepository, RepositoryError } from './repository';
 
 interface RequestContext {
@@ -25,10 +30,17 @@ interface RequestContext {
   rawSessionToken: string;
 }
 
-export function createPlatformApp(config: PlatformConfig, repository: PlatformRepository, auth: AuthService) {
+export function createPlatformApp(
+  config: PlatformConfig,
+  repository: PlatformRepository,
+  auth: AuthService,
+  externalIdentity: ExternalIdentityAdapter | null = null,
+) {
   const app = express();
   const authLimiter = new SlidingWindowRateLimiter({ windowMs: 60_000, maximum: 12, idleTtlMs: 10 * 60_000 });
   const launchLimiter = new SlidingWindowRateLimiter({ windowMs: 10_000, maximum: 12 });
+  const handoffGuard = new HandoffReplayGuard();
+  const providers = providerDescriptors(config, externalIdentity);
 
   app.disable('x-powered-by');
   app.set('trust proxy', 1);
@@ -42,7 +54,7 @@ export function createPlatformApp(config: PlatformConfig, repository: PlatformRe
     const discovery: PlatformDiscovery = {
       issuer: config.publicBaseUrl,
       apiVersion: 'v1',
-      providers: providerDescriptors(),
+      providers,
       endpoints: {
         session: '/api/v1/session',
         games: '/api/v1/games',
@@ -53,9 +65,52 @@ export function createPlatformApp(config: PlatformConfig, repository: PlatformRe
     sendSuccess(response, discovery);
   });
 
-  app.get('/api/v1/auth/providers', (_request, response) => sendSuccess(response, providerDescriptors()));
+  app.get('/api/v1/auth/providers', (_request, response) => sendSuccess(response, providers));
+
+  app.get('/api/v1/auth/external/:provider', (request, response) => {
+    if (!externalIdentity || request.params.provider !== externalIdentity.descriptor.id) {
+      return sendError(response, 404, 'AUTH_PROVIDER_NOT_FOUND', '外部身份提供者不存在');
+    }
+    response.setHeader('Cache-Control', 'no-store');
+    return response.redirect(302, externalIdentity.entryUrl);
+  });
+
+  if (externalIdentity) {
+    app.post(
+      externalIdentity.callbackPath,
+      express.urlencoded({ extended: false, limit: '256kb' }),
+      async (request, response) => {
+        response.setHeader('Cache-Control', 'no-store');
+        response.setHeader('Referrer-Policy', 'no-referrer');
+        if (!matchesTrustedOrigin(request.headers.origin, externalIdentity.callbackOrigins)) {
+          return sendError(response, 403, 'EXTERNAL_ORIGIN_REJECTED', '外部登录请求来源无效');
+        }
+        if (!authLimiter.consume(`external:${externalIdentity.descriptor.id}:${request.ip}`)) {
+          return sendError(response, 429, 'RATE_LIMITED', '外部登录尝试过于频繁');
+        }
+        const payload = typeof request.body?.payload === 'string' ? request.body.payload : '';
+        if (!payload) return sendError(response, 400, 'EXTERNAL_HANDOFF_REQUIRED', '缺少外部登录凭据');
+
+        let fingerprint: string | null = null;
+        try {
+          const handoff = await externalIdentity.consumeHandoff(payload);
+          fingerprint = handoff.fingerprint;
+          if (!handoffGuard.claim(handoff)) {
+            return sendError(response, 409, 'EXTERNAL_HANDOFF_REPLAYED', '外部登录凭据已使用，请重新发起登录');
+          }
+          const loggedIn = await auth.loginExternal(handoff.profile);
+          setSessionCookie(response, config, loggedIn.token);
+          return response.redirect(303, '/');
+        } catch (error) {
+          if (fingerprint) handoffGuard.release(fingerprint);
+          return handleExpectedError(response, error);
+        }
+      },
+    );
+  }
 
   app.post('/api/v1/auth/register', requireSameOrigin, async (request, response) => {
+    if (!config.auth.localEnabled) return sendError(response, 404, 'AUTH_PROVIDER_DISABLED', '本地账号注册未启用');
     if (!authLimiter.consume(`register:${request.ip}`)) return sendError(response, 429, 'RATE_LIMITED', '注册尝试过于频繁');
     try {
       const created = await auth.register(request.body as RegisterRequest);
@@ -67,6 +122,7 @@ export function createPlatformApp(config: PlatformConfig, repository: PlatformRe
   });
 
   app.post('/api/v1/auth/login', requireSameOrigin, async (request, response) => {
+    if (!config.auth.localEnabled) return sendError(response, 404, 'AUTH_PROVIDER_DISABLED', '本地账号登录未启用');
     const username = typeof request.body?.username === 'string' ? request.body.username.toLocaleLowerCase('und') : '';
     if (!authLimiter.consume(`login:${request.ip}:${username}`)) return sendError(response, 429, 'RATE_LIMITED', '登录尝试过于频繁');
     try {
@@ -171,11 +227,12 @@ export function createPlatformApp(config: PlatformConfig, repository: PlatformRe
   return app;
 }
 
-function providerDescriptors(): AuthProviderDescriptor[] {
-  return [
-    { id: 'local', name: '平台账号', mode: 'credentials', enabled: true },
-    { id: 'dst-platform', name: 'DST 新平台', mode: 'redirect', enabled: false },
+function providerDescriptors(config: PlatformConfig, externalIdentity: ExternalIdentityAdapter | null): AuthProviderDescriptor[] {
+  const providers: AuthProviderDescriptor[] = [
+    { id: 'local', name: '平台账号', mode: 'credentials', enabled: config.auth.localEnabled },
   ];
+  if (externalIdentity) providers.push(externalIdentity.descriptor);
+  return providers;
 }
 
 async function requireSession(request: Request, response: Response, config: PlatformConfig, auth: AuthService): Promise<RequestContext | null> {
@@ -234,6 +291,15 @@ function requireSameOrigin(request: Request, response: Response, next: () => voi
   }
 }
 
+function matchesTrustedOrigin(origin: string | undefined, trustedOrigins: readonly string[]): boolean {
+  if (!origin) return false;
+  try {
+    return trustedOrigins.includes(new URL(origin).origin);
+  } catch {
+    return false;
+  }
+}
+
 function setSessionCookie(response: Response, config: PlatformConfig, token: string): void {
   response.cookie(config.sessionCookieName, token, {
     httpOnly: true,
@@ -260,6 +326,7 @@ function readCookie(request: Request, name: string): string | undefined {
 
 function handleExpectedError(response: Response, error: unknown): Response {
   if (error instanceof AuthError) return sendError(response, error.status, error.code, error.message);
+  if (error instanceof ExternalIdentityError) return sendError(response, error.status, error.code, error.message);
   if (error instanceof RepositoryError) {
     if (error.code === 'WALLET_NOT_FOUND') return sendError(response, 404, error.code, error.message);
     if (error.code === 'INSUFFICIENT_POINTS' || error.code === 'IDEMPOTENCY_CONFLICT') {

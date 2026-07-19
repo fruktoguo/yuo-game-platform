@@ -47,12 +47,23 @@ services:
       DATABASE_POOL_SIZE: ${DATABASE_POOL_SIZE:-8}
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://127.0.0.1:3100}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      AUTH_LOCAL_ENABLED: ${AUTH_LOCAL_ENABLED:-true}
+      AUTH_EXTERNAL_IMPLEMENTATION: ${AUTH_EXTERNAL_IMPLEMENTATION:-disabled}
+      AUTH_EXTERNAL_PROVIDER_ID: ${AUTH_EXTERNAL_PROVIDER_ID:-external-platform}
+      AUTH_EXTERNAL_PROVIDER_NAME: ${AUTH_EXTERNAL_PROVIDER_NAME:-外部账号平台}
+      AUTH_EXTERNAL_ENTRY_URL: ${AUTH_EXTERNAL_ENTRY_URL:-}
+      AUTH_EXTERNAL_ISSUER_URL: ${AUTH_EXTERNAL_ISSUER_URL:-}
+      AUTH_EXTERNAL_HANDOFF_SECRET: ${AUTH_EXTERNAL_HANDOFF_SECRET:-}
+      AUTH_EXTERNAL_HANDOFF_MAX_TTL_SECONDS: ${AUTH_EXTERNAL_HANDOFF_MAX_TTL_SECONDS:-300}
+      AUTH_EXTERNAL_VALIDATION_TIMEOUT_MS: ${AUTH_EXTERNAL_VALIDATION_TIMEOUT_MS:-5000}
       LIFE_LAUNCH_URL: ${LIFE_LAUNCH_URL:-http://127.0.0.1:3101}
       BILLIARDS_LAUNCH_URL: ${BILLIARDS_LAUNCH_URL:-http://127.0.0.1:3102}
       SNAKE_LAUNCH_URL: ${SNAKE_LAUNCH_URL:-http://127.0.0.1:3103}
+      FOUNDRY_LAUNCH_URL: ${FOUNDRY_LAUNCH_URL:-http://127.0.0.1:3104}
       LIFE_SERVICE_TOKEN: ${LIFE_SERVICE_TOKEN:-dev-life-service-token-change-before-production-2026}
       BILLIARDS_SERVICE_TOKEN: ${BILLIARDS_SERVICE_TOKEN:-dev-billiards-service-token-change-before-production-2026}
       SNAKE_SERVICE_TOKEN: ${SNAKE_SERVICE_TOKEN:-dev-snake-service-token-change-before-production-2026}
+      FOUNDRY_SERVICE_TOKEN: ${FOUNDRY_SERVICE_TOKEN:-dev-foundry-service-token-change-before-production-2026}
     ports:
       - "127.0.0.1:3100:3100"
     init: true
@@ -94,7 +105,7 @@ services:
     read_only: true
     tmpfs:
       - /tmp:size=32m,mode=1777
-    mem_limit: 512m
+    mem_limit: 384m
     cpus: 1.25
     pids_limit: 128
     stop_grace_period: 20s
@@ -127,7 +138,7 @@ services:
     read_only: true
     tmpfs:
       - /tmp:size=32m,mode=1777
-    mem_limit: 512m
+    mem_limit: 384m
     cpus: 1.25
     pids_limit: 128
     stop_grace_period: 20s
@@ -163,7 +174,7 @@ services:
     read_only: true
     tmpfs:
       - /tmp:size=32m,mode=1777
-    mem_limit: 512m
+    mem_limit: 384m
     cpus: 1.25
     pids_limit: 128
     stop_grace_period: 20s
@@ -177,7 +188,44 @@ services:
       retries: 12
       start_period: 10s
 
+  farstar-foundry:
+    build: .
+    image: ${GAME_PLATFORM_IMAGE:-yuo-game-platform:local}
+    restart: unless-stopped
+    depends_on:
+      platform:
+        condition: service_healthy
+    command: ["node", "games/farstar-foundry/dist/server/index.js"]
+    environment:
+      PLATFORM_INTERNAL_URL: http://platform:3100
+      PLATFORM_SERVICE_TOKEN: ${FOUNDRY_SERVICE_TOKEN:-dev-foundry-service-token-change-before-production-2026}
+      GAME_SESSION_SECRET: ${FOUNDRY_GAME_SESSION_SECRET:-dev-foundry-game-session-secret-change-before-production-2026}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      DATA_PATH: /app/data/foundry/rooms.json.gz
+    ports:
+      - "127.0.0.1:3104:3104"
+    init: true
+    volumes:
+      - foundry-rooms:/app/data/foundry
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    mem_limit: 256m
+    cpus: 0.75
+    pids_limit: 128
+    stop_grace_period: 20s
+    logging: *default-logging
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3104/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+
 volumes:
   platform-postgres:
   life-world:
   snake-profiles:
+  foundry-rooms:

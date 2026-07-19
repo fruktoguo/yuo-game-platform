@@ -10,6 +10,14 @@ export const TABLE = {
   footSpotX: 0.635,
 } as const;
 
+export const CUSHION = {
+  cornerGap: 0.135,
+  sideGap: 0.085,
+  noseThickness: 0.018,
+  noseCenterInset: 0.021,
+  noseEndInset: 0.013,
+} as const;
+
 export const POCKETS = [
   { x: -TABLE.width / 2, z: -TABLE.height / 2, kind: 'corner' },
   { x: 0, z: -TABLE.height / 2, kind: 'side' },

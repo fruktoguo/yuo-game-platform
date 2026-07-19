@@ -1,6 +1,7 @@
 import {
   ArrowRight,
   Coins,
+  ExternalLink,
   Gamepad2,
   History,
   LogIn,
@@ -17,6 +18,7 @@ import { type FormEvent, useEffect, useMemo, useState } from 'react';
 import {
   PlatformApiClient,
   PlatformApiError,
+  type AuthProviderDescriptor,
   type GameManifest,
   type SessionView,
   type WalletView,
@@ -26,6 +28,7 @@ type AuthMode = 'login' | 'register';
 
 interface AppData {
   session: SessionView | null;
+  providers: AuthProviderDescriptor[];
   games: GameManifest[];
   wallet: WalletView | null;
 }
@@ -37,9 +40,9 @@ export function App() {
 
   const refresh = async () => {
     try {
-      const [session, games] = await Promise.all([api.getSession(), api.getGames()]);
+      const [session, providers, games] = await Promise.all([api.getSession(), api.getProviders(), api.getGames()]);
       const wallet = session ? await api.getWallet() : null;
-      setData({ session, games, wallet });
+      setData({ session, providers, games, wallet });
       setError(null);
     } catch (refreshError) {
       setError(errorMessage(refreshError));
@@ -53,6 +56,7 @@ export function App() {
     return (
       <AuthScreen
         api={api}
+        providers={data.providers}
         games={data.games}
         error={error}
         onAuthenticated={(session) => {
@@ -79,6 +83,7 @@ export function App() {
 
 function AuthScreen(props: {
   api: PlatformApiClient;
+  providers: AuthProviderDescriptor[];
   games: GameManifest[];
   error: string | null;
   onAuthenticated: (session: SessionView) => void;
@@ -90,6 +95,10 @@ function AuthScreen(props: {
   const [displayName, setDisplayName] = useState('');
   const [password, setPassword] = useState('');
   const [passwordConfirm, setPasswordConfirm] = useState('');
+  const localEnabled = props.providers.some((provider) => provider.id === 'local' && provider.enabled);
+  const externalProviders = props.providers.filter((provider) => (
+    provider.mode === 'redirect' && provider.enabled && provider.authorizationUrl
+  ));
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -119,41 +128,58 @@ function AuthScreen(props: {
           <div><strong>Yuo戏大厅</strong><small>统一游戏大厅</small></div>
         </div>
         <header>
-          <span>{mode === 'login' ? '欢迎回来' : '建立平台账号'}</span>
-          <h1 id="auth-title">{mode === 'login' ? '登录游戏大厅' : '注册游戏大厅'}</h1>
+          <span>{localEnabled ? mode === 'login' ? '欢迎回来' : '建立平台账号' : '连接平台账号'}</span>
+          <h1 id="auth-title">{localEnabled && mode === 'register' ? '注册游戏大厅' : '登录游戏大厅'}</h1>
         </header>
-        <div className="auth-tabs" role="tablist" aria-label="账号操作">
-          <button type="button" role="tab" aria-selected={mode === 'login'} className={mode === 'login' ? 'is-active' : ''} onClick={() => { setMode('login'); props.onError(null); }}>登录</button>
-          <button type="button" role="tab" aria-selected={mode === 'register'} className={mode === 'register' ? 'is-active' : ''} onClick={() => { setMode('register'); props.onError(null); }}>注册</button>
-        </div>
-        <form onSubmit={(event) => void submit(event)}>
-          <label>
-            <span>用户名</span>
-            <input value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="username" minLength={3} maxLength={24} required />
-          </label>
-          {mode === 'register' && (
-            <label>
-              <span>显示名称</span>
-              <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} autoComplete="nickname" maxLength={24} placeholder={username || '游戏内名称'} />
-            </label>
-          )}
-          <label>
-            <span>密码</span>
-            <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} minLength={10} maxLength={128} required />
-          </label>
-          {mode === 'register' && (
-            <label>
-              <span>确认密码</span>
-              <input type="password" value={passwordConfirm} onChange={(event) => setPasswordConfirm(event.target.value)} autoComplete="new-password" minLength={10} maxLength={128} required />
-            </label>
-          )}
-          {props.error && <div className="form-error" role="alert">{props.error}</div>}
-          <button className="primary-command" type="submit" disabled={submitting}>
-            {mode === 'login' ? <LogIn /> : <UserRound />}
-            <span>{submitting ? '正在处理' : mode === 'login' ? '登录' : '创建账号'}</span>
-            <ArrowRight />
-          </button>
-        </form>
+        {externalProviders.length > 0 && (
+          <div className="external-auth-list">
+            {externalProviders.map((provider) => (
+              <a className="external-auth-command" href={provider.authorizationUrl} key={provider.id}>
+                <LogIn />
+                <span>使用 {provider.name} 登录</span>
+                <ExternalLink />
+              </a>
+            ))}
+          </div>
+        )}
+        {externalProviders.length > 0 && localEnabled && <div className="auth-divider"><span>或使用平台账号</span></div>}
+        {localEnabled && (
+          <>
+            <div className="auth-tabs" role="tablist" aria-label="账号操作">
+              <button type="button" role="tab" aria-selected={mode === 'login'} className={mode === 'login' ? 'is-active' : ''} onClick={() => { setMode('login'); props.onError(null); }}>登录</button>
+              <button type="button" role="tab" aria-selected={mode === 'register'} className={mode === 'register' ? 'is-active' : ''} onClick={() => { setMode('register'); props.onError(null); }}>注册</button>
+            </div>
+            <form onSubmit={(event) => void submit(event)}>
+              <label>
+                <span>用户名</span>
+                <input value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="username" minLength={3} maxLength={24} required />
+              </label>
+              {mode === 'register' && (
+                <label>
+                  <span>显示名称</span>
+                  <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} autoComplete="nickname" maxLength={24} placeholder={username || '游戏内名称'} />
+                </label>
+              )}
+              <label>
+                <span>密码</span>
+                <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} minLength={10} maxLength={128} required />
+              </label>
+              {mode === 'register' && (
+                <label>
+                  <span>确认密码</span>
+                  <input type="password" value={passwordConfirm} onChange={(event) => setPasswordConfirm(event.target.value)} autoComplete="new-password" minLength={10} maxLength={128} required />
+                </label>
+              )}
+              {props.error && <div className="form-error" role="alert">{props.error}</div>}
+              <button className="primary-command" type="submit" disabled={submitting}>
+                {mode === 'login' ? <LogIn /> : <UserRound />}
+                <span>{submitting ? '正在处理' : mode === 'login' ? '登录' : '创建账号'}</span>
+                <ArrowRight />
+              </button>
+            </form>
+          </>
+        )}
+        {!localEnabled && props.error && <div className="form-error external-auth-error" role="alert">{props.error}</div>}
         <footer><ShieldCheck /><span>账号会话由平台统一管理</span></footer>
       </section>
     </main>

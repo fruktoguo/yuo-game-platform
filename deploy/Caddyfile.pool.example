@@ -1,8 +1,4 @@
-game.yuohira.com {
-	redir https://pool.yuohira.com{uri} 308
-}
-
-pool.yuohira.com {
+game.dstopology.com {
 	encode zstd gzip
 
 	redir /life /life/ 308
@@ -13,6 +9,11 @@ pool.yuohira.com {
 	redir /billiards /billiards/ 308
 	handle_path /billiards/* {
 		reverse_proxy 127.0.0.1:3102
+	}
+
+	redir /foundry /foundry/ 308
+	handle_path /foundry/* {
+		reverse_proxy 127.0.0.1:3104
 	}
 
 	redir /snake /snake/ 308

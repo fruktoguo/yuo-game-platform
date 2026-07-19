@@ -129,4 +129,4 @@ export function resolveGameSocketPath(currentUrl = window.location.href): string
   return resolveGameEndpoint('socket.io', currentUrl).pathname;
 }
 
-export type { AccountView, GameManifest, GamePrincipal, SessionView, WalletView };
+export type { AccountView, AuthProviderDescriptor, GameManifest, GamePrincipal, SessionView, WalletView };

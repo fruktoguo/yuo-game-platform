@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { TABLE } from '../src/shared/geometry';
+import { CUSHION, TABLE } from '../src/shared/geometry';
 import { GameEngine } from '../src/server/gameEngine';
 
 describe('服务器权威球局', () => {
@@ -31,5 +31,36 @@ describe('服务器权威球局', () => {
     expect(engine.shoot('player-b', { angle: 0, power: 0.5, spinX: 0, spinY: 0 })).toBe('还未轮到你击球');
     expect(engine.shoot('player-a', { angle: Number.NaN, power: 0.5, spinX: 0, spinY: 0 })).toBe('击球参数无效');
     engine.dispose();
+  });
+
+  it('库边碰撞面与绿色鼻梁内沿保持一致', () => {
+    vi.useFakeTimers();
+    const events: string[] = [];
+    const engine = new GameEngine(['player-a', 'player-b'], 0, {
+      onSnapshot: vi.fn(),
+      onEvent: (event) => events.push(event.type),
+      onStateChange: vi.fn(),
+      onFinished: vi.fn(),
+    });
+
+    try {
+      engine.placeCue('player-a', TABLE.headStringX - 0.2, 0);
+      engine.shoot('player-a', { angle: Math.PI / 2, power: 1, spinX: 0, spinY: 0 });
+
+      let maximumCueZ = Number.NEGATIVE_INFINITY;
+      for (let frame = 0; frame < 30; frame += 1) {
+        vi.advanceTimersByTime(1000 / 60);
+        const cue = engine.getSnapshot().balls[0];
+        if (!cue.pocketed) maximumCueZ = Math.max(maximumCueZ, cue.z);
+      }
+
+      const cushionInnerFace = TABLE.height / 2 - CUSHION.noseCenterInset - CUSHION.noseThickness / 2;
+      const idealBallCenterLimit = cushionInnerFace - TABLE.ballRadius;
+      expect(events).toContain('cushion');
+      expect(maximumCueZ).toBeLessThanOrEqual(idealBallCenterLimit + 0.005);
+    } finally {
+      engine.dispose();
+      vi.useRealTimers();
+    }
   });
 });

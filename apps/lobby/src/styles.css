@@ -140,6 +140,75 @@ input:focus-visible {
   background: #081214;
 }
 
+.external-auth-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 30px;
+}
+
+.external-auth-command {
+  width: 100%;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 14px;
+  border: 1px solid #4a746b;
+  border-radius: 5px;
+  color: #dff8f1;
+  background: #10211f;
+  font-size: 11px;
+  font-weight: 700;
+  text-decoration: none;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+
+.external-auth-command span {
+  min-width: 0;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.external-auth-command:hover {
+  border-color: #69dfbd;
+  background: #17302c;
+}
+
+.external-auth-command svg {
+  width: 16px;
+  flex: 0 0 auto;
+}
+
+.external-auth-command svg:last-child {
+  margin-left: auto;
+  color: #70a99b;
+}
+
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 20px;
+  color: #708682;
+  font-size: 9px;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: "";
+  height: 1px;
+  flex: 1;
+  background: #253639;
+}
+
+.auth-divider + .auth-tabs {
+  margin-top: 20px;
+}
+
+.external-auth-error {
+  margin-top: 14px;
+}
+
 .auth-tabs button {
   height: 34px;
   border: 0;

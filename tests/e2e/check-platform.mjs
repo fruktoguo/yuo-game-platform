@@ -9,6 +9,7 @@ const PLATFORM_URL = process.env.PLATFORM_URL ?? 'http://127.0.0.1:3100';
 const LIFE_URL = process.env.LIFE_URL ?? 'http://127.0.0.1:3101';
 const BILLIARDS_URL = process.env.BILLIARDS_URL ?? 'http://127.0.0.1:3102';
 const SNAKE_URL = process.env.SNAKE_URL ?? 'http://127.0.0.1:3103';
+const FOUNDRY_URL = process.env.FOUNDRY_URL ?? 'http://127.0.0.1:3104';
 const LIFE_SERVICE_TOKEN = process.env.LIFE_SERVICE_TOKEN ?? 'dev-life-service-token-change-before-production-2026';
 const TEST_INTERNAL_WALLET = process.env.E2E_TEST_INTERNAL_WALLET !== 'false';
 const CHROME_PATH = process.env.CHROME_PATH ?? (existsSync('/usr/bin/google-chrome') ? '/usr/bin/google-chrome' : undefined);
@@ -127,7 +128,11 @@ try {
   await secondPage.getByLabel('房间号').waitFor();
   assert.equal(await secondPage.getByLabel('房间号').inputValue(), roomCode);
   await secondPage.getByRole('button', { name: '加入球局', exact: true }).click();
-  await secondPage.getByText('双方确认后开球', { exact: true }).waitFor({ timeout: 10_000 });
+  await secondPage.waitForFunction(
+    () => document.body.innerText.includes('双方确认后开球'),
+    undefined,
+    { timeout: 15_000 },
+  );
   await firstPage.locator('.seat-list').getByText(secondAccount.displayName, { exact: true }).waitFor({ timeout: 10_000 });
 
   logStep('验证双人准备、聊天与 3D 击球动画');
@@ -240,6 +245,97 @@ try {
   await touchPage.screenshot({ path: join(artifactsDirectory, 'snake-mobile.png'), fullPage: true });
   await touchContext.close();
 
+  logStep('验证远星工造密码房间与双人协作');
+  await firstPage.setViewportSize({ width: 1440, height: 900 });
+  await secondPage.setViewportSize({ width: 1440, height: 900 });
+  await firstPage.goto(PLATFORM_URL, { waitUntil: 'networkidle' });
+  await secondPage.goto(PLATFORM_URL, { waitUntil: 'networkidle' });
+  const firstFoundryLaunch = await launchGame(firstPage, 'farstar-foundry');
+  const secondFoundryLaunch = await launchGame(secondPage, 'farstar-foundry');
+  await Promise.all([
+    firstPage.goto(firstFoundryLaunch.launchUrl, { waitUntil: 'domcontentloaded' }),
+    secondPage.goto(secondFoundryLaunch.launchUrl, { waitUntil: 'domcontentloaded' }),
+  ]);
+  await Promise.all([
+    firstPage.getByText('服务器在线', { exact: true }).waitFor({ timeout: 15_000 }),
+    secondPage.getByText('服务器在线', { exact: true }).waitFor({ timeout: 15_000 }),
+  ]);
+
+  const foundryPassword = `Room-${runId}!`;
+  await firstPage.getByLabel('工厂名称').fill(`联调工造站${runId.slice(-4)}`);
+  await firstPage.getByLabel('创建密码').fill(foundryPassword);
+  await firstPage.getByRole('button', { name: '4 人' }).click();
+  await firstPage.getByRole('button', { name: '创建房间' }).click();
+  await firstPage.getByRole('heading', { name: '协作组已建立' }).waitFor({ timeout: 15_000 });
+  const foundryRoomCode = (await firstPage.locator('.factory-title button span').textContent())?.trim();
+  assert.match(foundryRoomCode ?? '', /^[A-Z2-9]{6}$/);
+
+  await secondPage.getByLabel('房间号').fill(foundryRoomCode);
+  await secondPage.getByLabel('加入密码').fill(foundryPassword);
+  await secondPage.getByRole('button', { name: '加入', exact: true }).click();
+  await secondPage.getByRole('heading', { name: '协作组已建立' }).waitFor({ timeout: 15_000 });
+  await firstPage.getByText(secondAccount.displayName, { exact: true }).waitFor({ timeout: 10_000 });
+  assert.equal((await secondPage.locator('body').textContent()).includes(foundryPassword), false, '页面不得回显房间密码');
+
+  await secondPage.getByLabel('聊天消息').fill(`工造协作-${runId}`);
+  await secondPage.getByRole('button', { name: '发送消息' }).click();
+  await firstPage.getByText(`工造协作-${runId}`, { exact: true }).waitFor({ timeout: 10_000 });
+  await firstPage.getByRole('button', { name: '启动本轮任务' }).click();
+  await Promise.all([
+    firstPage.getByRole('heading', { name: '建立采掘前哨' }).waitFor({ timeout: 10_000 }),
+    secondPage.getByRole('heading', { name: '建立采掘前哨' }).waitFor({ timeout: 10_000 }),
+  ]);
+  assert.equal(await firstPage.locator('.inventory-item').filter({ hasText: '铜矿' }).count(), 0, '未解锁铜矿不应出现在库存中');
+  assert.equal(await firstPage.locator('.inventory-item').filter({ hasText: '煤炭' }).count(), 0, '未解锁煤炭不应出现在库存中');
+  assert.equal(await firstPage.locator('.production-line').count(), 0, '初始阶段不应展示尚未解锁的制造设施');
+
+  const firstIronGather = firstPage.getByRole('button', { name: '采集铁矿' });
+  const secondIronGather = secondPage.getByRole('button', { name: '采集铁矿' });
+  const ironInventory = firstPage.locator('.inventory-item').filter({ hasText: '铁矿' });
+  await firstPage.getByLabel('当前库存').waitFor();
+  const ironBeforeGather = await ironInventory.textContent();
+  await Promise.all([firstIronGather.click(), secondIronGather.click()]);
+  const gatherProgress = firstPage.locator('.manual-gather-card.is-active [role="progressbar"]');
+  await gatherProgress.waitFor({ timeout: 3_000 });
+  assert.equal(await firstIronGather.isDisabled(), true, '采集作业进行时不得重复点击');
+  const progressBefore = Number(await gatherProgress.getAttribute('aria-valuenow'));
+  await firstPage.waitForTimeout(350);
+  const progressAfter = Number(await gatherProgress.getAttribute('aria-valuenow'));
+  assert.ok(progressAfter > progressBefore, '手动采集进度条没有推进');
+  await Promise.all([waitForFoundryGather(firstPage), waitForFoundryGather(secondPage)]);
+  assert.notEqual(await ironInventory.textContent(), ironBeforeGather, '采集完成后库存没有更新');
+
+  await Promise.all([
+    firstIronGather.click(),
+    secondPage.getByRole('button', { name: '采集岩石' }).click(),
+  ]);
+  await Promise.all([waitForFoundryGather(firstPage), waitForFoundryGather(secondPage)]);
+  await firstPage.getByRole('button', { name: '采集岩石' }).click();
+  await waitForFoundryGather(firstPage);
+
+  const ironDrillRow = firstPage.locator('.production-line').filter({ hasText: '铁矿采掘机' });
+  await ironDrillRow.waitFor({ timeout: 5_000 });
+  const unlockedIronPlate = firstPage.locator('.inventory-item').filter({ hasText: '铁板' });
+  await unlockedIronPlate.waitFor({ timeout: 5_000 });
+  assert.equal((await unlockedIronPlate.locator('strong').textContent())?.trim(), '0', '已解锁材料归零后仍应显示');
+  assert.equal(await firstPage.locator('.inventory-item').filter({ hasText: '铜矿' }).count(), 0, '第二阶段前仍不应展示铜矿');
+  await ironDrillRow.getByRole('button', { name: '建造' }).click();
+  const ironFurnaceRow = firstPage.locator('.production-line').filter({ hasText: '铁板熔炉' });
+  await ironFurnaceRow.getByRole('button', { name: '建造' }).click();
+  await secondPage.getByRole('button', { name: '生产', exact: true }).click();
+  await expectText(secondPage.locator('.production-line').filter({ hasText: '铁矿采掘机' }).locator('.line-count strong'), '1');
+  await firstPage.screenshot({ path: join(artifactsDirectory, 'foundry-desktop.png'), fullPage: true });
+
+  logStep('验证远星工造刷新恢复与移动端布局');
+  await secondPage.reload({ waitUntil: 'domcontentloaded' });
+  await secondPage.locator('.factory-title').waitFor({ timeout: 15_000 });
+  await secondPage.getByRole('button', { name: '生产', exact: true }).click();
+  await expectText(secondPage.locator('.production-line').filter({ hasText: '铁矿采掘机' }).locator('.line-count strong'), '1');
+  await secondPage.setViewportSize({ width: 390, height: 844 });
+  await secondPage.waitForTimeout(350);
+  await assertNoHorizontalOverflow(secondPage);
+  await secondPage.screenshot({ path: join(artifactsDirectory, 'foundry-mobile.png'), fullPage: true });
+
   const mobileLobbyPage = await firstContext.newPage();
   monitorPage(mobileLobbyPage, '移动端大厅');
   await mobileLobbyPage.setViewportSize({ width: 390, height: 844 });
@@ -277,10 +373,11 @@ async function register(page, username, displayName) {
 
 async function assertLobby(page, expectedBalance) {
   await page.getByRole('heading', { name: '全部游戏' }).waitFor();
-  assert.equal(await page.locator('.game-card').count(), 3);
+  assert.equal(await page.locator('.game-card').count(), 4);
   await page.getByRole('heading', { name: '生命战争' }).waitFor();
   await page.getByRole('heading', { name: 'Breakline 台球' }).waitFor();
   await page.getByRole('heading', { name: 'PROJECT GSS0' }).waitFor();
+  await page.getByRole('heading', { name: '远星工造' }).waitFor();
   assert.equal(Number(await page.locator('.points-pill strong').textContent()), expectedBalance);
   await assertNoHorizontalOverflow(page);
 }
@@ -426,14 +523,14 @@ async function assertOriginalSnakeTouchControl(page) {
 function monitorPage(page, name) {
   page.on('pageerror', (error) => browserErrors.push(`${name} 页面异常：${error.message}`));
   page.on('response', (response) => {
-    if (response.status() >= 500 && [PLATFORM_URL, LIFE_URL, BILLIARDS_URL, SNAKE_URL].some((base) => response.url().startsWith(base))) {
+    if (response.status() >= 500 && [PLATFORM_URL, LIFE_URL, BILLIARDS_URL, SNAKE_URL, FOUNDRY_URL].some((base) => response.url().startsWith(base))) {
       browserErrors.push(`${name} 服务异常：${response.status()} ${response.url()}`);
     }
   });
 }
 
 async function checkHealth() {
-  const endpoints = [`${PLATFORM_URL}/health`, `${LIFE_URL}/health`, `${BILLIARDS_URL}/api/health`, `${SNAKE_URL}/health`];
+  const endpoints = [`${PLATFORM_URL}/health`, `${LIFE_URL}/health`, `${BILLIARDS_URL}/api/health`, `${SNAKE_URL}/health`, `${FOUNDRY_URL}/health`];
   for (const endpoint of endpoints) {
     const response = await fetch(endpoint);
     assert.equal(response.status, 200, `${endpoint} 未就绪`);
@@ -452,4 +549,17 @@ async function enterSnakeUltra(page, mode = '开始行动') {
   }
   await page.locator('#start-screen').waitFor({ state: 'hidden', timeout: 10_000 });
   await page.locator('canvas#game').waitFor({ state: 'visible', timeout: 10_000 });
+}
+
+async function waitForFoundryGather(page) {
+  await page.waitForFunction(
+    () => document.querySelector('.manual-gather-card.is-active') === null,
+    undefined,
+    { timeout: 6_000 },
+  );
+}
+
+async function expectText(locator, expected) {
+  await locator.waitFor({ timeout: 10_000 });
+  assert.equal((await locator.textContent())?.trim(), expected);
 }

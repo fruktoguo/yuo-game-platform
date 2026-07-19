@@ -12,6 +12,7 @@ COPY packages/realtime/package.json packages/realtime/package.json
 COPY games/life-commons/package.json games/life-commons/package.json
 COPY games/billiards-arena/package.json games/billiards-arena/package.json
 COPY ["games/PROJECT GSS0/package.json", "games/PROJECT GSS0/package.json"]
+COPY games/farstar-foundry/package.json games/farstar-foundry/package.json
 RUN npm ci
 
 COPY . .
@@ -24,7 +25,7 @@ ENV NODE_ENV=production
 WORKDIR /app
 
 RUN groupadd --system platform && useradd --system --gid platform --home /app platform \
-  && mkdir -p /app/data/life /app/data/snake /app/data/platform \
+  && mkdir -p /app/data/life /app/data/snake /app/data/foundry /app/data/platform \
   && chown -R platform:platform /app
 
 COPY --from=build --chown=platform:platform /app/package.json /app/package-lock.json ./
@@ -49,7 +50,9 @@ COPY --from=build --chown=platform:platform /app/games/billiards-arena/package.j
 COPY --from=build --chown=platform:platform /app/games/billiards-arena/dist ./games/billiards-arena/dist
 COPY --from=build --chown=platform:platform ["/app/games/PROJECT GSS0/package.json", "./games/PROJECT GSS0/package.json"]
 COPY --from=build --chown=platform:platform ["/app/games/PROJECT GSS0/dist", "./games/PROJECT GSS0/dist"]
-# The installed production Compose file still starts the service through this legacy path.
+COPY --from=build --chown=platform:platform /app/games/farstar-foundry/package.json ./games/farstar-foundry/package.json
+COPY --from=build --chown=platform:platform /app/games/farstar-foundry/dist ./games/farstar-foundry/dist
+# 生产服务器上的旧 Compose 仍可能通过历史目录启动 PROJECT GSS0。
 RUN mkdir -p games/neon-snake-arena \
   && ln -s "../PROJECT GSS0/package.json" games/neon-snake-arena/package.json \
   && ln -s "../PROJECT GSS0/dist" games/neon-snake-arena/dist

@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-readonly deploy_directory="/home/ubuntu/apps/game-platform"
+readonly deploy_directory="/opt/game-platform"
+readonly deploy_owner="yuohira"
+readonly deploy_group="yuohira"
 readonly image_repository="yuo-game-platform"
 readonly maximum_artifact_bytes=$((512 * 1024 * 1024))
 readonly minimum_artifact_bytes=$((1 * 1024 * 1024))
@@ -15,6 +17,18 @@ log() {
 fail() {
   printf '[yuo-deploy] 错误：%s\n' "$*" >&2
   exit 1
+}
+
+backup_gzip_file() {
+  local container_name="$1"
+  local source_path="$2"
+  local target_path="$3"
+
+  docker container inspect "${container_name}" > /dev/null 2>&1 || return 0
+  if docker exec "${container_name}" test -f "${source_path}"; then
+    docker cp "${container_name}:${source_path}" "${target_path}"
+    gzip -t "${target_path}"
+  fi
 }
 
 [[ "${EUID}" -eq 0 ]] || fail "部署脚本必须以 root 运行"
@@ -42,7 +56,7 @@ rollback_required=0
 rollback() {
   [[ -n "${backup_directory}" && -f "${backup_directory}/.env" ]] || return 0
   log "恢复上一镜像配置"
-  install -o ubuntu -g ubuntu -m 0600 "${backup_directory}/.env" "${deploy_directory}/.env"
+  install -o "${deploy_owner}" -g "${deploy_group}" -m 0600 "${backup_directory}/.env" "${deploy_directory}/.env"
   (
     cd "${deploy_directory}"
     docker compose up -d --no-build --wait --wait-timeout 180
@@ -99,25 +113,27 @@ PY
 
 readonly backup_stamp="$(date -u +%Y%m%dT%H%M%SZ)"
 backup_directory="${deploy_directory}/backups/github-${backup_stamp}-${commit_sha:0:12}"
-install -d -o ubuntu -g ubuntu -m 0700 "${backup_directory}"
-install -o ubuntu -g ubuntu -m 0600 "${deploy_directory}/.env" "${backup_directory}/.env"
-install -o ubuntu -g ubuntu -m 0600 "${deploy_directory}/compose.yml" "${backup_directory}/compose.yml"
+install -d -o "${deploy_owner}" -g "${deploy_group}" -m 0700 "${backup_directory}"
+install -o "${deploy_owner}" -g "${deploy_group}" -m 0600 "${deploy_directory}/.env" "${backup_directory}/.env"
+install -o "${deploy_owner}" -g "${deploy_group}" -m 0600 "${deploy_directory}/compose.yml" "${backup_directory}/compose.yml"
 
 docker inspect --format '{{.Image}}' game-platform-platform-1 > "${backup_directory}/previous-image-id.txt"
 docker exec game-platform-postgres-1 \
   pg_dump -U game_platform -d game_platform --format=custom > "${backup_directory}/platform.dump"
 
-if docker exec game-platform-life-commons-1 test -f /app/data/life/world.json.gz; then
-  docker cp game-platform-life-commons-1:/app/data/life/world.json.gz \
-    "${backup_directory}/life-world.json.gz"
-  gzip -t "${backup_directory}/life-world.json.gz"
-fi
-if docker exec game-platform-neon-snake-arena-1 test -f /app/data/snake/profiles.json.gz; then
-  docker cp game-platform-neon-snake-arena-1:/app/data/snake/profiles.json.gz \
-    "${backup_directory}/snake-profiles.json.gz"
-  gzip -t "${backup_directory}/snake-profiles.json.gz"
-fi
-chown -R ubuntu:ubuntu "${backup_directory}"
+backup_gzip_file \
+  game-platform-life-commons-1 \
+  /app/data/life/world.json.gz \
+  "${backup_directory}/life-world.json.gz"
+backup_gzip_file \
+  game-platform-neon-snake-arena-1 \
+  /app/data/snake/profiles.json.gz \
+  "${backup_directory}/snake-profiles.json.gz"
+backup_gzip_file \
+  game-platform-farstar-foundry-1 \
+  /app/data/foundry/rooms.json.gz \
+  "${backup_directory}/foundry-rooms.json.gz"
+chown -R "${deploy_owner}:${deploy_group}" "${backup_directory}"
 chmod 0600 "${backup_directory}"/* "${backup_directory}"/.[!.]* 2>/dev/null || true
 
 log "加载并校验 ${image_reference}"
@@ -134,6 +150,45 @@ image_probe_directory="$(mktemp -d "/var/tmp/yuo-game-platform-probe.XXXXXX")"
 docker cp "${image_probe_container}:/etc/passwd" "${image_probe_directory}/passwd" > /dev/null
 readonly platform_uid="$(awk -F: '$1 == "platform" { print $3 }' "${image_probe_directory}/passwd")"
 [[ "${platform_uid}" =~ ^[0-9]+$ && "${platform_uid}" -ne 0 ]] || fail "platform 用户 UID 无效"
+
+(
+  cd "${deploy_directory}"
+  GAME_PLATFORM_IMAGE="${image_reference}" docker compose config --format json
+) > "${image_probe_directory}/compose.json"
+python3 - "${image_probe_directory}/compose.json" "${image_reference}" \
+  > "${image_probe_directory}/entrypoints.tsv" <<'PY'
+import json
+import pathlib
+import re
+import sys
+
+compose_path, image_reference = sys.argv[1:]
+with open(compose_path, encoding="utf-8") as compose_file:
+    compose = json.load(compose_file)
+
+for service_name, service in compose.get("services", {}).items():
+    if service.get("image") != image_reference:
+        continue
+    command = service.get("command")
+    if not isinstance(command, list) or len(command) < 2 or command[0] != "node":
+        raise SystemExit(f"服务 {service_name} 必须使用 node 加入口文件的命令格式")
+    entrypoint = pathlib.PurePosixPath(command[1])
+    if entrypoint.is_absolute() or ".." in entrypoint.parts:
+        raise SystemExit(f"服务 {service_name} 的入口文件路径无效")
+    if not re.fullmatch(r"[A-Za-z0-9_.-]+", service_name):
+        raise SystemExit("Compose 服务名包含不支持的字符")
+    print(f"{service_name}\t/app/{entrypoint.as_posix()}")
+PY
+
+install -d -m 0700 "${image_probe_directory}/entrypoints"
+while IFS=$'\t' read -r service_name entrypoint; do
+  [[ -n "${service_name}" && -n "${entrypoint}" ]] || continue
+  target_path="${image_probe_directory}/entrypoints/${service_name}"
+  docker cp "${image_probe_container}:${entrypoint}" "${target_path}" > /dev/null 2>&1 \
+    || fail "镜像缺少服务 ${service_name} 的入口文件 ${entrypoint}"
+  [[ -f "${target_path}" ]] || fail "服务 ${service_name} 的入口路径不是文件：${entrypoint}"
+done < "${image_probe_directory}/entrypoints.tsv"
+
 docker rm "${image_probe_container}" > /dev/null
 image_probe_container=""
 rm -rf "${image_probe_directory}"
@@ -147,7 +202,7 @@ else
   cp "${deploy_directory}/.env" "${next_environment}"
   printf '\nGAME_PLATFORM_IMAGE=%s\n' "${image_reference}" >> "${next_environment}"
 fi
-chown ubuntu:ubuntu "${next_environment}"
+chown "${deploy_owner}:${deploy_group}" "${next_environment}"
 chmod 0600 "${next_environment}"
 mv "${next_environment}" "${deploy_directory}/.env"
 next_environment=""
@@ -164,7 +219,8 @@ for health_url in \
   http://127.0.0.1:3100/health \
   http://127.0.0.1:3101/health \
   http://127.0.0.1:3102/api/health \
-  http://127.0.0.1:3103/health
+  http://127.0.0.1:3103/health \
+  http://127.0.0.1:3104/health
 do
   curl --fail --silent --show-error --max-time 10 "${health_url}" > /dev/null
 done

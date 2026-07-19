@@ -2,9 +2,9 @@
 
 [![构建并部署生产环境](https://github.com/fruktoguo/yuo-game-platform/actions/workflows/deploy.yml/badge.svg)](https://github.com/fruktoguo/yuo-game-platform/actions/workflows/deploy.yml)
 
-统一账号、游戏目录、启动会话和通用积分的轻量 Web 游戏平台。当前包含生命战争、Breakline 台球与支持单人/多人共享世界的 PROJECT GSS0。
+统一账号、游戏目录、启动会话和通用积分的轻量 Web 游戏平台。当前包含生命战争、Breakline 台球、PROJECT GSS0 与多人协作文字放置游戏远星工造。
 
-[在线体验](https://pool.yuohira.com) · [架构说明](docs/architecture.md) · [游戏接入指南](docs/game-integration.md)
+[在线体验](https://game.dstopology.com) · [架构说明](docs/architecture.md) · [游戏接入指南](docs/game-integration.md)
 
 ## 目录
 
@@ -33,6 +33,7 @@ npm start
 - 生命战争：通过大厅启动，服务端位于 `127.0.0.1:3101`
 - Breakline 台球：通过大厅启动，服务端位于 `127.0.0.1:3102`
 - PROJECT GSS0：通过大厅启动；单人保持原版肉鸽贪吃蛇规则，第二名玩家加入后自动切换共享世界联机模式；服务端位于 `127.0.0.1:3103`
+- 远星工造：通过大厅启动；支持密码房间、岗位协作、离线推进，以及从手工采集、自动化、炼油、铁路、核电到轨道火箭的完整生产链；服务端位于 `127.0.0.1:3104`
 
 开发模式使用 `npm run dev`，大厅 Vite 地址为 `http://127.0.0.1:5175`。
 
@@ -50,11 +51,13 @@ npm run check:e2e
 
 根目录的 `build:packages` 会按依赖顺序生成共享包的 Node/浏览器运行产物。新增游戏必须依赖共享包公开入口，禁止跨目录引用其他游戏或平台服务源码。
 
-五个运行容器均配置 Docker 硬内存上限，当前合计 2.00 GiB；`check:limits` 保证包括后续游戏在内的总额不会超过 2 GiB。
+六个运行容器均配置 Docker 硬内存上限，当前合计 1.875 GiB；`check:limits` 保证包括后续游戏在内的总额不会超过 2 GiB。远星工造仅为在线房间执行 2 Hz 生产结算，以 0.5 Hz 发送常规动态同步；空置房间在成员返回时按时间差补算，最多使用 360 个自适应时间片，常规同步使用固定顺序数值数组控制 CPU 与网络开销。
 
-## DST 平台接入
+## 外部身份平台接入
 
-当前本地账号实现位于身份提供者边界内。DST 新平台接入时实现 `IdentityProvider`，通过 OIDC Authorization Code + PKCE 或服务端授权码交换映射到全局 `accountId`，不需要修改游戏协议、积分账本或大厅业务。
+大厅的身份兼容层不绑定具体服务器或品牌。默认使用本地账号；部署方可以通过 ENV 选择外部身份实现，将经过验证的 `provider + subject` 映射到全局 `accountId`，不需要修改游戏协议、积分账本或大厅业务。
+
+仓库已提供 `newapi-node-studio-v1` 适配器，用于兼容 NewAPI 向 Node Studio 发送的加密交接协议。具体变量、交接契约和平台侧要求见[外部身份接入文档](docs/external-identity.md)。
 
 生产部署前必须替换 `.env.example` 中列出的服务令牌和游戏会话密钥，并启用 `COOKIE_SECURE=true`。
 

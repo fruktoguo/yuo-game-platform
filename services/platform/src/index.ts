@@ -3,6 +3,7 @@ import { PostgresDatabase, postgresConfigFromEnv } from '@yuo-platform/persisten
 import { createPlatformApp } from './app';
 import { AuthService } from './auth';
 import { loadConfig } from './config';
+import { createExternalIdentityAdapter } from './externalIdentity';
 import { PLATFORM_MIGRATIONS } from './migrations';
 import { PlatformRepository } from './repository';
 
@@ -15,7 +16,8 @@ const database = new PostgresDatabase(postgresConfigFromEnv({
 await database.migrate(PLATFORM_MIGRATIONS);
 const repository = new PlatformRepository(database);
 const auth = new AuthService(repository, config.sessionTtlSeconds);
-const app = createPlatformApp(config, repository, auth);
+const externalIdentity = createExternalIdentityAdapter(config.auth.external);
+const app = createPlatformApp(config, repository, auth, externalIdentity);
 const server = createServer(app);
 
 server.listen(config.port, config.host, () => {

@@ -21,6 +21,7 @@ export interface AuthProviderDescriptor {
   name: string;
   mode: 'credentials' | 'redirect';
   enabled: boolean;
+  authorizationUrl?: string;
 }
 
 export interface RegisterRequest {

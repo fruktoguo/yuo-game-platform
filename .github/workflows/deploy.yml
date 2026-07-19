@@ -108,10 +108,11 @@ jobs:
         run: |
           set -euo pipefail
           for url in \
-            https://pool.yuohira.com/health \
-            https://pool.yuohira.com/life/health \
-            https://pool.yuohira.com/billiards/api/health \
-            https://pool.yuohira.com/snake/health
+            https://game.dstopology.com/health \
+            https://game.dstopology.com/life/health \
+            https://game.dstopology.com/billiards/api/health \
+            https://game.dstopology.com/snake/health \
+            https://game.dstopology.com/foundry/health
           do
             curl --fail --silent --show-error \
               --retry 12 --retry-delay 5 --retry-all-errors \
@@ -127,5 +128,5 @@ jobs:
             echo
             echo "- 提交：\`${GITHUB_SHA}\`"
             echo "- 镜像：\`${IMAGE_REF}\`"
-            echo '- 公网入口：<https://pool.yuohira.com>'
+            echo '- 公网入口：<https://game.dstopology.com>'
           } >> "${GITHUB_STEP_SUMMARY}"

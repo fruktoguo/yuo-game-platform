@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { BALL_COLORS, createRackOrder, POCKETS, TABLE } from '../../shared/geometry';
+import { BALL_COLORS, createRackOrder, CUSHION, POCKETS, TABLE } from '../../shared/geometry';
 import type { GameEvent, GameSnapshot, PlacementConstraint } from '../../shared/protocol';
 import { calculateRollingStep } from './RollingMotion';
 import { SnapshotInterpolator } from './SnapshotInterpolator';
@@ -369,8 +369,8 @@ export class BilliardsRenderer {
 
     const halfWidth = TABLE.width / 2;
     const halfHeight = TABLE.height / 2;
-    const cornerGap = 0.135;
-    const sideGap = 0.085;
+    const cornerGap = CUSHION.cornerGap;
+    const sideGap = CUSHION.sideGap;
     const topLength = halfWidth - cornerGap - sideGap;
     const leftCenter = -(sideGap + topLength / 2);
     const rightCenter = sideGap + topLength / 2;
@@ -378,14 +378,14 @@ export class BilliardsRenderer {
       for (const side of [-1, 1]) {
         this.addRoundedBox(x, 0.057, side * (halfHeight + 0.087), topLength, 0.132, 0.18, woodMaterial, 0.026);
         this.addRoundedBox(x, 0.047, side * (halfHeight + 0.018), topLength - 0.018, 0.078, 0.073, cushionMaterial, 0.018);
-        this.addRoundedBox(x, 0.044, side * (halfHeight - 0.021), topLength - 0.026, 0.04, 0.018, cushionNoseMaterial, 0.008);
+        this.addRoundedBox(x, 0.044, side * (halfHeight - CUSHION.noseCenterInset), topLength - CUSHION.noseEndInset * 2, 0.04, CUSHION.noseThickness, cushionNoseMaterial, 0.008);
       }
     });
     const sideLength = TABLE.height - cornerGap * 2;
     for (const side of [-1, 1]) {
       this.addRoundedBox(side * (halfWidth + 0.087), 0.057, 0, 0.18, 0.132, sideLength, woodMaterial, 0.026);
       this.addRoundedBox(side * (halfWidth + 0.018), 0.047, 0, 0.073, 0.078, sideLength - 0.018, cushionMaterial, 0.018);
-      this.addRoundedBox(side * (halfWidth - 0.021), 0.044, 0, 0.018, 0.04, sideLength - 0.026, cushionNoseMaterial, 0.008);
+      this.addRoundedBox(side * (halfWidth - CUSHION.noseCenterInset), 0.044, 0, CUSHION.noseThickness, 0.04, sideLength - CUSHION.noseEndInset * 2, cushionNoseMaterial, 0.008);
     }
 
     POCKETS.forEach((pocket, index) => {

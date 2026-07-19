@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
-import type { AccountView, LoginRequest, RegisterRequest, SessionView } from '@yuo-platform/contracts';
+import type { AccountView, IdentityProviderProfile, LoginRequest, RegisterRequest, SessionView } from '@yuo-platform/contracts';
 import { PlatformRepository, isUniqueViolation } from './repository';
 import { hashPassword, verifyPassword } from './passwords';
 
@@ -37,6 +37,13 @@ export class AuthService {
     const matches = await verifyPassword(password, credential?.passwordHash ?? DUMMY_PASSWORD_HASH);
     if (!credential || !matches || credential.account.status !== 'active') throw invalidCredentials();
     return this.createSession(credential.account);
+  }
+
+  async loginExternal(profile: IdentityProviderProfile): Promise<{ session: SessionView; token: string }> {
+    const normalized = validateExternalProfile(profile);
+    const account = await this.repository.findOrCreateExternalAccount(normalized);
+    if (account.status !== 'active') throw new AuthError('ACCOUNT_SUSPENDED', '平台账号已停用', 403);
+    return this.createSession(account);
   }
 
   async resolve(token: string | undefined): Promise<SessionView | null> {
@@ -92,4 +99,27 @@ function normalizeUsernameKey(value: unknown): string {
 
 function invalidCredentials(): AuthError {
   return new AuthError('INVALID_CREDENTIALS', '用户名或密码错误', 401);
+}
+
+function validateExternalProfile(profile: IdentityProviderProfile): IdentityProviderProfile {
+  const provider = typeof profile?.provider === 'string' ? profile.provider.trim() : '';
+  if (provider === 'local' || !/^[a-z][a-z0-9-]{1,31}$/u.test(provider)) {
+    throw new AuthError('INVALID_EXTERNAL_PROFILE', '外部身份提供者无效', 400);
+  }
+  const subject = typeof profile?.subject === 'string' ? profile.subject.trim() : '';
+  if (!subject || subject.length > 256 || /[\u0000-\u001f\u007f]/u.test(subject)) {
+    throw new AuthError('INVALID_EXTERNAL_PROFILE', '外部身份标识无效', 400);
+  }
+  const username = typeof profile?.username === 'string' ? profile.username.normalize('NFKC').trim() : '';
+  if (!username || username.length > 128 || /[\u0000-\u001f\u007f]/u.test(username)) {
+    throw new AuthError('INVALID_EXTERNAL_PROFILE', '外部账号名称无效', 400);
+  }
+  const requestedDisplayName = typeof profile?.displayName === 'string'
+    ? profile.displayName.normalize('NFKC').trim()
+    : '';
+  const displayName = Array.from(requestedDisplayName || username).slice(0, 24).join('');
+  if (!displayName || /[\u0000-\u001f\u007f]/u.test(displayName)) {
+    throw new AuthError('INVALID_EXTERNAL_PROFILE', '外部账号显示名称无效', 400);
+  }
+  return { provider, subject, username, displayName };
 }

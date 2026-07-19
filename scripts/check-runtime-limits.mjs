@@ -8,7 +8,7 @@ const result = spawnSync('docker', ['compose', 'config', '--format', 'json'], {
 if (result.status !== 0) throw new Error(result.stderr || '无法读取 Docker Compose 配置');
 
 const compose = JSON.parse(result.stdout);
-const serviceNames = ['postgres', 'platform', 'life-commons', 'billiards-arena', 'neon-snake-arena'];
+const serviceNames = ['postgres', 'platform', 'life-commons', 'billiards-arena', 'neon-snake-arena', 'farstar-foundry'];
 const maximumBytes = 2 * 1024 ** 3;
 let totalBytes = 0;
 

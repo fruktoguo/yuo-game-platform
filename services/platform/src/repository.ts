@@ -1,9 +1,10 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import type {
   AccountStatus,
   AccountView,
   GamePrincipal,
+  IdentityProviderProfile,
   WalletCommand,
   WalletEntryType,
   WalletEntryView,
@@ -54,6 +55,34 @@ export class PlatformRepository {
       `, [input.usernameKey, id, input.username]);
       await client.query('INSERT INTO platform_wallets (account_id) VALUES ($1)', [id]);
       return toAccountView(result.rows[0]);
+    });
+  }
+
+  async findOrCreateExternalAccount(profile: IdentityProviderProfile): Promise<AccountView> {
+    return this.database.transaction(async (client) => {
+      await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`identity:${profile.provider}:${profile.subject}`]);
+      const existing = await client.query<AccountRow>(`
+        SELECT a.id, a.username, a.display_name, a.status, a.created_at
+        FROM platform_identity_links i
+        JOIN platform_accounts a ON a.id = i.account_id
+        WHERE i.provider = $1 AND i.provider_subject = $2
+      `, [profile.provider, profile.subject]);
+      if (existing.rows[0]) {
+        await client.query(`
+          UPDATE platform_identity_links
+          SET username_snapshot = $3
+          WHERE provider = $1 AND provider_subject = $2
+        `, [profile.provider, profile.subject, profile.username]);
+        return toAccountView(existing.rows[0]);
+      }
+
+      const account = await insertExternalAccount(client, profile);
+      await client.query(`
+        INSERT INTO platform_identity_links (provider, provider_subject, account_id, username_snapshot)
+        VALUES ($1, $2, $3, $4)
+      `, [profile.provider, profile.subject, account.id, profile.username]);
+      await client.query('INSERT INTO platform_wallets (account_id) VALUES ($1)', [account.id]);
+      return toAccountView(account);
     });
   }
 
@@ -239,4 +268,33 @@ function toSafeInteger(value: string): number {
   const parsed = Number(value);
   if (!Number.isSafeInteger(parsed)) throw new RepositoryError('NUMERIC_OVERFLOW', '积分数值超出安全范围');
   return parsed;
+}
+
+async function insertExternalAccount(client: PoolClient, profile: IdentityProviderProfile): Promise<AccountRow> {
+  for (const username of externalUsernameCandidates(profile)) {
+    const inserted = await client.query<AccountRow>(`
+      INSERT INTO platform_accounts (id, username, username_key, display_name)
+      VALUES ($1, $2, $3, $4)
+      ON CONFLICT (username_key) DO NOTHING
+      RETURNING id, username, display_name, status, created_at
+    `, [randomUUID(), username, username.toLocaleLowerCase('und'), profile.displayName]);
+    if (inserted.rows[0]) return inserted.rows[0];
+  }
+  throw new RepositoryError('EXTERNAL_USERNAME_UNAVAILABLE', '无法为外部身份分配平台用户名');
+}
+
+function externalUsernameCandidates(profile: IdentityProviderProfile): string[] {
+  const normalized = profile.username.normalize('NFKC').trim();
+  const digest = createHash('sha256')
+    .update(`${profile.provider}\u0000${profile.subject}`)
+    .digest('hex');
+  const base = /^[\p{L}\p{N}_-]{3,24}$/u.test(normalized)
+    ? normalized
+    : `player_${digest.slice(0, 10)}`;
+  const shortBase = Array.from(base).slice(0, 15).join('');
+  return [
+    base,
+    `${shortBase}_${digest.slice(0, 8)}`,
+    `player_${digest.slice(0, 16)}`,
+  ];
 }

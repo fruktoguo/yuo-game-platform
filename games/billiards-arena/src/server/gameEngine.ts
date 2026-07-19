@@ -10,7 +10,7 @@ import {
   World,
 } from 'cannon-es';
 import { randomUUID } from 'node:crypto';
-import { createRackOrder, POCKETS, TABLE } from '../shared/geometry';
+import { createRackOrder, CUSHION, POCKETS, TABLE } from '../shared/geometry';
 import type {
   BallInHandView,
   BallSnapshot,
@@ -251,20 +251,22 @@ export class GameEngine {
     const halfWidth = TABLE.width / 2;
     const halfHeight = TABLE.height / 2;
     const thickness = TABLE.cushionThickness;
-    const cornerGap = 0.115;
-    const sideGap = 0.105;
+    const innerFaceInset = CUSHION.noseCenterInset + CUSHION.noseThickness / 2;
+    const horizontalRailZ = halfHeight - innerFaceInset + thickness / 2;
+    const verticalRailX = halfWidth - innerFaceInset + thickness / 2;
 
-    const topSegmentLength = halfWidth - cornerGap - sideGap;
-    const leftSegmentCenter = -(sideGap + topSegmentLength / 2);
-    const rightSegmentCenter = sideGap + topSegmentLength / 2;
-    this.addRail(leftSegmentCenter, -halfHeight - thickness / 2, topSegmentLength, thickness, material);
-    this.addRail(rightSegmentCenter, -halfHeight - thickness / 2, topSegmentLength, thickness, material);
-    this.addRail(leftSegmentCenter, halfHeight + thickness / 2, topSegmentLength, thickness, material);
-    this.addRail(rightSegmentCenter, halfHeight + thickness / 2, topSegmentLength, thickness, material);
+    const topSegmentLength = halfWidth - CUSHION.cornerGap - CUSHION.sideGap;
+    const collisionSegmentLength = topSegmentLength - CUSHION.noseEndInset * 2;
+    const leftSegmentCenter = -(CUSHION.sideGap + topSegmentLength / 2);
+    const rightSegmentCenter = CUSHION.sideGap + topSegmentLength / 2;
+    this.addRail(leftSegmentCenter, -horizontalRailZ, collisionSegmentLength, thickness, material);
+    this.addRail(rightSegmentCenter, -horizontalRailZ, collisionSegmentLength, thickness, material);
+    this.addRail(leftSegmentCenter, horizontalRailZ, collisionSegmentLength, thickness, material);
+    this.addRail(rightSegmentCenter, horizontalRailZ, collisionSegmentLength, thickness, material);
 
-    const sideSegmentLength = TABLE.height - cornerGap * 2;
-    this.addRail(-halfWidth - thickness / 2, 0, thickness, sideSegmentLength, material);
-    this.addRail(halfWidth + thickness / 2, 0, thickness, sideSegmentLength, material);
+    const sideSegmentLength = TABLE.height - CUSHION.cornerGap * 2 - CUSHION.noseEndInset * 2;
+    this.addRail(-verticalRailX, 0, thickness, sideSegmentLength, material);
+    this.addRail(verticalRailX, 0, thickness, sideSegmentLength, material);
   }
 
   private addRail(x: number, z: number, width: number, depth: number, material: Material): void {
