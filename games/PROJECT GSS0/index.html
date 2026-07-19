@@ -140,7 +140,7 @@
 
     <section id="start-screen" class="modal-layer start-screen is-visible" aria-labelledby="game-title">
       <div class="start-glow" aria-hidden="true"></div>
-      <div class="start-version" aria-label="游戏版本 V15"><span>BUILD</span><strong>V15</strong></div>
+      <div class="start-version" aria-label="游戏版本 V16"><span>BUILD</span><strong>V16</strong></div>
       <div class="start-layout">
         <div class="start-content">
           <div id="network-status" class="title-kicker">TACTICAL SURVIVAL / LOCAL</div>
@@ -158,6 +158,10 @@
             <button id="codex-button" class="secondary-button codex-button" type="button">
               <span aria-hidden="true">M</span>
               机体图鉴
+            </button>
+            <button id="changelog-button" class="secondary-button changelog-button" type="button">
+              <span aria-hidden="true">V</span>
+              更新日志
             </button>
           </div>
           <div class="best-line">本地最高分 <strong id="best-value">0</strong></div>
@@ -195,6 +199,35 @@
           <button id="codex-close-button" class="icon-button codex-close-button" type="button" aria-label="关闭机体图鉴" title="关闭机体图鉴">×</button>
         </header>
         <div id="codex-list" class="codex-list"></div>
+      </div>
+    </section>
+
+    <section id="changelog-screen" class="modal-layer codex-screen changelog-screen" aria-labelledby="changelog-title">
+      <div class="codex-shell changelog-shell">
+        <header class="codex-header">
+          <div>
+            <span class="dialog-kicker">VERSION HISTORY</span>
+            <h2 id="changelog-title">更新日志</h2>
+          </div>
+          <button id="changelog-close-button" class="icon-button codex-close-button" type="button" aria-label="关闭更新日志" title="关闭更新日志">×</button>
+        </header>
+        <div class="changelog-list">
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V16</strong></div>
+              <time datetime="2026-07-19">2026.07.19</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">界面更新</span>
+              <h3>主菜单与版本记录</h3>
+              <ul>
+                <li>新增更新日志界面，可从主菜单随时查看版本内容。</li>
+                <li>主菜单四个入口调整为 2×2 排列。</li>
+                <li>从 V16 起，每次版本更新都会同步记录变更。</li>
+              </ul>
+            </div>
+          </article>
+        </div>
       </div>
     </section>
 

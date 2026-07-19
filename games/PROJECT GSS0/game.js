@@ -43,6 +43,9 @@
     codex: document.querySelector("#codex-screen"),
     codexList: document.querySelector("#codex-list"),
     codexCloseButton: document.querySelector("#codex-close-button"),
+    changelogButton: document.querySelector("#changelog-button"),
+    changelog: document.querySelector("#changelog-screen"),
+    changelogCloseButton: document.querySelector("#changelog-close-button"),
     levelUpBanner: document.querySelector("#level-up-banner"),
     lobbyButton: document.querySelector("#lobby-button"),
     fontButton: document.querySelector("#font-button"),
@@ -1952,6 +1955,7 @@
     ui.upgrade.classList.remove("is-visible");
     ui.gameOver.classList.remove("is-visible");
     ui.codex.classList.remove("is-visible");
+    ui.changelog.classList.remove("is-visible");
   }
 
   function setPaused(paused) {
@@ -2370,6 +2374,21 @@
 
   function closeCodex() {
     ui.codex.classList.remove("is-visible");
+    ui.start.classList.add("is-visible");
+    sound("ui");
+  }
+
+  function openChangelog() {
+    ensureAudio();
+    closeSettingPopovers();
+    hideAllModals();
+    ui.changelog.classList.add("is-visible");
+    ui.changelog.scrollTop = 0;
+    sound("ui");
+  }
+
+  function closeChangelog() {
+    ui.changelog.classList.remove("is-visible");
     ui.start.classList.add("is-visible");
     sound("ui");
   }
@@ -5075,6 +5094,11 @@
       closeCodex();
       return;
     }
+    if (event.code === "Escape" && ui.changelog.classList.contains("is-visible")) {
+      event.preventDefault();
+      closeChangelog();
+      return;
+    }
     keys.add(event.code);
     if (player && state === "running") {
       const tapDirections = {
@@ -5094,7 +5118,7 @@
       }
     }
     if ((event.code === "Escape" || event.code === "KeyP") && (state === "running" || state === "paused")) setPaused(state === "running");
-    if (event.code === "Enter" && !ui.codex.classList.contains("is-visible") && (state === "menu" || state === "gameover")) {
+    if (event.code === "Enter" && !ui.codex.classList.contains("is-visible") && !ui.changelog.classList.contains("is-visible") && (state === "menu" || state === "gameover")) {
       startGame(state === "gameover" && testMode);
     }
   });
@@ -5115,6 +5139,8 @@
   ui.lobbyButton.addEventListener("click", () => void returnToLobby());
   ui.codexButton.addEventListener("click", openCodex);
   ui.codexCloseButton.addEventListener("click", closeCodex);
+  ui.changelogButton.addEventListener("click", openChangelog);
+  ui.changelogCloseButton.addEventListener("click", closeChangelog);
   ui.restartButton.addEventListener("click", () => startGame(testMode));
   ui.gameOverMenuButton.addEventListener("click", returnToMenu);
   ui.pauseRestart.addEventListener("click", () => startGame(testMode));

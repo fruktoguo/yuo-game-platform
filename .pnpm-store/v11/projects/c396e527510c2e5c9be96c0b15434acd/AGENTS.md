@@ -9,8 +9,14 @@
 # Project Version
 
 - The main menu must always display the current game version in its lower-left corner.
-- The current game version is `V15`.
+- The current game version is `V16`.
 - For every future user request that modifies this project, increment the integer version exactly once and update both the main-menu label and the current-version line in this file as part of the same change.
+
+# Changelog
+
+- The player-facing changelog in `index.html` is the canonical release history and starts at `V16`; do not backfill older versions unless the user explicitly asks.
+- Whenever the game version is incremented, add a concise entry for that version to the changelog in the same change.
+- Keep changelog entries newest-first and never remove or rewrite older entries unless the user explicitly requests it.
 
 # Project Delivery
 
