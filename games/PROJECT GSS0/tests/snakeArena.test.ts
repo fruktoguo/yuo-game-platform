@@ -1,5 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
-import { CANONICAL_CELL_SIZE, DISCONNECT_GRACE_MS, RESPAWN_DELAY_MS } from '../src/shared/constants';
+import {
+  CANONICAL_CELL_SIZE,
+  DISCONNECT_GRACE_MS,
+  ENEMY_BASE_SPEED,
+  PLAYER_BASE_SPEED,
+  RESPAWN_DELAY_MS,
+  UPGRADE_INVULNERABILITY_DURATION,
+} from '../src/shared/constants';
 import type { UltraEffect, UltraProjectileEvent } from '../src/shared/protocol';
 import { UltraWorld } from '../src/server/UltraWorld';
 
@@ -59,16 +66,16 @@ describe('UltraWorld 原版 PvE 与多人共享世界', () => {
 
     updateArenaSize.call(world, 0.05);
     expect(world.getSnapshot(0).arenaSize).toBeGreaterThan(24);
-    expect(world.getSnapshot(0).arenaSize).toBeLessThan(24 * Math.sqrt(2));
+    expect(world.getSnapshot(0).arenaSize).toBeLessThan(24 * Math.sqrt(1.5));
     for (let index = 0; index < 200; index += 1) updateArenaSize.call(world, 0.05);
-    expect(world.getSnapshot(0).arenaSize ** 2 / 24 ** 2).toBeCloseTo(2, 4);
+    expect(world.getSnapshot(0).arenaSize ** 2 / 24 ** 2).toBeCloseTo(1.5, 4);
 
     highLevel.alive = false;
     const expandedSize = world.getSnapshot(0).arenaSize;
     updateArenaSize.call(world, 0.05);
     expect(world.getSnapshot(0).arenaSize).toBeLessThan(expandedSize);
     for (let index = 0; index < 200; index += 1) updateArenaSize.call(world, 0.05);
-    expect(world.getSnapshot(0).arenaSize ** 2 / 24 ** 2).toBeCloseTo(1.2, 4);
+    expect(world.getSnapshot(0).arenaSize ** 2 / 24 ** 2).toBeCloseTo(1.1, 4);
 
     survivor.col = -3;
     survivor.row = 12;
@@ -76,6 +83,89 @@ describe('UltraWorld 原版 PvE 与多人共享世界', () => {
     const minimum = (24 - world.getSnapshot(100).arenaSize) / 2;
     expect(survivor.col).toBeGreaterThanOrEqual(minimum);
     expect(survivor.knockbackX).toBeGreaterThan(0);
+  });
+
+  it('玩家等级不再提高移动速度，敌人每点初始生命仅提高 2% 速度', () => {
+    const world = new UltraWorld({ random: () => 0.25 });
+    world.connectPlayer('account-a', '速度测试玩家', 0);
+    world.spawn('account-a', 0);
+    const player = (Reflect.get(world, 'playersByAccount') as Map<string, TestPlayerEntity & {
+      level: number;
+      xp: number;
+      xpNeeded: number;
+    }>).get('account-a')!;
+    const playerBaseSpeed = Reflect.get(world, 'playerBaseSpeed') as (entity: unknown) => number;
+
+    player.level = 0;
+    expect(playerBaseSpeed.call(world, player)).toBe(PLAYER_BASE_SPEED);
+    player.level = 10;
+    expect(playerBaseSpeed.call(world, player)).toBe(PLAYER_BASE_SPEED);
+
+    const materializeEnemySpawn = Reflect.get(world, 'materializeEnemySpawn') as (spawn: unknown) => void;
+    materializeEnemySpawn.call(world, {
+      id: 99,
+      headCell: { col: 6, row: 6 },
+      nextCell: { col: 7, row: 6 },
+      bodyCells: Array.from({ length: 4 }, (_, index) => ({ col: 5 - index, row: 6 })),
+      totalLength: 5,
+      color: '#ff5c62',
+      timer: 0,
+      maxTimer: 0,
+    });
+    const [enemy] = Reflect.get(world, 'enemies') as Array<{ speed: number }>;
+    expect(enemy.speed).toBeCloseTo(ENEMY_BASE_SPEED * 1.1, 6);
+  });
+
+  it('选择升级后获得配置化全身保护且仍可移动吃球', () => {
+    const world = new UltraWorld({ random: () => 0.25 });
+    world.connectPlayer('account-a', '升级保护玩家', 0);
+    world.spawn('account-a', 0);
+    Reflect.set(world, 'waveTimer', 999);
+    const player = (Reflect.get(world, 'playersByAccount') as Map<string, TestPlayerEntity & {
+      alive: boolean;
+      choosingUpgrade: boolean;
+      desiredAngle: number;
+      invulnerable: number;
+      upgradeOffer: { level: number; expiresAt: number; options: string[] } | null;
+      xp: number;
+    }>).get('account-a')!;
+    player.choosingUpgrade = true;
+    player.upgradeOffer = { level: 1, expiresAt: 0, options: ['spark'] };
+    player.desiredAngle = 0;
+    Reflect.set(world, 'foods', [testFood(1, player.col, player.row)]);
+
+    expect(world.chooseUpgrade('account-a', 'spark', 0)).toBe(true);
+    expect(player.invulnerable).toBe(UPGRADE_INVULNERABILITY_DURATION);
+    const previousCol = player.col;
+    world.step(0.05, 50);
+
+    expect(player.col).toBeGreaterThan(previousCol);
+    expect(player.xp).toBe(1);
+    expect(world.getSnapshot(50).foods).toHaveLength(0);
+    expect(player.invulnerable).toBeCloseTo(UPGRADE_INVULNERABILITY_DURATION - 0.05, 6);
+  });
+
+  it('长局敌人身体空间桶跨模拟帧复用', () => {
+    const world = new UltraWorld({ random: () => 0.25 });
+    world.connectPlayer('account-a', '性能测试玩家', 0);
+    world.spawn('account-a', 0);
+    const player = (Reflect.get(world, 'playersByAccount') as Map<string, TestPlayerEntity>).get('account-a')!;
+    const enemy = testEnemy(18, 18, { segments: [testSegment(17.4, 18), testSegment(16.8, 18)] });
+    Reflect.set(world, 'enemies', [enemy]);
+    const updateEnemies = Reflect.get(world, 'updateEnemies') as (delta: number, active: unknown[], present: unknown[]) => void;
+    const buckets = Reflect.get(world, 'enemyBodyBuckets') as Map<number, { entries: unknown[]; count: number }>;
+
+    updateEnemies.call(world, 0, [player], [player]);
+    const firstBuckets = [...buckets.values()];
+    const firstEntries = firstBuckets.map((bucket) => bucket.entries[0]);
+    updateEnemies.call(world, 0, [player], [player]);
+    const secondBuckets = [...buckets.values()];
+    const secondEntries = secondBuckets.map((bucket) => bucket.entries[0]);
+
+    expect(secondBuckets).toHaveLength(firstBuckets.length);
+    expect(secondBuckets.every((bucket) => firstBuckets.includes(bucket))).toBe(true);
+    expect(secondEntries.every((entry) => firstEntries.includes(entry))).toBe(true);
+    expect(secondBuckets.every((bucket) => bucket.count > 0)).toBe(true);
   });
 
   it('暂停或无敌玩家仍参与敌人避让，撞向其头部或身体的单位只会被弹开', () => {

@@ -6,9 +6,26 @@
     const retryAfterMs = Math.max(100, Number(options.retryAfterMs) || 750);
     const pending = new Map();
     const confirmed = new Set();
+    const present = new Set();
+    const accepted = new Set();
+    const bodyBuckets = new Map();
+    const bodyBucketPool = [];
+
+    function bucketCode(col, row) {
+      return (Math.floor(col) + 32768) * 65536 + Math.floor(row) + 32768;
+    }
+
+    function resetBodyBuckets() {
+      for (const bucket of bodyBuckets.values()) {
+        bucket.length = 0;
+        bodyBucketPool.push(bucket);
+      }
+      bodyBuckets.clear();
+    }
 
     function reconcile(authoritativeFoodIds, now) {
-      const present = new Set(authoritativeFoodIds);
+      present.clear();
+      for (const id of authoritativeFoodIds) present.add(id);
       for (const id of confirmed) if (!present.has(id)) confirmed.delete(id);
       for (const [id, sentAt] of pending) {
         if (!present.has(id) || now - sentAt >= retryAfterMs) pending.delete(id);
@@ -16,19 +33,26 @@
     }
 
     function detect(player, foods, headRange, bodyRange, now) {
-      if (!player || !Array.isArray(foods) || foods.length === 0) return [];
+      if (!player || !Array.isArray(foods) || foods.length === 0) {
+        resetBodyBuckets();
+        return [];
+      }
       const claims = [];
       const segments = Array.isArray(player.segments) ? player.segments : [];
       const safeHeadRange = Math.max(0, Number(headRange) || 0);
       const safeBodyRange = Math.max(0, Number(bodyRange) || 0);
       const headRangeSquared = safeHeadRange * safeHeadRange;
       const bodyRangeSquared = safeBodyRange * safeBodyRange;
-      const bodyBuckets = new Map();
+      resetBodyBuckets();
       for (const segment of segments) {
-        const key = `${Math.floor(segment.col)},${Math.floor(segment.row)}`;
-        const bucket = bodyBuckets.get(key);
+        const key = bucketCode(segment.col, segment.row);
+        let bucket = bodyBuckets.get(key);
         if (bucket) bucket.push(segment);
-        else bodyBuckets.set(key, [segment]);
+        else {
+          bucket = bodyBucketPool.pop() || [];
+          bucket.push(segment);
+          bodyBuckets.set(key, bucket);
+        }
       }
 
       for (const food of foods) {
@@ -44,7 +68,7 @@
           const maximumRow = Math.floor(food.row + safeBodyRange);
           for (let colIndex = minimumCol; colIndex <= maximumCol && !contact; colIndex += 1) {
             for (let rowIndex = minimumRow; rowIndex <= maximumRow && !contact; rowIndex += 1) {
-              const bucket = bodyBuckets.get(`${colIndex},${rowIndex}`);
+              const bucket = bodyBuckets.get(bucketCode(colIndex, rowIndex));
               if (!bucket) continue;
               for (const segment of bucket) {
                 const col = segment.col - food.col;
@@ -64,7 +88,8 @@
     }
 
     function resolve(requestedFoodIds, claimedFoodIds) {
-      const accepted = new Set(claimedFoodIds);
+      accepted.clear();
+      for (const id of claimedFoodIds) accepted.add(id);
       for (const id of requestedFoodIds) {
         pending.delete(id);
         if (accepted.has(id)) confirmed.add(id);
@@ -78,6 +103,9 @@
     function clear() {
       pending.clear();
       confirmed.clear();
+      present.clear();
+      accepted.clear();
+      resetBodyBuckets();
     }
 
     return Object.freeze({ clear, detect, reconcile, resolve, shouldHide });

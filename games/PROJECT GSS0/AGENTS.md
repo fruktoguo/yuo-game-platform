@@ -9,7 +9,7 @@
 # Project Version
 
 - The main menu must always display the current game version in its lower-left corner.
-- The current game version is `V11`.
+- The current game version is `V15`.
 - For every future user request that modifies this project, increment the integer version exactly once and update both the main-menu label and the current-version line in this file as part of the same change.
 
 # Project Delivery
@@ -29,3 +29,9 @@
 
 - Do not preserve compatibility with older Git revisions, releases, network protocols, snapshot formats, or saved schemas unless the user explicitly requests a migration path.
 - When a format or contract changes, update every in-repository producer, consumer, and test atomically and treat the new revision as the only supported version.
+
+# Designer Parameters
+
+- Put every new tunable gameplay, presentation-performance, timing, growth, distance, probability, and scaling value in `designer-config.js`; do not introduce adjustable numeric literals directly in client or server runtime logic.
+- Expose each new designer value in `balance-editor.html` and consume shared multiplayer values through `src/shared/designerConfig.ts` and `src/shared/constants.ts` so local and network play cannot drift.
+- Structural implementation constants, binary format markers, and hard protocol safety limits may remain in code when they are not designer-adjustable.

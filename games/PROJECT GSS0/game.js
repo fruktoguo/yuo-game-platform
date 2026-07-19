@@ -226,6 +226,7 @@
   });
 
   const DESIGNER_CONFIG = globalThis.GSS0_DESIGNER_CONFIG || {};
+  if (DESIGNER_CONFIG.schemaVersion !== 2) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 2");
   const DESIGNER_BALANCE = DESIGNER_CONFIG.balance || {};
   const MODULE_DESIGN_STATES = DESIGNER_CONFIG.moduleStates || {};
   function designerNumber(key, fallback, minimum, maximum, integer = false) {
@@ -247,7 +248,8 @@
   const FOOD_COLORS = ["#b8f53f", "#36dcff", "#ff4d96", "#ffd166", "#a98cff", "#54e1a6"];
   const ENEMY_COLORS = ["#ff5c62", "#ff8a4c", "#d95cff", "#ff477e", "#f4c542"];
   const GRID_SIZE = 24;
-  const ARENA_RESIZE_RATE = 2.4;
+  const ARENA_AREA_PER_LEVEL = designerNumber("arenaAreaPerLevel", 0.05, 0, 0.5);
+  const ARENA_RESIZE_RATE = designerNumber("arenaResizeRate", 2.4, 0.1, 10);
   const FOOD_WALL_MARGIN = 2;
   const ENEMY_SPAWN_WARNING_TIME = designerNumber("enemySpawnWarning", 1.5, 0, 10);
   const KNOCKBACK_INITIAL_SPEED = 10;
@@ -256,13 +258,19 @@
   const BOUNCE_LOCK_TIME = 0.34;
   const CAMERA_ZOOM = 1;
   const WAVE_BASE_INTERVAL = designerNumber("waveInterval", 6, 0.5, 120);
+  const WAVE_RATE_PER_LEVEL = designerNumber("waveRatePerLevel", 0.1, 0, 1);
+  const WAVE_POPULATION_SOFT_CAP = designerNumber("wavePopulationSoftCap", 10, 0, 1000, true);
+  const WAVE_POPULATION_PENALTY_PER_UNIT = designerNumber("wavePopulationPenaltyPerUnit", 0.1, 0, 2);
   const FOODS_PER_PLAYER_PER_WAVE = designerNumber("foodsPerPlayerPerWave", 2, 0, 20, true);
   const ENEMIES_PER_PLAYER_PER_WAVE = designerNumber("enemiesPerPlayerPerWave", 1, 0, 12, true);
-  const ATTACK_INTERVAL_SCALE = 2;
+  const ATTACK_INTERVAL_SCALE = designerNumber("attackIntervalScale", 2, 0.1, 10);
   const PROJECTILE_SPEED_SCALE = designerNumber("projectileSpeedScale", 3, 0.1, 10);
+  const PROJECTILE_RANGE_MULTIPLIER = designerNumber("projectileRangeMultiplier", 1.2, 0.1, 10);
   const PLAYER_BASE_SPEED = designerNumber("playerBaseSpeed", 5, 1, 12);
+  const PLAYER_SPEED_PER_LEVEL = designerNumber("playerSpeedPerLevel", 0, 0, 0.5);
   const PLAYER_TURN_RATE = designerNumber("playerTurnRate", 4.2, 0.5, 12);
   const ENEMY_BASE_SPEED = designerNumber("enemyBaseSpeed", 4, 0.5, 12);
+  const ENEMY_SPEED_PER_INITIAL_HEALTH = designerNumber("enemySpeedPerInitialHealth", 0.02, 0, 0.5);
   const ENEMY_TURN_RATE_MIN = designerNumber("enemyTurnRateMin", 2.05, 0.1, 10);
   const ENEMY_TURN_RATE_MAX = designerNumber("enemyTurnRateMax", 2.75, 0.1, 12);
   const ENEMY_BASE_HEALTH = designerNumber("enemyBaseHealth", 1, 1, 100, true);
@@ -271,19 +279,20 @@
   const HEAD_ATTACK_INTERVAL = designerNumber("headAttackInterval", 1.9, 0.05, 30);
   const HEAD_TARGET_RANGE = designerNumber("headTargetRange", 560, 50, 2000);
   const MODULE_TARGET_RANGE = designerNumber("moduleTargetRange", 620, 50, 2000);
-  const PROJECTILE_RANGE_MULTIPLIER = 1.2;
+  const UPGRADE_INVULNERABILITY_DURATION = designerNumber("upgradeInvulnerabilityDuration", 0.5, 0, 10);
   const GROWTH_NODE_DELAY = 0.045;
   const GROWTH_PULSE_DURATION = 0.3;
   const SEGMENT_BIRTH_DURATION = 0.34;
   const LEVEL_UP_TRANSITION_DURATION = 0.9;
   const LEVEL_UP_TIME_SCALE = 0.15;
   const NETWORK_BASE_SNAPSHOT_MS = 1000 / 15;
-  const NETWORK_SNAPSHOT_BUFFER_SIZE = 12;
+  const NETWORK_SNAPSHOT_BUFFER_SIZE = 6;
   const NETWORK_MAX_EXTRAPOLATION_MS = 90;
   const NETWORK_INPUT_INTERVAL_MS = 1000 / 30;
   const NETWORK_INPUT_HEARTBEAT_MS = 110;
   const NETWORK_FOOD_CONTACT_INTERVAL_MS = 1000 / 30;
-  const MAX_RENDER_DPR = 1.5;
+  const MAX_RENDER_FPS = designerNumber("maxRenderFps", 60, 30, 240, true);
+  const MAX_RENDER_DPR = designerNumber("maxRenderDpr", 1.25, 1, 2);
   const MIN_RENDER_DPR = 1;
   const RENDER_DPR_SESSION_KEY = "gss0-render-dpr-limit";
   const AMBIENT_RENDER_INTERVAL = 1 / 30;
@@ -300,6 +309,8 @@
   let state = "menu";
   let lastFrame = performance.now();
   let lastCanvasRender = 0;
+  let nextCanvasRenderAt = lastFrame;
+  let pendingUiMotionDt = 0;
   let fpsWindowStartedAt = performance.now();
   let fpsFrameCount = 0;
   let smoothedFps = 0;
@@ -810,7 +821,7 @@
   }
 
   function updateArenaWorldSize(dt, highestLevel) {
-    const target = GRID_SIZE * Math.sqrt(1 + Math.max(0, highestLevel) * 0.1);
+    const target = GRID_SIZE * Math.sqrt(1 + Math.max(0, highestLevel) * ARENA_AREA_PER_LEVEL);
     const amount = 1 - Math.exp(-ARENA_RESIZE_RATE * dt);
     const nextSize = arenaWorldSize + (target - arenaWorldSize) * amount;
     setArenaWorldSize(Math.abs(target - nextSize) < 0.0001 ? target : nextSize, true);
@@ -924,7 +935,7 @@
     const hasteMultiplier = 1 + moduleCount("haste") * MODULE_TUNING.haste.speedPerStack;
     const progress = xpNeeded > 0 ? clamp(xp / xpNeeded, 0, 1) : 0;
     const progressMultiplier = 1 + moduleCount("progressor") * progress * MODULE_TUNING.progressor.maxSpeedPerStack;
-    return PLAYER_BASE_SPEED * (1 + level * 0.1) * hasteMultiplier * progressMultiplier;
+    return PLAYER_BASE_SPEED * (1 + level * PLAYER_SPEED_PER_LEVEL) * hasteMultiplier * progressMultiplier;
   }
 
   function isInsideGrid(col, row) {
@@ -1249,7 +1260,9 @@
   }
 
   function previousById(items, key = "id") {
-    return new Map((items || []).map((item) => [item[key], item]));
+    const index = new Map();
+    for (const item of items || []) index.set(item[key], item);
+    return index;
   }
 
   function indexNetworkSnapshot(snapshot) {
@@ -1548,7 +1561,7 @@
 
   function claimNetworkFoodContacts() {
     const socket = network.socket;
-    if (!socket?.connected || !player?.alive || player.protectedState || foods.length === 0) return;
+    if (!socket?.connected || !player?.alive || player.paused || player.choosingUpgrade || foods.length === 0) return;
     const now = performance.now();
     if (now - network.lastFoodContactAt < NETWORK_FOOD_CONTACT_INTERVAL_MS) return;
     network.lastFoodContactAt = now;
@@ -1847,7 +1860,7 @@
       angle,
       desiredAngle: angle,
       birthLength: totalLength,
-      speed: ENEMY_BASE_SPEED * (1 + totalLength * 0.1),
+      speed: ENEMY_BASE_SPEED * (1 + totalLength * ENEMY_SPEED_PER_INITIAL_HEALTH),
       radius: arena.cellSize * 0.28,
       color,
       segments: bodyCells.map((cell) => makeSegmentAtCell(cell.col, cell.row)),
@@ -1891,13 +1904,13 @@
 
   function spawnCountdownRate() {
     const population = fieldPopulationCount();
-    const overflow = Math.max(0, population - 10);
-    return 1 / (1 + overflow * 0.1);
+    const overflow = Math.max(0, population - WAVE_POPULATION_SOFT_CAP);
+    return 1 / (1 + overflow * WAVE_POPULATION_PENALTY_PER_UNIT);
   }
 
   function waveCountdownRate() {
     const beaconMultiplier = 1 + moduleCount("beacon") * MODULE_TUNING.beacon.waveRatePerStack;
-    return (1 + level * 0.1) * beaconMultiplier * spawnCountdownRate();
+    return (1 + level * WAVE_RATE_PER_LEVEL) * beaconMultiplier * spawnCountdownRate();
   }
 
   function updateSpawns(dt) {
@@ -2443,6 +2456,7 @@
     score += 250 * level;
     ui.upgrade.classList.remove("is-visible");
     state = "running";
+    player.invulnerable = Math.max(player.invulnerable, UPGRADE_INVULNERABILITY_DURATION);
     sound("select");
     burst(tail.x, tail.y, module.color, 22, 130);
     effects.push({ type: "ring", x: tail.x, y: tail.y, color: module.color, life: 0.7, maxLife: 0.7, radius: 12 });
@@ -3486,26 +3500,40 @@
       const nextCol = enemy.col + (Math.cos(enemy.angle) * speed + enemy.knockbackX) * dt;
       const nextRow = enemy.row + (Math.sin(enemy.angle) * speed + enemy.knockbackY) * dt;
       let playerCollision = null;
-      if (player.collisionCooldown <= 0 && enemy.collisionCooldown <= 0) {
+      const protectedPlayer = player.invulnerable > 0;
+      if ((protectedPlayer || player.collisionCooldown <= 0) && enemy.collisionCooldown <= 0) {
         const headProgress = sweptContactProgress(
           previousPosition,
           { col: nextCol, row: nextRow },
           player,
           (player.radius + enemy.radius) / arena.cellSize
         );
-        if (headProgress !== null) playerCollision = { kind: "head", progress: headProgress };
+        if (headProgress !== null) playerCollision = protectedPlayer
+          ? { kind: "protected", point: player, progress: headProgress }
+          : { kind: "head", progress: headProgress };
       }
       for (const segment of player.segments) {
+        if (protectedPlayer && enemy.collisionCooldown > 0) continue;
         const progress = sweptContactProgress(previousPosition, { col: nextCol, row: nextRow }, segment, 0.46);
         if (progress === null || (playerCollision && playerCollision.progress <= progress)) continue;
-        playerCollision = { kind: "body", segment, progress };
+        playerCollision = protectedPlayer
+          ? { kind: "protected", point: segment, progress }
+          : { kind: "body", segment, progress };
       }
       if (playerCollision) {
         enemy.col = previousPosition.col + (nextCol - previousPosition.col) * playerCollision.progress;
         enemy.row = previousPosition.row + (nextRow - previousPosition.row) * playerCollision.progress;
         syncNodePosition(enemy);
         updateEnemyHitBounds(enemy);
-        if (playerCollision.kind === "body") {
+        if (playerCollision.kind === "protected") {
+          bounceEntity(
+            enemy,
+            enemy.col - playerCollision.point.col,
+            enemy.row - playerCollision.point.row,
+            player.playerColor || "#f3c600",
+            0.54
+          );
+        } else if (playerCollision.kind === "body") {
           const thorns = moduleCount("thorns");
           const thornsReady = thorns > 0 && player.thornsCooldown <= 0;
           killEnemy(enemy);
@@ -4213,10 +4241,11 @@
     for (const food of foods) {
       const pulse = 1 + Math.sin(time * 5 + food.phase) * 0.08;
       ctx.save();
-      const pullTarget = network.enabled
-        ? visiblePlayers.reduce((nearest, candidate) => !nearest || distanceSquared(candidate, food) < distanceSquared(nearest, food) ? candidate : nearest, null)
-        : player;
-      if (food.isPulled && pullTarget) {
+      if (food.isPulled) {
+        const pullTarget = network.enabled
+          ? visiblePlayers.reduce((nearest, candidate) => !nearest || distanceSquared(candidate, food) < distanceSquared(nearest, food) ? candidate : nearest, null)
+          : player;
+        if (pullTarget) {
         ctx.globalAlpha = 0.45 + Math.sin(time * 12 + food.phase) * 0.12;
         ctx.strokeStyle = MODULE_BY_ID.tractor.color;
         ctx.lineWidth = Math.max(1, arena.cellSize * 0.045);
@@ -4227,6 +4256,7 @@
         ctx.stroke();
         ctx.setLineDash([]);
         ctx.globalAlpha = 1;
+        }
       }
       ctx.translate(food.x, food.y);
       ctx.scale(pulse, pulse);
@@ -4504,7 +4534,8 @@
     activeGrowth = target.growth || (target === previousPlayer ? previousGrowth : null);
     ctx.save();
     const pieceScale = arenaPieceScale();
-    if (player.protectedState) ctx.globalAlpha = 0.48 + Math.sin(gameTime * 28) * 0.28;
+    const protectedVisual = player.protectedState || player.invulnerable > 0;
+    if (protectedVisual) ctx.globalAlpha = 0.48 + Math.sin(gameTime * 28) * 0.28;
     const repulseRange = repulseRangePixels();
     if (repulseRange > 0) {
       ctx.save();
@@ -4630,7 +4661,6 @@
     const headScale = 1 + headGrowthPulse * 0.44;
     ctx.scale(pieceScale * headScale, pieceScale * headScale);
     ctx.rotate(player.angle);
-    if (player.invulnerable > 0) ctx.globalAlpha = 0.6 + Math.sin(gameTime * 28) * 0.25;
     ctx.shadowColor = headGrowthPulse > 0 ? activeGrowth.color : (player.playerColor || "rgba(243,198,0,0.7)");
     ctx.shadowBlur = 14 + headGrowthPulse * 9;
     ctx.fillStyle = "#e7e9e8";
@@ -4969,18 +4999,26 @@
     const frameInterval = Math.max(0, now - lastFrame);
     const dt = Math.min(0.033, frameInterval / 1000);
     lastFrame = now;
-    updateFpsMeter(now, frameInterval);
-    updateUIMotion(dt);
+    pendingUiMotionDt = Math.min(0.1, pendingUiMotionDt + dt);
     update(dt);
     const menuFrameState = state === "menu";
     if (menuFrameState !== lastMenuFrameState) {
       lastMenuFrameState = menuFrameState;
       ui.shell.classList.toggle("is-menu", menuFrameState);
       ui.fpsMeter.setAttribute("aria-hidden", String(menuFrameState));
+      nextCanvasRenderAt = now;
     }
-    if (state === "running" || now - lastCanvasRender >= 1000 / 30) {
+    const renderFps = state === "running" ? MAX_RENDER_FPS : Math.min(30, MAX_RENDER_FPS);
+    const renderInterval = 1000 / renderFps;
+    if (now + 0.25 >= nextCanvasRenderAt) {
+      const renderedFrameInterval = lastCanvasRender > 0 ? now - lastCanvasRender : renderInterval;
+      updateUIMotion(pendingUiMotionDt);
+      pendingUiMotionDt = 0;
       render(now);
       lastCanvasRender = now;
+      updateFpsMeter(now, renderedFrameInterval);
+      do nextCanvasRenderAt += renderInterval;
+      while (nextCanvasRenderAt <= now - renderInterval);
     }
     requestAnimationFrame(frame);
   }

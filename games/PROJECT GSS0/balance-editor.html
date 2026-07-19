@@ -66,6 +66,61 @@
     }
     .command:hover:not(:disabled) { border-color: var(--cyan); }
     .command.primary { border-color: var(--yellow); background: var(--yellow); color: #080a0b; }
+    .detail-toggle {
+      display: flex;
+      min-height: 38px;
+      align-items: center;
+      gap: 10px;
+      padding: 0 12px;
+      border: 1px solid var(--line);
+      border-radius: 3px;
+      background: var(--panel-2);
+      color: #f4f6f5;
+      font-size: 12px;
+      font-weight: 900;
+      cursor: pointer;
+    }
+    .detail-toggle input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+    .detail-toggle i {
+      position: relative;
+      width: 34px;
+      height: 18px;
+      flex: 0 0 auto;
+      border: 1px solid #657178;
+      border-radius: 9px;
+      background: #0f1315;
+      transition: border-color 140ms ease, background 140ms ease;
+    }
+    .detail-toggle i::after {
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #9ba7ac;
+      content: "";
+      transition: transform 140ms ease, background 140ms ease;
+    }
+    .detail-toggle input:checked + i { border-color: var(--yellow); background: rgba(243, 198, 0, 0.2); }
+    .detail-toggle input:checked + i::after { background: var(--yellow); transform: translateX(16px); }
+    .detail-toggle input:focus-visible + i { outline: 2px solid var(--cyan); outline-offset: 2px; }
+    .scale-control {
+      display: grid;
+      min-height: 38px;
+      grid-template-columns: auto 92px 42px;
+      gap: 9px;
+      align-items: center;
+      padding: 0 12px;
+      border: 1px solid var(--line);
+      border-radius: 3px;
+      background: var(--panel-2);
+      color: #f4f6f5;
+      font-size: 12px;
+      font-weight: 900;
+    }
+    .scale-control input { width: 92px; accent-color: var(--cyan); }
+    .scale-control output { color: var(--cyan); text-align: right; font-variant-numeric: tabular-nums; }
 
     .workspace { display: grid; grid-template-columns: 190px minmax(0, 1fr); min-height: calc(100vh - 76px); }
     .sidebar { position: sticky; top: 76px; height: calc(100vh - 76px); padding: 28px 18px; border-right: 1px solid var(--line); background: #0f1315; }
@@ -186,9 +241,18 @@
       <output id="file-state" class="file-state">designer-config.js · 正在加载</output>
     </div>
     <div class="commands">
-      <button id="open-config" class="command" type="button">选择配置文件</button>
-      <button id="reload-config" class="command" type="button">放弃修改</button>
-      <button id="save-config" class="command primary" type="button" disabled>保存到项目</button>
+      <label class="scale-control">
+        <span>界面缩放</span>
+        <input id="interface-scale" type="range" min="80" max="160" step="10" value="100">
+        <output id="interface-scale-output" for="interface-scale">100%</output>
+      </label>
+      <label class="detail-toggle" title="切换机体图鉴中的简略与完整描述">
+        <span>机体详细描述</span>
+        <input id="description-detail" type="checkbox" role="switch">
+        <i aria-hidden="true"></i>
+      </label>
+      <button id="open-config" class="command primary" type="button">授权自动保存</button>
+      <button id="reload-config" class="command" type="button">重新加载</button>
     </div>
   </header>
 
@@ -224,21 +288,34 @@
 
       const PARAMETER_DEFINITIONS = [
         { key: "playerBaseSpeed", group: "玩家", label: "玩家基础速度", hint: "升级与机体加速前的每秒移动格数", min: 1, max: 12, step: 0.1, unit: "格/秒" },
+        { key: "playerSpeedPerLevel", group: "玩家", label: "玩家每级速度成长", hint: "每级附加的基础速度倍率；0.1 表示每级提高 10%", min: 0, max: 0.5, step: 0.005, unit: "倍率/级" },
         { key: "playerTurnRate", group: "玩家", label: "玩家基础转向", hint: "不含涡轮节加成的基础转向速度", min: 0.5, max: 12, step: 0.05, unit: "弧度/秒" },
+        { key: "upgradeInvulnerabilityDuration", group: "玩家", label: "升级后无敌时间", hint: "选择机体并恢复移动后的全身保护时间", min: 0, max: 10, step: 0.05, unit: "秒" },
         { key: "headAttackInterval", group: "玩家", label: "蛇头攻击间隔", hint: "受攻击间隔倍率和超频增幅节影响前的间隔", min: 0.05, max: 30, step: 0.05, unit: "秒" },
         { key: "headTargetRange", group: "玩家", label: "蛇头索敌距离", hint: "蛇头自动武器发现敌人的像素半径", min: 50, max: 2000, step: 10, unit: "px" },
         { key: "enemyBaseSpeed", group: "敌人", label: "敌人基础速度", hint: "敌人生命长度加速前的每秒移动格数", min: 0.5, max: 12, step: 0.1, unit: "格/秒" },
+        { key: "enemySpeedPerInitialHealth", group: "敌人", label: "每点初始生命速度成长", hint: "每点初始生命附加的速度倍率；0.02 表示提高 2%", min: 0, max: 0.5, step: 0.005, unit: "倍率/点" },
         { key: "enemyTurnRateMin", group: "敌人", label: "敌人最低转向", hint: "每次转向采用的随机速度下界", min: 0.1, max: 10, step: 0.05, unit: "弧度/秒" },
         { key: "enemyTurnRateMax", group: "敌人", label: "敌人最高转向", hint: "每次转向采用的随机速度上界", min: 0.1, max: 12, step: 0.05, unit: "弧度/秒" },
         { key: "enemyBaseHealth", group: "敌人", label: "敌人基础生命", hint: "包含蛇头，0 级敌人的总生命", min: 1, max: 100, step: 1, unit: "点" },
         { key: "enemyHealthPerLevelMin", group: "敌人", label: "每级生命成长下界", hint: "按对应玩家等级随机计算的最低成长", min: 0, max: 20, step: 0.1, unit: "点/级" },
         { key: "enemyHealthPerLevelMax", group: "敌人", label: "每级生命成长上界", hint: "按对应玩家等级随机计算的最高成长", min: 0, max: 30, step: 0.1, unit: "点/级" },
         { key: "waveInterval", group: "波次", label: "基础波次间隔", hint: "未受增压信标和场上单位数量影响前的间隔", min: 0.5, max: 120, step: 0.1, unit: "秒" },
+        { key: "waveRatePerLevel", group: "波次", label: "每级波次加速", hint: "最高玩家每级附加的波次倒计时倍率", min: 0, max: 1, step: 0.01, unit: "倍率/级" },
+        { key: "wavePopulationSoftCap", group: "波次", label: "场上单位软上限", hint: "球与敌人总数超过该值后开始放缓波次", min: 0, max: 1000, step: 1, unit: "个" },
+        { key: "wavePopulationPenaltyPerUnit", group: "波次", label: "单位超量减速", hint: "每个超出软上限的单位增加的波次间隔惩罚", min: 0, max: 2, step: 0.01, unit: "倍率/个" },
         { key: "foodsPerPlayerPerWave", group: "波次", label: "每人每波球数", hint: "每个存活玩家在新波次贡献的普通球数量", min: 0, max: 20, step: 1, unit: "枚" },
         { key: "enemiesPerPlayerPerWave", group: "波次", label: "每人每波敌人数", hint: "每个存活玩家在新波次贡献的敌蛇数量", min: 0, max: 12, step: 1, unit: "条" },
         { key: "enemySpawnWarning", group: "波次", label: "敌人出生预警", hint: "预警轮廓出现到敌人实体生成的时间", min: 0, max: 10, step: 0.05, unit: "秒" },
         { key: "projectileSpeedScale", group: "战斗", label: "全局子弹速度倍率", hint: "作用于所有以速度参数发射的投射物", min: 0.1, max: 10, step: 0.05, unit: "倍" },
-        { key: "moduleTargetRange", group: "战斗", label: "机体索敌距离", hint: "大部分需要目标的机体共用的索敌半径", min: 50, max: 2000, step: 10, unit: "px" }
+        { key: "projectileRangeMultiplier", group: "战斗", label: "子弹射程补偿倍率", hint: "有索敌距离限制的子弹在发射后获得的实际飞行距离倍率", min: 0.1, max: 10, step: 0.05, unit: "倍" },
+        { key: "attackIntervalScale", group: "战斗", label: "全局攻击间隔倍率", hint: "头部与大部分定时输出技能共用的冷却时间倍率", min: 0.1, max: 10, step: 0.05, unit: "倍" },
+        { key: "moduleTargetRange", group: "战斗", label: "机体索敌距离", hint: "大部分需要目标的机体共用的索敌半径", min: 50, max: 2000, step: 10, unit: "px" },
+        { key: "arenaAreaPerLevel", group: "场地", label: "每级场地面积成长", hint: "按场上最高玩家等级增加的场地面积倍率", min: 0, max: 0.5, step: 0.005, unit: "倍率/级" },
+        { key: "arenaResizeRate", group: "场地", label: "场地缩放速度", hint: "场地面积目标变化后的平滑追随速度", min: 0.1, max: 10, step: 0.1, unit: "速率" },
+        { key: "maxRenderFps", group: "性能", label: "最高绘制帧率", hint: "只限制 Canvas 和界面动效绘制，不降低逻辑与网络输入频率", min: 30, max: 240, step: 1, unit: "FPS" },
+        { key: "maxRenderDpr", group: "性能", label: "最高渲染像素倍率", hint: "限制 Canvas 内部像素密度；界面文字仍由浏览器原生清晰绘制", min: 1, max: 2, step: 0.05, unit: "DPR" },
+        { key: "profileSaveDelaySeconds", group: "性能", label: "联机战绩批量保存间隔", hint: "玩家结算后合并等待写盘的时间，减少频繁存档尖峰", min: 1, max: 300, step: 1, unit: "秒" }
       ];
 
       const MODULES = [
@@ -330,11 +407,19 @@
       const HANDLE_STORE = "handles";
       const HANDLE_KEY = "designer-config";
       const AUTO_SAVE_DELAY_MS = 180;
+      const hashToken = new URLSearchParams(location.hash.slice(1)).get("editor-token") || "";
+      if (/^[a-f0-9]{64}$/.test(hashToken)) {
+        sessionStorage.setItem("gss0-editor-helper-token", hashToken);
+        history.replaceState(null, "", `${location.pathname}${location.search}`);
+      }
+      const helperToken = hashToken || sessionStorage.getItem("gss0-editor-helper-token") || "";
+      const helperMode = location.protocol === "http:" && location.hostname === "127.0.0.1" && /^[a-f0-9]{64}$/.test(helperToken);
       const ui = {
         fileState: document.querySelector("#file-state"), open: document.querySelector("#open-config"), reload: document.querySelector("#reload-config"),
         tabs: [...document.querySelectorAll(".tab")], balanceView: document.querySelector("#balance-view"), modulesView: document.querySelector("#modules-view"),
         parameterGroups: document.querySelector("#parameter-groups"), parameterCount: document.querySelector("#parameter-count"), moduleList: document.querySelector("#module-list"), moduleCount: document.querySelector("#module-count"),
-        search: document.querySelector("#module-search"), category: document.querySelector("#category-filter"), status: document.querySelector("#status-filter"), descriptionDetail: document.querySelector("#description-detail")
+        search: document.querySelector("#module-search"), category: document.querySelector("#category-filter"), status: document.querySelector("#status-filter"), descriptionDetail: document.querySelector("#description-detail"),
+        interfaceScale: document.querySelector("#interface-scale"), interfaceScaleOutput: document.querySelector("#interface-scale-output")
       };
 
       let fileHandle = null;
@@ -345,11 +430,13 @@
       let saveInFlight = false;
       let saveQueued = false;
       let writePermissionReady = false;
-      let detailedDescriptions = localStorage.getItem("gss0-detailed-descriptions") === "1";
+      let helperReady = false;
+      let detailedDescriptions = false;
+      try { detailedDescriptions = localStorage.getItem("gss0-detailed-descriptions") === "1"; } catch {}
       const filePickerSupported = typeof window.showOpenFilePicker === "function";
 
       function normalizeConfig(value) {
-        const config = { schemaVersion: 1, balance: {}, moduleStates: {} };
+        const config = { schemaVersion: 2, balance: {}, moduleStates: {} };
         for (const definition of PARAMETER_DEFINITIONS) {
           const candidate = Number(value?.balance?.[definition.key]);
           config.balance[definition.key] = Number.isFinite(candidate) ? Math.max(definition.min, Math.min(definition.max, candidate)) : definition.min;
@@ -368,7 +455,9 @@
         const start = text.indexOf("{", markerIndex + marker.length);
         const end = text.lastIndexOf("}");
         if (start < 0 || end <= start) throw new Error("配置内容不完整");
-        return normalizeConfig(JSON.parse(text.slice(start, end + 1)));
+        const parsed = JSON.parse(text.slice(start, end + 1));
+        if (parsed?.schemaVersion !== 2) throw new Error("配置版本无效，需要 schemaVersion 2");
+        return normalizeConfig(parsed);
       }
 
       function serializeConfig(config = draft) {
@@ -381,12 +470,21 @@
         ui.fileState.className = `file-state${state ? ` is-${state}` : ""}`;
       }
       function refreshDirtyState() {
-        if (!filePickerSupported) setFileState(`${CONFIG_FILE_NAME} · 已默认加载 · 当前浏览器不支持自动写入`, "dirty");
-        else if (fileHandle && !writePermissionReady) setFileState(`${CONFIG_FILE_NAME} · 已默认绑定 · 点击恢复写入权限`, "dirty");
+        if (helperMode) {
+          ui.open.hidden = true;
+          if (!helperReady) setFileState(`${CONFIG_FILE_NAME} · 正在连接本地启动器`, "dirty");
+          else if (saveInFlight) setFileState(`${CONFIG_FILE_NAME} · 正在自动保存`, "dirty");
+          else if (isDirty()) setFileState(`${CONFIG_FILE_NAME} · 等待自动保存`, "dirty");
+          else setFileState(`${CONFIG_FILE_NAME} · 已自动同步`, "saved");
+          return;
+        }
+        ui.open.hidden = false;
+        if (!filePickerSupported) setFileState(`${CONFIG_FILE_NAME} · 已自动加载 · 当前浏览器不支持写回文件`, "dirty");
+        else if (fileHandle && !writePermissionReady) setFileState(`${CONFIG_FILE_NAME} · 已自动加载 · 点击恢复自动保存`, "dirty");
         else if (saveInFlight) setFileState(`${CONFIG_FILE_NAME} · 正在自动保存`, "dirty");
-        else if (isDirty()) setFileState(fileHandle ? `${CONFIG_FILE_NAME} · 等待自动保存` : `${CONFIG_FILE_NAME} · 已加载 · 请授权写入`, "dirty");
-        else setFileState(fileHandle ? `${CONFIG_FILE_NAME} · 已自动同步` : `${CONFIG_FILE_NAME} · 已默认加载`, fileHandle ? "saved" : "");
-        ui.open.textContent = fileHandle ? (writePermissionReady ? "更换配置文件" : "恢复写入权限") : "授权写入配置";
+        else if (isDirty()) setFileState(fileHandle ? `${CONFIG_FILE_NAME} · 等待自动保存` : `${CONFIG_FILE_NAME} · 修改尚未写入`, "dirty");
+        else setFileState(fileHandle ? `${CONFIG_FILE_NAME} · 已自动同步` : `${CONFIG_FILE_NAME} · 已自动加载 · 授权后可自动保存`, fileHandle ? "saved" : "");
+        ui.open.textContent = fileHandle ? (writePermissionReady ? "更换绑定" : "恢复自动保存") : "授权自动保存";
       }
 
       function openHandleDatabase() {
@@ -437,17 +535,43 @@
         refreshDirtyState();
       }
 
+      async function requestHelper(options = {}) {
+        const response = await fetch("/api/config", {
+          ...options,
+          cache: "no-store",
+          headers: { ...(options.headers || {}), "X-GSS0-Editor-Token": helperToken }
+        });
+        if (!response.ok) throw new Error((await response.text()) || `本地启动器请求失败 (${response.status})`);
+        return response;
+      }
+
+      async function readHelperConfig() {
+        const response = await requestHelper();
+        const next = parseConfig(await response.text());
+        helperReady = true;
+        draft = next;
+        savedConfig = structuredClone(next);
+        savedSnapshot = JSON.stringify(next);
+        renderParameters();
+        renderModules();
+        refreshDirtyState();
+      }
+
+      function autoSaveReady() {
+        return helperMode ? helperReady : Boolean(fileHandle && writePermissionReady);
+      }
+
       function scheduleAutoSave() {
         refreshDirtyState();
         window.clearTimeout(autoSaveTimer);
-        if (!fileHandle || !writePermissionReady || !isDirty()) return;
+        if (!autoSaveReady() || !isDirty()) return;
         autoSaveTimer = window.setTimeout(() => void flushAutoSave(), AUTO_SAVE_DELAY_MS);
       }
 
       async function flushAutoSave() {
         window.clearTimeout(autoSaveTimer);
         autoSaveTimer = 0;
-        if (!fileHandle || !writePermissionReady || !isDirty()) return;
+        if (!autoSaveReady() || !isDirty()) return;
         if (saveInFlight) {
           saveQueued = true;
           return;
@@ -462,22 +586,30 @@
         const persistedSnapshot = JSON.stringify(draft);
         let savedSuccessfully = false;
         try {
-          if (!await hasWritePermission(fileHandle, false)) throw new Error("写入权限已失效，请重新授权");
-          const writable = await fileHandle.createWritable();
-          await writable.write(serializeConfig(JSON.parse(persistedSnapshot)));
-          await writable.close();
+          if (helperMode) {
+            await requestHelper({
+              method: "PUT",
+              headers: { "Content-Type": "text/javascript; charset=utf-8" },
+              body: serializeConfig(JSON.parse(persistedSnapshot))
+            });
+          } else {
+            if (!await hasWritePermission(fileHandle, false)) throw new Error("写入权限已失效，请重新授权");
+            const writable = await fileHandle.createWritable();
+            await writable.write(serializeConfig(JSON.parse(persistedSnapshot)));
+            await writable.close();
+          }
           savedConfig = JSON.parse(persistedSnapshot);
           savedSnapshot = persistedSnapshot;
           savedSuccessfully = true;
         } catch (error) {
-          writePermissionReady = false;
+          if (!helperMode) writePermissionReady = false;
           setFileState(error instanceof Error ? error.message : "自动保存失败", "dirty");
         } finally {
           saveInFlight = false;
           const shouldSaveAgain = saveQueued || (savedSuccessfully && isDirty());
           saveQueued = false;
-          refreshDirtyState();
-          if (shouldSaveAgain && fileHandle) scheduleAutoSave();
+          if (savedSuccessfully || !helperMode) refreshDirtyState();
+          if (shouldSaveAgain && autoSaveReady()) scheduleAutoSave();
         }
       }
 
@@ -621,7 +753,8 @@
       async function reloadConfig() {
         try {
           window.clearTimeout(autoSaveTimer);
-          if (fileHandle) await readBoundConfig(fileHandle);
+          if (helperMode) await readHelperConfig();
+          else if (fileHandle) await readBoundConfig(fileHandle);
           else {
             draft = normalizeConfig(globalThis.GSS0_DESIGNER_CONFIG);
             savedConfig = structuredClone(draft);
@@ -647,7 +780,7 @@
           }
           await readBoundConfig(handle);
         } catch {
-          setFileState(`${CONFIG_FILE_NAME} · 已默认加载`, "");
+          setFileState(`${CONFIG_FILE_NAME} · 已自动加载 · 授权后可自动保存`, "");
         }
       }
 
@@ -661,15 +794,21 @@
       ui.status.addEventListener("change", renderModules);
       ui.descriptionDetail.addEventListener("change", () => {
         detailedDescriptions = ui.descriptionDetail.checked;
-        localStorage.setItem("gss0-detailed-descriptions", detailedDescriptions ? "1" : "0");
+        try { localStorage.setItem("gss0-detailed-descriptions", detailedDescriptions ? "1" : "0"); } catch {}
         renderModules();
+      });
+      ui.interfaceScale.addEventListener("input", () => {
+        const value = Math.max(80, Math.min(160, Number(ui.interfaceScale.value) || 100));
+        document.documentElement.style.zoom = String(value / 100);
+        ui.interfaceScaleOutput.value = `${value}%`;
+        try { localStorage.setItem("gss0-editor-interface-scale", String(value)); } catch {}
       });
       ui.open.addEventListener("click", openConfig);
       ui.reload.addEventListener("click", () => void reloadConfig());
       window.addEventListener("keydown", (event) => {
         if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
           event.preventDefault();
-          if (fileHandle) void flushAutoSave();
+          if (helperMode || fileHandle) void flushAutoSave();
           else void openConfig();
         }
       });
@@ -679,15 +818,20 @@
         event.returnValue = "";
       });
 
-      if (!filePickerSupported) {
+      if (!helperMode && !filePickerSupported) {
         ui.open.disabled = true;
-        setFileState(`${CONFIG_FILE_NAME} · 已默认加载 · 当前浏览器不支持自动写入`, "dirty");
+        setFileState(`${CONFIG_FILE_NAME} · 已自动加载 · 当前浏览器不支持写回文件`, "dirty");
       }
       ui.descriptionDetail.checked = detailedDescriptions;
+      let storedInterfaceScale = 100;
+      try { storedInterfaceScale = Math.max(80, Math.min(160, Number(localStorage.getItem("gss0-editor-interface-scale")) || 100)); } catch {}
+      ui.interfaceScale.value = String(storedInterfaceScale);
+      ui.interfaceScale.dispatchEvent(new Event("input"));
       renderParameters();
       renderModules();
       refreshDirtyState();
-      if (filePickerSupported) void restoreConfigBinding();
+      if (helperMode) void readHelperConfig().catch((error) => setFileState(error instanceof Error ? error.message : "无法连接本地启动器", "dirty"));
+      else if (filePickerSupported) void restoreConfigBinding();
     })();
   </script>
 </body>

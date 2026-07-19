@@ -1,10 +1,12 @@
 import { randomUUID } from 'node:crypto';
+import { performance } from 'node:perf_hooks';
 import type { Server, Socket } from 'socket.io';
 import { IntervalGate } from '@yuo-platform/realtime';
 import {
   MAX_CHAT_HISTORY,
   MAX_CHAT_LENGTH,
   MAX_EVENT_HISTORY,
+  PROFILE_SAVE_DELAY_MS,
   SIMULATION_HZ,
   SNAPSHOT_HZ,
 } from '../shared/constants';
@@ -46,9 +48,10 @@ export class ArenaHub {
   private readonly events: ArenaEvent[] = [];
   private simulationTimer: NodeJS.Timeout | null = null;
   private persistenceTimer: NodeJS.Timeout | null = null;
-  private lastStepAt = Date.now();
+  private lastStepAt = performance.now();
   private ticksSinceSnapshot = 0;
   private lastMetaAt = 0;
+  private metaBroadcastPending = false;
   private dirty = false;
 
   private constructor(
@@ -86,7 +89,7 @@ export class ArenaHub {
 
   start(): void {
     if (this.simulationTimer) return;
-    this.lastStepAt = Date.now();
+    this.lastStepAt = performance.now();
     this.ticksSinceSnapshot = SNAPSHOT_TICK_INTERVAL - 1;
     this.simulationTimer = setInterval(() => this.tick(), 1_000 / SIMULATION_HZ);
   }
@@ -282,8 +285,9 @@ export class ArenaHub {
 
   private tick(): void {
     const now = Date.now();
-    const delta = (now - this.lastStepAt) / 1_000;
-    this.lastStepAt = now;
+    const monotonicNow = performance.now();
+    const delta = (monotonicNow - this.lastStepAt) / 1_000;
+    this.lastStepAt = monotonicNow;
     this.flushPendingInputs();
     this.world.step(delta, now);
     this.ticksSinceSnapshot += 1;
@@ -293,7 +297,7 @@ export class ArenaHub {
     }
     if (this.socketsByAccount.size > 0 && now - this.lastMetaAt >= 500) {
       this.lastMetaAt = now;
-      this.broadcastMeta();
+      this.scheduleMetaBroadcast();
     }
   }
 
@@ -309,6 +313,15 @@ export class ArenaHub {
   private broadcastMeta(): void {
     this.io.volatile.emit('ultra:roster', this.world.getRoster());
     this.io.volatile.emit('ultra:leaderboard', this.world.getLeaderboard());
+  }
+
+  private scheduleMetaBroadcast(): void {
+    if (this.metaBroadcastPending) return;
+    this.metaBroadcastPending = true;
+    setImmediate(() => {
+      this.metaBroadcastPending = false;
+      if (this.simulationTimer && this.socketsByAccount.size > 0) this.broadcastMeta();
+    });
   }
 
   private publishEffects(effects: UltraEffect[]): void {
@@ -366,7 +379,8 @@ export class ArenaHub {
         console.error('贪吃蛇战绩保存失败', error);
         this.schedulePersistence();
       });
-    }, 3_000);
+    }, PROFILE_SAVE_DELAY_MS);
+    this.persistenceTimer.unref();
   }
 
   private getJoinedAccountId(socket: UltraSocket): string | null {
