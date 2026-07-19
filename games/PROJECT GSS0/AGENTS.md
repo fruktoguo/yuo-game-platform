@@ -8,5 +8,10 @@
 # Project Version
 
 - The main menu must always display the current game version in its lower-left corner.
-- The current game version is `V2`.
+- The current game version is `V3`.
 - For every future user request that modifies this project, increment the integer version exactly once and update both the main-menu label and the current-version line in this file as part of the same change.
+
+# Forward-Only Development
+
+- Do not preserve compatibility with older Git revisions, releases, network protocols, snapshot formats, or saved schemas unless the user explicitly requests a migration path.
+- When a format or contract changes, update every in-repository producer, consumer, and test atomically and treat the new revision as the only supported version.

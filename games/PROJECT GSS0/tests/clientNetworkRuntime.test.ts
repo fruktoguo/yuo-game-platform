@@ -39,7 +39,9 @@ describe('客户端网络模块', () => {
     };
 
     const decoded = clientGlobals.GSS0NetworkCodec.decode(encodeUltraSnapshot(snapshot), MODULES);
-    expect(decoded).toMatchObject({ tick: 7, players: [{ name: '玩家甲', col: 4.25, segments: [{ module: 'shield', cooldown: 7.5 }] }] });
+    expect(decoded).toMatchObject({ tick: 7, players: [{ name: '玩家甲', col: 4.25 }] });
+    expect(decoded.players[0].segments).toHaveLength(2);
+    expect(decoded.players[0].segments[0]).toMatchObject({ module: 'shield', cooldown: 7.5 });
     expect(decoded.players[0].segments[0]).toMatchObject({ angle: 0, timer: 0, orbit: 0 });
     expect(decoded.players[0].segments[1]).toMatchObject({ module: 'blade', angle: 0, timer: 0 });
     expect(decoded.players[0].segments[1].orbit).toBeCloseTo(1.25, 3);

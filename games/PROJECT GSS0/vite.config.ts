@@ -1,13 +1,17 @@
 import { readFile } from 'node:fs/promises';
 import { defineConfig } from 'vite';
 
+const CLASSIC_SCRIPTS = ['game.js', 'network-codec.js', 'network-projectiles.js'] as const;
+
 export default defineConfig({
   base: './',
   plugins: [{
     name: 'project-gss0-classic-script',
     apply: 'build',
     async generateBundle() {
-      this.emitFile({ type: 'asset', fileName: 'game.js', source: await readFile(new URL('./game.js', import.meta.url)) });
+      for (const fileName of CLASSIC_SCRIPTS) {
+        this.emitFile({ type: 'asset', fileName, source: await readFile(new URL(fileName, import.meta.url)) });
+      }
     },
   }],
   build: {

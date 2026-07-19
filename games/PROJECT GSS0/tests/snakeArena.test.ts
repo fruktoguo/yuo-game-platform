@@ -332,7 +332,7 @@ describe('UltraWorld 原版 PvE 与多人共享世界', () => {
     const expiryEffects = (Reflect.get(world, 'pendingEffects') as UltraEffect[]).filter((effect) => 'color' in effect && effect.color === '#123456');
 
     expect(expiryEffects.map((effect) => effect.type)).toEqual(expect.arrayContaining(['ring', 'burst']));
-    expect(expiryEffects.every((effect) => effect.audienceEntityId === Reflect.get(owner, 'entityId'))).toBe(true);
+    expect(expiryEffects.every((effect) => effect.audienceEntityId === undefined)).toBe(true);
   });
 
   it('玩家头撞身体直接死亡，头碰头则双方反弹', () => {
