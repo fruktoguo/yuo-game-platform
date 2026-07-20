@@ -1179,29 +1179,10 @@
   }
 
   function resolveLobbyUrl() {
-    const current = new URL(window.location.href);
-    const configured = current.searchParams.get("lobby_url");
-    if (configured) {
-      try {
-        const candidate = new URL(configured, current);
-        if (/^https?:$/.test(candidate.protocol)) return candidate.toString();
-      } catch {
-        // Continue with the deployment-aware fallbacks below.
-      }
-    }
-    if (current.hostname === "localhost" || current.hostname.startsWith("127.")) {
-      return `${current.protocol}//${current.hostname}:3100/`;
-    }
-    if (current.pathname === "/snake" || current.pathname.startsWith("/snake/")) return new URL("/", current.origin).toString();
-    if (document.referrer) {
-      try {
-        const referrer = new URL(document.referrer);
-        if (/^https?:$/.test(referrer.protocol) && referrer.origin !== current.origin) return new URL("/", referrer.origin).toString();
-      } catch {
-        // A malformed referrer should not prevent returning to the local lobby.
-      }
-    }
-    return new URL("/", current.origin).toString();
+    return window.GSS0LobbyNavigation.resolveLobbyUrl({
+      currentHref: window.location.href,
+      referrer: document.referrer
+    });
   }
 
   function setNetworkStatus(kind, text) {
@@ -2947,7 +2928,7 @@
       ]);
       network.lastSelfAlive = false;
     }
-    window.location.assign(resolveLobbyUrl());
+    window.location.replace(resolveLobbyUrl());
   }
 
   function gameOver() {

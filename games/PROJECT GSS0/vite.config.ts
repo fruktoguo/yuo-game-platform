@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { defineConfig } from 'vite';
 
-const CLASSIC_SCRIPTS = ['designer-config.js', 'spawn-planner.js', 'game.js', 'network-codec.js', 'network-player-prediction.js', 'network-player-state-codec.js', 'network-player-collisions.js', 'network-head-collisions.js', 'network-food-claims.js', 'network-projectiles.js'] as const;
+const CLASSIC_SCRIPTS = ['designer-config.js', 'spawn-planner.js', 'lobby-navigation.js', 'game.js', 'network-codec.js', 'network-player-prediction.js', 'network-player-state-codec.js', 'network-player-collisions.js', 'network-head-collisions.js', 'network-food-claims.js', 'network-projectiles.js'] as const;
 
 export default defineConfig({
   base: './',

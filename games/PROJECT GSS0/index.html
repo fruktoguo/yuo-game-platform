@@ -156,7 +156,7 @@
 
     <section id="start-screen" class="modal-layer start-screen is-visible" aria-labelledby="game-title">
       <div class="start-glow" aria-hidden="true"></div>
-      <div class="start-version" aria-label="游戏版本 V36"><span>BUILD</span><strong>V36</strong></div>
+      <div class="start-version" aria-label="游戏版本 V37"><span>BUILD</span><strong>V37</strong></div>
       <div class="start-layout">
         <div class="start-content">
           <div id="network-status" class="title-kicker">TACTICAL SURVIVAL / LOCAL</div>
@@ -228,6 +228,20 @@
           <button id="changelog-close-button" class="icon-button codex-close-button" type="button" aria-label="关闭更新日志" title="关闭更新日志">×</button>
         </header>
         <div class="changelog-list">
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V37</strong></div>
+              <time datetime="2026-07-20">2026.07.20</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">导航修复</span>
+              <h3>返回大厅不再陷入循环跳转</h3>
+              <ul>
+                <li>返回时优先使用实际来源大厅，并拒绝指回当前游戏的异常启动地址。</li>
+                <li>退出改为替换当前历史记录，旧链接与错误参数不再造成重复重定向。</li>
+              </ul>
+            </div>
+          </article>
           <article class="changelog-entry">
             <header>
               <div class="changelog-version"><span>BUILD</span><strong>V36</strong></div>
@@ -584,15 +598,16 @@
     </section>
   </main>
 
-  <script src="designer-config.js?v=36"></script>
-  <script src="spawn-planner.js?v=36"></script>
-  <script src="network-codec.js?v=36"></script>
-  <script src="network-player-prediction.js?v=36"></script>
-  <script src="network-player-state-codec.js?v=36"></script>
-  <script src="network-player-collisions.js?v=36"></script>
-  <script src="network-head-collisions.js?v=36"></script>
-  <script src="network-food-claims.js?v=36"></script>
-  <script src="network-projectiles.js?v=36"></script>
-  <script src="game.js?v=36"></script>
+  <script src="designer-config.js?v=37"></script>
+  <script src="spawn-planner.js?v=37"></script>
+  <script src="network-codec.js?v=37"></script>
+  <script src="network-player-prediction.js?v=37"></script>
+  <script src="network-player-state-codec.js?v=37"></script>
+  <script src="network-player-collisions.js?v=37"></script>
+  <script src="network-head-collisions.js?v=37"></script>
+  <script src="network-food-claims.js?v=37"></script>
+  <script src="network-projectiles.js?v=37"></script>
+  <script src="lobby-navigation.js?v=37"></script>
+  <script src="game.js?v=37"></script>
 </body>
 </html>
