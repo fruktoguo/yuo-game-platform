@@ -47,6 +47,8 @@ export const DESIGNER_BALANCE = Object.freeze({
   upgradeInvulnerabilityDuration: numberSetting('upgradeInvulnerabilityDuration', 0.5, 0, 10),
   maxRenderFps: numberSetting('maxRenderFps', 60, 30, 240, true),
   maxRenderDpr: numberSetting('maxRenderDpr', 1.25, 1, 2),
+  networkCorrectionRate: numberSetting('networkCorrectionRate', 14, 1, 40),
+  networkCorrectionSnapDistance: numberSetting('networkCorrectionSnapDistance', 1.5, 0.25, 6),
   profileSaveDelaySeconds: numberSetting('profileSaveDelaySeconds', 30, 1, 300),
 });
 

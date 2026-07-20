@@ -292,8 +292,10 @@
   const NETWORK_SNAPSHOT_BUFFER_SIZE = 6;
   const NETWORK_MAX_EXTRAPOLATION_MS = 90;
   const NETWORK_INPUT_INTERVAL_MS = 1000 / 30;
-  const NETWORK_INPUT_HEARTBEAT_MS = 110;
+  const NETWORK_MAX_PENDING_INPUTS = 120;
   const NETWORK_FOOD_CONTACT_INTERVAL_MS = 1000 / 30;
+  const NETWORK_CORRECTION_RATE = designerNumber("networkCorrectionRate", 14, 1, 40);
+  const NETWORK_CORRECTION_SNAP_DISTANCE = designerNumber("networkCorrectionSnapDistance", 1.5, 0.25, 6);
   const MAX_RENDER_FPS = designerNumber("maxRenderFps", 60, 30, 240, true);
   const MAX_RENDER_DPR = designerNumber("maxRenderDpr", 1.25, 1, 2);
   const MIN_RENDER_DPR = 1;
@@ -387,10 +389,11 @@
     lastHudTick: -1,
     lastSelfAlive: false,
     inputSequence: 0,
-    lastSentAngle: NaN,
     lastInputAt: 0,
-    selfPredictionAngle: NaN,
     localDesiredAngle: NaN,
+    unsentPredictionTime: 0,
+    pendingInputs: [],
+    inputPool: [],
     lastFoodContactAt: 0,
     playerViews: new Map(),
     enemyViews: new Map(),
@@ -401,6 +404,13 @@
   };
   const networkProjectileRuntime = globalThis.GSS0ProjectileRuntime?.create(GRID_SIZE);
   if (!networkProjectileRuntime) throw new Error("PROJECT GSS0 投射物运行时未加载");
+  const networkPlayerPredictionRuntime = globalThis.GSS0PlayerPrediction?.create({
+    knockbackDecay: KNOCKBACK_DECAY,
+    segmentSpacing: 0.58,
+    correctionRate: NETWORK_CORRECTION_RATE,
+    snapDistance: NETWORK_CORRECTION_SNAP_DISTANCE
+  });
+  if (!networkPlayerPredictionRuntime) throw new Error("PROJECT GSS0 玩家预测运行时未加载");
   const networkFoodClaimRuntime = globalThis.GSS0FoodClaimRuntime?.create({ maximumBatchSize: 32, retryAfterMs: 750 });
   if (!networkFoodClaimRuntime) throw new Error("PROJECT GSS0 吃球检测运行时未加载");
   const spawnPlanner = globalThis.GSS0SpawnPlanner;
@@ -1077,9 +1087,7 @@
     });
     network.socket = socket;
     socket.on("connect", () => {
-      network.inputSequence = 0;
-      network.lastSentAngle = NaN;
-      network.lastInputAt = 0;
+      resetNetworkPredictionInput(true);
       setNetworkStatus("connecting", "TACTICAL SURVIVAL / 正在同步");
       socket.emit("ultra:join", (result) => {
         if (!result?.ok || !result.data) {
@@ -1101,8 +1109,14 @@
         network.lastPresentationAt = 0;
         clearNetworkViews();
         const joinedSelf = result.data.snapshot.players.find((item) => item.entityId === network.selfEntityId);
-        network.selfPredictionAngle = joinedSelf?.angle ?? NaN;
         network.localDesiredAngle = joinedSelf?.desiredAngle ?? NaN;
+        if (joinedSelf) networkPlayerPredictionRuntime.reconcile(
+          joinedSelf,
+          network.pendingInputs,
+          0,
+          network.localDesiredAngle,
+          networkTurnRateForSegments(joinedSelf.segments)
+        );
         networkProjectileRuntime.reset(result.data.projectiles || result.data.snapshot.projectiles || []);
         projectiles = networkProjectileRuntime.items;
         network.lastSelfAlive = Boolean(joinedSelf?.alive);
@@ -1173,17 +1187,15 @@
     network.receivedAt = receivedAt;
     const self = snapshot.players.find((item) => item.entityId === network.selfEntityId);
     if (self) {
-      const serverHasCurrentInput = Number.isFinite(network.localDesiredAngle)
-        && Math.abs(angleDelta(self.desiredAngle, network.localDesiredAngle)) < 0.004;
-      if (
-        !Number.isFinite(network.selfPredictionAngle)
-        || testMode
-        || self.collisionCooldown > 0
-        || self.paused
-        || self.choosingUpgrade
-        || serverHasCurrentInput
-      ) network.selfPredictionAngle = self.angle;
       if (!Number.isFinite(network.localDesiredAngle)) network.localDesiredAngle = self.desiredAngle;
+      releaseAcknowledgedNetworkInputs(self.lastInputSequence);
+      networkPlayerPredictionRuntime.reconcile(
+        self,
+        network.pendingInputs,
+        network.unsentPredictionTime,
+        network.localDesiredAngle,
+        networkTurnRateForSegments(self.segments)
+      );
     }
     const selfAlive = Boolean(self?.alive);
     if (network.lastSelfAlive && self && !self.alive && state !== "menu" && state !== "gameover") {
@@ -1202,6 +1214,35 @@
     }
     network.lastSelfAlive = selfAlive;
     renderNetworkRoster(snapshot.players);
+  }
+
+  function clearPendingNetworkInputs() {
+    for (const input of network.pendingInputs) network.inputPool.push(input);
+    network.pendingInputs.length = 0;
+  }
+
+  function resetNetworkPredictionInput(resetSequence = false) {
+    clearPendingNetworkInputs();
+    if (resetSequence) network.inputSequence = 0;
+    network.lastInputAt = 0;
+    network.localDesiredAngle = NaN;
+    network.unsentPredictionTime = 0;
+    networkPlayerPredictionRuntime.clear();
+  }
+
+  function releaseAcknowledgedNetworkInputs(sequence) {
+    let writeIndex = 0;
+    for (const input of network.pendingInputs) {
+      if (input.sequence <= sequence) network.inputPool.push(input);
+      else network.pendingInputs[writeIndex++] = input;
+    }
+    network.pendingInputs.length = writeIndex;
+  }
+
+  function networkTurnRateForSegments(segments) {
+    let haste = 0;
+    for (const segment of segments || []) if (segment.module === "haste") haste += 1;
+    return PLAYER_TURN_RATE + haste * MODULE_TUNING.haste.turnRatePerStack;
   }
 
   function renderNetworkRoster(snapshotPlayers = []) {
@@ -1421,6 +1462,8 @@
     network.hazardViews.clear();
     network.lastFoodContactAt = 0;
     network.moduleIds.length = 0;
+    network.unsentPredictionTime = 0;
+    networkPlayerPredictionRuntime.clear();
     networkProjectileRuntime.clear();
     networkFoodClaimRuntime.clear();
   }
@@ -1483,6 +1526,32 @@
     return true;
   }
 
+  function applyNetworkSelfPrediction(view) {
+    const prediction = networkPlayerPredictionRuntime.state;
+    const correction = networkPlayerPredictionRuntime.correction;
+    if (!prediction.initialized) return;
+    view.col = prediction.col + correction.col;
+    view.row = prediction.row + correction.row;
+    view.angle = prediction.angle + correction.angle;
+    view.desiredAngle = network.localDesiredAngle;
+    view.x = arena.left + (view.col - arena.worldMin + 0.5) * arena.cellSize;
+    view.y = arena.top + (view.row - arena.worldMin + 0.5) * arena.cellSize;
+    const count = Math.min(view.segments.length, prediction.segments.length);
+    for (let index = 0; index < count; index += 1) {
+      const segment = view.segments[index];
+      const predictedSegment = prediction.segments[index];
+      segment.col = predictedSegment.col + correction.col;
+      segment.row = predictedSegment.row + correction.row;
+      segment.x = arena.left + (segment.col - arena.worldMin + 0.5) * arena.cellSize;
+      segment.y = arena.top + (segment.row - arena.worldMin + 0.5) * arena.cellSize;
+    }
+    let previousNode = view;
+    for (const segment of view.segments) {
+      segment.angle = Math.atan2(previousNode.row - segment.row, previousNode.col - segment.col);
+      previousNode = segment;
+    }
+  }
+
   function applyNetworkPresentation(previous, current, previousIndexes, amount) {
     const snapshotChanged = network.presentationSnapshot !== current;
     const activeTick = current.tick;
@@ -1508,16 +1577,11 @@
       view.playerColor = PLAYER_COLORS[item.colorIndex % PLAYER_COLORS.length];
       view.playerId = rosterPlayer?.playerId || item.name;
       view.isSelf = item.entityId === network.selfEntityId;
-      if (view.isSelf && !testMode) {
-        if (!Number.isFinite(network.selfPredictionAngle)) network.selfPredictionAngle = item.angle;
-        view.angle = network.selfPredictionAngle;
-        view.desiredAngle = Number.isFinite(network.localDesiredAngle) ? network.localDesiredAngle : item.desiredAngle;
-      } else {
-        view.angle = authoritativeAngle;
-        view.desiredAngle = item.desiredAngle;
-      }
+      view.angle = authoritativeAngle;
+      view.desiredAngle = item.desiredAngle;
       view.protectedState = item.paused || item.choosingUpgrade || item.invulnerable > 0;
       syncNetworkSegments(view.segments, item.segments, old?.segments, playerAmount);
+      if (view.isSelf && !testMode && !item.paused && !item.choosingUpgrade) applyNetworkSelfPrediction(view);
       let previousNode = view;
       for (const segment of view.segments) {
         segment.angle = Math.atan2(previousNode.row - segment.row, previousNode.col - segment.col);
@@ -1643,16 +1707,16 @@
     for (const hazard of hazards) hazard.phase += dt * 4;
     for (const spawn of pendingEnemySpawns) spawn.timer = Math.max(0, spawn.timer - dt);
     if (state === "running" && player) {
-      claimNetworkFoodContacts();
       if (!testMode) {
         updateInput(dt, false);
         network.localDesiredAngle = player.desiredAngle;
-        if (!Number.isFinite(network.selfPredictionAngle)) network.selfPredictionAngle = player.angle;
         const turnRate = PLAYER_TURN_RATE + moduleCount("haste") * MODULE_TUNING.haste.turnRatePerStack;
-        network.selfPredictionAngle = rotateToward(network.selfPredictionAngle, network.localDesiredAngle, turnRate * dt);
-        player.angle = network.selfPredictionAngle;
+        networkPlayerPredictionRuntime.update(dt, network.localDesiredAngle, turnRate);
+        network.unsentPredictionTime = Math.min(0.1, network.unsentPredictionTime + dt);
+        applyNetworkSelfPrediction(player);
         sendNetworkInput();
       }
+      claimNetworkFoodContacts();
     }
     updateEffects(dt);
     if (network.lastHudTick !== network.presentationSnapshot?.tick) {
@@ -1666,12 +1730,21 @@
     if (!socket?.connected || !player) return;
     const now = performance.now();
     const elapsed = now - network.lastInputAt;
-    const difference = Number.isFinite(network.lastSentAngle) ? Math.abs(angleDelta(network.lastSentAngle, player.desiredAngle)) : Infinity;
     if (elapsed < NETWORK_INPUT_INTERVAL_MS) return;
-    if (difference < 0.004 && elapsed < NETWORK_INPUT_HEARTBEAT_MS) return;
-    network.lastSentAngle = player.desiredAngle;
     network.lastInputAt = now;
-    socket.volatile.emit("ultra:input", { sequence: ++network.inputSequence, desiredAngle: player.desiredAngle });
+    const sequence = ++network.inputSequence;
+    const input = network.inputPool.pop() || {};
+    input.sequence = sequence;
+    input.desiredAngle = player.desiredAngle;
+    input.duration = network.unsentPredictionTime;
+    network.unsentPredictionTime = 0;
+    network.pendingInputs.push(input);
+    if (network.pendingInputs.length > NETWORK_MAX_PENDING_INPUTS) {
+      network.inputPool.push(network.pendingInputs[0]);
+      for (let index = 1; index < network.pendingInputs.length; index += 1) network.pendingInputs[index - 1] = network.pendingInputs[index];
+      network.pendingInputs.length -= 1;
+    }
+    socket.volatile.emit("ultra:input", { sequence, desiredAngle: player.desiredAngle });
   }
 
   function claimNetworkFoodContacts() {
@@ -1715,6 +1788,7 @@
       setNetworkStatus("error", `ULTRA LINK / ${result?.error || "暂时无法开始"}`);
       return;
     }
+    resetNetworkPredictionInput();
     state = "running";
     network.lastSelfAlive = true;
     network.upgradeOffer = null;
@@ -2106,6 +2180,7 @@
       if (network.lastSelfAlive) void emitNetworkAction("ultra:leave-run");
       network.lastSelfAlive = false;
       network.upgradeOffer = null;
+      resetNetworkPredictionInput();
       setTestMode(false);
       state = "menu";
       player = null;

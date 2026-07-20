@@ -140,7 +140,7 @@
 
     <section id="start-screen" class="modal-layer start-screen is-visible" aria-labelledby="game-title">
       <div class="start-glow" aria-hidden="true"></div>
-      <div class="start-version" aria-label="游戏版本 V17"><span>BUILD</span><strong>V17</strong></div>
+      <div class="start-version" aria-label="游戏版本 V18"><span>BUILD</span><strong>V18</strong></div>
       <div class="start-layout">
         <div class="start-content">
           <div id="network-status" class="title-kicker">TACTICAL SURVIVAL / LOCAL</div>
@@ -212,6 +212,21 @@
           <button id="changelog-close-button" class="icon-button codex-close-button" type="button" aria-label="关闭更新日志" title="关闭更新日志">×</button>
         </header>
         <div class="changelog-list">
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V18</strong></div>
+              <time datetime="2026-07-20">2026.07.20</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">操控优化</span>
+              <h3>完整本地移动预测</h3>
+              <ul>
+                <li>联机时自己的蛇头与全部身体改为本地即时移动和旋转。</li>
+                <li>未确认输入会在服务器快照后自动重放，降低网络延迟造成的操控滞后。</li>
+                <li>位置误差平滑校正，碰撞、伤害和死亡仍由服务器统一裁决。</li>
+              </ul>
+            </div>
+          </article>
           <article class="changelog-entry">
             <header>
               <div class="changelog-version"><span>BUILD</span><strong>V17</strong></div>
@@ -292,6 +307,7 @@
   <script src="designer-config.js"></script>
   <script src="spawn-planner.js"></script>
   <script src="network-codec.js"></script>
+  <script src="network-player-prediction.js"></script>
   <script src="network-food-claims.js"></script>
   <script src="network-projectiles.js"></script>
   <script src="game.js"></script>

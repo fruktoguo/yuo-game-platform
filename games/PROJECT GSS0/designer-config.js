@@ -29,6 +29,8 @@ globalThis.GSS0_DESIGNER_CONFIG = {
     "upgradeInvulnerabilityDuration": 0.5,
     "maxRenderFps": 60,
     "maxRenderDpr": 1.25,
+    "networkCorrectionRate": 14,
+    "networkCorrectionSnapDistance": 1.5,
     "profileSaveDelaySeconds": 30
   },
   "moduleStates": {

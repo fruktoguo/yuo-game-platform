@@ -573,7 +573,7 @@ export class UltraWorld {
       row: GRID_SIZE / 2,
       angle: 0,
       desiredAngle: 0,
-      speed: 5,
+      speed: PLAYER_BASE_SPEED,
       invulnerable: 0,
       slow: 0,
       collisionCooldown: 0,
@@ -619,7 +619,7 @@ export class UltraWorld {
     player.row = spawn.row;
     player.angle = 0;
     player.desiredAngle = 0;
-    player.speed = 5;
+    player.speed = PLAYER_BASE_SPEED;
     player.invulnerable = 0;
     player.slow = 0;
     player.collisionCooldown = 0;
@@ -2630,6 +2630,10 @@ function toPlayerView(player: PlayerEntity): UltraPlayerView {
     row: player.row,
     angle: player.angle,
     desiredAngle: player.desiredAngle,
+    lastInputSequence: player.lastInputSequence,
+    speed: player.speed,
+    knockbackX: player.knockbackX,
+    knockbackY: player.knockbackY,
     invulnerable: player.invulnerable,
     collisionCooldown: player.collisionCooldown,
     score: Math.floor(player.score),

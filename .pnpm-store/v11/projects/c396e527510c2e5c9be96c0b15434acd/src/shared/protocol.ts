@@ -34,6 +34,10 @@ export interface UltraPlayerView extends GridPoint {
   choosingUpgrade: boolean;
   angle: number;
   desiredAngle: number;
+  lastInputSequence: number;
+  speed: number;
+  knockbackX: number;
+  knockbackY: number;
   invulnerable: number;
   collisionCooldown: number;
   score: number;

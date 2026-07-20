@@ -13,7 +13,7 @@ import type {
 } from './protocol';
 
 const MAGIC = 0x5553_4e50;
-const VERSION = 3;
+const VERSION = 4;
 const COORDINATE_SCALE = 65_535;
 const COORDINATE_PADDING = 2;
 const VELOCITY_SCALE = 64;
@@ -102,6 +102,7 @@ function writePlayer(writer: BinaryWriter, player: UltraPlayerView, arenaSize: n
   writer.u8(player.colorIndex);
   writer.u8(Number(player.connected) | Number(player.alive) << 1 | Number(player.paused) << 2 | Number(player.choosingUpgrade) << 3);
   writeCoordinate(writer, player.col, arenaSize); writeCoordinate(writer, player.row, arenaSize); writeAngle(writer, player.angle); writeAngle(writer, player.desiredAngle);
+  writer.u32(player.lastInputSequence + 1); writer.f32(player.speed); writer.f32(player.knockbackX); writer.f32(player.knockbackY);
   writer.f32(player.invulnerable); writer.f32(player.collisionCooldown);
   writer.f32(player.score); writer.u16(player.kills); writer.u16(player.botKills); writer.u16(player.pvpKills);
   writer.f32(player.survivalTime); writer.u16(player.level); writer.u16(player.xp); writer.u16(player.xpNeeded);
@@ -126,6 +127,7 @@ function readPlayer(reader: BinaryReader, arenaSize: number): UltraPlayerView {
     paused: Boolean(flags & 4),
     choosingUpgrade: Boolean(flags & 8),
     col: readCoordinate(reader, arenaSize), row: readCoordinate(reader, arenaSize), angle: readAngle(reader), desiredAngle: readAngle(reader),
+    lastInputSequence: reader.u32() - 1, speed: reader.f32(), knockbackX: reader.f32(), knockbackY: reader.f32(),
     invulnerable: reader.f32(), collisionCooldown: reader.f32(),
     score: reader.f32(), kills: reader.u16(), botKills: reader.u16(), pvpKills: reader.u16(),
     survivalTime: reader.f32(), level: reader.u16(), xp: reader.u16(), xpNeeded: reader.u16(),

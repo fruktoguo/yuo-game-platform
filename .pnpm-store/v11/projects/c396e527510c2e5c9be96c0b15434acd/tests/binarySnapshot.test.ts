@@ -22,6 +22,7 @@ describe('Ultra 二进制快照', () => {
     expect(encoded).toBeInstanceOf(Uint8Array);
     expect(encoded.byteLength).toBeLessThan(Buffer.byteLength(JSON.stringify(snapshot)));
     expect(decoded).toMatchObject({ tick: 42, waveCount: 1, players: [{ name: '联机玩家甲' }] });
+    expect(decoded.players[0]).toMatchObject({ lastInputSequence: 3, speed: 5, knockbackX: 0, knockbackY: 0 });
     expect(decoded.players[0].segments[0]).toMatchObject({ module: 'spark', neutral: false });
     expect(decoded.players[0].segments[0].birthAge).toBeNull();
     expect(decoded.players[0].segments[1].orbit).toBeCloseTo(1.25, 3);
@@ -92,7 +93,7 @@ describe('Ultra 二进制快照', () => {
     expect(decoded.projectiles).toHaveLength(300);
   });
 
-  it('V3 坐标随动态场地归一化，可覆盖向四边扩张出的负坐标', () => {
+  it('V4 坐标随动态场地归一化，可覆盖向四边扩张出的负坐标', () => {
     const snapshot = snapshotAt(100, -3.25);
     snapshot.arenaSize = 24 * Math.sqrt(2);
     snapshot.players[0].row = 26.75;
@@ -118,7 +119,7 @@ function snapshotAt(tick: number, col: number): UltraSnapshot {
     arenaSize: 24,
     players: [{
       entityId: 1, name: '玩家甲', colorIndex: 0, connected: true, alive: true, paused: false, choosingUpgrade: false,
-      col, row: 5, angle: 0, desiredAngle: 0, invulnerable: 0, collisionCooldown: 0,
+      col, row: 5, angle: 0, desiredAngle: 0, lastInputSequence: 3, speed: 5, knockbackX: 0, knockbackY: 0, invulnerable: 0, collisionCooldown: 0,
       score: 0, kills: 0, botKills: 0, pvpKills: 0, survivalTime: 1, level: 0, xp: 0, xpNeeded: 5,
       respawnAt: null,
       segments: [{ col: col - 1, row: 5, angle: 0, module: null, neutral: true, timer: 0, ready: true, cooldown: 0, orbit: 0, birthAge: null }],

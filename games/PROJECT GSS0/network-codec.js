@@ -2,7 +2,7 @@
   "use strict";
 
   const MAGIC = 0x55534e50;
-  const VERSION = 3;
+  const VERSION = 4;
   const GRID_SIZE = 24;
   const COORDINATE_PADDING = 2;
   const TAU = Math.PI * 2;
@@ -80,6 +80,10 @@
     result.row = reader.coordinate();
     result.angle = reader.angle();
     result.desiredAngle = reader.angle();
+    result.lastInputSequence = reader.u32() - 1;
+    result.speed = reader.f32();
+    result.knockbackX = reader.f32();
+    result.knockbackY = reader.f32();
     result.invulnerable = reader.f32();
     result.collisionCooldown = reader.f32();
     result.score = reader.f32();
