@@ -28,6 +28,11 @@ import {
   LEVEL_UP_TRANSITION_DURATION,
   MAX_PLAYERS,
   MODULE_TARGET_RANGE,
+  NETWORK_COLLISION_CLAIM_COOLDOWN_MS,
+  NETWORK_COLLISION_HISTORY_MS,
+  NETWORK_HEAD_COLLISION_CONTACT_ALLOWANCE,
+  NETWORK_HEAD_COLLISION_EVENT_GRACE_MS,
+  NETWORK_HEAD_COLLISION_VALIDATION_TOLERANCE,
   HEAD_ATTACK_INTERVAL,
   HEAD_TARGET_RANGE,
   PLAYER_BASE_SPEED,
@@ -52,6 +57,7 @@ import type {
   LeaderboardEntry,
   PendingSpawnView,
   PlayerCollisionClaim,
+  PlayerHeadCollisionEvent,
   RosterPlayer,
   UltraEffect,
   UltraEnemyView,
@@ -93,6 +99,7 @@ interface PlayerEntity extends UltraPlayerView {
   cacheKills: number;
   headFireTimer: number;
   lastInputSequence: number;
+  movementHistory: PlayerMovementSample[];
   recentPicks: ModuleId[];
   growthQueue: Array<{ color: string; special: boolean }>;
   upgradePending: boolean;
@@ -128,6 +135,12 @@ interface EnemyEntity extends UltraEnemyView {
   projectileMinRow: number;
   projectileMaxRow: number;
   dead: boolean;
+}
+
+interface PlayerMovementSample extends GridPoint {
+  at: number;
+  sequence: number;
+  angle: number;
 }
 
 interface EnemyBodyBucketEntry {
@@ -206,6 +219,7 @@ export interface UltraWorldCallbacks {
   onUpgrade?: (entityId: number, offer: UpgradeOffer | null) => void;
   onRunEnded?: (result: RunResult) => void;
   onEvent?: (event: ArenaEvent) => void;
+  onPlayerHeadCollision?: (event: PlayerHeadCollisionEvent) => void;
 }
 
 export interface UltraWorldOptions {
@@ -233,6 +247,8 @@ export class UltraWorld {
   private readonly enemyMovementEnd: GridPoint = { col: 0, row: 0 };
   private readonly projectileMovementStart: GridPoint = { col: 0, row: 0 };
   private readonly projectileMovementEnd: GridPoint = { col: 0, row: 0 };
+  private readonly recentPlayerHeadCollisionPairs = new Map<string, { eventId: string; at: number }>();
+  private readonly recentPlayerHeadCollisionEvents = new Map<string, number>();
   private readonly stepAlivePlayers: PlayerEntity[] = [];
   private readonly stepPresentPlayers: PlayerEntity[] = [];
   private readonly stepActivePlayers: PlayerEntity[] = [];
@@ -267,6 +283,9 @@ export class UltraWorld {
       existing.name = normalizeName(name);
       existing.playerId = normalizePlayerId(playerId);
       existing.lastInputSequence = -1;
+      existing.movementHistory.length = 0;
+      this.clearPlayerHeadCollisionRecords(existing.entityId);
+      this.recordPlayerMovement(existing, now);
       return toRosterPlayer(existing);
     }
     if (this.playersByAccount.size >= MAX_PLAYERS) return null;
@@ -293,6 +312,8 @@ export class UltraWorld {
     if (this.alivePlayers().length === 0) this.resetSharedWorld();
     const spawn = this.findPlayerSpawn();
     this.resetPlayerRun(player, spawn);
+    this.recordPlayerMovement(player, now);
+    this.now = now;
     this.effectSound('start', player.entityId);
     return true;
   }
@@ -308,6 +329,7 @@ export class UltraWorld {
     player.upgradeOffer = null;
     if (this.alivePlayers().length === 0) this.resetSharedWorld();
     this.resetPlayerRun(player, this.findPlayerSpawn());
+    this.recordPlayerMovement(player, now);
     this.effectSound('start', player.entityId);
     this.now = now;
     return true;
@@ -351,7 +373,7 @@ export class UltraWorld {
     return true;
   }
 
-  applyInput(accountId: string, payload: PlayerMovementState): boolean {
+  applyInput(accountId: string, payload: PlayerMovementState, now = this.now): boolean {
     const player = this.playersByAccount.get(accountId);
     if (!player?.alive || player.autopilot || player.paused || player.choosingUpgrade || !payload || typeof payload !== 'object') return false;
     if (!Number.isSafeInteger(payload.sequence) || payload.sequence <= player.lastInputSequence) return false;
@@ -403,6 +425,7 @@ export class UltraWorld {
       segment.row = source.row;
       segment.angle = normalizeAngle(source.angle);
     }
+    this.recordPlayerMovement(player, now);
     return true;
   }
 
@@ -410,6 +433,7 @@ export class UltraWorld {
     const player = this.playersByAccount.get(accountId);
     if (!player?.alive || player.autopilot || !claim || typeof claim !== 'object') return false;
     if (!Number.isSafeInteger(claim.targetId) || claim.targetId <= 0) return false;
+    if (claim.kind === 'player-head') return this.applyPlayerHeadCollisionClaim(player, claim, now);
     if (claim.kind === 'player-body') {
       const defender = this.playersByEntity.get(claim.targetId);
       const segment = defender?.segments[claim.segmentIndex];
@@ -458,6 +482,162 @@ export class UltraWorld {
       player.thornsCooldown = 6 * Math.pow(0.85, thorns - 1);
     }
     return true;
+  }
+
+  private applyPlayerHeadCollisionClaim(
+    source: PlayerEntity,
+    claim: Extract<PlayerCollisionClaim, { kind: 'player-head' }>,
+    now: number,
+  ): boolean {
+    const target = this.playersByEntity.get(claim.targetId);
+    if (
+      !target?.alive
+      || target === source
+      || this.isPlayerProtected(source)
+      || this.isPlayerProtected(target)
+      || !Number.isSafeInteger(claim.sequence)
+      || claim.sequence < 0
+    ) return false;
+    const eventId = `${source.entityId}:${claim.sequence}`;
+    this.prunePlayerHeadCollisionRecords(now);
+    if (this.recentPlayerHeadCollisionEvents.has(eventId)) return true;
+    const pairKey = source.entityId < target.entityId
+      ? `${source.entityId}:${target.entityId}`
+      : `${target.entityId}:${source.entityId}`;
+    const recentPair = this.recentPlayerHeadCollisionPairs.get(pairKey);
+    if (recentPair && now - recentPair.at < NETWORK_COLLISION_CLAIM_COOLDOWN_MS) {
+      this.recentPlayerHeadCollisionEvents.set(eventId, now);
+      return true;
+    }
+    const validated = this.validatePlayerHeadCollision(source, target, claim, now);
+    if (!validated) return false;
+    const event: PlayerHeadCollisionEvent = {
+      id: eventId,
+      sourceEntityId: source.entityId,
+      targetEntityId: target.entityId,
+      sequence: claim.sequence,
+      observedAt: claim.observedAt,
+      serverTime: now,
+      sourceCol: claim.sourceCol,
+      sourceRow: claim.sourceRow,
+      targetCol: claim.targetCol,
+      targetRow: claim.targetRow,
+      normalCol: validated.normalCol,
+      normalRow: validated.normalRow,
+    };
+    this.recentPlayerHeadCollisionPairs.set(pairKey, { eventId, at: now });
+    this.recentPlayerHeadCollisionEvents.set(eventId, now);
+    if (target.autopilot) {
+      this.bounceEntity(target, -event.normalCol, -event.normalRow, PLAYER_COLORS[target.colorIndex], 0.58);
+    }
+    this.callbacks.onPlayerHeadCollision?.(event);
+    return true;
+  }
+
+  private validatePlayerHeadCollision(
+    source: PlayerEntity,
+    target: PlayerEntity,
+    claim: Extract<PlayerCollisionClaim, { kind: 'player-head' }>,
+    now: number,
+  ): { normalCol: number; normalRow: number } | null {
+    const values = [
+      claim.observedAt,
+      claim.sourceCol,
+      claim.sourceRow,
+      claim.targetCol,
+      claim.targetRow,
+      claim.normalCol,
+      claim.normalRow,
+    ];
+    if (values.some((value) => !Number.isFinite(value))) return null;
+    if (
+      claim.observedAt < now - NETWORK_COLLISION_HISTORY_MS
+      || claim.observedAt > now + NETWORK_HEAD_COLLISION_EVENT_GRACE_MS
+    ) return null;
+    const sourceSample = source.movementHistory.find((sample) => sample.sequence === claim.sequence);
+    if (!sourceSample) return null;
+    let targetSample: PlayerMovementSample | null = null;
+    let targetSampleAge = Number.POSITIVE_INFINITY;
+    for (const sample of target.movementHistory) {
+      const age = Math.abs(sample.at - claim.observedAt);
+      if (age >= targetSampleAge) continue;
+      targetSample = sample;
+      targetSampleAge = age;
+    }
+    if (!targetSample) return null;
+    const sourceError = Math.hypot(sourceSample.col - claim.sourceCol, sourceSample.row - claim.sourceRow);
+    const targetTolerance = NETWORK_HEAD_COLLISION_VALIDATION_TOLERANCE + target.speed * targetSampleAge / 1000;
+    const targetError = Math.hypot(targetSample.col - claim.targetCol, targetSample.row - claim.targetRow);
+    if (sourceError > NETWORK_HEAD_COLLISION_VALIDATION_TOLERANCE || targetError > targetTolerance) return null;
+    const relativeCol = claim.sourceCol - claim.targetCol;
+    const relativeRow = claim.sourceRow - claim.targetRow;
+    const contactDistance = Math.hypot(relativeCol, relativeRow);
+    if (contactDistance > this.playerHeadRadiusCells() * 2 + NETWORK_HEAD_COLLISION_CONTACT_ALLOWANCE) return null;
+    if (contactDistance >= 0.001) {
+      return { normalCol: relativeCol / contactDistance, normalRow: relativeRow / contactDistance };
+    }
+    const normalLength = Math.hypot(claim.normalCol, claim.normalRow);
+    if (normalLength < 0.001) return null;
+    return { normalCol: claim.normalCol / normalLength, normalRow: claim.normalRow / normalLength };
+  }
+
+  private recordPlayerMovement(player: PlayerEntity, at: number): void {
+    if (!Number.isFinite(at)) return;
+    player.movementHistory.push({
+      at,
+      sequence: player.lastInputSequence,
+      col: player.col,
+      row: player.row,
+      angle: player.angle,
+    });
+    const cutoff = at - NETWORK_COLLISION_HISTORY_MS;
+    let removeCount = 0;
+    while (removeCount < player.movementHistory.length - 1 && player.movementHistory[removeCount].at < cutoff) removeCount += 1;
+    if (removeCount > 0) player.movementHistory.splice(0, removeCount);
+  }
+
+  private prunePlayerHeadCollisionRecords(now: number): void {
+    for (const [key, collision] of this.recentPlayerHeadCollisionPairs) {
+      if (now - collision.at > NETWORK_COLLISION_CLAIM_COOLDOWN_MS * 4) this.recentPlayerHeadCollisionPairs.delete(key);
+    }
+    const eventRetention = Math.max(NETWORK_COLLISION_HISTORY_MS, NETWORK_COLLISION_CLAIM_COOLDOWN_MS * 8);
+    for (const [id, at] of this.recentPlayerHeadCollisionEvents) {
+      if (now - at > eventRetention) this.recentPlayerHeadCollisionEvents.delete(id);
+    }
+  }
+
+  private publishAuthoritativePlayerHeadCollision(
+    source: PlayerEntity,
+    target: PlayerEntity,
+    normal: GridPoint,
+    now: number,
+  ): void {
+    this.prunePlayerHeadCollisionRecords(now);
+    const pairKey = source.entityId < target.entityId
+      ? `${source.entityId}:${target.entityId}`
+      : `${target.entityId}:${source.entityId}`;
+    const recentPair = this.recentPlayerHeadCollisionPairs.get(pairKey);
+    if (recentPair && now - recentPair.at < NETWORK_COLLISION_CLAIM_COOLDOWN_MS) return;
+    const normalLength = Math.hypot(normal.col, normal.row);
+    if (normalLength < 0.001) return;
+    const eventId = `server:${this.tick}:${source.entityId}:${target.entityId}`;
+    const event: PlayerHeadCollisionEvent = {
+      id: eventId,
+      sourceEntityId: source.entityId,
+      targetEntityId: target.entityId,
+      sequence: this.tick,
+      observedAt: now,
+      serverTime: now,
+      sourceCol: source.col,
+      sourceRow: source.row,
+      targetCol: target.col,
+      targetRow: target.row,
+      normalCol: normal.col / normalLength,
+      normalRow: normal.row / normalLength,
+    };
+    this.recentPlayerHeadCollisionPairs.set(pairKey, { eventId, at: now });
+    this.recentPlayerHeadCollisionEvents.set(eventId, now);
+    this.callbacks.onPlayerHeadCollision?.(event);
   }
 
   claimFoods(accountId: string, foodIds: readonly number[]): number[] {
@@ -537,6 +717,7 @@ export class UltraWorld {
     this.enemyKnockbackMultiplier = 1 + this.maximumModuleCount('momentum', active) * 0.18;
     for (const player of active) if (player.autopilot && player.collisionCooldown <= 0) player.desiredAngle = this.autopilotAngle(player, present);
     for (const player of active) this.movePlayer(player, worldDelta);
+    for (const player of active) this.recordPlayerMovement(player, now);
     this.updateFood(worldDelta, active);
     for (const player of active) {
       this.updateHeadWeapon(player, worldDelta);
@@ -686,6 +867,7 @@ export class UltraWorld {
       cacheKills: 0,
       headFireTimer: HEAD_ATTACK_INTERVAL * ATTACK_INTERVAL_SCALE,
       lastInputSequence: -1,
+      movementHistory: [],
       score: 0,
       kills: 0,
       botKills: 0,
@@ -732,6 +914,8 @@ export class UltraWorld {
     player.cacheKills = 0;
     player.headFireTimer = HEAD_ATTACK_INTERVAL * ATTACK_INTERVAL_SCALE;
     player.lastInputSequence = -1;
+    player.movementHistory.length = 0;
+    this.clearPlayerHeadCollisionRecords(player.entityId);
     player.score = 0;
     player.kills = 0;
     player.botKills = 0;
@@ -771,6 +955,19 @@ export class UltraWorld {
     this.hazards = [];
     this.pendingSpawns = [];
     this.pendingEffects = [];
+    this.recentPlayerHeadCollisionPairs.clear();
+    this.recentPlayerHeadCollisionEvents.clear();
+  }
+
+  private clearPlayerHeadCollisionRecords(entityId: number): void {
+    const prefix = `${entityId}:`;
+    const suffix = `:${entityId}`;
+    for (const key of this.recentPlayerHeadCollisionPairs.keys()) {
+      if (key.startsWith(prefix) || key.endsWith(suffix)) this.recentPlayerHeadCollisionPairs.delete(key);
+    }
+    for (const id of this.recentPlayerHeadCollisionEvents.keys()) {
+      if (id.startsWith(prefix)) this.recentPlayerHeadCollisionEvents.delete(id);
+    }
   }
 
   private alivePlayers(): PlayerEntity[] {
@@ -2242,6 +2439,7 @@ export class UltraWorld {
         const normal = collisionNormal(left, right);
         this.bounceEntity(left, normal.col, normal.row, PLAYER_COLORS[left.colorIndex], 0.58);
         if (right.alive) this.bounceEntity(right, -normal.col, -normal.row, PLAYER_COLORS[right.colorIndex], 0.58);
+        this.publishAuthoritativePlayerHeadCollision(left, right, normal, now);
       }
     }
 
@@ -2253,6 +2451,7 @@ export class UltraWorld {
         if (!attacker.alive || Math.hypot(attacker.col - defender.col, attacker.row - defender.row) >= this.playerHeadRadiusCells() * 2) continue;
         const normal = collisionNormal(attacker, defender);
         this.bounceEntity(attacker, normal.col, normal.row, PLAYER_COLORS[attacker.colorIndex], 0.58);
+        this.publishAuthoritativePlayerHeadCollision(attacker, defender, normal, now);
         break;
       }
     }

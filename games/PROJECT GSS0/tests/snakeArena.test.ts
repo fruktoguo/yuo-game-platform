@@ -7,7 +7,7 @@ import {
   RESPAWN_DELAY_MS,
   UPGRADE_INVULNERABILITY_DURATION,
 } from '../src/shared/constants';
-import type { UltraEffect, UltraProjectileEvent } from '../src/shared/protocol';
+import type { PlayerHeadCollisionEvent, UltraEffect, UltraProjectileEvent } from '../src/shared/protocol';
 import { UltraWorld } from '../src/server/UltraWorld';
 
 describe('UltraWorld 原版 PvE 与多人共享世界', () => {
@@ -394,6 +394,65 @@ describe('UltraWorld 原版 PvE 与多人共享世界', () => {
     expect(enemy.collisionCooldown).toBeGreaterThan(0);
   });
 
+  it('玩家头撞按客户端所见时刻回溯校验，双方重复声明只广播一次', () => {
+    const collisions: PlayerHeadCollisionEvent[] = [];
+    const world = new UltraWorld({
+      random: () => 0.4,
+      callbacks: { onPlayerHeadCollision: (event) => collisions.push(event) },
+    });
+    world.connectPlayer('account-a', '左侧玩家', 0);
+    world.connectPlayer('account-b', '右侧玩家', 0);
+    world.spawn('account-a', 0);
+    world.spawn('account-b', 0);
+    Reflect.set(world, 'waveTimer', 999);
+    const players = Reflect.get(world, 'playersByAccount') as Map<string, TestPlayerEntity>;
+    const left = players.get('account-a')!;
+    const right = players.get('account-b')!;
+    left.col = 10;
+    left.row = 10;
+    left.angle = 0;
+    right.col = 10.9;
+    right.row = 10;
+    right.angle = Math.PI;
+
+    expect(world.applyInput('account-a', movementState(left, 1, 0), 100)).toBe(true);
+    expect(world.applyInput('account-b', movementState(right, 1, Math.PI), 100)).toBe(true);
+    expect(world.applyCollisionClaim('account-a', {
+      kind: 'player-head',
+      targetId: right.entityId,
+      sequence: 1,
+      observedAt: 100,
+      sourceCol: 10,
+      sourceRow: 10,
+      targetCol: 10.9,
+      targetRow: 10,
+      normalCol: -1,
+      normalRow: 0,
+    }, 120)).toBe(true);
+    expect(collisions).toHaveLength(1);
+    expect(collisions[0]).toMatchObject({
+      id: `${left.entityId}:1`,
+      sourceEntityId: left.entityId,
+      targetEntityId: right.entityId,
+      normalCol: -1,
+      normalRow: 0,
+    });
+
+    expect(world.applyCollisionClaim('account-b', {
+      kind: 'player-head',
+      targetId: left.entityId,
+      sequence: 1,
+      observedAt: 100,
+      sourceCol: 10.9,
+      sourceRow: 10,
+      targetCol: 10,
+      targetRow: 10,
+      normalCol: 1,
+      normalRow: 0,
+    }, 130)).toBe(true);
+    expect(collisions).toHaveLength(1);
+  });
+
   it('敌蛇在原版 1.5 秒预警后生成并自主移动', () => {
     const world = new UltraWorld({ random: () => 0.37 });
     world.connectPlayer('account-a', '玩家甲', 0);
@@ -579,7 +638,11 @@ describe('UltraWorld 原版 PvE 与多人共享世界', () => {
     expect(bodyWorld.getRoster().find((player) => player.name === '玩家甲')?.alive).toBe(false);
     expect(bodyWorld.getRoster().find((player) => player.name === '玩家乙')?.alive).toBe(true);
 
-    const headWorld = new UltraWorld({ random: () => 0.3 });
+    const headCollisions: PlayerHeadCollisionEvent[] = [];
+    const headWorld = new UltraWorld({
+      random: () => 0.3,
+      callbacks: { onPlayerHeadCollision: (event) => headCollisions.push(event) },
+    });
     headWorld.connectPlayer('account-a', '玩家甲', 0);
     headWorld.connectPlayer('account-b', '玩家乙', 0);
     headWorld.spawn('account-a', 0);
@@ -602,6 +665,7 @@ describe('UltraWorld 原版 PvE 与多人共享世界', () => {
     expect(right.collisionCooldown).toBeGreaterThan(0);
     expect(left.knockbackX).not.toBe(0);
     expect(right.knockbackX).not.toBe(0);
+    expect(headCollisions).toHaveLength(1);
   });
 
   it('联机自动驾驶无需客户端输入也会持续转向并自动选择升级', () => {
@@ -756,6 +820,7 @@ describe('UltraWorld 原版 PvE 与多人共享世界', () => {
 });
 
 interface TestPlayerEntity {
+  entityId: number;
   col: number;
   row: number;
   angle: number;

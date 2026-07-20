@@ -10,6 +10,7 @@ runInThisContext(readFileSync(new URL('../network-codec.js', import.meta.url), '
 runInThisContext(readFileSync(new URL('../network-player-prediction.js', import.meta.url), 'utf8'));
 runInThisContext(readFileSync(new URL('../network-player-state-codec.js', import.meta.url), 'utf8'));
 runInThisContext(readFileSync(new URL('../network-player-collisions.js', import.meta.url), 'utf8'));
+runInThisContext(readFileSync(new URL('../network-head-collisions.js', import.meta.url), 'utf8'));
 runInThisContext(readFileSync(new URL('../network-food-claims.js', import.meta.url), 'utf8'));
 runInThisContext(readFileSync(new URL('../network-projectiles.js', import.meta.url), 'utf8'));
 
@@ -18,6 +19,7 @@ const clientGlobals = globalThis as typeof globalThis & {
   GSS0PlayerPrediction: { create: (options?: Record<string, number>) => ClientPlayerPredictionRuntime };
   GSS0PlayerStateCodec: { encode: (sequence: number, player: Record<string, unknown>) => Uint8Array };
   GSS0PlayerCollisions: { detect: (...args: unknown[]) => Record<string, unknown> | null };
+  GSS0NetworkHeadCollisions: { create: (options?: Record<string, number>) => ClientHeadCollisionRuntime };
   GSS0FoodClaimRuntime: { create: (options?: { maximumBatchSize?: number; retryAfterMs?: number }) => ClientFoodClaimRuntime };
   GSS0ProjectileRuntime: { create: (gridSize: number) => ClientProjectileRuntime };
 };
@@ -48,6 +50,16 @@ interface ClientPlayerPredictionRuntime {
   reconcile(authoritative: UltraSnapshot['players'][number]): void;
   syncAuthoritative(authoritative: UltraSnapshot['players'][number]): void;
   update(duration: number, desiredAngle: number, turnRate: number, speed: number): void;
+}
+
+interface ClientHeadCollisionRuntime {
+  apply(event: Record<string, unknown>, selfEntityId: number, now: number): boolean;
+  clear(): void;
+  isPairCooling(leftEntityId: number, rightEntityId: number, now: number): boolean;
+  markLocal(sourceEntityId: number, targetEntityId: number, sequence: number, normalCol: number, normalRow: number, now: number): string;
+  offsetFor(entityId: number, now: number): { col: number; row: number } | null;
+  receive(event: Record<string, unknown>, now: number): boolean;
+  takeReady(now: number, isVisuallyReady: (event: Record<string, unknown>) => boolean): Array<Record<string, unknown>>;
 }
 
 interface ClientProjectileRuntime {
@@ -136,6 +148,37 @@ describe('客户端网络模块', () => {
     const touching = clientGlobals.GSS0PlayerCollisions.detect(player, [{ id: 2, col: 5.7, row: 5, angle: Math.PI, segments: [], dead: false }], [player], options);
     expect(far).toBeNull();
     expect(touching).toMatchObject({ kind: 'enemy-head', targetId: 2 });
+  });
+
+  it('玩家头撞事件可靠去重，先等待视觉接触再平滑补足远端弹开', () => {
+    const runtime = clientGlobals.GSS0NetworkHeadCollisions.create({
+      cooldownMs: 500,
+      eventGraceMs: 120,
+      impulseDistance: 0.22,
+      impulseDuration: 0.24,
+    });
+    expect(runtime.markLocal(1, 2, 8, -1, 0, 100)).toBe('1:8');
+    expect(runtime.isPairCooling(2, 1, 200)).toBe(true);
+    expect(runtime.offsetFor(2, 160)?.col).toBeGreaterThan(0);
+
+    const echoed = {
+      id: '1:8', sourceEntityId: 1, targetEntityId: 2, sequence: 8,
+      normalCol: -1, normalRow: 0,
+    };
+    expect(runtime.receive(echoed, 170)).toBe(false);
+
+    const remote = {
+      id: '3:9', sourceEntityId: 3, targetEntityId: 4, sequence: 9,
+      normalCol: 0, normalRow: 1,
+    };
+    expect(runtime.receive(remote, 200)).toBe(true);
+    expect(runtime.takeReady(250, () => false)).toEqual([]);
+    const ready = runtime.takeReady(321, () => false);
+    expect(ready).toEqual([remote]);
+    expect(runtime.apply(remote, 99, 321)).toBe(true);
+    expect(runtime.apply(remote, 99, 322)).toBe(false);
+    expect(runtime.offsetFor(3, 381)?.row).toBeGreaterThan(0);
+    expect(runtime.offsetFor(4, 381)?.row).toBeLessThan(0);
   });
 
   it('本地推进直线、追踪和反弹，并接受可靠生命周期更新', () => {

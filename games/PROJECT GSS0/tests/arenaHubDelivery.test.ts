@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { ArenaHub } from '../src/server/ArenaHub';
 import { SIMULATION_HZ, SNAPSHOT_HZ } from '../src/shared/constants';
 import { encodePlayerMovementState } from '../src/shared/playerStateCodec';
-import type { ActionResult, FoodClaimPayload, FoodClaimResult, UltraEffect, UltraProjectileEvent } from '../src/shared/protocol';
+import type { ActionResult, FoodClaimPayload, FoodClaimResult, PlayerHeadCollisionEvent, UltraEffect, UltraProjectileEvent } from '../src/shared/protocol';
 
 describe('ArenaHub 联机投递', () => {
   it('合法转向输入立即进入权威世界，不额外等待下一次模拟刷新', () => {
@@ -29,7 +29,11 @@ describe('ArenaHub 联机投递', () => {
       segments: [],
     }));
 
-    expect(applyInput).toHaveBeenCalledWith('account-a', expect.objectContaining({ sequence: 7, col: 4, row: 5, desiredAngle: 1.25 }));
+    expect(applyInput).toHaveBeenCalledWith(
+      'account-a',
+      expect.objectContaining({ sequence: 7, col: 4, row: 5, desiredAngle: 1.25 }),
+      expect.any(Number),
+    );
   });
 
   it('快照保持易失低延迟，战斗反馈与投射物生命周期使用可靠通道', () => {
@@ -64,6 +68,15 @@ describe('ArenaHub 联机投递', () => {
     const publishProjectiles = Reflect.get(hub, 'publishProjectiles') as (events: UltraProjectileEvent[]) => void;
     publishProjectiles.call(hub, projectileEvents);
     expect(reliableEmit).toHaveBeenCalledWith('ultra:projectiles', projectileEvents);
+
+    const playerCollision: PlayerHeadCollisionEvent = {
+      id: '1:8', sourceEntityId: 1, targetEntityId: 2, sequence: 8,
+      observedAt: 100, serverTime: 120, sourceCol: 5, sourceRow: 5,
+      targetCol: 5.9, targetRow: 5, normalCol: -1, normalRow: 0,
+    };
+    const publishPlayerHeadCollision = Reflect.get(hub, 'publishPlayerHeadCollision') as (event: PlayerHeadCollisionEvent) => void;
+    publishPlayerHeadCollision.call(hub, playerCollision);
+    expect(reliableEmit).toHaveBeenCalledWith('ultra:player-head-collision', playerCollision);
   });
 
   it('玩家名单只在状态事件发生时可靠广播，不依赖周期性易失刷新', () => {

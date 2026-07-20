@@ -41,6 +41,15 @@ describe('设计配置', () => {
       maxRenderDpr: 1.25,
       networkPlayerStateHz: 20,
       networkCollisionClaimCooldownMs: 500,
+      networkInterpolationMinMs: 90,
+      networkInterpolationMaxMs: 120,
+      networkCollisionHistoryMs: 800,
+      networkHeadCollisionValidationTolerance: 0.65,
+      networkHeadCollisionContactAllowance: 0.12,
+      networkHeadCollisionEventGraceMs: 120,
+      networkHeadCollisionSeparationRate: 4,
+      networkHeadCollisionRemoteImpulse: 0.22,
+      networkHeadCollisionRemoteImpulseDuration: 0.24,
       enemyDeathHeadParticles: 28,
       enemyDeathBodyParticles: 7,
       enemyDeathHeadParticleSpeed: 185,
@@ -62,7 +71,7 @@ describe('设计配置', () => {
 
     expect(parameterKeys.sort()).toEqual(Object.keys(DESIGNER_BALANCE).sort());
     expect(moduleIds.sort()).toEqual(MODULES.map((module) => module.id).sort());
-    expect(new Set(parameterKeys).size).toBe(35);
+    expect(new Set(parameterKeys).size).toBe(44);
     expect(new Set(moduleIds).size).toBe(58);
   });
 
