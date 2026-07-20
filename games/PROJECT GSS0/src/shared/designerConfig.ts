@@ -143,6 +143,7 @@ export const DESIGNER_BALANCE = Object.freeze({
   enemyDeathBodyParticles: numberSetting('enemyDeathBodyParticles', 7, 1, 40, true),
   enemyDeathHeadParticleSpeed: numberSetting('enemyDeathHeadParticleSpeed', 185, 10, 500),
   enemyDeathBodyParticleSpeed: numberSetting('enemyDeathBodyParticleSpeed', 105, 10, 400),
+  enemyBodyReconnectDuration: numberSetting('enemyBodyReconnectDuration', 0.28, 0.05, 2),
   profileSaveDelaySeconds: numberSetting('profileSaveDelaySeconds', 30, 1, 300),
 });
 

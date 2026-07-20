@@ -44,6 +44,7 @@ export const ENEMY_DEATH_HEAD_PARTICLES = DESIGNER_BALANCE.enemyDeathHeadParticl
 export const ENEMY_DEATH_BODY_PARTICLES = DESIGNER_BALANCE.enemyDeathBodyParticles;
 export const ENEMY_DEATH_HEAD_PARTICLE_SPEED = DESIGNER_BALANCE.enemyDeathHeadParticleSpeed;
 export const ENEMY_DEATH_BODY_PARTICLE_SPEED = DESIGNER_BALANCE.enemyDeathBodyParticleSpeed;
+export const ENEMY_BODY_RECONNECT_DURATION = DESIGNER_BALANCE.enemyBodyReconnectDuration;
 export const GROWTH_NODE_DELAY = 0.045;
 export const GROWTH_PULSE_DURATION = 0.3;
 export const SEGMENT_BIRTH_DURATION = 0.34;

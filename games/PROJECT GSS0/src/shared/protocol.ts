@@ -154,6 +154,7 @@ export type UltraEffect =
   | { id: string; type: 'ring'; col: number; row: number; color: string; life: number; radius: number; endRadius: number; endRadiusUnit: 'pixels' | 'cells'; audienceEntityId?: number }
   | { id: string; type: 'beam' | 'lightning'; col: number; row: number; col2: number; row2: number; color: string; life: number; audienceEntityId?: number }
   | { id: string; type: 'text'; col: number; row: number; text: string; color: string; life: number; audienceEntityId?: number }
+  | { id: string; type: 'enemyBodyHit'; enemyId: number; beforeCount: number; start: number; count: number; reconnectIndex: number; audienceEntityId?: number }
   | { id: string; type: 'sound'; kind: UltraSoundKind; detail?: number; sourceEntityId?: number; audienceEntityId?: number }
   | { id: string; type: 'feedback'; kind: UltraFeedbackKind; audienceEntityId: number }
   | { id: string; type: 'flash'; color: string; strength: number; audienceEntityId?: number }

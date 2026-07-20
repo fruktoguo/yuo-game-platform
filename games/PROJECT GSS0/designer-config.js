@@ -124,6 +124,7 @@ globalThis.GSS0_DESIGNER_CONFIG = {
     "enemyDeathBodyParticles": 7,
     "enemyDeathHeadParticleSpeed": 185,
     "enemyDeathBodyParticleSpeed": 105,
+    "enemyBodyReconnectDuration": 0.28,
     "profileSaveDelaySeconds": 30
   },
   "moduleCooldownPercentages": {

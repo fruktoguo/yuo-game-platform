@@ -6,6 +6,7 @@ import {
   CANONICAL_CELL_SIZE,
   DISCONNECT_GRACE_MS,
   ENEMY_BASE_SPEED,
+  ENEMY_BODY_RECONNECT_DURATION,
   ENEMY_COLORS,
   ENEMY_CONCURRENT_CAP_PER_PLAYER,
   ENEMY_FOOD_SEARCH_LIMIT,
@@ -124,7 +125,13 @@ interface PlayerEntity extends UltraPlayerView {
   poisonOwnerEntityId: number | null;
 }
 
+interface EnemySegment extends GridPoint {
+  reconnectElapsed: number;
+  reconnectGap: number;
+}
+
 interface EnemyEntity extends UltraEnemyView {
+  segments: EnemySegment[];
   birthLength: number;
   speed: number;
   turnRate: number;
@@ -1778,7 +1785,7 @@ export class UltraWorld {
       speed: ENEMY_BASE_SPEED * archetype.speedMultiplier,
       turnRate: this.randomBetween(ENEMY_TURN_RATE_MIN, ENEMY_TURN_RATE_MAX) * archetype.turnMultiplier,
       color: spawn.color,
-      segments: spawn.bodyCells.map((cell) => ({ ...cell })),
+      segments: spawn.bodyCells.map((cell) => ({ ...cell, reconnectElapsed: 0, reconnectGap: 0 })),
       captured: 0,
       targetFoodId: null,
       think: this.randomBetween(0.1, 0.5),
@@ -2048,7 +2055,7 @@ export class UltraWorld {
         for (const target of this.enemies) {
           if (target.dead || target.sawCooldown > 0 || !this.pointHitsTarget(segment, 0.82, target)) continue;
           target.sawCooldown = moduleCooldownSeconds('saw');
-          this.damageTarget(player, target, 1, target, MODULE_BY_ID.saw.color);
+          this.damageTarget(player, target, 1, segment, MODULE_BY_ID.saw.color);
           this.ring(segment.col, segment.row, MODULE_BY_ID.saw.color, 0.3, 5, 0.82, player.entityId);
           this.playSkillSound(player, 'saw');
         }
@@ -2162,7 +2169,7 @@ export class UltraWorld {
             const point = { col: target.col, row: target.row };
             this.hazards.push({ id: this.allocateHazardId(), ownerEntityId: player.entityId, kind: 'gravity', ...point, life: 6, arm: 0, radius: this.pixelsToCells(95), color: MODULE_BY_ID.gravity.color, phase: this.randomBetween(0, TAU) });
             for (const hostile of this.enemies) {
-              if (!hostile.dead && distanceSquared(point, hostile) < this.pixelsToCells(95) ** 2) this.damageTarget(player, hostile, 1, hostile, MODULE_BY_ID.gravity.color);
+              if (!hostile.dead && distanceSquared(point, hostile) < this.pixelsToCells(95) ** 2) this.damageTarget(player, hostile, 1, point, MODULE_BY_ID.gravity.color);
             }
             this.playSkillSound(player, 'gravity');
           }
@@ -2322,7 +2329,7 @@ export class UltraWorld {
     const radius = this.pixelsToCells(105);
     this.ring(origin.col, origin.row, MODULE_BY_ID.pulse.color, 0.55, 16, radius, player.entityId);
     for (const target of this.enemies) {
-      if (!target.dead && distanceSquared(origin, target) < radius * radius) this.damageTarget(player, target, 1, target, MODULE_BY_ID.pulse.color);
+      if (!target.dead && distanceSquared(origin, target) < radius * radius) this.damageTarget(player, target, 1, origin, MODULE_BY_ID.pulse.color);
     }
   }
 
@@ -2335,12 +2342,9 @@ export class UltraWorld {
     let hits = 0;
     for (const hostile of this.enemies) {
       if (hostile.dead) continue;
-      const relativeX = hostile.col - origin.col;
-      const relativeY = hostile.row - origin.row;
-      const projection = relativeX * directionX + relativeY * directionY;
-      const perpendicular = Math.abs(relativeX * directionY - relativeY * directionX);
-      if (projection < 0 || projection > range || perpendicular > this.pixelsToCells(26) + 0.28) continue;
-      this.damageTarget(player, hostile, 1, hostile, MODULE_BY_ID.sweep.color);
+      const hit = this.lineHitTarget(origin, directionX, directionY, range, this.pixelsToCells(26), hostile);
+      if (!hit) continue;
+      this.damageTarget(player, hostile, 1, hit, MODULE_BY_ID.sweep.color);
       hits += 1;
     }
     this.beam('beam', origin, end, MODULE_BY_ID.sweep.color, 0.24, player.entityId);
@@ -2354,7 +2358,7 @@ export class UltraWorld {
     this.burst(target.col, target.row, MODULE_BY_ID.flak.color, 18, 155, player.entityId);
     for (const hostile of this.enemies) {
       if (hostile.dead || distanceSquared(target, hostile) > radius * radius) continue;
-      this.damageTarget(player, hostile, 1, hostile, MODULE_BY_ID.flak.color);
+      this.damageTarget(player, hostile, 1, target, MODULE_BY_ID.flak.color);
       hits += 1;
     }
     return hits > 0;
@@ -2648,7 +2652,7 @@ export class UltraWorld {
       enemy.col = nextCol;
       enemy.row = nextRow;
       this.applyKnockbackDecay(enemy, delta);
-      followContinuousSegments(enemy.col, enemy.row, enemy.segments, 0.54);
+      followEnemySegments(enemy, delta, 0.54);
       if (enemy.collisionCooldown <= 0) {
         const ownBodyHit = findSelfCollision(enemy, 0.48);
         if (ownBodyHit) {
@@ -2851,18 +2855,18 @@ export class UltraWorld {
       end.col = projectile.col;
       end.row = projectile.row;
       const radius = this.pixelsToCells(projectile.size);
-      let contacts: Array<{ hostile: EnemyEntity; progress: number; order: number }> | null = null;
+      let contacts: Array<{ hostile: EnemyEntity; progress: number; segmentIndex: number; order: number }> | null = null;
       for (let order = 0; order < this.enemies.length; order += 1) {
         const hostile = this.enemies[order];
         if (hostile.dead) continue;
         const key = targetKey(hostile);
         if (projectile.hitIds.includes(key)) continue;
-        const progress = this.sweptHitsTarget(start, end, radius, hostile);
-        if (progress !== null) (contacts ??= []).push({ hostile, progress, order });
+        const contact = this.sweptHitsTarget(start, end, radius, hostile);
+        if (contact) (contacts ??= []).push({ hostile, ...contact, order });
       }
       if (contacts) {
         contacts.sort((left, right) => left.progress - right.progress || left.order - right.order);
-        for (const { hostile, progress } of contacts) {
+        for (const { hostile, progress, segmentIndex } of contacts) {
           const key = targetKey(hostile);
           if (hostile.dead || projectile.hitIds.includes(key)) continue;
           const hitPoint = {
@@ -2877,7 +2881,7 @@ export class UltraWorld {
             endedByImpact = true;
             break;
           }
-          this.damageTarget(owner, hostile, 1, hitPoint, projectile.color);
+          this.damageTarget(owner, hostile, 1, hitPoint, projectile.color, segmentIndex);
           projectile.hitIds.push(key);
           if (projectile.slow) hostile.slow = Math.max(hostile.slow, projectile.slow);
           if (projectile.poison) {
@@ -2912,7 +2916,7 @@ export class UltraWorld {
     this.burst(projectile.col, projectile.row, projectile.color, 20, 165, owner.entityId);
     this.feedback('blast', owner.entityId);
     for (const hostile of this.enemies) {
-      if (!hostile.dead && this.pointHitsTarget(projectile, projectile.blastRadius, hostile)) this.damageTarget(owner, hostile, 1, hostile, projectile.color);
+      if (!hostile.dead && this.pointHitsTarget(projectile, projectile.blastRadius, hostile)) this.damageTarget(owner, hostile, 1, projectile, projectile.color);
     }
   }
 
@@ -2935,7 +2939,7 @@ export class UltraWorld {
           hostile.col += dx / distance * pull;
           hostile.row += dy / distance * pull;
           hostile.slow = Math.max(hostile.slow, 0.2);
-          followContinuousSegments(hostile.col, hostile.row, hostile.segments, 0.54);
+          followEnemySegments(hostile, 0, 0.54);
         }
         continue;
       }
@@ -2960,7 +2964,7 @@ export class UltraWorld {
     this.feedback('blast', owner.entityId);
     for (const hostile of this.enemies) {
       if (!hostile.dead && distanceSquared(hazard, hostile) < hazard.radius * hazard.radius) {
-        this.damageTarget(owner, hostile, 1, hostile, hazard.color);
+        this.damageTarget(owner, hostile, 1, hazard, hazard.color);
       }
     }
     if (bounceOwner) this.bounceEntity(owner, owner.col - hazard.col, owner.row - hazard.row, hazard.color, 0.58);
@@ -3101,20 +3105,35 @@ export class UltraWorld {
     return true;
   }
 
-  private damageTarget(owner: PlayerEntity, target: EnemyEntity, amount: number, point: GridPoint, color: string): void {
+  private damageTarget(owner: PlayerEntity, target: EnemyEntity, amount: number, point: GridPoint, color: string, hitSegmentIndex?: number): void {
     if (!this.isTargetAlive(target)) return;
-    let applied = 0;
-    let destroysHead = false;
-    for (let index = 0; index < amount; index += 1) {
-      applied += 1;
-      if (target.segments.length === 0) {
-        destroysHead = true;
-        break;
-      }
-      const removed = target.segments.pop()!;
-      this.burst(removed.col, removed.row, color, 7, 95, owner.entityId);
+    const safeAmount = Math.max(0, Math.floor(amount));
+    if (safeAmount === 0) return;
+    const beforeCount = target.segments.length;
+    const resolvedHitIndex = Number.isInteger(hitSegmentIndex)
+      ? clamp(hitSegmentIndex!, -1, Math.max(-1, beforeCount - 1))
+      : nearestEnemySegmentIndex(target, point);
+    const span = enemyDamageSpan(beforeCount, resolvedHitIndex, safeAmount);
+    const removed = target.segments.splice(span.start, span.count);
+    const destroysHead = safeAmount > beforeCount;
+    const applied = removed.length + Number(destroysHead);
+    const reconnectIndex = span.start < target.segments.length ? span.start : -1;
+    if (removed.length > 0 && !destroysHead) {
+      beginEnemyReconnect(target, reconnectIndex, 0.54);
+      this.pendingEffects.push({
+        id: this.effectId(),
+        type: 'enemyBodyHit',
+        enemyId: target.id,
+        beforeCount,
+        start: span.start,
+        count: removed.length,
+        reconnectIndex,
+      });
+    }
+    for (const segment of removed) {
+      this.burst(segment.col, segment.row, color, 7, 95, owner.entityId);
       const salvageChance = Math.min(0.72, this.moduleCount(owner, 'salvage') * 0.14);
-      if (salvageChance > 0 && this.random() < salvageChance) this.spawnFood({ col: removed.col + this.randomBetween(-0.3, 0.3), row: removed.row + this.randomBetween(-0.3, 0.3) }, true);
+      if (salvageChance > 0 && this.random() < salvageChance) this.spawnFood({ col: segment.col + this.randomBetween(-0.3, 0.3), row: segment.row + this.randomBetween(-0.3, 0.3) }, true);
     }
     this.ring(point.col, point.row, color, 0.34, 3, 0.48, owner.entityId);
     this.textEffect(point.col, point.row - 0.35, `-${applied}`, color, 0.62, owner.entityId);
@@ -3202,6 +3221,24 @@ export class UltraWorld {
     return target.segments.some((segment) => distanceSquared(point, segment) < (radius + this.pixelsToCells(9)) ** 2);
   }
 
+  private lineHitTarget(origin: GridPoint, directionCol: number, directionRow: number, range: number, halfWidth: number, target: EnemyEntity): GridPoint | null {
+    let hit: GridPoint | null = null;
+    let hitProjection = Number.POSITIVE_INFINITY;
+    for (let index = -1; index < target.segments.length; index += 1) {
+      const node = index < 0 ? target : target.segments[index];
+      const relativeCol = node.col - origin.col;
+      const relativeRow = node.row - origin.row;
+      const projection = relativeCol * directionCol + relativeRow * directionRow;
+      if (projection < 0 || projection > range || projection >= hitProjection) continue;
+      const perpendicular = Math.abs(relativeCol * directionRow - relativeRow * directionCol);
+      const radius = index < 0 ? 0.28 : this.pixelsToCells(9);
+      if (perpendicular > halfWidth + radius) continue;
+      hit = node;
+      hitProjection = projection;
+    }
+    return hit;
+  }
+
   private refreshProjectileHitBounds(): void {
     for (const target of this.enemies) {
       if (target.dead) continue;
@@ -3222,7 +3259,7 @@ export class UltraWorld {
     }
   }
 
-  private sweptHitsTarget(start: GridPoint, end: GridPoint, radius: number, target: EnemyEntity): number | null {
+  private sweptHitsTarget(start: GridPoint, end: GridPoint, radius: number, target: EnemyEntity): { progress: number; segmentIndex: number } | null {
     const padding = radius + 0.28;
     if (
       Math.max(start.col, end.col) < target.projectileMinCol - padding
@@ -3231,12 +3268,15 @@ export class UltraWorld {
       || Math.min(start.row, end.row) > target.projectileMaxRow + padding
     ) return null;
     let nearest = sweptContactProgress(start, end, target, radius + 0.28);
+    let segmentIndex = -1;
     const segmentRadius = radius + this.pixelsToCells(9);
-    for (const segment of target.segments) {
-      const progress = sweptContactProgress(start, end, segment, segmentRadius);
-      if (progress !== null && (nearest === null || progress < nearest)) nearest = progress;
+    for (let index = 0; index < target.segments.length; index += 1) {
+      const progress = sweptContactProgress(start, end, target.segments[index], segmentRadius);
+      if (progress === null || (nearest !== null && progress >= nearest)) continue;
+      nearest = progress;
+      segmentIndex = index;
     }
-    return nearest;
+    return nearest === null ? null : { progress: nearest, segmentIndex };
   }
 
   private isTargetAlive(target: EnemyEntity): boolean {
@@ -3398,7 +3438,8 @@ export class UltraWorld {
       entity.chargeAngle = bounceAngle;
       entity.think = 0;
     }
-    followContinuousSegments(entity.col, entity.row, entity.segments, spacing);
+    if (isPlayer) followContinuousSegments(entity.col, entity.row, entity.segments, spacing);
+    else followEnemySegments(entity, 0, spacing);
     this.burst(entity.col, entity.row, color, 13, 135);
     this.ring(entity.col, entity.row, color, 0.38, 5, 0.85);
     if (isPlayer) this.feedback('bounce', entity.entityId);
@@ -3554,6 +3595,64 @@ function followContinuousSegments(headCol: number, headRow: number, segments: Gr
   }
 }
 
+function nearestEnemySegmentIndex(enemy: EnemyEntity, point: GridPoint): number {
+  let nearestIndex = -1;
+  let nearestDistance = distanceSquared(enemy, point);
+  for (let index = 0; index < enemy.segments.length; index += 1) {
+    const distance = distanceSquared(enemy.segments[index], point);
+    if (distance >= nearestDistance) continue;
+    nearestDistance = distance;
+    nearestIndex = index;
+  }
+  return nearestIndex;
+}
+
+function enemyDamageSpan(segmentCount: number, hitSegmentIndex: number, amount: number): { start: number; count: number } {
+  const count = Math.min(segmentCount, amount);
+  if (count <= 0) return { start: 0, count: 0 };
+  if (hitSegmentIndex < 0) return { start: 0, count };
+  const hit = clamp(Math.round(hitSegmentIndex), 0, segmentCount - 1);
+  const before = Math.min(hit, Math.floor((count - 1) / 2));
+  return { start: Math.min(hit - before, segmentCount - count), count };
+}
+
+function beginEnemyReconnect(enemy: EnemyEntity, index: number, spacing: number): void {
+  if (index < 0 || index >= enemy.segments.length) return;
+  const previous = index === 0 ? enemy : enemy.segments[index - 1];
+  const segment = enemy.segments[index];
+  const gap = Math.hypot(previous.col - segment.col, previous.row - segment.row);
+  if (gap <= spacing) return;
+  segment.reconnectElapsed = 0;
+  segment.reconnectGap = gap;
+}
+
+function followEnemySegments(enemy: EnemyEntity, delta: number, spacing: number): void {
+  let previous: GridPoint = enemy;
+  for (const segment of enemy.segments) {
+    let allowedDistance = spacing;
+    if (segment.reconnectGap > spacing) {
+      segment.reconnectElapsed = Math.min(ENEMY_BODY_RECONNECT_DURATION, segment.reconnectElapsed + delta);
+      const progress = ENEMY_BODY_RECONNECT_DURATION <= 0
+        ? 1
+        : clamp(segment.reconnectElapsed / ENEMY_BODY_RECONNECT_DURATION, 0, 1);
+      const eased = 1 - (1 - progress) ** 3;
+      allowedDistance += (segment.reconnectGap - spacing) * (1 - eased);
+      if (progress >= 1) {
+        segment.reconnectElapsed = 0;
+        segment.reconnectGap = 0;
+      }
+    }
+    const dx = previous.col - segment.col;
+    const dy = previous.row - segment.row;
+    const distance = Math.hypot(dx, dy) || 1;
+    if (distance > allowedDistance) {
+      segment.col = previous.col - dx / distance * allowedDistance;
+      segment.row = previous.row - dy / distance * allowedDistance;
+    }
+    previous = segment;
+  }
+}
+
 function toRosterPlayer(player: PlayerEntity): RosterPlayer {
   return {
     entityId: player.entityId,
@@ -3618,7 +3717,7 @@ function toEnemyView(enemy: EnemyEntity): UltraEnemyView {
     angle: enemy.angle,
     color: enemy.color,
     captured: enemy.captured,
-    segments: enemy.segments.map((segment) => ({ ...segment })),
+    segments: enemy.segments.map((segment) => ({ col: segment.col, row: segment.row })),
   };
 }
 

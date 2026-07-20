@@ -338,8 +338,8 @@
     </div>
   </main>
 
-  <script src="enemy-codex.js?v=38"></script>
-  <script src="designer-config.js?v=38"></script>
+  <script src="enemy-codex.js?v=39"></script>
+  <script src="designer-config.js?v=39"></script>
   <script>
     (() => {
       "use strict";
@@ -468,6 +468,7 @@
         { key: "enemyDeathBodyParticles", group: "表现", label: "敌蛇死亡身体粒子数", hint: "敌蛇整体被摧毁时，每节身体位置生成的粒子数量", min: 1, max: 40, step: 1, unit: "个/节" },
         { key: "enemyDeathHeadParticleSpeed", group: "表现", label: "敌蛇死亡头部粒子速度", hint: "头部爆散粒子的基础速度", min: 10, max: 500, step: 5, unit: "速度" },
         { key: "enemyDeathBodyParticleSpeed", group: "表现", label: "敌蛇死亡身体粒子速度", hint: "身体爆散粒子的基础速度", min: 10, max: 400, step: 5, unit: "速度" },
+        { key: "enemyBodyReconnectDuration", group: "表现", label: "敌蛇断体衔接时间", hint: "中段机体被摧毁后，后段身体追上前段并重新衔接所需的时间", min: 0.05, max: 2, step: 0.01, unit: "秒" },
         { key: "profileSaveDelaySeconds", group: "性能", label: "联机战绩批量保存间隔", hint: "玩家结算后合并等待写盘的时间，减少频繁存档尖峰", min: 1, max: 300, step: 1, unit: "秒" }
       ];
 
