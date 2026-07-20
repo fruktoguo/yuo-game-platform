@@ -41,9 +41,11 @@
       </div>
 
       <div class="hud-actions">
-        <button id="lobby-button" class="icon-button lobby-icon" type="button" aria-label="返回大厅" title="返回大厅">
-          <span aria-hidden="true"></span>
-        </button>
+        <div class="setting-control" data-tooltip="返回大厅">
+          <button id="lobby-button" class="icon-button lobby-icon" type="button" aria-label="返回大厅">
+            <span aria-hidden="true"></span>
+          </button>
+        </div>
         <div class="setting-control" data-tooltip="字体大小 150%">
           <button id="font-button" class="icon-button font-icon" type="button" aria-label="调节字体大小，当前 150%" aria-expanded="false" aria-controls="font-popover">
             <span aria-hidden="true">Aa</span>
@@ -96,9 +98,11 @@
             </label>
           </div>
         </div>
-        <button id="pause-button" class="icon-button pause-icon" type="button" aria-label="暂停" title="暂停">
-          <span aria-hidden="true"></span>
-        </button>
+        <div class="setting-control" data-tooltip="暂停">
+          <button id="pause-button" class="icon-button pause-icon" type="button" aria-label="暂停">
+            <span aria-hidden="true"></span>
+          </button>
+        </div>
       </div>
     </header>
 
@@ -140,7 +144,7 @@
 
     <section id="start-screen" class="modal-layer start-screen is-visible" aria-labelledby="game-title">
       <div class="start-glow" aria-hidden="true"></div>
-      <div class="start-version" aria-label="游戏版本 V30"><span>BUILD</span><strong>V30</strong></div>
+      <div class="start-version" aria-label="游戏版本 V31"><span>BUILD</span><strong>V31</strong></div>
       <div class="start-layout">
         <div class="start-content">
           <div id="network-status" class="title-kicker">TACTICAL SURVIVAL / LOCAL</div>
@@ -216,6 +220,20 @@
           <button id="changelog-close-button" class="icon-button codex-close-button" type="button" aria-label="关闭更新日志" title="关闭更新日志">×</button>
         </header>
         <div class="changelog-list">
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V31</strong></div>
+              <time datetime="2026-07-20">2026.07.20</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">易用性</span>
+              <h3>操作提示即时显示</h3>
+              <ul>
+                <li>右上角的返回大厅与暂停按钮改用零延迟提示。</li>
+                <li>全部对局配置与操作按钮现在使用一致的悬停反馈。</li>
+              </ul>
+            </div>
+          </article>
           <article class="changelog-entry">
             <header>
               <div class="changelog-version"><span>BUILD</span><strong>V30</strong></div>
