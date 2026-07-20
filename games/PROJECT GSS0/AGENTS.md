@@ -1,5 +1,9 @@
 # Project Testing
 
+- Run automated tests only when the requested change includes UI or UX work.
+- For gameplay, balance, networking, simulation, server, or non-UI configuration changes, do not run automated tests or automated gameplay verification; the user will perform gameplay validation.
+- When a request combines UI/UX and gameplay work, test only because UI/UX is in scope and keep verification focused on the affected interface flows.
+- Syntax checks, typechecks, production builds, and the deployment checks below are not considered automated tests and may still be run when required for delivery safety.
 - This remains a fully local static game. Players may open `index.html` directly; do not add or require a production server.
 - For Codex browser verification, never navigate to a `file://` URL. Before the first browser action, start an ephemeral localhost static server, test through `http://127.0.0.1:<port>`, and stop that server after verification.
 - For Codex gameplay verification, enter through the main-menu `自动测试` button. Do not test gameplay through normal mouse steering.
