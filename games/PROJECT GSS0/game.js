@@ -84,7 +84,7 @@
 
   const TAU = Math.PI * 2;
   const DESIGNER_CONFIG = globalThis.GSS0_DESIGNER_CONFIG || {};
-  if (DESIGNER_CONFIG.schemaVersion !== 3) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 3");
+  if (DESIGNER_CONFIG.schemaVersion !== 4) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 4");
   const DESIGNER_BALANCE = DESIGNER_CONFIG.balance || {};
   const MODULE_DESIGN_STATES = DESIGNER_CONFIG.moduleStates || {};
   const MODULE_COOLDOWN_PERCENTAGES = DESIGNER_CONFIG.moduleCooldownPercentages || {};
@@ -292,23 +292,73 @@
   const BOUNCE_LOCK_TIME = 0.34;
   const CAMERA_ZOOM = 1;
   const WAVE_BASE_INTERVAL = designerNumber("waveInterval", 6, 0.5, 120);
-  const WAVE_RATE_PER_LEVEL = designerNumber("waveRatePerLevel", 0.1, 0, 1);
-  const WAVE_POPULATION_SOFT_CAP = designerNumber("wavePopulationSoftCap", 10, 0, 1000, true);
-  const WAVE_POPULATION_PENALTY_PER_UNIT = designerNumber("wavePopulationPenaltyPerUnit", 0.1, 0, 2);
   const FOODS_PER_PLAYER_PER_WAVE = designerNumber("foodsPerPlayerPerWave", 2, 0, 20, true);
-  const ENEMIES_PER_PLAYER_PER_WAVE = designerNumber("enemiesPerPlayerPerWave", 1, 0, 12, true);
+  const ENEMY_THREAT_BUDGET_BASE = designerNumber("enemyThreatBudgetBase", 1.5, 0.1, 50);
+  const ENEMY_THREAT_BUDGET_PER_MINUTE = designerNumber("enemyThreatBudgetPerMinute", 0.36, 0, 10);
+  const ENEMY_THREAT_BUDGET_LATE_START_MINUTE = designerNumber("enemyThreatBudgetLateStartMinute", 5, 0, 60);
+  const ENEMY_THREAT_BUDGET_LATE_PER_MINUTE = designerNumber("enemyThreatBudgetLatePerMinute", 0.14, 0, 10);
+  const ENEMY_MAX_SPAWNS_PER_PLAYER_PER_WAVE = designerNumber("enemyMaxSpawnsPerPlayerPerWave", 6, 1, 30, true);
+  const ENEMY_CONCURRENT_CAP_PER_PLAYER = designerNumber("enemyConcurrentCapPerPlayer", 18, 1, 100, true);
+  const ENEMY_SURGE_EVERY_WAVES = designerNumber("enemySurgeEveryWaves", 5, 0, 50, true);
+  const ENEMY_SURGE_BUDGET_MULTIPLIER = designerNumber("enemySurgeBudgetMultiplier", 1.55, 1, 5);
+  const ENEMY_SURGE_RECOVERY_INTERVAL_MULTIPLIER = designerNumber("enemySurgeRecoveryIntervalMultiplier", 1.4, 1, 5);
   const PROJECTILE_SPEED_SCALE = designerNumber("projectileSpeedScale", 3, 0.1, 10);
   const PROJECTILE_SIZE_SCALE = designerNumber("projectileSizeScale", 2, 0.1, 10);
   const PLAYER_BASE_SPEED = designerNumber("playerBaseSpeed", 5, 1, 12);
   const PLAYER_SPEED_PER_LEVEL = designerNumber("playerSpeedPerLevel", 0, 0, 0.5);
   const PLAYER_TURN_RATE = designerNumber("playerTurnRate", 4.2, 0.5, 12);
   const ENEMY_BASE_SPEED = designerNumber("enemyBaseSpeed", 4, 0.5, 12);
-  const ENEMY_SPEED_PER_INITIAL_HEALTH = designerNumber("enemySpeedPerInitialHealth", 0.02, 0, 0.5);
+  const ENEMY_SPEED_PER_MINUTE = designerNumber("enemySpeedPerMinute", 0.01, 0, 0.2);
+  const ENEMY_SPEED_MAX_MULTIPLIER = designerNumber("enemySpeedMaxMultiplier", 1.12, 1, 3);
   const ENEMY_TURN_RATE_MIN = designerNumber("enemyTurnRateMin", 2.05, 0.1, 10);
   const ENEMY_TURN_RATE_MAX = designerNumber("enemyTurnRateMax", 2.75, 0.1, 12);
-  const ENEMY_BASE_HEALTH = designerNumber("enemyBaseHealth", 1, 1, 100, true);
-  const ENEMY_HEALTH_PER_LEVEL_MIN = designerNumber("enemyHealthPerLevelMin", 1, 0, 20);
-  const ENEMY_HEALTH_PER_LEVEL_MAX = designerNumber("enemyHealthPerLevelMax", 2, 0, 30);
+  const ENEMY_HEALTH_GROWTH_INTERVAL_SECONDS = designerNumber("enemyHealthGrowthIntervalSeconds", 180, 15, 1800);
+  const ENEMY_THINK_INTERVAL_MIN = designerNumber("enemyThinkIntervalMin", 0.22, 0.05, 5);
+  const ENEMY_THINK_INTERVAL_MAX = designerNumber("enemyThinkIntervalMax", 0.55, 0.05, 5);
+  const ENEMY_FOOD_SEARCH_LIMIT = designerNumber("enemyFoodSearchLimit", 8, 1, 32, true);
+  function enemyArchetype(id, prefix, defaults) {
+    const healthMin = designerNumber(`enemy${prefix}HealthMin`, defaults.healthMin, 1, 30, true);
+    const healthMax = designerNumber(`enemy${prefix}HealthMax`, defaults.healthMax, 1, 30, true);
+    return Object.freeze({
+      id,
+      unlockSeconds: designerNumber(`enemy${prefix}UnlockSeconds`, defaults.unlockSeconds, 0, 3600),
+      spawnWeight: designerNumber(`enemy${prefix}SpawnWeight`, defaults.spawnWeight, 0, 20),
+      threatCost: designerNumber(`enemy${prefix}ThreatCost`, defaults.threatCost, 0.1, 20),
+      healthMin: Math.min(healthMin, healthMax),
+      healthMax: Math.max(healthMin, healthMax),
+      healthGrowthMax: designerNumber(`enemy${prefix}HealthGrowthMax`, defaults.healthGrowthMax, 0, 20, true),
+      speedMultiplier: designerNumber(`enemy${prefix}SpeedMultiplier`, defaults.speedMultiplier, 0.1, 3),
+      turnMultiplier: designerNumber(`enemy${prefix}TurnMultiplier`, defaults.turnMultiplier, 0.1, 3)
+    });
+  }
+  const ENEMY_ARCHETYPES = Object.freeze([
+    enemyArchetype("scout", "Scout", { unlockSeconds: 0, spawnWeight: 5, threatCost: 1, healthMin: 1, healthMax: 2, healthGrowthMax: 0, speedMultiplier: 1.08, turnMultiplier: 1.15 }),
+    enemyArchetype("forager", "Forager", { unlockSeconds: 0, spawnWeight: 4, threatCost: 1.3, healthMin: 2, healthMax: 3, healthGrowthMax: 0, speedMultiplier: 0.92, turnMultiplier: 1 }),
+    enemyArchetype("courier", "Courier", { unlockSeconds: 120, spawnWeight: 2, threatCost: 1.7, healthMin: 2, healthMax: 3, healthGrowthMax: 1, speedMultiplier: 1.12, turnMultiplier: 1.08 }),
+    enemyArchetype("charger", "Charger", { unlockSeconds: 90, spawnWeight: 1.8, threatCost: 1.6, healthMin: 2, healthMax: 3, healthGrowthMax: 1, speedMultiplier: 0.78, turnMultiplier: 0.72 }),
+    enemyArchetype("cutter", "Cutter", { unlockSeconds: 180, spawnWeight: 1.4, threatCost: 2.4, healthMin: 4, healthMax: 5, healthGrowthMax: 1, speedMultiplier: 1, turnMultiplier: 0.72 }),
+    enemyArchetype("coiler", "Coiler", { unlockSeconds: 300, spawnWeight: 1.05, threatCost: 2.8, healthMin: 4, healthMax: 6, healthGrowthMax: 1, speedMultiplier: 0.78, turnMultiplier: 1.18 }),
+    enemyArchetype("warden", "Warden", { unlockSeconds: 420, spawnWeight: 0.45, threatCost: 4.2, healthMin: 7, healthMax: 8, healthGrowthMax: 2, speedMultiplier: 0.72, turnMultiplier: 0.68 })
+  ]);
+  const ENEMY_ARCHETYPE_BY_ID = Object.freeze(Object.fromEntries(ENEMY_ARCHETYPES.map((entry) => [entry.id, entry])));
+  const ENEMY_ARCHETYPE_GLYPHS = Object.freeze({ scout: "·", forager: "F", courier: "◆", charger: "!", cutter: "×", coiler: "◎", warden: "▣" });
+  const ENEMY_BEHAVIOR_TUNING = Object.freeze({
+    scoutFoodInterest: designerNumber("enemyScoutFoodInterest", 0.3, 0, 1),
+    courierCarryThreshold: designerNumber("enemyCourierCarryThreshold", 3, 1, 100, true),
+    courierFleeStrength: designerNumber("enemyCourierFleeStrength", 0.9, 0, 1),
+    courierFoodClusterRadius: designerNumber("enemyCourierFoodClusterRadius", 2.5, 0.5, 10),
+    chargerCooldown: designerNumber("enemyChargerCooldown", 2.8, 0.1, 20),
+    chargerDetectionRange: designerNumber("enemyChargerDetectionRange", 9, 1, 30),
+    chargerTelegraphDuration: designerNumber("enemyChargerTelegraphDuration", 0.7, 0.1, 5),
+    chargerChargeDuration: designerNumber("enemyChargerChargeDuration", 1.1, 0.1, 5),
+    chargerChargeSpeedMultiplier: designerNumber("enemyChargerChargeSpeedMultiplier", 1.85, 1, 5),
+    cutterLeadDistance: designerNumber("enemyCutterLeadDistance", 3.2, 0.5, 12),
+    cutterLateralDistance: designerNumber("enemyCutterLateralDistance", 2.4, 0.5, 12),
+    coilerOrbitRadius: designerNumber("enemyCoilerOrbitRadius", 2.7, 0.5, 10),
+    coilerRadialCorrection: designerNumber("enemyCoilerRadialCorrection", 0.9, 0, 2),
+    wardenEscortDistance: designerNumber("enemyWardenEscortDistance", 2, 0.5, 10),
+    wardenKnockbackMultiplier: designerNumber("enemyWardenKnockbackMultiplier", 1.5, 1, 4)
+  });
   const UPGRADE_INVULNERABILITY_DURATION = designerNumber("upgradeInvulnerabilityDuration", 0.5, 0, 10);
   const RESPAWN_LOCATOR_CONVERGE_DURATION = designerNumber("respawnLocatorConvergeDuration", 1, 0.1, 10);
   const RESPAWN_LOCATOR_FADE_DURATION = designerNumber("respawnLocatorFadeDuration", 3, 0.1, 20);
@@ -1876,6 +1926,9 @@
       }
       syncNetworkNode(enemy, item, old, amount);
       enemy.angle = interpolateAngle(old?.angle ?? item.angle, item.angle, amount);
+      enemy.archetype = item.archetype;
+      enemy.behaviorState = item.behaviorState;
+      enemy.behaviorPhase = interpolateNumber(old?.behaviorPhase, item.behaviorPhase, amount);
       enemy.radius = arena.cellSize * 0.28;
       enemy.dead = false;
       syncNetworkSegments(enemy.segments, item.segments, old?.segments, amount);
@@ -2069,8 +2122,8 @@
     return true;
   }
 
-  function bounceNetworkSelf(normalCol, normalRow, color) {
-    bounceEntity(player, normalCol, normalRow, color, 0.58);
+  function bounceNetworkSelf(normalCol, normalRow, color, impulseMultiplier = 1) {
+    bounceEntity(player, normalCol, normalRow, color, 0.58, impulseMultiplier);
     networkPlayerPredictionRuntime.adoptLocal(player);
     applyNetworkSelfPrediction(player);
     sendNetworkInput(true, true);
@@ -2152,7 +2205,9 @@
       return;
     }
     if (collision.kind === "enemy-head") {
-      bounceNetworkSelf(collision.normalCol, collision.normalRow, "#dffcff");
+      const enemy = enemies.find((item) => item.id === collision.targetId);
+      const impulseMultiplier = enemy?.archetype === "warden" ? ENEMY_BEHAVIOR_TUNING.wardenKnockbackMultiplier : 1;
+      bounceNetworkSelf(collision.normalCol, collision.normalRow, "#dffcff", impulseMultiplier);
       reportNetworkCollision(
         { kind: "enemy-head", targetId: collision.targetId, normalCol: collision.normalCol, normalRow: collision.normalRow },
         `enemy-head:${collision.targetId}`
@@ -2495,11 +2550,11 @@
     });
   }
 
-  function queueEnemySpawn(occupied = occupiedCellCodes()) {
+  function queueEnemySpawn(archetype, occupied = occupiedCellCodes()) {
     if (!player) return;
-    const healthMinimum = Math.min(ENEMY_HEALTH_PER_LEVEL_MIN, ENEMY_HEALTH_PER_LEVEL_MAX);
-    const healthMaximum = Math.max(ENEMY_HEALTH_PER_LEVEL_MIN, ENEMY_HEALTH_PER_LEVEL_MAX);
-    const totalLength = Math.max(1, Math.round(level * random(healthMinimum, healthMaximum)) + ENEMY_BASE_HEALTH);
+    const baseHealth = Math.floor(random(archetype.healthMin, archetype.healthMax + 1));
+    const growthSteps = Math.floor(gameTime / ENEMY_HEALTH_GROWTH_INTERVAL_SECONDS);
+    const totalLength = Math.max(1, baseHealth + Math.min(growthSteps, archetype.healthGrowthMax));
     const bodySegmentCount = totalLength - 1;
     const placement = chooseEnemySpawn(bodySegmentCount, playerBaseSpeed() * 2, occupied);
     if (!placement) return false;
@@ -2509,6 +2564,7 @@
     const bodyCells = Array.from({ length: bodySegmentCount }, (_, index) => placement.body[Math.min(index, placement.body.length - 1)]);
     pendingEnemySpawns.push({
       id: nextEnemyId++,
+      archetype: archetype.id,
       color,
       totalLength,
       headCell,
@@ -2528,9 +2584,13 @@
     const direction = { dx: nextCell.col - headCell.col, dy: nextCell.row - headCell.row };
     if (direction.dx === 0 && direction.dy === 0) direction.dx = headCell.col < arena.worldMax ? 1 : -1;
     const angle = directionAngle(direction);
+    const archetype = ENEMY_ARCHETYPE_BY_ID[spawn.archetype];
     const headPoint = cellCenter(headCell.col, headCell.row);
     const enemy = {
       id: spawn.id,
+      archetype: spawn.archetype,
+      behaviorState: "roam",
+      behaviorPhase: 0,
       x: headPoint.x,
       y: headPoint.y,
       col: headCell.col,
@@ -2538,7 +2598,8 @@
       angle,
       desiredAngle: angle,
       birthLength: totalLength,
-      speed: ENEMY_BASE_SPEED * (1 + totalLength * ENEMY_SPEED_PER_INITIAL_HEALTH),
+      speed: ENEMY_BASE_SPEED * archetype.speedMultiplier,
+      turnRate: random(Math.min(ENEMY_TURN_RATE_MIN, ENEMY_TURN_RATE_MAX), Math.max(ENEMY_TURN_RATE_MIN, ENEMY_TURN_RATE_MAX)) * archetype.turnMultiplier,
       radius: arena.cellSize * 0.28,
       color,
       segments: bodyCells.map((cell) => makeSegmentAtCell(cell.col, cell.row)),
@@ -2555,6 +2616,9 @@
       bladeCooldown: 0,
       sawCooldown: 0,
       collisionCooldown: 0,
+      behaviorTimer: 0,
+      chargeCooldown: spawn.archetype === "charger" ? ENEMY_BEHAVIOR_TUNING.chargerCooldown * random(0.35, 0.8) : 0,
+      chargeAngle: angle,
       dead: false,
       hitBounds: null
     };
@@ -2576,19 +2640,53 @@
     }
   }
 
-  function fieldPopulationCount() {
-    return foods.length + enemies.reduce((total, enemy) => total + (enemy.dead ? 0 : 1), 0);
-  }
-
-  function spawnCountdownRate() {
-    const population = fieldPopulationCount();
-    const overflow = Math.max(0, population - WAVE_POPULATION_SOFT_CAP);
-    return 1 / (1 + overflow * WAVE_POPULATION_PENALTY_PER_UNIT);
-  }
-
   function waveCountdownRate() {
-    const beaconMultiplier = 1 + moduleCount("beacon") * MODULE_TUNING.beacon.waveRatePerStack;
-    return (1 + level * WAVE_RATE_PER_LEVEL) * beaconMultiplier * spawnCountdownRate();
+    return 1 + moduleCount("beacon") * MODULE_TUNING.beacon.waveRatePerStack;
+  }
+
+  function fieldPopulationCount() {
+    return foods.length + enemies.reduce((total, enemy) => total + Number(!enemy.dead), 0);
+  }
+
+  function enemyThreatBudgetPerPlayer() {
+    const minute = gameTime / 60;
+    const lateMinutes = Math.max(0, minute - ENEMY_THREAT_BUDGET_LATE_START_MINUTE);
+    return ENEMY_THREAT_BUDGET_BASE
+      + minute * ENEMY_THREAT_BUDGET_PER_MINUTE
+      + lateMinutes * ENEMY_THREAT_BUDGET_LATE_PER_MINUTE;
+  }
+
+  function isSurgeWave(waveNumber = waveCount + 1) {
+    return ENEMY_SURGE_EVERY_WAVES > 0 && waveNumber % ENEMY_SURGE_EVERY_WAVES === 0;
+  }
+
+  function chooseEnemyArchetype(budget) {
+    const available = ENEMY_ARCHETYPES.filter((entry) => (
+      entry.unlockSeconds <= gameTime
+      && entry.spawnWeight > 0
+      && entry.threatCost <= budget + 1e-6
+    ));
+    if (!available.length) return null;
+    let roll = Math.random() * available.reduce((sum, entry) => sum + entry.spawnWeight, 0);
+    for (const entry of available) {
+      roll -= entry.spawnWeight;
+      if (roll <= 0) return entry;
+    }
+    return available[available.length - 1];
+  }
+
+  function queueWaveEnemies(occupied) {
+    const currentCount = enemies.reduce((total, enemy) => total + Number(!enemy.dead), 0) + pendingEnemySpawns.length;
+    const spawnLimit = Math.min(
+      Math.max(0, ENEMY_CONCURRENT_CAP_PER_PLAYER - currentCount),
+      ENEMY_MAX_SPAWNS_PER_PLAYER_PER_WAVE
+    );
+    let budget = enemyThreatBudgetPerPlayer() * (isSurgeWave() ? ENEMY_SURGE_BUDGET_MULTIPLIER : 1);
+    for (let spawned = 0; spawned < spawnLimit; spawned += 1) {
+      const archetype = chooseEnemyArchetype(budget);
+      if (!archetype || !queueEnemySpawn(archetype, occupied)) break;
+      budget -= archetype.threatCost;
+    }
   }
 
   function updateSpawns(dt) {
@@ -2596,9 +2694,10 @@
     if (waveTimer <= 0) {
       spawnWaveFoods(FOODS_PER_PLAYER_PER_WAVE);
       const occupied = occupiedCellCodes();
-      for (let index = 0; index < ENEMIES_PER_PLAYER_PER_WAVE; index += 1) queueEnemySpawn(occupied);
+      queueWaveEnemies(occupied);
+      const surgeWave = isSurgeWave();
       waveCount += 1;
-      waveTimer = WAVE_BASE_INTERVAL;
+      waveTimer = WAVE_BASE_INTERVAL * (surgeWave ? ENEMY_SURGE_RECOVERY_INTERVAL_MULTIPLIER : 1);
     }
   }
 
@@ -3484,7 +3583,7 @@
     }
   }
 
-  function bounceEntity(entity, normalX, normalY, color, segmentSpacing) {
+  function bounceEntity(entity, normalX, normalY, color, segmentSpacing, extraImpulseMultiplier = 1) {
     let normalLength = Math.hypot(normalX, normalY);
     if (normalLength < 0.001) {
       normalX = -Math.cos(entity.angle);
@@ -3504,7 +3603,7 @@
     const bounceAngle = Math.atan2(bounceY / bounceLength, bounceX / bounceLength);
 
     const impulseMultiplier = entity === player
-      ? Math.pow(MODULE_TUNING.buffer.knockbackMultiplierPerStack, moduleCount("buffer"))
+      ? Math.pow(MODULE_TUNING.buffer.knockbackMultiplierPerStack, moduleCount("buffer")) * extraImpulseMultiplier
       : 1 + moduleCount("momentum") * MODULE_TUNING.momentum.enemyKnockbackPerStack;
     entity.knockbackX = nx * KNOCKBACK_INITIAL_SPEED * impulseMultiplier;
     entity.knockbackY = ny * KNOCKBACK_INITIAL_SPEED * impulseMultiplier;
@@ -3515,6 +3614,14 @@
     const lockDuration = BOUNCE_LOCK_TIME * Math.pow(MODULE_TUNING.stabilizer.lockMultiplierPerStack, stabilization);
     entity.slow = Math.max(entity.slow || 0, slowDuration);
     entity.collisionCooldown = lockDuration;
+    if (entity !== player && entity.archetype === "charger" && (entity.behaviorState === "telegraph" || entity.behaviorState === "charge")) {
+      entity.behaviorState = "roam";
+      entity.behaviorPhase = 0;
+      entity.behaviorTimer = 0;
+      entity.chargeCooldown = ENEMY_BEHAVIOR_TUNING.chargerCooldown;
+      entity.chargeAngle = bounceAngle;
+      entity.think = 0;
+    }
     syncNodePosition(entity);
     followContinuousSegments(entity.col, entity.row, entity.segments, segmentSpacing);
     if (entity !== player) updateEnemyHitBounds(entity);
@@ -4171,49 +4278,205 @@
     }
   }
 
+  function nearestFoodsForEnemy(origin, limit) {
+    const candidates = [];
+    for (const food of foods) {
+      const candidate = { food, distance: distanceSquared(food, origin) };
+      let insertAt = candidates.length;
+      while (insertAt > 0 && candidate.distance < candidates[insertAt - 1].distance) insertAt -= 1;
+      if (insertAt >= limit) continue;
+      candidates.splice(insertAt, 0, candidate);
+      if (candidates.length > limit) candidates.pop();
+    }
+    return candidates.map((candidate) => candidate.food);
+  }
+
+  function densestEnemyFood(origin, candidates, radius) {
+    if (!candidates.length) return null;
+    const radiusSquared = radius * radius;
+    let selected = candidates[0];
+    let bestScore = -Infinity;
+    for (const candidate of candidates) {
+      let cluster = 0;
+      for (const other of candidates) if (distanceSquared(candidate, other) <= radiusSquared) cluster += 1;
+      const score = cluster * 4 - distanceSquared(candidate, origin) * 0.02;
+      if (score <= bestScore) continue;
+      bestScore = score;
+      selected = candidate;
+    }
+    return selected;
+  }
+
+  function chooseEnemyIntent(enemy) {
+    const candidates = nearestFoodsForEnemy(enemy, ENEMY_FOOD_SEARCH_LIMIT);
+    enemy.wobble += random(-1.2, 1.2);
+    switch (enemy.archetype) {
+      case "scout":
+        enemy.target = Math.random() < ENEMY_BEHAVIOR_TUNING.scoutFoodInterest && candidates.length
+          ? candidates[Math.floor(Math.random() * candidates.length)]
+          : null;
+        enemy.behaviorState = enemy.target ? "forage" : "roam";
+        break;
+      case "courier":
+        if (enemy.captured >= ENEMY_BEHAVIOR_TUNING.courierCarryThreshold) {
+          enemy.target = null;
+          enemy.behaviorState = "flee";
+        } else {
+          enemy.target = densestEnemyFood(enemy, candidates, ENEMY_BEHAVIOR_TUNING.courierFoodClusterRadius);
+          enemy.behaviorState = enemy.target ? "forage" : "roam";
+        }
+        break;
+      case "cutter":
+        enemy.target = null;
+        enemy.behaviorState = "intercept";
+        break;
+      case "coiler":
+        enemy.target = densestEnemyFood(enemy, candidates, ENEMY_BEHAVIOR_TUNING.coilerOrbitRadius);
+        enemy.behaviorState = enemy.target ? "orbit" : "roam";
+        break;
+      case "warden":
+        enemy.target = candidates[0] || null;
+        enemy.behaviorState = "escort";
+        break;
+      default:
+        enemy.target = candidates.length ? candidates[Math.floor(Math.pow(Math.random(), 1.8) * candidates.length)] : null;
+        enemy.behaviorState = enemy.target ? "forage" : "roam";
+        break;
+    }
+  }
+
+  function steerEnemy(enemy, activeFoods) {
+    if (enemy.behaviorState === "flee") {
+      const away = Math.atan2(enemy.row - player.row, enemy.col - player.col);
+      enemy.desiredAngle += angleDelta(enemy.desiredAngle, away) * ENEMY_BEHAVIOR_TUNING.courierFleeStrength;
+      enemy.behaviorPhase = clamp(enemy.captured / ENEMY_BEHAVIOR_TUNING.courierCarryThreshold, 0, 1);
+      return;
+    }
+    if (enemy.behaviorState === "intercept") {
+      const side = Math.sin(enemy.wobble) >= 0 ? 1 : -1;
+      const targetCol = player.col
+        + Math.cos(player.angle) * ENEMY_BEHAVIOR_TUNING.cutterLeadDistance
+        + Math.cos(player.angle + side * Math.PI / 2) * ENEMY_BEHAVIOR_TUNING.cutterLateralDistance;
+      const targetRow = player.row
+        + Math.sin(player.angle) * ENEMY_BEHAVIOR_TUNING.cutterLeadDistance
+        + Math.sin(player.angle + side * Math.PI / 2) * ENEMY_BEHAVIOR_TUNING.cutterLateralDistance;
+      enemy.desiredAngle = Math.atan2(targetRow - enemy.row, targetCol - enemy.col);
+      enemy.behaviorPhase = 0.5 + side * 0.5;
+      return;
+    }
+    if (enemy.behaviorState === "orbit" && enemy.target && activeFoods.has(enemy.target)) {
+      const radialAngle = Math.atan2(enemy.target.row - enemy.row, enemy.target.col - enemy.col);
+      const distance = Math.sqrt(distanceSquared(enemy, enemy.target));
+      const orbitDirection = enemy.id % 2 === 0 ? 1 : -1;
+      const tangent = radialAngle + orbitDirection * Math.PI / 2;
+      const radialError = (distance - ENEMY_BEHAVIOR_TUNING.coilerOrbitRadius) / ENEMY_BEHAVIOR_TUNING.coilerOrbitRadius;
+      const correctionTarget = radialError >= 0 ? radialAngle : radialAngle + Math.PI;
+      const correction = clamp(Math.abs(radialError) * ENEMY_BEHAVIOR_TUNING.coilerRadialCorrection, 0, 0.88);
+      enemy.desiredAngle = tangent + angleDelta(tangent, correctionTarget) * correction;
+      enemy.behaviorPhase = (gameTime * 0.25 + enemy.id * 0.17) % 1;
+      return;
+    }
+    if (enemy.behaviorState === "escort") {
+      let carrier = null;
+      for (const candidate of enemies) {
+        if (candidate === enemy || candidate.dead || candidate.captured <= 0) continue;
+        if (!carrier || candidate.captured > carrier.captured) carrier = candidate;
+      }
+      if (carrier) {
+        const side = enemy.id % 2 === 0 ? 1 : -1;
+        const angle = carrier.angle + side * Math.PI / 2;
+        const targetCol = carrier.col + Math.cos(angle) * ENEMY_BEHAVIOR_TUNING.wardenEscortDistance;
+        const targetRow = carrier.row + Math.sin(angle) * ENEMY_BEHAVIOR_TUNING.wardenEscortDistance;
+        enemy.desiredAngle = Math.atan2(targetRow - enemy.row, targetCol - enemy.col);
+        enemy.behaviorPhase = clamp(carrier.captured / 8, 0, 1);
+        return;
+      }
+    }
+    if (enemy.target && activeFoods.has(enemy.target)) {
+      const ideal = Math.atan2(enemy.target.row - enemy.row, enemy.target.col - enemy.col);
+      const error = Math.sin(gameTime * 1.7 + enemy.wobble) * 0.42 + Math.sin(gameTime * 0.47 + enemy.id) * 0.2;
+      enemy.desiredAngle = ideal + error;
+      enemy.behaviorPhase = 0;
+      return;
+    }
+    enemy.target = null;
+    enemy.behaviorState = "roam";
+    enemy.behaviorPhase = 0;
+    enemy.desiredAngle += Math.sin(gameTime + enemy.wobble) * 0.05;
+  }
+
+  function updateChargerBehavior(enemy, dt) {
+    enemy.chargeCooldown = Math.max(0, enemy.chargeCooldown - dt);
+    if (enemy.behaviorState === "telegraph") {
+      enemy.behaviorTimer -= dt;
+      enemy.behaviorPhase = clamp(1 - enemy.behaviorTimer / ENEMY_BEHAVIOR_TUNING.chargerTelegraphDuration, 0, 1);
+      enemy.desiredAngle = enemy.chargeAngle;
+      enemy.angle = rotateToward(enemy.angle, enemy.chargeAngle, dt * enemy.turnRate * 1.8);
+      if (enemy.behaviorTimer <= 0) {
+        enemy.behaviorState = "charge";
+        enemy.behaviorTimer = ENEMY_BEHAVIOR_TUNING.chargerChargeDuration;
+        enemy.behaviorPhase = 0;
+        enemy.angle = enemy.chargeAngle;
+      }
+      return 0.12;
+    }
+    if (enemy.behaviorState === "charge") {
+      enemy.behaviorTimer -= dt;
+      enemy.behaviorPhase = clamp(1 - enemy.behaviorTimer / ENEMY_BEHAVIOR_TUNING.chargerChargeDuration, 0, 1);
+      enemy.angle = enemy.chargeAngle;
+      enemy.desiredAngle = enemy.chargeAngle;
+      if (enemy.behaviorTimer <= 0) {
+        enemy.behaviorState = "roam";
+        enemy.behaviorPhase = 0;
+        enemy.chargeCooldown = ENEMY_BEHAVIOR_TUNING.chargerCooldown;
+        enemy.think = 0;
+        return 1;
+      }
+      return ENEMY_BEHAVIOR_TUNING.chargerChargeSpeedMultiplier;
+    }
+    if (enemy.chargeCooldown <= 0 && distanceSquared(enemy, player) <= ENEMY_BEHAVIOR_TUNING.chargerDetectionRange ** 2) {
+      enemy.target = null;
+      enemy.behaviorState = "telegraph";
+      enemy.behaviorTimer = ENEMY_BEHAVIOR_TUNING.chargerTelegraphDuration;
+      enemy.behaviorPhase = 0;
+      enemy.chargeAngle = Math.atan2(player.row - enemy.row, player.col - enemy.col);
+      enemy.desiredAngle = enemy.chargeAngle;
+      return 0.12;
+    }
+    return 1;
+  }
+
   function updateEnemies(dt) {
     const chronosMultiplier = Math.pow(MODULE_TUNING.chronos.enemySpeedMultiplierPerStack, moduleCount("chronos"));
+    const timeSpeedMultiplier = Math.min(ENEMY_SPEED_MAX_MULTIPLIER, 1 + gameTime / 60 * ENEMY_SPEED_PER_MINUTE);
     const repulseRange = repulseRangePixels();
     const activeFoods = new Set(foods);
     for (const enemy of enemies) {
       if (enemy.dead) continue;
       enemy.collisionCooldown = Math.max(0, enemy.collisionCooldown - dt);
+      const behaviorSpeedMultiplier = enemy.archetype === "charger"
+        ? updateChargerBehavior(enemy, dt)
+        : 1;
+      const steeringLocked = enemy.behaviorState === "telegraph" || enemy.behaviorState === "charge";
       if (enemy.collisionCooldown <= 0) {
-        enemy.think -= dt;
-        if (enemy.think <= 0) {
-          enemy.think = random(0.24, 0.62);
-          const candidates = [];
-          for (const food of foods) {
-            const candidate = { food, distance: distanceSquared(food, enemy) };
-            let insertAt = candidates.length;
-            while (insertAt > 0 && candidate.distance < candidates[insertAt - 1].distance) insertAt -= 1;
-            if (insertAt >= 6) continue;
-            candidates.splice(insertAt, 0, candidate);
-            if (candidates.length > 6) candidates.pop();
+        if (!steeringLocked) {
+          enemy.think -= dt;
+          if (enemy.think <= 0) {
+            enemy.think = random(Math.min(ENEMY_THINK_INTERVAL_MIN, ENEMY_THINK_INTERVAL_MAX), Math.max(ENEMY_THINK_INTERVAL_MIN, ENEMY_THINK_INTERVAL_MAX));
+            chooseEnemyIntent(enemy);
           }
-          enemy.target = candidates.length ? candidates[Math.floor(Math.pow(Math.random(), 1.8) * candidates.length)].food : null;
-          enemy.wobble += random(-1.2, 1.2);
+          steerEnemy(enemy, activeFoods);
         }
-
-        if (enemy.target && activeFoods.has(enemy.target)) {
-          const ideal = Math.atan2(enemy.target.row - enemy.row, enemy.target.col - enemy.col);
-          const error = Math.sin(gameTime * 1.7 + enemy.wobble) * 0.42 + Math.sin(gameTime * 0.47 + enemy.id) * 0.2;
-          enemy.desiredAngle = ideal + error;
-        } else {
-          enemy.target = null;
-          enemy.desiredAngle += Math.sin(gameTime + enemy.wobble) * 0.05;
-        }
-
         const wallDistance = 1.35;
-        if (enemy.col < arena.worldMin + wallDistance || enemy.col > arena.worldMax - wallDistance || enemy.row < arena.worldMin + wallDistance || enemy.row > arena.worldMax - wallDistance) {
+        if (!steeringLocked && (enemy.col < arena.worldMin + wallDistance || enemy.col > arena.worldMax - wallDistance || enemy.row < arena.worldMin + wallDistance || enemy.row > arena.worldMax - wallDistance)) {
           const center = (arena.worldMin + arena.worldMax) / 2;
           enemy.desiredAngle = Math.atan2(center - enemy.row, center - enemy.col) + Math.sin(enemy.wobble) * 0.18;
         }
 
-        const avoidance = playerBodyAvoidance(enemy);
+        const avoidance = steeringLocked ? null : playerBodyAvoidance(enemy);
         if (avoidance) enemy.desiredAngle += angleDelta(enemy.desiredAngle, avoidance.angle) * avoidance.strength;
 
-        if (repulseRange > 0) {
+        if (!steeringLocked && repulseRange > 0) {
           const distance = Math.sqrt(distanceSquared(player, enemy));
           if (distance < repulseRange) {
             const awayAngle = distance > 0.001
@@ -4225,13 +4488,10 @@
           }
         }
 
-        enemy.angle = rotateToward(enemy.angle, enemy.desiredAngle, dt * random(
-          Math.min(ENEMY_TURN_RATE_MIN, ENEMY_TURN_RATE_MAX),
-          Math.max(ENEMY_TURN_RATE_MIN, ENEMY_TURN_RATE_MAX)
-        ));
+        if (!steeringLocked) enemy.angle = rotateToward(enemy.angle, enemy.desiredAngle, dt * enemy.turnRate);
       }
       const statusMultiplier = enemy.slow > 0 ? 0.55 : 1;
-      const speed = enemy.speed * chronosMultiplier * statusMultiplier;
+      const speed = enemy.speed * timeSpeedMultiplier * behaviorSpeedMultiplier * chronosMultiplier * statusMultiplier;
       const previousPosition = { col: enemy.col, row: enemy.row };
       const nextCol = enemy.col + (Math.cos(enemy.angle) * speed + enemy.knockbackX) * dt;
       const nextRow = enemy.row + (Math.sin(enemy.angle) * speed + enemy.knockbackY) * dt;
@@ -4296,7 +4556,8 @@
             effects.push({ type: "ring", x: player.x, y: player.y, color: MODULE_BY_ID.ram.color, life: 0.42, maxLife: 0.42, radius: 6, endRadius: arena.cellSize });
             playSkillSound("ram");
           }
-          bounceEntity(player, normalX, normalY, "#dffcff", 0.58);
+          const impulseMultiplier = enemy.archetype === "warden" ? ENEMY_BEHAVIOR_TUNING.wardenKnockbackMultiplier : 1;
+          bounceEntity(player, normalX, normalY, "#dffcff", 0.58, impulseMultiplier);
           if (!enemy.dead) bounceEntity(enemy, -normalX, -normalY, enemy.color, 0.54);
         }
         continue;
@@ -4334,6 +4595,10 @@
         activeFoods.delete(food);
         enemy.captured += 1;
         enemy.target = null;
+        if (enemy.archetype === "courier" && enemy.captured >= ENEMY_BEHAVIOR_TUNING.courierCarryThreshold) {
+          enemy.behaviorState = "flee";
+          enemy.think = 0;
+        }
         burst(collector.x, collector.y, enemy.color, 5, 55);
         effects.push({ type: "text", x: collector.x, y: collector.y - arena.cellSize * 0.4, text: `×${enemy.captured}`, color: enemy.color, life: 0.55, maxLife: 0.55 });
         break;
@@ -4672,7 +4937,8 @@
         playSkillSound("ram");
       }
 
-      bounceEntity(player, normalX, normalY, "#dffcff", 0.58);
+      const impulseMultiplier = enemy.archetype === "warden" ? ENEMY_BEHAVIOR_TUNING.wardenKnockbackMultiplier : 1;
+      bounceEntity(player, normalX, normalY, "#dffcff", 0.58, impulseMultiplier);
       if (!enemy.dead) bounceEntity(enemy, -normalX, -normalY, enemy.color, 0.54);
       return;
     }
@@ -5091,6 +5357,14 @@
       ctx.moveTo(head.x + markerSize, head.y - markerSize);
       ctx.lineTo(head.x - markerSize, head.y + markerSize);
       ctx.stroke();
+
+      ctx.setLineDash([]);
+      ctx.globalAlpha = 0.72 + blink * 0.28;
+      ctx.fillStyle = "#ffffff";
+      ctx.font = `900 ${Math.max(10, arena.cellSize * 0.38)}px Bahnschrift, Arial Narrow, sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(ENEMY_ARCHETYPE_GLYPHS[spawn.archetype] || "!", head.x, head.y);
       ctx.restore();
     }
   }
@@ -5123,74 +5397,154 @@
     ctx.restore();
   }
 
-  function drawEnemy(enemy) {
-    const pieceScale = arenaPieceScale();
-    drawLinkedPath(enemy, enemy.segments, "rgba(4, 6, 7, 0.92)", 11 * pieceScale);
-    drawLinkedPath(enemy, enemy.segments, enemy.color, 2.2 * pieceScale, 0.72);
+  function drawEnemyBehaviorCue(enemy, pieceScale) {
+    if (enemy.archetype !== "charger" || (enemy.behaviorState !== "telegraph" && enemy.behaviorState !== "charge")) return;
+    const charging = enemy.behaviorState === "charge";
+    const pulse = 0.45 + Math.abs(Math.sin(visualTime * 18)) * 0.55;
+    const directionX = Math.cos(enemy.angle);
+    const directionY = Math.sin(enemy.angle);
+    const lineLength = Math.min(arena.worldSize * 0.55, ENEMY_BEHAVIOR_TUNING.chargerDetectionRange) * arena.cellSize;
+    ctx.save();
+    ctx.globalAlpha = charging ? 0.7 : 0.25 + pulse * 0.45;
+    ctx.strokeStyle = charging ? "#ffffff" : enemy.color;
+    ctx.lineWidth = Math.max(2, 2.5 * pieceScale);
+    ctx.setLineDash(charging ? [] : [10 * pieceScale, 8 * pieceScale]);
+    ctx.lineDashOffset = -visualTime * 38;
+    ctx.beginPath();
+    ctx.moveTo(enemy.x + directionX * 16 * pieceScale, enemy.y + directionY * 16 * pieceScale);
+    ctx.lineTo(enemy.x + directionX * lineLength, enemy.y + directionY * lineLength);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.strokeStyle = "#ffffff";
+    ctx.globalAlpha = charging ? 0.72 : 0.3 + pulse * 0.5;
+    ctx.beginPath();
+    ctx.arc(enemy.x, enemy.y, (20 + (1 - enemy.behaviorPhase) * 12) * pieceScale, 0, TAU);
+    ctx.stroke();
+    ctx.restore();
+  }
 
-    for (let index = enemy.segments.length - 1; index >= 0; index -= 1) {
-      const segment = enemy.segments[index];
-      ctx.save();
-      ctx.translate(segment.x, segment.y);
-      ctx.scale(pieceScale, pieceScale);
-      ctx.rotate(segment.angle);
-      ctx.shadowColor = "rgba(0,0,0,0.8)";
-      ctx.shadowBlur = 6;
-      ctx.fillStyle = "#171b1e";
-      ctx.strokeStyle = enemy.color;
-      ctx.lineWidth = 1.8;
-      ctx.beginPath();
-      ctx.moveTo(10, 0);
-      ctx.lineTo(4, 9);
-      ctx.lineTo(-8, 7);
-      ctx.lineTo(-11, 0);
-      ctx.lineTo(-8, -7);
-      ctx.lineTo(4, -9);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-      ctx.shadowBlur = 0;
-      ctx.fillStyle = enemy.color;
-      ctx.globalAlpha = 0.72;
-      ctx.fillRect(-7, -2, 11, 4);
-      ctx.fillStyle = "#e9eceb";
-      ctx.globalAlpha = 0.88;
-      ctx.fillRect(4, -5, 2, 3);
-      ctx.fillRect(4, 2, 2, 3);
-      ctx.restore();
+  function drawEnemySegment(enemy, segment, pieceScale) {
+    ctx.save();
+    ctx.translate(segment.x, segment.y);
+    ctx.scale(pieceScale, pieceScale);
+    ctx.rotate(segment.angle);
+    ctx.shadowColor = "rgba(0,0,0,0.8)";
+    ctx.shadowBlur = 6;
+    ctx.fillStyle = "#171b1e";
+    ctx.strokeStyle = enemy.color;
+    ctx.lineWidth = enemy.archetype === "warden" ? 2.5 : 1.8;
+    ctx.beginPath();
+    switch (enemy.archetype) {
+      case "scout":
+        ctx.moveTo(10, 0); ctx.lineTo(0, 6); ctx.lineTo(-9, 0); ctx.lineTo(0, -6); ctx.closePath();
+        break;
+      case "courier":
+        ctx.roundRect(-11, -7, 22, 14, 3);
+        break;
+      case "charger":
+        ctx.moveTo(11, 0); ctx.lineTo(1, 9); ctx.lineTo(-9, 6); ctx.lineTo(-5, 0); ctx.lineTo(-9, -6); ctx.lineTo(1, -9); ctx.closePath();
+        break;
+      case "cutter":
+        ctx.moveTo(10, 0); ctx.lineTo(0, 11); ctx.lineTo(-5, 4); ctx.lineTo(-11, 0); ctx.lineTo(-5, -4); ctx.lineTo(0, -11); ctx.closePath();
+        break;
+      case "coiler":
+        ctx.arc(0, 0, 9, 0, TAU);
+        break;
+      case "warden":
+        ctx.moveTo(8, -9); ctx.lineTo(11, -4); ctx.lineTo(11, 4); ctx.lineTo(8, 9); ctx.lineTo(-8, 9); ctx.lineTo(-11, 4); ctx.lineTo(-11, -4); ctx.lineTo(-8, -9); ctx.closePath();
+        break;
+      default:
+        ctx.moveTo(10, 0); ctx.lineTo(4, 9); ctx.lineTo(-8, 7); ctx.lineTo(-11, 0); ctx.lineTo(-8, -7); ctx.lineTo(4, -9); ctx.closePath();
+        break;
     }
+    ctx.fill();
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = enemy.color;
+    ctx.globalAlpha = 0.76;
+    if (enemy.archetype === "coiler") {
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(0, 0, 4.5, 0.2, TAU * 0.86);
+      ctx.stroke();
+    } else if (enemy.archetype === "courier") {
+      ctx.fillRect(-5, -5, 9, 10);
+      ctx.fillStyle = "#f4f6f5";
+      ctx.fillRect(-2, -4, 2, 8);
+    } else if (enemy.archetype === "cutter") {
+      ctx.fillRect(-7, -1.5, 14, 3);
+    } else if (enemy.archetype === "warden") {
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 1;
+      ctx.strokeRect(-6, -5, 12, 10);
+    } else {
+      ctx.fillRect(-7, -2, 11, 4);
+    }
+    ctx.restore();
+  }
 
+  function drawEnemyHead(enemy, pieceScale) {
     ctx.save();
     ctx.translate(enemy.x, enemy.y);
     ctx.scale(pieceScale, pieceScale);
     ctx.rotate(enemy.angle);
     ctx.shadowColor = enemy.color;
-    ctx.shadowBlur = 14;
+    ctx.shadowBlur = enemy.archetype === "warden" ? 19 : 14;
     ctx.fillStyle = "#101416";
-    ctx.strokeStyle = "#eff1f0";
-    ctx.lineWidth = 1.7;
+    ctx.strokeStyle = enemy.archetype === "warden" ? enemy.color : "#eff1f0";
+    ctx.lineWidth = enemy.archetype === "warden" ? 3 : 1.7;
     ctx.beginPath();
-    ctx.moveTo(18, 0);
-    ctx.lineTo(8, 12);
-    ctx.lineTo(-7, 11);
-    ctx.lineTo(-15, 5);
-    ctx.lineTo(-12, 0);
-    ctx.lineTo(-15, -5);
-    ctx.lineTo(-7, -11);
-    ctx.lineTo(8, -12);
-    ctx.closePath();
+    switch (enemy.archetype) {
+      case "scout":
+        ctx.moveTo(19, 0); ctx.lineTo(-8, 9); ctx.lineTo(-3, 0); ctx.lineTo(-8, -9); ctx.closePath();
+        break;
+      case "courier":
+        ctx.moveTo(18, 0); ctx.lineTo(9, 9); ctx.lineTo(-11, 9); ctx.lineTo(-16, 4); ctx.lineTo(-16, -4); ctx.lineTo(-11, -9); ctx.lineTo(9, -9); ctx.closePath();
+        break;
+      case "charger":
+        ctx.moveTo(21, 0); ctx.lineTo(8, 7); ctx.lineTo(3, 15); ctx.lineTo(-1, 9); ctx.lineTo(-14, 10); ctx.lineTo(-10, 0); ctx.lineTo(-14, -10); ctx.lineTo(-1, -9); ctx.lineTo(3, -15); ctx.lineTo(8, -7); ctx.closePath();
+        break;
+      case "cutter":
+        ctx.moveTo(18, 0); ctx.lineTo(2, 15); ctx.lineTo(-3, 9); ctx.lineTo(-15, 5); ctx.lineTo(-11, 0); ctx.lineTo(-15, -5); ctx.lineTo(-3, -9); ctx.lineTo(2, -15); ctx.closePath();
+        break;
+      case "coiler":
+        ctx.arc(0, 0, 14, 0, TAU);
+        break;
+      case "warden":
+        ctx.moveTo(16, 0); ctx.lineTo(10, 13); ctx.lineTo(-8, 15); ctx.lineTo(-17, 8); ctx.lineTo(-17, -8); ctx.lineTo(-8, -15); ctx.lineTo(10, -13); ctx.closePath();
+        break;
+      default:
+        ctx.moveTo(18, 0); ctx.lineTo(8, 12); ctx.lineTo(-7, 11); ctx.lineTo(-15, 5); ctx.lineTo(-12, 0); ctx.lineTo(-15, -5); ctx.lineTo(-7, -11); ctx.lineTo(8, -12); ctx.closePath();
+        break;
+    }
     ctx.fill();
     ctx.stroke();
     ctx.shadowBlur = 0;
     ctx.fillStyle = enemy.color;
     ctx.beginPath();
-    ctx.moveTo(18, 0);
-    ctx.lineTo(7, 6);
-    ctx.lineTo(7, -6);
-    ctx.closePath();
-    ctx.fill();
-    ctx.fillStyle = "#f3c600";
-    ctx.fillRect(-11, -8, 3, 16);
+    if (enemy.archetype === "coiler") {
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = enemy.color;
+      ctx.arc(0, 0, 8, 0.25, TAU * 0.9);
+      ctx.stroke();
+    } else if (enemy.archetype === "warden") {
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 1.4;
+      ctx.strokeRect(-10, -9, 18, 18);
+      ctx.fillRect(8, -8, 5, 16);
+    } else if (enemy.archetype === "cutter") {
+      ctx.fillRect(-8, -2, 24, 4);
+    } else if (enemy.archetype === "courier") {
+      ctx.fillRect(-12, -6, 10, 12);
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(-8, -5, 2, 10);
+    } else {
+      ctx.moveTo(enemy.archetype === "charger" ? 21 : 18, 0);
+      ctx.lineTo(7, 6);
+      ctx.lineTo(7, -6);
+      ctx.closePath();
+      ctx.fill();
+    }
     ctx.fillStyle = "#f7f8f7";
     ctx.fillRect(2, -7, 5, 3);
     ctx.fillRect(2, 4, 5, 3);
@@ -5198,6 +5552,15 @@
     ctx.fillRect(4, -7, 2, 3);
     ctx.fillRect(4, 4, 2, 3);
     ctx.restore();
+  }
+
+  function drawEnemy(enemy) {
+    const pieceScale = arenaPieceScale();
+    drawEnemyBehaviorCue(enemy, pieceScale);
+    drawLinkedPath(enemy, enemy.segments, "rgba(4, 6, 7, 0.92)", (enemy.archetype === "warden" ? 14 : 11) * pieceScale);
+    drawLinkedPath(enemy, enemy.segments, enemy.color, (enemy.archetype === "cutter" ? 3.4 : 2.2) * pieceScale, 0.72);
+    for (let index = enemy.segments.length - 1; index >= 0; index -= 1) drawEnemySegment(enemy, enemy.segments[index], pieceScale);
+    drawEnemyHead(enemy, pieceScale);
 
     if (enemy.captured > 0) {
       ctx.save();

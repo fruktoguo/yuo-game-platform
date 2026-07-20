@@ -1,6 +1,12 @@
 import type { PlatformSocketData } from '@yuo-platform/server-sdk';
 import type { ModuleId } from './modules';
 
+export const ENEMY_ARCHETYPE_IDS = ['scout', 'forager', 'courier', 'charger', 'cutter', 'coiler', 'warden'] as const;
+export type EnemyArchetypeId = typeof ENEMY_ARCHETYPE_IDS[number];
+
+export const ENEMY_BEHAVIOR_STATES = ['roam', 'forage', 'flee', 'telegraph', 'charge', 'intercept', 'orbit', 'escort'] as const;
+export type EnemyBehaviorState = typeof ENEMY_BEHAVIOR_STATES[number];
+
 export interface GridPoint {
   col: number;
   row: number;
@@ -57,6 +63,9 @@ export interface UltraPlayerView extends GridPoint {
 
 export interface UltraEnemyView extends GridPoint {
   id: number;
+  archetype: EnemyArchetypeId;
+  behaviorState: EnemyBehaviorState;
+  behaviorPhase: number;
   angle: number;
   color: string;
   captured: number;
@@ -112,6 +121,7 @@ export interface UltraHazardView {
 
 export interface PendingSpawnView {
   id: number;
+  archetype: EnemyArchetypeId;
   color: string;
   headCell: GridPoint;
   bodyCells: GridPoint[];

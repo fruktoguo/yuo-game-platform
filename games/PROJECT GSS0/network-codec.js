@@ -2,10 +2,12 @@
   "use strict";
 
   const MAGIC = 0x55534e50;
-  const VERSION = 5;
+  const VERSION = 6;
   const GRID_SIZE = 24;
   const COORDINATE_PADDING = 2;
   const TAU = Math.PI * 2;
+  const ENEMY_ARCHETYPE_IDS = ["scout", "forager", "courier", "charger", "cutter", "coiler", "warden"];
+  const ENEMY_BEHAVIOR_STATES = ["roam", "forage", "flee", "telegraph", "charge", "intercept", "orbit", "escort"];
   const textDecoder = new TextDecoder("utf-8", { fatal: true });
   const colorCache = new Map();
   let reusableReader = null;
@@ -115,6 +117,10 @@
   function readEnemy(reader, result) {
     result ||= {};
     result.id = reader.u16();
+    result.archetype = ENEMY_ARCHETYPE_IDS[reader.u8()];
+    result.behaviorState = ENEMY_BEHAVIOR_STATES[reader.u8()];
+    result.behaviorPhase = reader.u8() / 255;
+    if (!result.archetype || !result.behaviorState) throw new Error("快照包含未知敌人类型或行为");
     result.col = reader.coordinate();
     result.row = reader.coordinate();
     result.angle = reader.angle();
@@ -173,6 +179,8 @@
   function readSpawn(reader, result) {
     result ||= {};
     result.id = reader.u16();
+    result.archetype = ENEMY_ARCHETYPE_IDS[reader.u8()];
+    if (!result.archetype) throw new Error("快照包含未知敌人出生类型");
     result.color = reader.color();
     const headCell = result.headCell || (result.headCell = {});
     headCell.col = reader.coordinate();

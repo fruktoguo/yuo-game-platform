@@ -1,5 +1,6 @@
 import { GRID_SIZE } from './constants';
 import { MODULES, type ModuleId } from './modules';
+import { ENEMY_ARCHETYPE_IDS, ENEMY_BEHAVIOR_STATES } from './protocol';
 import type {
   GrowthView,
   PendingSpawnView,
@@ -13,13 +14,15 @@ import type {
 } from './protocol';
 
 const MAGIC = 0x5553_4e50;
-const VERSION = 5;
+const VERSION = 6;
 const COORDINATE_SCALE = 65_535;
 const COORDINATE_PADDING = 2;
 const VELOCITY_SCALE = 64;
 const SIZE_SCALE = 256;
 const ANGLE_SCALE = 65_535 / (Math.PI * 2);
 const MODULE_INDEX = new Map<ModuleId, number>(MODULES.map((module, index) => [module.id, index + 1]));
+const ENEMY_ARCHETYPE_INDEX = new Map(ENEMY_ARCHETYPE_IDS.map((id, index) => [id, index]));
+const ENEMY_BEHAVIOR_INDEX = new Map(ENEMY_BEHAVIOR_STATES.map((id, index) => [id, index]));
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder('utf-8', { fatal: true });
 const encodedStrings = new Map<string, Uint8Array>();
@@ -184,14 +187,24 @@ function readGrowth(reader: BinaryReader): GrowthView {
 }
 
 function writeEnemy(writer: BinaryWriter, enemy: UltraEnemyView, arenaSize: number): void {
-  writer.u16(enemy.id); writeCoordinate(writer, enemy.col, arenaSize); writeCoordinate(writer, enemy.row, arenaSize); writeAngle(writer, enemy.angle);
+  const archetypeIndex = ENEMY_ARCHETYPE_INDEX.get(enemy.archetype);
+  const behaviorIndex = ENEMY_BEHAVIOR_INDEX.get(enemy.behaviorState);
+  if (archetypeIndex === undefined || behaviorIndex === undefined) throw new Error('无法编码未知敌人类型或行为');
+  writer.u16(enemy.id); writer.u8(archetypeIndex); writer.u8(behaviorIndex); writer.u8(clampInteger(Math.round(enemy.behaviorPhase * 255), 0, 255));
+  writeCoordinate(writer, enemy.col, arenaSize); writeCoordinate(writer, enemy.row, arenaSize); writeAngle(writer, enemy.angle);
   writer.color(enemy.color); writer.u16(enemy.captured); writer.u16(enemy.segments.length);
   for (const segment of enemy.segments) { writeCoordinate(writer, segment.col, arenaSize); writeCoordinate(writer, segment.row, arenaSize); }
 }
 
 function readEnemy(reader: BinaryReader, arenaSize: number): UltraEnemyView {
+  const id = reader.u16();
+  const archetype = ENEMY_ARCHETYPE_IDS[reader.u8()];
+  const behaviorState = ENEMY_BEHAVIOR_STATES[reader.u8()];
+  const behaviorPhase = reader.u8() / 255;
+  if (!archetype || !behaviorState) throw new Error('Ultra 快照包含未知敌人类型或行为');
   const enemy: UltraEnemyView = {
-    id: reader.u16(), col: readCoordinate(reader, arenaSize), row: readCoordinate(reader, arenaSize), angle: readAngle(reader),
+    id, archetype, behaviorState, behaviorPhase,
+    col: readCoordinate(reader, arenaSize), row: readCoordinate(reader, arenaSize), angle: readAngle(reader),
     color: reader.color(), captured: reader.u16(), segments: [],
   };
   const count = reader.u16();
@@ -238,7 +251,9 @@ function readHazard(reader: BinaryReader, arenaSize: number): UltraHazardView {
 }
 
 function writeSpawn(writer: BinaryWriter, spawn: PendingSpawnView, arenaSize: number): void {
-  writer.u16(spawn.id); writer.color(spawn.color);
+  const archetypeIndex = ENEMY_ARCHETYPE_INDEX.get(spawn.archetype);
+  if (archetypeIndex === undefined) throw new Error('无法编码未知敌人出生类型');
+  writer.u16(spawn.id); writer.u8(archetypeIndex); writer.color(spawn.color);
   writeCoordinate(writer, spawn.headCell.col, arenaSize); writeCoordinate(writer, spawn.headCell.row, arenaSize);
   writer.u16(spawn.bodyCells.length);
   for (const cell of spawn.bodyCells) { writeCoordinate(writer, cell.col, arenaSize); writeCoordinate(writer, cell.row, arenaSize); }
@@ -247,12 +262,14 @@ function writeSpawn(writer: BinaryWriter, spawn: PendingSpawnView, arenaSize: nu
 
 function readSpawn(reader: BinaryReader, arenaSize: number): PendingSpawnView {
   const id = reader.u16();
+  const archetype = ENEMY_ARCHETYPE_IDS[reader.u8()];
+  if (!archetype) throw new Error('Ultra 快照包含未知敌人出生类型');
   const color = reader.color();
   const headCell = { col: readCoordinate(reader, arenaSize), row: readCoordinate(reader, arenaSize) };
   const bodyCells: PendingSpawnView['bodyCells'] = [];
   const count = reader.u16();
   for (let index = 0; index < count; index += 1) bodyCells.push({ col: readCoordinate(reader, arenaSize), row: readCoordinate(reader, arenaSize) });
-  return { id, color, headCell, bodyCells, timer: reader.f32(), maxTimer: reader.f32() };
+  return { id, archetype, color, headCell, bodyCells, timer: reader.f32(), maxTimer: reader.f32() };
 }
 
 class BinaryWriter {

@@ -23,14 +23,30 @@ describe('设计配置', () => {
       playerSpeedPerLevel: 0,
       playerTurnRate: 4.2,
       enemyBaseSpeed: 4,
-      enemySpeedPerInitialHealth: 0.02,
-      enemyBaseHealth: 1,
+      enemySpeedPerMinute: 0.01,
+      enemySpeedMaxMultiplier: 1.12,
+      enemyHealthGrowthIntervalSeconds: 180,
+      enemyThreatBudgetBase: 1.5,
+      enemyThreatBudgetPerMinute: 0.36,
+      enemyThreatBudgetLateStartMinute: 5,
+      enemyThreatBudgetLatePerMinute: 0.14,
+      enemyMaxSpawnsPerPlayerPerWave: 6,
+      enemyConcurrentCapPerPlayer: 18,
+      enemySurgeEveryWaves: 5,
+      enemySurgeBudgetMultiplier: 1.55,
+      enemySurgeRecoveryIntervalMultiplier: 1.4,
+      enemyScoutSpawnWeight: 5,
+      enemyScoutThreatCost: 1,
+      enemyScoutHealthMin: 1,
+      enemyScoutHealthMax: 2,
+      enemyChargerUnlockSeconds: 90,
+      enemyChargerTelegraphDuration: 0.7,
+      enemyCourierCarryThreshold: 3,
+      enemyCutterUnlockSeconds: 180,
+      enemyCoilerUnlockSeconds: 300,
+      enemyWardenUnlockSeconds: 420,
       waveInterval: 6,
-      waveRatePerLevel: 0.1,
-      wavePopulationSoftCap: 10,
-      wavePopulationPenaltyPerUnit: 0.1,
       foodsPerPlayerPerWave: 2,
-      enemiesPerPlayerPerWave: 1,
       projectileSpeedScale: 3,
       projectileSizeScale: 2,
       attackIntervalScale: 2,
@@ -88,7 +104,7 @@ describe('设计配置', () => {
 
     expect(parameterKeys.sort()).toEqual(Object.keys(DESIGNER_BALANCE).sort());
     expect(moduleIds.sort()).toEqual(MODULES.map((module) => module.id).sort());
-    expect(new Set(parameterKeys).size).toBe(45);
+    expect(new Set(parameterKeys).size).toBe(123);
     expect(new Set(moduleIds).size).toBe(58);
   });
 
