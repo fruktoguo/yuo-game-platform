@@ -244,5 +244,5 @@
     return snapshot;
   }
 
-  root.GSS0NetworkCodec = Object.freeze({ decode });
+  root.GSS0NetworkCodec = Object.freeze({ version: VERSION, decode });
 })(globalThis);

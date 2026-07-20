@@ -375,6 +375,7 @@
   const NETWORK_COLLISION_CLAIM_COOLDOWN_MS = designerNumber("networkCollisionClaimCooldownMs", 500, 100, 2000, true);
   const NETWORK_INTERPOLATION_MIN_MS = designerNumber("networkInterpolationMinMs", 90, 40, 300, true);
   const NETWORK_INTERPOLATION_MAX_MS = designerNumber("networkInterpolationMaxMs", 120, 40, 400, true);
+  const NETWORK_SNAPSHOT_STALL_TIMEOUT_MS = Math.max(NETWORK_BASE_SNAPSHOT_MS * 15, NETWORK_INTERPOLATION_MAX_MS * 4);
   const NETWORK_HEAD_COLLISION_CONTACT_ALLOWANCE = designerNumber("networkHeadCollisionContactAllowance", 0.12, 0, 1);
   const NETWORK_HEAD_COLLISION_EVENT_GRACE_MS = designerNumber("networkHeadCollisionEventGraceMs", 120, 0, 500, true);
   const NETWORK_HEAD_COLLISION_SEPARATION_RATE = designerNumber("networkHeadCollisionSeparationRate", 4, 0.1, 20);
@@ -485,6 +486,7 @@
     snapshotIntervalMs: NETWORK_BASE_SNAPSHOT_MS,
     snapshotGapMs: NETWORK_BASE_SNAPSHOT_MS,
     snapshotJitterMs: 0,
+    lastResyncRequestAt: -Infinity,
     renderServerTime: NaN,
     lastPresentationAt: 0,
     presentationSnapshot: null,
@@ -507,6 +509,8 @@
     upgradeOffer: null,
     moduleIds: []
   };
+  const networkSnapshotCodec = globalThis.GSS0NetworkCodec;
+  if (!networkSnapshotCodec) throw new Error("PROJECT GSS0 网络快照解码器未加载");
   const networkProjectileRuntime = globalThis.GSS0ProjectileRuntime?.create(GRID_SIZE);
   if (!networkProjectileRuntime) throw new Error("PROJECT GSS0 投射物运行时未加载");
   const networkPlayerPredictionRuntime = globalThis.GSS0PlayerPrediction?.create({
@@ -1223,6 +1227,7 @@
           setNetworkButtonsDisabled(false);
           return;
         }
+        if (!validateNetworkSnapshotProtocol(result.data.snapshotProtocolVersion, socket)) return;
         network.enabled = true;
         network.connecting = false;
         network.selfEntityId = result.data.selfEntityId;
@@ -1236,6 +1241,7 @@
         network.snapshotIntervalMs = NETWORK_BASE_SNAPSHOT_MS;
         network.snapshotGapMs = NETWORK_BASE_SNAPSHOT_MS;
         network.snapshotJitterMs = 0;
+        network.lastResyncRequestAt = -Infinity;
         network.renderServerTime = NaN;
         network.lastPresentationAt = 0;
         const joinedSelf = result.data.snapshot.players.find((item) => item.entityId === network.selfEntityId);
@@ -1256,18 +1262,19 @@
       });
     });
     socket.on("ultra:snapshot", (payload) => {
-      if (localModeForced) return;
+      if (localModeForced || !network.enabled) return;
       const reusableEntry = network.snapshotBuffer.length >= NETWORK_SNAPSHOT_BUFFER_SIZE
         && network.snapshotBuffer[0]?.snapshot !== network.presentationSnapshot
         ? network.snapshotBuffer.shift()
         : null;
       try {
-        const snapshot = globalThis.GSS0NetworkCodec.decode(payload, MODULES, reusableEntry?.snapshot);
+        const snapshot = networkSnapshotCodec.decode(payload, MODULES, reusableEntry?.snapshot);
         receiveNetworkFoodMotions(snapshot.foods);
         snapshot.foods.length = 0;
         receiveNetworkSnapshot(snapshot, reusableEntry);
       } catch (error) {
         console.error("PROJECT GSS0 快照无效", error);
+        requestNetworkSnapshotResync();
       }
     });
     socket.on("ultra:foods", receiveNetworkFoodDelta);
@@ -1303,6 +1310,49 @@
       if (localModeForced) return;
       if (network.principal) setNetworkStatus("error", "ULTRA LINK / 连接中断");
     });
+  }
+
+  const NETWORK_PROTOCOL_REFRESH_KEY = "gss0-network-protocol-refresh";
+
+  function validateNetworkSnapshotProtocol(serverVersion, socket) {
+    const clientVersion = networkSnapshotCodec.version;
+    if (Number.isSafeInteger(serverVersion) && serverVersion === clientVersion) {
+      try {
+        window.sessionStorage.removeItem(NETWORK_PROTOCOL_REFRESH_KEY);
+      } catch {
+        // Storage can be unavailable in privacy-restricted browser contexts.
+      }
+      return true;
+    }
+    network.connecting = false;
+    setNetworkButtonsDisabled(false);
+    const signature = `${clientVersion ?? "unknown"}:${serverVersion ?? "unknown"}`;
+    let shouldReload = false;
+    try {
+      shouldReload = window.sessionStorage.getItem(NETWORK_PROTOCOL_REFRESH_KEY) !== signature;
+      if (shouldReload) window.sessionStorage.setItem(NETWORK_PROTOCOL_REFRESH_KEY, signature);
+    } catch {
+      // Avoid an unbounded refresh loop when session storage is unavailable.
+    }
+    if (shouldReload) {
+      setNetworkStatus("connecting", "联机版本已更新 / 正在刷新");
+      window.location.reload();
+      return false;
+    }
+    socket.disconnect();
+    setNetworkStatus("error", "联机资源版本不一致 / 请刷新页面");
+    return false;
+  }
+
+  function requestNetworkSnapshotResync(now = performance.now()) {
+    const socket = network.socket;
+    if (
+      !network.enabled
+      || !socket?.connected
+      || now - network.lastResyncRequestAt < NETWORK_SNAPSHOT_STALL_TIMEOUT_MS
+    ) return;
+    network.lastResyncRequestAt = now;
+    socket.emit("ultra:resync");
   }
 
   function receiveNetworkSnapshot(snapshot, reusableEntry = null) {
@@ -2042,6 +2092,9 @@
 
   function updateNetwork(dt) {
     const now = performance.now();
+    if (network.receivedAt > 0 && now - network.receivedAt >= NETWORK_SNAPSHOT_STALL_TIMEOUT_MS) {
+      requestNetworkSnapshotResync(now);
+    }
     const presentation = selectNetworkPresentation();
     if (presentation) applyNetworkPresentation(
       presentation.previous.snapshot,
@@ -2727,6 +2780,7 @@
     network.snapshot = null;
     network.snapshotBuffer.length = 0;
     network.receivedAt = 0;
+    network.lastResyncRequestAt = -Infinity;
     network.renderServerTime = NaN;
     network.lastPresentationAt = 0;
     network.lastSelfAlive = false;

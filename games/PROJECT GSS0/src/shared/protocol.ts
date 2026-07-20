@@ -204,6 +204,7 @@ export interface LeaderboardEntry {
 
 export interface ArenaJoinData {
   selfEntityId: number;
+  snapshotProtocolVersion: number;
   foodRevision: number;
   profile: UltraProfileView;
   snapshot: UltraSnapshot;
@@ -295,6 +296,7 @@ export interface ServerToClientEvents {
 
 export interface ClientToServerEvents {
   'ultra:join': (ack: (result: ActionResult<ArenaJoinData>) => void) => void;
+  'ultra:resync': () => void;
   'ultra:spawn': (ack: (result: ActionResult) => void) => void;
   'ultra:restart': (ack: (result: ActionResult) => void) => void;
   'ultra:leave-run': (ack: (result: ActionResult) => void) => void;

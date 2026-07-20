@@ -31,7 +31,7 @@ import type {
   UpgradeOffer,
 } from '../shared/protocol';
 import type { ModuleId } from '../shared/modules';
-import { encodeUltraSnapshot } from '../shared/snapshotCodec';
+import { encodeUltraSnapshot, SNAPSHOT_PROTOCOL_VERSION } from '../shared/snapshotCodec';
 import { SnakeProfileStore } from './ProfileStore';
 import { UltraWorld, type RunResult } from './UltraWorld';
 
@@ -41,12 +41,14 @@ type UltraSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServe
 const CONTROL_CHARACTER_PATTERN = /[\u0000-\u001f\u007f]/u;
 const SNAPSHOT_TICK_INTERVAL = Math.max(1, Math.round(SIMULATION_HZ / SNAPSHOT_HZ));
 const MAX_FOOD_CLAIMS_PER_BATCH = 32;
+const RESYNC_MIN_INTERVAL_MS = 500;
 
 export class ArenaHub {
   private readonly socketsByAccount = new Map<string, string>();
   private readonly socketsByEntity = new Map<number, string>();
   private readonly chatGate = new IntervalGate(900);
   private readonly foodClaimGate = new IntervalGate(8);
+  private readonly resyncGate = new IntervalGate(RESYNC_MIN_INTERVAL_MS);
   private readonly messages: ChatMessage[] = [];
   private readonly events: ArenaEvent[] = [];
   private simulationTimer: NodeJS.Timeout | null = null;
@@ -116,6 +118,7 @@ export class ArenaHub {
 
   private register(socket: UltraSocket): void {
     socket.on('ultra:join', (ack) => this.handleJoin(socket, ack));
+    socket.on('ultra:resync', () => this.handleResync(socket));
     socket.on('ultra:spawn', (ack) => this.handleSpawn(socket, ack));
     socket.on('ultra:restart', (ack) => this.handleRestart(socket, ack));
     socket.on('ultra:leave-run', (ack) => this.handleLeaveRun(socket, ack));
@@ -149,13 +152,15 @@ export class ArenaHub {
         previous.disconnect(true);
       }
     }
+    const snapshot = this.world.getSnapshot(Date.now(), false);
     ack({
       ok: true,
       data: {
         selfEntityId: player.entityId,
+        snapshotProtocolVersion: SNAPSHOT_PROTOCOL_VERSION,
         foodRevision: this.world.getFoodRevision(),
         profile: this.profiles.get(principal.accountId),
-        snapshot: this.world.getSnapshot(Date.now(), false),
+        snapshot,
         projectiles: this.world.getProjectileStates(),
         roster: this.world.getRoster(),
         leaderboard: this.world.getLeaderboard(),
@@ -163,7 +168,14 @@ export class ArenaHub {
         events: this.events.slice(-MAX_EVENT_HISTORY),
       },
     });
+    socket.emit('ultra:snapshot', encodeUltraSnapshot(snapshot).slice());
     this.broadcastMeta();
+  }
+
+  private handleResync(socket: UltraSocket): void {
+    if (!this.getJoinedAccountId(socket) || !this.resyncGate.allow(socket.id, Date.now())) return;
+    const snapshot = this.world.getSnapshot(Date.now(), false);
+    socket.emit('ultra:snapshot', encodeUltraSnapshot(snapshot).slice());
   }
 
   private handleSpawn(socket: UltraSocket, ack: (result: ActionResult) => void): void {
@@ -279,6 +291,7 @@ export class ArenaHub {
   private handleDisconnect(socket: UltraSocket): void {
     this.chatGate.clear(socket.id);
     this.foodClaimGate.clear(socket.id);
+    this.resyncGate.clear(socket.id);
     const principal = socket.data.platformPrincipal;
     const entityId = socket.data.arenaEntityId;
     if (!socket.data.joinedArena || !principal || this.socketsByAccount.get(principal.accountId) !== socket.id) return;

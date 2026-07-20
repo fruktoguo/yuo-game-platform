@@ -13,8 +13,9 @@
 # Project Version
 
 - The main menu must always display the current game version in its lower-left corner.
-- The current game version is `V34`.
+- The current game version is `V35`.
 - For every future user request that modifies this project, increment the integer version exactly once and update both the main-menu label and the current-version line in this file as part of the same change.
+- Whenever the version changes, update every classic runtime script query in `index.html` and `balance-editor.html` to `?v=<version integer>` so mutable client files cannot be mixed across browser or CDN caches.
 
 # Changelog
 
@@ -40,6 +41,7 @@
 
 - Do not preserve compatibility with older Git revisions, releases, network protocols, snapshot formats, or saved schemas unless the user explicitly requests a migration path.
 - When a format or contract changes, update every in-repository producer, consumer, and test atomically and treat the new revision as the only supported version.
+- Snapshot protocol revisions must be exported by both codecs and returned in the arena join handshake; never remove the join-time version check or reliable snapshot resynchronization path.
 
 # Designer Parameters
 

@@ -144,7 +144,7 @@
 
     <section id="start-screen" class="modal-layer start-screen is-visible" aria-labelledby="game-title">
       <div class="start-glow" aria-hidden="true"></div>
-      <div class="start-version" aria-label="游戏版本 V34"><span>BUILD</span><strong>V34</strong></div>
+      <div class="start-version" aria-label="游戏版本 V35"><span>BUILD</span><strong>V35</strong></div>
       <div class="start-layout">
         <div class="start-content">
           <div id="network-status" class="title-kicker">TACTICAL SURVIVAL / LOCAL</div>
@@ -220,6 +220,21 @@
           <button id="changelog-close-button" class="icon-button codex-close-button" type="button" aria-label="关闭更新日志" title="关闭更新日志">×</button>
         </header>
         <div class="changelog-list">
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V35</strong></div>
+              <time datetime="2026-07-20">2026.07.20</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">联机修复</span>
+              <h3>后加入玩家同步不再冻结</h3>
+              <ul>
+                <li>修复第二名及后续玩家偶发停留在加入首帧、看不到自己移动的问题。</li>
+                <li>客户端与服务器加入时校验快照协议，过期运行资源会自动刷新。</li>
+                <li>加入和断流恢复改用可靠快照补帧，短暂丢包后可自动恢复同步。</li>
+              </ul>
+            </div>
+          </article>
           <article class="changelog-entry">
             <header>
               <div class="changelog-version"><span>BUILD</span><strong>V34</strong></div>
@@ -546,15 +561,15 @@
     </section>
   </main>
 
-  <script src="designer-config.js"></script>
-  <script src="spawn-planner.js"></script>
-  <script src="network-codec.js"></script>
-  <script src="network-player-prediction.js"></script>
-  <script src="network-player-state-codec.js"></script>
-  <script src="network-player-collisions.js"></script>
-  <script src="network-head-collisions.js"></script>
-  <script src="network-food-claims.js"></script>
-  <script src="network-projectiles.js"></script>
-  <script src="game.js"></script>
+  <script src="designer-config.js?v=35"></script>
+  <script src="spawn-planner.js?v=35"></script>
+  <script src="network-codec.js?v=35"></script>
+  <script src="network-player-prediction.js?v=35"></script>
+  <script src="network-player-state-codec.js?v=35"></script>
+  <script src="network-player-collisions.js?v=35"></script>
+  <script src="network-head-collisions.js?v=35"></script>
+  <script src="network-food-claims.js?v=35"></script>
+  <script src="network-projectiles.js?v=35"></script>
+  <script src="game.js?v=35"></script>
 </body>
 </html>

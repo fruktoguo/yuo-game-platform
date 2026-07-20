@@ -14,7 +14,7 @@ import type {
 } from './protocol';
 
 const MAGIC = 0x5553_4e50;
-const VERSION = 6;
+export const SNAPSHOT_PROTOCOL_VERSION = 6;
 const COORDINATE_SCALE = 65_535;
 const COORDINATE_PADDING = 2;
 const VELOCITY_SCALE = 64;
@@ -39,7 +39,7 @@ export function encodeUltraSnapshot(snapshot: UltraSnapshot): Uint8Array {
   const writer = writerPool[writerIndex] ??= new BinaryWriter();
   writer.reset();
   writer.u32(MAGIC);
-  writer.u8(VERSION);
+  writer.u8(SNAPSHOT_PROTOCOL_VERSION);
   writer.u32(snapshot.tick);
   writer.f64(snapshot.serverTime);
   writer.f32(snapshot.gameTime);
@@ -67,7 +67,7 @@ export function decodeUltraSnapshot(payload: ArrayBuffer | ArrayBufferView): Ult
     ? new Uint8Array(payload)
     : new Uint8Array(payload.buffer, payload.byteOffset, payload.byteLength);
   const reader = new BinaryReader(bytes);
-  if (reader.u32() !== MAGIC || reader.u8() !== VERSION) throw new Error('Ultra 快照格式无效');
+  if (reader.u32() !== MAGIC || reader.u8() !== SNAPSHOT_PROTOCOL_VERSION) throw new Error('Ultra 快照格式无效');
   const snapshot: UltraSnapshot = {
     tick: reader.u32(),
     serverTime: reader.f64(),

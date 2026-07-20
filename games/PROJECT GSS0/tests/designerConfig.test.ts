@@ -117,7 +117,7 @@ describe('设计配置', () => {
 
     for (const id of queriedIds) expect(editorHtml).toContain(`id="${id}"`);
     for (const script of inlineScripts) expect(() => new Function(script)).not.toThrow();
-    expect(editorHtml).toContain('<script src="designer-config.js"></script>');
+    expect(editorHtml).toMatch(/<script src="designer-config\.js\?v=\d+"><\/script>/u);
     expect(editorHtml).toContain('scheduleAutoSave();');
     expect(editorHtml).toContain('id="description-detail"');
     expect(editorHtml).toContain('draft.moduleCooldownPercentages[module.id]');

@@ -45,7 +45,13 @@ if (process.env.NODE_ENV === 'production') {
   const moduleDirectory = dirname(fileURLToPath(import.meta.url));
   const clientDirectory = resolve(moduleDirectory, '../client');
   app.use('/assets', express.static(join(clientDirectory, 'assets'), { immutable: true, maxAge: '1y' }));
-  app.use(express.static(clientDirectory, { index: false, maxAge: '1h' }));
+  app.use(express.static(clientDirectory, {
+    index: false,
+    maxAge: 0,
+    setHeaders(response) {
+      response.setHeader('Cache-Control', 'no-cache');
+    },
+  }));
   app.get('/{*path}', (_request, response) => {
     response.setHeader('Cache-Control', 'no-cache');
     response.sendFile(join(clientDirectory, 'index.html'));
