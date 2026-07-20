@@ -129,10 +129,25 @@ function Save-DesignerConfig {
   }
 }
 
+$staticFiles = @{
+  "/" = "balance-editor.html"
+  "/balance-editor.html" = "balance-editor.html"
+  "/enemy-codex.js" = "enemy-codex.js"
+  "/designer-config.js" = "designer-config.js"
+}
+
 if ($SelfTest) {
   $currentConfig = [IO.File]::ReadAllText($configPath, [Text.Encoding]::UTF8)
   if (!(Test-DesignerConfig $currentConfig)) { throw "designer-config.js failed validation." }
   if ($editorToken.Length -ne 64) { throw "Editor token generation failed." }
+  $editorHtml = [IO.File]::ReadAllText((Join-Path $projectRoot "balance-editor.html"), [Text.Encoding]::UTF8)
+  $scriptMatches = [regex]::Matches($editorHtml, '<script\s+src="(?<source>[^"?]+\.js)(?:\?[^"\s]*)?"></script>')
+  foreach ($match in $scriptMatches) {
+    $requestPath = "/" + $match.Groups["source"].Value.TrimStart(".", "/")
+    if (!$staticFiles.ContainsKey($requestPath)) { throw "Editor dependency is not served: $requestPath" }
+    $dependencyPath = Join-Path $projectRoot $staticFiles[$requestPath]
+    if (![IO.File]::Exists($dependencyPath)) { throw "Editor dependency does not exist: $dependencyPath" }
+  }
   Write-Host "Balance editor launcher self-test passed."
   exit 0
 }
@@ -157,12 +172,6 @@ $editorUrl = "http://127.0.0.1:$port/balance-editor.html#editor-token=$editorTok
 Write-Host "PROJECT GSS0 balance editor is running at $editorUrl"
 Write-Host "Keep this window open while editing. Press Ctrl+C to stop."
 Start-Process $editorUrl
-
-$staticFiles = @{
-  "/" = "balance-editor.html"
-  "/balance-editor.html" = "balance-editor.html"
-  "/designer-config.js" = "designer-config.js"
-}
 
 try {
   while ($true) {

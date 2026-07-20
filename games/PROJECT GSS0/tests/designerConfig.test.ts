@@ -141,6 +141,8 @@ describe('设计配置', () => {
     expect(launcherServer).toContain('X-GSS0-Editor-Token');
     expect(launcherServer).toContain('"/api/config"');
     expect(launcherServer).toContain('"designer-config.js"');
+    expect(launcherServer).toContain('"/enemy-codex.js"');
+    expect(launcherServer).toContain('Editor dependency is not served');
     expect(editorHtml).toContain('"X-GSS0-Editor-Token": helperToken');
     expect(editorHtml).toContain('await requestHelper({');
   });
