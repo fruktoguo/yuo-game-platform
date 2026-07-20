@@ -6849,6 +6849,7 @@
     applyDetailedDescriptions(ui.descriptionToggle.checked);
     sound("ui");
   });
+  document.addEventListener("contextmenu", (event) => event.preventDefault());
   document.addEventListener("click", () => closeSettingPopovers());
 
   applyFontScale(fontScale, false);
