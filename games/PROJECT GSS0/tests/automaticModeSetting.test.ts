@@ -6,12 +6,15 @@ const indexHtml = readFileSync(new URL('../index.html', import.meta.url), 'utf8'
 const serverSource = readFileSync(new URL('../src/server/UltraWorld.ts', import.meta.url), 'utf8');
 
 describe('自动模式设置', () => {
-  it('主菜单按单人、多人、图鉴、更新日志排列', () => {
+  it('主菜单四格按单人、多人、机体图鉴、敌人图鉴排列', () => {
     const actions = indexHtml.match(/<div class="start-actions">([\s\S]*?)<\/div>/u)?.[1] ?? '';
-    const ids = ['local-mode-button', 'multiplayer-mode-button', 'codex-button', 'changelog-button'];
+    const ids = ['local-mode-button', 'multiplayer-mode-button', 'codex-button', 'enemy-codex-button'];
     for (let index = 1; index < ids.length; index += 1) {
       expect(actions.indexOf(ids[index - 1])).toBeLessThan(actions.indexOf(ids[index]));
     }
+    expect(actions).not.toContain('changelog-button');
+    expect(indexHtml).toContain('class="start-secondary-actions"');
+    expect(indexHtml).toContain('id="changelog-button"');
     expect(indexHtml).not.toContain('id="auto-test-button"');
   });
 

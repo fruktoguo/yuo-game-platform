@@ -156,7 +156,7 @@
 
     <section id="start-screen" class="modal-layer start-screen is-visible" aria-labelledby="game-title">
       <div class="start-glow" aria-hidden="true"></div>
-      <div class="start-version" aria-label="游戏版本 V37"><span>BUILD</span><strong>V37</strong></div>
+      <div class="start-version" aria-label="游戏版本 V38"><span>BUILD</span><strong>V38</strong></div>
       <div class="start-layout">
         <div class="start-content">
           <div id="network-status" class="title-kicker">TACTICAL SURVIVAL / LOCAL</div>
@@ -175,6 +175,12 @@
               <span aria-hidden="true">M</span>
               机体图鉴
             </button>
+            <button id="enemy-codex-button" class="secondary-button enemy-codex-button" type="button">
+              <span aria-hidden="true">E</span>
+              敌人图鉴
+            </button>
+          </div>
+          <div class="start-secondary-actions">
             <button id="changelog-button" class="secondary-button changelog-button" type="button">
               <span aria-hidden="true">V</span>
               更新日志
@@ -218,6 +224,19 @@
       </div>
     </section>
 
+    <section id="enemy-codex-screen" class="modal-layer codex-screen enemy-codex-screen" aria-labelledby="enemy-codex-title">
+      <div class="codex-shell enemy-codex-shell">
+        <header class="codex-header">
+          <div>
+            <span class="dialog-kicker">HOSTILE ARCHIVE</span>
+            <h2 id="enemy-codex-title">敌人图鉴</h2>
+          </div>
+          <button id="enemy-codex-close-button" class="icon-button codex-close-button" type="button" aria-label="关闭敌人图鉴" title="关闭敌人图鉴">×</button>
+        </header>
+        <div id="enemy-codex-list" class="enemy-codex-list"></div>
+      </div>
+    </section>
+
     <section id="changelog-screen" class="modal-layer codex-screen changelog-screen" aria-labelledby="changelog-title">
       <div class="codex-shell changelog-shell">
         <header class="codex-header">
@@ -228,6 +247,20 @@
           <button id="changelog-close-button" class="icon-button codex-close-button" type="button" aria-label="关闭更新日志" title="关闭更新日志">×</button>
         </header>
         <div class="changelog-list">
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V38</strong></div>
+              <time datetime="2026-07-20">2026.07.20</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">敌人档案</span>
+              <h3>敌人生态加入完整图鉴</h3>
+              <ul>
+                <li>主菜单新增敌人图鉴，可查看七类敌人的完整身体外形与行为特征。</li>
+                <li>设计控制台新增敌人配置页，各类型专属参数从通用列表迁入对应档案。</li>
+              </ul>
+            </div>
+          </article>
           <article class="changelog-entry">
             <header>
               <div class="changelog-version"><span>BUILD</span><strong>V37</strong></div>
@@ -598,16 +631,17 @@
     </section>
   </main>
 
-  <script src="designer-config.js?v=37"></script>
-  <script src="spawn-planner.js?v=37"></script>
-  <script src="network-codec.js?v=37"></script>
-  <script src="network-player-prediction.js?v=37"></script>
-  <script src="network-player-state-codec.js?v=37"></script>
-  <script src="network-player-collisions.js?v=37"></script>
-  <script src="network-head-collisions.js?v=37"></script>
-  <script src="network-food-claims.js?v=37"></script>
-  <script src="network-projectiles.js?v=37"></script>
-  <script src="lobby-navigation.js?v=37"></script>
-  <script src="game.js?v=37"></script>
+  <script src="designer-config.js?v=38"></script>
+  <script src="spawn-planner.js?v=38"></script>
+  <script src="network-codec.js?v=38"></script>
+  <script src="network-player-prediction.js?v=38"></script>
+  <script src="network-player-state-codec.js?v=38"></script>
+  <script src="network-player-collisions.js?v=38"></script>
+  <script src="network-head-collisions.js?v=38"></script>
+  <script src="network-food-claims.js?v=38"></script>
+  <script src="network-projectiles.js?v=38"></script>
+  <script src="lobby-navigation.js?v=38"></script>
+  <script src="enemy-codex.js?v=38"></script>
+  <script src="game.js?v=38"></script>
 </body>
 </html>

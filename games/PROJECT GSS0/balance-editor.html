@@ -214,6 +214,37 @@
     .status-control button.is-active[data-state="disabled"] { background: var(--red); color: #fff; }
     .empty { padding: 48px 0; color: var(--muted); text-align: center; }
 
+    .enemy-config-list { display: grid; gap: 28px; }
+    .enemy-config-card {
+      --enemy-color: var(--red);
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-top: 4px solid var(--enemy-color);
+      background: #12171a;
+    }
+    .enemy-config-overview {
+      display: grid;
+      grid-template-columns: minmax(280px, 0.82fr) minmax(320px, 1fr);
+      border-bottom: 1px solid var(--line);
+    }
+    .enemy-config-visual {
+      display: grid;
+      min-width: 0;
+      place-items: center;
+      border-right: 1px solid var(--line);
+      background: #0b0f11;
+    }
+    .enemy-config-visual canvas { display: block; width: 100%; height: auto; aspect-ratio: 52 / 25; }
+    .enemy-config-copy { min-width: 0; padding: 24px 28px; }
+    .enemy-config-copy > span { color: var(--enemy-color); font-size: 9px; font-weight: 900; }
+    .enemy-config-copy h3 { margin: 6px 0 11px; font-size: 21px; }
+    .enemy-config-copy p { margin: 0; color: #bdc6c9; font-size: 11px; line-height: 1.62; overflow-wrap: anywhere; }
+    .enemy-config-copy ul { display: grid; gap: 6px; margin: 15px 0 0; padding: 0; list-style: none; }
+    .enemy-config-copy li { position: relative; padding-left: 16px; color: #e5e9e9; font-size: 10px; font-weight: 800; }
+    .enemy-config-copy li::before { position: absolute; top: 0.55em; left: 0; width: 8px; height: 3px; background: var(--enemy-color); content: ""; }
+    .enemy-parameter-list { padding: 0 20px 8px; }
+    .enemy-parameter-list .parameter-row:last-child { border-bottom: 0; }
+
     @media (max-width: 980px) {
       .topbar { grid-template-columns: 1fr; }
       .commands { justify-content: flex-start; }
@@ -223,6 +254,7 @@
       .tab { width: auto; min-width: 132px; margin: 0; }
       .module-row { grid-template-columns: 38px minmax(140px, 0.5fr) 1fr; }
       .status-control, .cooldown-control { grid-column: 2 / -1; }
+      .enemy-config-overview { grid-template-columns: minmax(230px, 0.72fr) minmax(300px, 1fr); }
     }
 
     @media (max-width: 660px) {
@@ -245,6 +277,10 @@
       .status-control { grid-template-columns: repeat(2, 1fr); }
       .status-control button:nth-child(2) { border-right: 0; }
       .status-control button:nth-child(-n + 2) { border-bottom: 1px solid var(--line); }
+      .enemy-config-overview { grid-template-columns: 1fr; }
+      .enemy-config-visual { border-right: 0; border-bottom: 1px solid var(--line); }
+      .enemy-config-copy { padding: 20px; }
+      .enemy-parameter-list { padding: 0 14px 6px; }
     }
   </style>
 </head>
@@ -276,6 +312,7 @@
       <p class="sidebar-label">CONTROL VIEWS</p>
       <button class="tab is-active" type="button" data-view="balance"><b>01</b><span>参数列表</span></button>
       <button class="tab" type="button" data-view="modules"><b>02</b><span>机体图鉴</span></button>
+      <button class="tab" type="button" data-view="enemies"><b>03</b><span>敌人图鉴</span></button>
     </nav>
 
     <div class="content">
@@ -293,15 +330,21 @@
         </div>
         <div id="module-list" class="module-list"></div>
       </section>
+
+      <section id="enemies-view" class="view" hidden>
+        <header class="view-head"><div><span>HOSTILE ARCHIVE</span><h2>敌人图鉴与参数</h2></div><output id="enemy-count" class="view-count"></output></header>
+        <div id="enemy-config-list" class="enemy-config-list"></div>
+      </section>
     </div>
   </main>
 
-  <script src="designer-config.js?v=37"></script>
+  <script src="enemy-codex.js?v=38"></script>
+  <script src="designer-config.js?v=38"></script>
   <script>
     (() => {
       "use strict";
 
-      const PARAMETER_DEFINITIONS = [
+      const ALL_PARAMETER_DEFINITIONS = [
         { key: "playerBaseSpeed", group: "玩家", label: "玩家基础速度", hint: "升级与机体加速前的每秒移动格数", min: 1, max: 12, step: 0.1, unit: "格/秒" },
         { key: "playerSpeedPerLevel", group: "玩家", label: "玩家每级速度成长", hint: "每级附加的基础速度倍率；0.1 表示每级提高 10%", min: 0, max: 0.5, step: 0.005, unit: "倍率/级" },
         { key: "playerTurnRate", group: "玩家", label: "玩家基础转向", hint: "不含涡轮节加成的基础转向速度", min: 0.5, max: 12, step: 0.05, unit: "弧度/秒" },
@@ -428,6 +471,10 @@
         { key: "profileSaveDelaySeconds", group: "性能", label: "联机战绩批量保存间隔", hint: "玩家结算后合并等待写盘的时间，减少频繁存档尖峰", min: 1, max: 300, step: 1, unit: "秒" }
       ];
 
+      const ENEMY_PARAMETER_GROUPS = new Set(globalThis.GSS0EnemyCodex.entries.map((entry) => entry.name));
+      const ENEMY_PARAMETER_DEFINITIONS = ALL_PARAMETER_DEFINITIONS.filter((definition) => ENEMY_PARAMETER_GROUPS.has(definition.group));
+      const PARAMETER_DEFINITIONS = ALL_PARAMETER_DEFINITIONS.filter((definition) => !ENEMY_PARAMETER_GROUPS.has(definition.group));
+
       const MODULES = [
         { id: "spark", name: "赤焰炮节", category: "输出", color: "#ff9f43", cooldown: "", desc: "周期锁定最近敌蛇，发射一枚高速焰弹。稳定、直接的单体火力。" },
         { id: "frost", name: "冰棱节", category: "输出", color: "#58d8ff", cooldown: "", desc: "发射冰晶弹，命中削去一节身体，并让敌蛇短暂减速。" },
@@ -529,8 +576,9 @@
       const helperMode = location.protocol === "http:" && location.hostname === "127.0.0.1" && /^[a-f0-9]{64}$/.test(helperToken);
       const ui = {
         fileState: document.querySelector("#file-state"), open: document.querySelector("#open-config"), reload: document.querySelector("#reload-config"),
-        tabs: [...document.querySelectorAll(".tab")], balanceView: document.querySelector("#balance-view"), modulesView: document.querySelector("#modules-view"),
+        tabs: [...document.querySelectorAll(".tab")], balanceView: document.querySelector("#balance-view"), modulesView: document.querySelector("#modules-view"), enemiesView: document.querySelector("#enemies-view"),
         parameterGroups: document.querySelector("#parameter-groups"), parameterCount: document.querySelector("#parameter-count"), moduleList: document.querySelector("#module-list"), moduleCount: document.querySelector("#module-count"),
+        enemyConfigList: document.querySelector("#enemy-config-list"), enemyCount: document.querySelector("#enemy-count"),
         search: document.querySelector("#module-search"), category: document.querySelector("#category-filter"), status: document.querySelector("#status-filter"), descriptionDetail: document.querySelector("#description-detail"),
         interfaceScale: document.querySelector("#interface-scale"), interfaceScaleOutput: document.querySelector("#interface-scale-output")
       };
@@ -550,7 +598,7 @@
 
       function normalizeConfig(value) {
         const config = { schemaVersion: 5, balance: {}, moduleCooldownPercentages: {}, moduleStates: {} };
-        for (const definition of PARAMETER_DEFINITIONS) {
+        for (const definition of ALL_PARAMETER_DEFINITIONS) {
           const candidate = Number(value?.balance?.[definition.key]);
           config.balance[definition.key] = Number.isFinite(candidate) ? Math.max(definition.min, Math.min(definition.max, candidate)) : definition.min;
         }
@@ -650,6 +698,7 @@
         savedSnapshot = JSON.stringify(next);
         renderParameters();
         renderModules();
+        renderEnemies();
         refreshDirtyState();
       }
 
@@ -672,6 +721,7 @@
         savedSnapshot = JSON.stringify(next);
         renderParameters();
         renderModules();
+        renderEnemies();
         refreshDirtyState();
       }
 
@@ -748,6 +798,50 @@
         return `${formatCooldownSeconds(moduleCooldownSeconds(module.id))}${suffix}`;
       }
 
+      function createParameterRow(definition) {
+        const row = document.createElement("div");
+        row.className = "parameter-row";
+        const copy = document.createElement("div");
+        copy.className = "parameter-copy";
+        const label = document.createElement("strong");
+        label.textContent = definition.label;
+        const hint = document.createElement("span");
+        hint.textContent = definition.hint;
+        copy.append(label, hint);
+        const range = document.createElement("input");
+        range.type = "range";
+        range.min = definition.min;
+        range.max = definition.max;
+        range.step = definition.step;
+        range.value = draft.balance[definition.key];
+        range.setAttribute("aria-label", definition.label);
+        const number = document.createElement("input");
+        number.type = "number";
+        number.className = "number-input";
+        number.min = definition.min;
+        number.max = definition.max;
+        number.step = definition.step;
+        number.value = draft.balance[definition.key];
+        number.setAttribute("aria-label", `${definition.label}数值`);
+        const update = (value) => {
+          const parsed = Number(value);
+          if (!Number.isFinite(parsed)) return;
+          const next = Math.max(definition.min, Math.min(definition.max, parsed));
+          draft.balance[definition.key] = next;
+          range.value = next;
+          number.value = next;
+          if (["activeSkillBaseCooldown", "headAttackInterval"].includes(definition.key)) renderModules();
+          scheduleAutoSave();
+        };
+        range.addEventListener("input", () => update(range.value));
+        number.addEventListener("change", () => update(number.value));
+        const unit = document.createElement("span");
+        unit.className = "unit";
+        unit.textContent = definition.unit;
+        row.append(copy, range, number, unit);
+        return row;
+      }
+
       function renderParameters() {
         const groups = [...new Set(PARAMETER_DEFINITIONS.map((item) => item.group))];
         ui.parameterGroups.replaceChildren(...groups.map((groupName) => {
@@ -755,48 +849,58 @@
           group.className = "parameter-group";
           const title = document.createElement("h3");
           title.textContent = groupName;
-          group.append(title, ...PARAMETER_DEFINITIONS.filter((item) => item.group === groupName).map((definition) => {
-            const row = document.createElement("div");
-            row.className = "parameter-row";
-            const copy = document.createElement("div");
-            copy.className = "parameter-copy";
-            copy.innerHTML = `<strong>${definition.label}</strong><span>${definition.hint}</span>`;
-            const range = document.createElement("input");
-            range.type = "range";
-            range.min = definition.min;
-            range.max = definition.max;
-            range.step = definition.step;
-            range.value = draft.balance[definition.key];
-            range.setAttribute("aria-label", definition.label);
-            const number = document.createElement("input");
-            number.type = "number";
-            number.className = "number-input";
-            number.min = definition.min;
-            number.max = definition.max;
-            number.step = definition.step;
-            number.value = draft.balance[definition.key];
-            number.setAttribute("aria-label", `${definition.label}数值`);
-            const update = (value) => {
-              const parsed = Number(value);
-              if (!Number.isFinite(parsed)) return;
-              const next = Math.max(definition.min, Math.min(definition.max, parsed));
-              draft.balance[definition.key] = next;
-              range.value = next;
-              number.value = next;
-              if (["activeSkillBaseCooldown", "headAttackInterval"].includes(definition.key)) renderModules();
-              scheduleAutoSave();
-            };
-            range.addEventListener("input", () => update(range.value));
-            number.addEventListener("change", () => update(number.value));
-            const unit = document.createElement("span");
-            unit.className = "unit";
-            unit.textContent = definition.unit;
-            row.append(copy, range, number, unit);
-            return row;
-          }));
+          group.append(title, ...PARAMETER_DEFINITIONS.filter((item) => item.group === groupName).map(createParameterRow));
           return group;
         }));
         ui.parameterCount.textContent = `${PARAMETER_DEFINITIONS.length} 项参数`;
+      }
+
+      function renderEnemies() {
+        ui.enemyConfigList.replaceChildren(...globalThis.GSS0EnemyCodex.entries.map((entry) => {
+          const card = document.createElement("article");
+          card.className = "enemy-config-card";
+          card.dataset.enemyId = entry.id;
+          card.style.setProperty("--enemy-color", entry.color);
+          card.setAttribute("aria-labelledby", `enemy-config-${entry.id}`);
+
+          const overview = document.createElement("div");
+          overview.className = "enemy-config-overview";
+          const visual = document.createElement("div");
+          visual.className = "enemy-config-visual";
+          const canvas = document.createElement("canvas");
+          canvas.width = 520;
+          canvas.height = 250;
+          canvas.setAttribute("role", "img");
+          canvas.setAttribute("aria-label", `${entry.name}蛇头与完整身体示意`);
+          visual.append(canvas);
+
+          const copy = document.createElement("div");
+          copy.className = "enemy-config-copy";
+          const role = document.createElement("span");
+          role.textContent = `${entry.code} / ${entry.role} / ${entry.id}`;
+          const title = document.createElement("h3");
+          title.id = `enemy-config-${entry.id}`;
+          title.textContent = entry.name;
+          const description = document.createElement("p");
+          description.textContent = entry.description;
+          const traits = document.createElement("ul");
+          for (const trait of entry.traits) {
+            const item = document.createElement("li");
+            item.textContent = trait;
+            traits.append(item);
+          }
+          copy.append(role, title, description, traits);
+          overview.append(visual, copy);
+
+          const parameters = document.createElement("section");
+          parameters.className = "enemy-parameter-list";
+          parameters.setAttribute("aria-label", `${entry.name}配置参数`);
+          parameters.append(...ENEMY_PARAMETER_DEFINITIONS.filter((definition) => definition.group === entry.name).map(createParameterRow));
+          card.append(overview, parameters);
+          globalThis.GSS0EnemyCodex.drawPreview(canvas, entry.id);
+          return card;
+        }));
+        ui.enemyCount.textContent = `${globalThis.GSS0EnemyCodex.entries.length} 类敌人 · ${ENEMY_PARAMETER_DEFINITIONS.length} 项参数`;
       }
 
       function renderModules() {
@@ -896,6 +1000,7 @@
               draft = pendingDraft;
               renderParameters();
               renderModules();
+              renderEnemies();
               scheduleAutoSave();
             }
             return;
@@ -909,6 +1014,7 @@
             draft = pendingDraft;
             renderParameters();
             renderModules();
+            renderEnemies();
             scheduleAutoSave();
           }
         } catch (error) {
@@ -927,6 +1033,7 @@
             savedSnapshot = JSON.stringify(draft);
             renderParameters();
             renderModules();
+            renderEnemies();
           }
           refreshDirtyState();
         } catch (error) {
@@ -954,6 +1061,7 @@
         ui.tabs.forEach((item) => item.classList.toggle("is-active", item === tab));
         ui.balanceView.hidden = tab.dataset.view !== "balance";
         ui.modulesView.hidden = tab.dataset.view !== "modules";
+        ui.enemiesView.hidden = tab.dataset.view !== "enemies";
       }));
       ui.search.addEventListener("input", renderModules);
       ui.category.addEventListener("change", renderModules);
@@ -995,6 +1103,7 @@
       ui.interfaceScale.dispatchEvent(new Event("input"));
       renderParameters();
       renderModules();
+      renderEnemies();
       refreshDirtyState();
       if (helperMode) void readHelperConfig().catch((error) => setFileState(error instanceof Error ? error.message : "无法连接本地启动器", "dirty"));
       else if (filePickerSupported) void restoreConfigBinding();

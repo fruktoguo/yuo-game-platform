@@ -1341,6 +1341,18 @@ input:focus-visible {
   min-width: 0;
 }
 
+.start-secondary-actions {
+  width: min(500px, 80vw);
+  margin-top: 12px;
+}
+
+.start-secondary-actions button {
+  width: 100%;
+  min-width: 0;
+  min-height: 40px;
+  font-size: calc(12px * var(--font-scale));
+}
+
 .primary-button,
 .secondary-button {
   position: relative;
@@ -1894,6 +1906,107 @@ input:focus-visible {
 
 .codex-list .upgrade-card {
   width: 100%;
+}
+
+.enemy-codex-shell {
+  width: min(960px, 100%);
+}
+
+.enemy-codex-list {
+  display: grid;
+  gap: 16px;
+  padding: 0 6px 20px;
+}
+
+.enemy-codex-card {
+  display: grid;
+  overflow: hidden;
+  grid-template-columns: minmax(300px, 0.86fr) minmax(300px, 1fr);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-left: 6px solid var(--enemy-color);
+  background: #151a1d;
+  color: var(--white);
+  clip-path: var(--cut-lg);
+  box-shadow: 0 22px 46px rgba(0, 0, 0, 0.3);
+}
+
+.enemy-codex-visual {
+  display: grid;
+  min-width: 0;
+  place-items: center;
+  border-right: 1px solid rgba(255, 255, 255, 0.13);
+  background: #0b0f11;
+}
+
+.enemy-codex-visual canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 52 / 25;
+}
+
+.enemy-codex-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  padding: 25px 28px 23px;
+}
+
+.enemy-codex-role {
+  color: var(--enemy-color);
+  font-size: calc(9px * var(--font-scale));
+  font-weight: 1000;
+}
+
+.enemy-codex-copy h3 {
+  margin: 7px 0 12px;
+  color: var(--white);
+  font-size: calc(22px * var(--font-scale));
+  line-height: 1.1;
+}
+
+.enemy-codex-copy p {
+  margin: 0;
+  color: #c8ced0;
+  font-size: calc(11px * var(--font-scale));
+  font-weight: 700;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+
+.enemy-codex-copy ul {
+  display: grid;
+  gap: 7px;
+  margin: 16px 0 20px;
+  padding: 0;
+  list-style: none;
+}
+
+.enemy-codex-copy li {
+  position: relative;
+  padding-left: 17px;
+  color: #e7ebeb;
+  font-size: calc(10px * var(--font-scale));
+  font-weight: 800;
+}
+
+.enemy-codex-copy li::before {
+  position: absolute;
+  top: 0.55em;
+  left: 0;
+  width: 8px;
+  height: 3px;
+  background: var(--enemy-color);
+  content: "";
+}
+
+.enemy-codex-archive {
+  margin-top: auto;
+  padding-top: 11px;
+  border-top: 1px solid rgba(255, 255, 255, 0.13);
+  color: #899398;
+  font-size: calc(8px * var(--font-scale));
+  font-weight: 900;
 }
 
 .changelog-list {
@@ -2484,6 +2597,11 @@ input:focus-visible {
     gap: 10px;
   }
 
+  .start-secondary-actions {
+    width: 100%;
+    margin-top: 10px;
+  }
+
   .start-actions button {
     width: 100%;
     padding-right: 10px;
@@ -2529,6 +2647,25 @@ input:focus-visible {
     gap: 10px;
     padding-right: 2px;
     padding-left: 2px;
+  }
+
+  .enemy-codex-list {
+    gap: 10px;
+    padding-right: 2px;
+    padding-left: 2px;
+  }
+
+  .enemy-codex-card {
+    grid-template-columns: 1fr;
+  }
+
+  .enemy-codex-visual {
+    border-right: 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.13);
+  }
+
+  .enemy-codex-copy {
+    padding: 21px 20px 22px;
   }
 
   .changelog-list {

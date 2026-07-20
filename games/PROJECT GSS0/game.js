@@ -43,6 +43,10 @@
     codex: document.querySelector("#codex-screen"),
     codexList: document.querySelector("#codex-list"),
     codexCloseButton: document.querySelector("#codex-close-button"),
+    enemyCodexButton: document.querySelector("#enemy-codex-button"),
+    enemyCodex: document.querySelector("#enemy-codex-screen"),
+    enemyCodexList: document.querySelector("#enemy-codex-list"),
+    enemyCodexCloseButton: document.querySelector("#enemy-codex-close-button"),
     changelogButton: document.querySelector("#changelog-button"),
     changelog: document.querySelector("#changelog-screen"),
     changelogCloseButton: document.querySelector("#changelog-close-button"),
@@ -2860,6 +2864,7 @@
     ui.upgrade.classList.remove("is-visible");
     ui.gameOver.classList.remove("is-visible");
     ui.codex.classList.remove("is-visible");
+    ui.enemyCodex.classList.remove("is-visible");
     ui.changelog.classList.remove("is-visible");
   }
 
@@ -3287,6 +3292,65 @@
 
   function closeCodex() {
     ui.codex.classList.remove("is-visible");
+    ui.start.classList.add("is-visible");
+    sound("ui");
+  }
+
+  function createEnemyCodexCard(entry, index) {
+    const card = document.createElement("article");
+    card.className = "enemy-codex-card";
+    card.dataset.enemyId = entry.id;
+    card.style.setProperty("--enemy-color", entry.color);
+
+    const visual = document.createElement("div");
+    visual.className = "enemy-codex-visual";
+    const canvas = document.createElement("canvas");
+    canvas.width = 520;
+    canvas.height = 250;
+    canvas.setAttribute("role", "img");
+    canvas.setAttribute("aria-label", `${entry.name}蛇头与完整身体示意`);
+    visual.append(canvas);
+
+    const copy = document.createElement("div");
+    copy.className = "enemy-codex-copy";
+    const role = document.createElement("span");
+    role.className = "enemy-codex-role";
+    role.textContent = `${entry.code} / ${entry.role}`;
+    const title = document.createElement("h3");
+    title.textContent = entry.name;
+    const description = document.createElement("p");
+    description.textContent = entry.description;
+    const traits = document.createElement("ul");
+    for (const trait of entry.traits) {
+      const item = document.createElement("li");
+      item.textContent = trait;
+      traits.append(item);
+    }
+    const archive = document.createElement("span");
+    archive.className = "enemy-codex-archive";
+    archive.textContent = `敌对档案 ${String(index + 1).padStart(2, "0")}`;
+    copy.append(role, title, description, traits, archive);
+    card.append(visual, copy);
+    window.GSS0EnemyCodex.drawPreview(canvas, entry.id);
+    return card;
+  }
+
+  function renderEnemyCodex() {
+    ui.enemyCodexList.replaceChildren(...window.GSS0EnemyCodex.entries.map(createEnemyCodexCard));
+  }
+
+  function openEnemyCodex() {
+    ensureAudio();
+    closeSettingPopovers();
+    renderEnemyCodex();
+    hideAllModals();
+    ui.enemyCodex.classList.add("is-visible");
+    ui.enemyCodex.scrollTop = 0;
+    sound("ui");
+  }
+
+  function closeEnemyCodex() {
+    ui.enemyCodex.classList.remove("is-visible");
     ui.start.classList.add("is-visible");
     sound("ui");
   }
@@ -6352,6 +6416,11 @@
       closeCodex();
       return;
     }
+    if (event.code === "Escape" && ui.enemyCodex.classList.contains("is-visible")) {
+      event.preventDefault();
+      closeEnemyCodex();
+      return;
+    }
     if (event.code === "Escape" && ui.changelog.classList.contains("is-visible")) {
       event.preventDefault();
       closeChangelog();
@@ -6376,7 +6445,7 @@
       }
     }
     if ((event.code === "Escape" || event.code === "KeyP") && (state === "running" || state === "paused")) setPaused(state === "running");
-    if (event.code === "Enter" && !ui.codex.classList.contains("is-visible") && !ui.changelog.classList.contains("is-visible") && (state === "menu" || state === "gameover")) {
+    if (event.code === "Enter" && !ui.codex.classList.contains("is-visible") && !ui.enemyCodex.classList.contains("is-visible") && !ui.changelog.classList.contains("is-visible") && (state === "menu" || state === "gameover")) {
       if (state === "menu") startPureLocalGame();
       else startGame();
     }
@@ -6398,6 +6467,8 @@
   ui.lobbyButton.addEventListener("click", () => void returnToLobby());
   ui.codexButton.addEventListener("click", openCodex);
   ui.codexCloseButton.addEventListener("click", closeCodex);
+  ui.enemyCodexButton.addEventListener("click", openEnemyCodex);
+  ui.enemyCodexCloseButton.addEventListener("click", closeEnemyCodex);
   ui.changelogButton.addEventListener("click", openChangelog);
   ui.changelogCloseButton.addEventListener("click", closeChangelog);
   ui.restartButton.addEventListener("click", startGame);

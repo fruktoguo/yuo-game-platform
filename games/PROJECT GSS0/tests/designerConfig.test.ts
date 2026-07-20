@@ -49,15 +49,15 @@ describe('设计配置', () => {
       foodsPerPlayerPerWave: 2,
       projectileSpeedScale: 3,
       projectileSizeScale: 2,
-      headAttackInterval: 3,
+      headAttackInterval: 6,
       poisonInitialTickDelay: 1.4,
       poisonTickInterval: 2.3,
-      activeSkillBaseCooldown: 3,
+      activeSkillBaseCooldown: 6,
       arenaAreaPerLevel: 0.05,
-      upgradeInvulnerabilityDuration: 0.5,
+      upgradeInvulnerabilityDuration: 1,
       respawnLocatorConvergeDuration: 1,
       respawnLocatorFadeDuration: 3,
-      maxRenderFps: 60,
+      maxRenderFps: 160,
       maxRenderDpr: 1.25,
       networkPlayerStateHz: 20,
       networkCollisionClaimCooldownMs: 500,
@@ -85,11 +85,11 @@ describe('设计配置', () => {
 
     expect(Object.keys(source.moduleCooldownPercentages).sort()).toEqual(ACTIVE_SKILL_MODULES.map((module) => module.id).sort());
     expect(moduleCooldownPercent('spark')).toBe(100);
-    expect(moduleCooldownSeconds('spark')).toBe(3);
+    expect(moduleCooldownSeconds('spark')).toBe(6);
     expect(moduleCooldownPercent('crossfire')).toBe(240);
-    expect(moduleCooldownSeconds('crossfire')).toBeCloseTo(7.2);
+    expect(moduleCooldownSeconds('crossfire')).toBeCloseTo(14.4);
     expect(moduleCooldownPercent('fan')).toBe(375);
-    expect(moduleCooldownSeconds('fan')).toBeCloseTo(11.25);
+    expect(moduleCooldownSeconds('fan')).toBeCloseTo(22.5);
   });
 
   it('全部现有机体都有状态且默认进入升级池', () => {
@@ -100,7 +100,7 @@ describe('设计配置', () => {
   });
 
   it('本地编辑器与运行时配置使用完全相同的参数和机体 ID', () => {
-    const parameterKeys = editorDefinitionIds('const PARAMETER_DEFINITIONS = [', 'const MODULES = [', 'key');
+    const parameterKeys = editorDefinitionIds('const ALL_PARAMETER_DEFINITIONS = [', 'const ENEMY_PARAMETER_GROUPS =', 'key');
     const moduleIds = editorDefinitionIds('const MODULES = [', 'const STATUS_LABELS =', 'id');
 
     expect(parameterKeys.sort()).toEqual(Object.keys(DESIGNER_BALANCE).sort());
@@ -123,6 +123,12 @@ describe('设计配置', () => {
     expect(editorHtml).toContain('draft.moduleCooldownPercentages[module.id]');
     expect(editorHtml).toContain('range.max = "1000"');
     expect(editorHtml).toContain('actual.textContent = `实际 ${moduleCooldownLabel(module)}`');
+    expect(editorHtml).toContain('data-view="enemies"');
+    expect(editorHtml).toContain('id="enemies-view"');
+    expect(editorHtml).toContain('id="enemy-config-list"');
+    expect(editorHtml).toContain('const ENEMY_PARAMETER_DEFINITIONS = ALL_PARAMETER_DEFINITIONS.filter');
+    expect(editorHtml).toContain('const PARAMETER_DEFINITIONS = ALL_PARAMETER_DEFINITIONS.filter');
+    expect(editorHtml).toContain('parameters.append(...ENEMY_PARAMETER_DEFINITIONS.filter');
     expect(editorHtml).not.toContain('id="save-config"');
   });
 
