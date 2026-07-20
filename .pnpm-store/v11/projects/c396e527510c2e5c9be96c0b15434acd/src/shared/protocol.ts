@@ -199,7 +199,34 @@ export type InputPayload = Uint8Array;
 export type PlayerCollisionClaim =
   | { kind: 'enemy-head' | 'enemy-protected'; targetId: number; normalCol: number; normalRow: number }
   | { kind: 'enemy-body' | 'enemy-hit-body' | 'player-body'; targetId: number; segmentIndex: number }
-  | { kind: 'mine'; targetId: number; normalCol: number; normalRow: number };
+  | { kind: 'mine'; targetId: number; normalCol: number; normalRow: number }
+  | {
+      kind: 'player-head';
+      targetId: number;
+      sequence: number;
+      observedAt: number;
+      sourceCol: number;
+      sourceRow: number;
+      targetCol: number;
+      targetRow: number;
+      normalCol: number;
+      normalRow: number;
+    };
+
+export interface PlayerHeadCollisionEvent {
+  id: string;
+  sourceEntityId: number;
+  targetEntityId: number;
+  sequence: number;
+  observedAt: number;
+  serverTime: number;
+  sourceCol: number;
+  sourceRow: number;
+  targetCol: number;
+  targetRow: number;
+  normalCol: number;
+  normalRow: number;
+}
 
 export interface FoodClaimPayload {
   foodIds: number[];
@@ -235,6 +262,7 @@ export interface ServerToClientEvents {
   'ultra:snapshot': (snapshot: Uint8Array) => void;
   'ultra:projectiles': (events: UltraProjectileEvent[]) => void;
   'ultra:effects': (effects: UltraEffect[]) => void;
+  'ultra:player-head-collision': (event: PlayerHeadCollisionEvent) => void;
   'ultra:roster': (players: RosterPlayer[]) => void;
   'ultra:leaderboard': (entries: LeaderboardEntry[]) => void;
   'ultra:event': (event: ArenaEvent) => void;

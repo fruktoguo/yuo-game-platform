@@ -140,7 +140,7 @@
 
     <section id="start-screen" class="modal-layer start-screen is-visible" aria-labelledby="game-title">
       <div class="start-glow" aria-hidden="true"></div>
-      <div class="start-version" aria-label="游戏版本 V19"><span>BUILD</span><strong>V19</strong></div>
+      <div class="start-version" aria-label="游戏版本 V20"><span>BUILD</span><strong>V20</strong></div>
       <div class="start-layout">
         <div class="start-content">
           <div id="network-status" class="title-kicker">TACTICAL SURVIVAL / LOCAL</div>
@@ -212,6 +212,21 @@
           <button id="changelog-close-button" class="icon-button codex-close-button" type="button" aria-label="关闭更新日志" title="关闭更新日志">×</button>
         </header>
         <div class="changelog-list">
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V20</strong></div>
+              <time datetime="2026-07-20">2026.07.20</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">碰撞同步</span>
+              <h3>可见即发生的蛇头碰撞</h3>
+              <ul>
+                <li>玩家头撞改为本地即时反馈，并通过唯一事件可靠同步给全房间。</li>
+                <li>服务器按短时位置历史回溯接触帧，双端重复上报只会产生一次裁决。</li>
+                <li>远端弹开增加画面对齐等待、连续分离和平滑视觉补间，减少隔空碰撞、重叠与瞬移。</li>
+              </ul>
+            </div>
+          </article>
           <article class="changelog-entry">
             <header>
               <div class="changelog-version"><span>BUILD</span><strong>V19</strong></div>
@@ -325,6 +340,7 @@
   <script src="network-player-prediction.js"></script>
   <script src="network-player-state-codec.js"></script>
   <script src="network-player-collisions.js"></script>
+  <script src="network-head-collisions.js"></script>
   <script src="network-food-claims.js"></script>
   <script src="network-projectiles.js"></script>
   <script src="game.js"></script>

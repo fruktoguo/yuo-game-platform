@@ -22,6 +22,7 @@ import type {
   InterServerEvents,
   InputPayload,
   PlayerCollisionClaim,
+  PlayerHeadCollisionEvent,
   ServerToClientEvents,
   SocketData,
   UltraEffect,
@@ -66,12 +67,14 @@ export class ArenaHub {
     let publishEvent: (event: ArenaEvent) => void = () => undefined;
     let publishEffects: (effects: UltraEffect[]) => void = () => undefined;
     let publishProjectiles: (events: UltraProjectileEvent[]) => void = () => undefined;
+    let publishPlayerHeadCollision: (event: PlayerHeadCollisionEvent) => void = () => undefined;
     let finishRun: (result: RunResult) => void = () => undefined;
     let publishUpgrade: (entityId: number, offer: UpgradeOffer | null) => void = () => undefined;
     const world = new UltraWorld({
       callbacks: {
         onEffects: (effects) => publishEffects(effects),
         onProjectiles: (events) => publishProjectiles(events),
+        onPlayerHeadCollision: (event) => publishPlayerHeadCollision(event),
         onEvent: (event) => publishEvent(event),
         onRunEnded: (result) => finishRun(result),
         onUpgrade: (entityId, offer) => publishUpgrade(entityId, offer),
@@ -81,6 +84,7 @@ export class ArenaHub {
     publishEvent = (event) => hub.publishEvent(event);
     publishEffects = (effects) => hub.publishEffects(effects);
     publishProjectiles = (events) => hub.publishProjectiles(events);
+    publishPlayerHeadCollision = (event) => hub.publishPlayerHeadCollision(event);
     finishRun = (result) => hub.finishRun(result);
     publishUpgrade = (entityId, offer) => hub.sendUpgrade(entityId, offer);
     return hub;
@@ -207,7 +211,7 @@ export class ArenaHub {
     const accountId = this.getJoinedAccountId(socket);
     if (!accountId || !payload || typeof payload !== 'object') return;
     try {
-      this.world.applyInput(accountId, decodePlayerMovementState(payload));
+      this.world.applyInput(accountId, decodePlayerMovementState(payload), Date.now());
     } catch {
       // Invalid volatile movement packets are discarded without affecting the room.
     }
@@ -317,6 +321,10 @@ export class ArenaHub {
 
   private publishProjectiles(events: UltraProjectileEvent[]): void {
     if (events.length > 0 && this.socketsByAccount.size > 0) this.io.emit('ultra:projectiles', events);
+  }
+
+  private publishPlayerHeadCollision(event: PlayerHeadCollisionEvent): void {
+    if (this.socketsByAccount.size > 0) this.io.emit('ultra:player-head-collision', event);
   }
 
   private sendUpgrade(entityId: number, offer: UpgradeOffer | null): void {

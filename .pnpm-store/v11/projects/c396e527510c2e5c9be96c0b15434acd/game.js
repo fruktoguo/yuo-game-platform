@@ -293,6 +293,13 @@
   const NETWORK_MAX_EXTRAPOLATION_MS = 90;
   const NETWORK_INPUT_INTERVAL_MS = 1000 / designerNumber("networkPlayerStateHz", 20, 5, 60, true);
   const NETWORK_COLLISION_CLAIM_COOLDOWN_MS = designerNumber("networkCollisionClaimCooldownMs", 500, 100, 2000, true);
+  const NETWORK_INTERPOLATION_MIN_MS = designerNumber("networkInterpolationMinMs", 90, 40, 300, true);
+  const NETWORK_INTERPOLATION_MAX_MS = designerNumber("networkInterpolationMaxMs", 120, 40, 400, true);
+  const NETWORK_HEAD_COLLISION_CONTACT_ALLOWANCE = designerNumber("networkHeadCollisionContactAllowance", 0.12, 0, 1);
+  const NETWORK_HEAD_COLLISION_EVENT_GRACE_MS = designerNumber("networkHeadCollisionEventGraceMs", 120, 0, 500, true);
+  const NETWORK_HEAD_COLLISION_SEPARATION_RATE = designerNumber("networkHeadCollisionSeparationRate", 4, 0.1, 20);
+  const NETWORK_HEAD_COLLISION_REMOTE_IMPULSE = designerNumber("networkHeadCollisionRemoteImpulse", 0.22, 0, 1);
+  const NETWORK_HEAD_COLLISION_REMOTE_IMPULSE_DURATION = designerNumber("networkHeadCollisionRemoteImpulseDuration", 0.24, 0.05, 1);
   const NETWORK_FOOD_CONTACT_INTERVAL_MS = 1000 / 30;
   const ENEMY_DEATH_HEAD_PARTICLES = designerNumber("enemyDeathHeadParticles", 28, 1, 100, true);
   const ENEMY_DEATH_BODY_PARTICLES = designerNumber("enemyDeathBodyParticles", 7, 1, 40, true);
@@ -415,6 +422,13 @@
   if (!networkPlayerStateCodec) throw new Error("PROJECT GSS0 玩家状态编码器未加载");
   const networkPlayerCollisions = globalThis.GSS0PlayerCollisions;
   if (!networkPlayerCollisions) throw new Error("PROJECT GSS0 玩家碰撞运行时未加载");
+  const networkHeadCollisionRuntime = globalThis.GSS0NetworkHeadCollisions?.create({
+    cooldownMs: NETWORK_COLLISION_CLAIM_COOLDOWN_MS,
+    eventGraceMs: NETWORK_HEAD_COLLISION_EVENT_GRACE_MS,
+    impulseDistance: NETWORK_HEAD_COLLISION_REMOTE_IMPULSE,
+    impulseDuration: NETWORK_HEAD_COLLISION_REMOTE_IMPULSE_DURATION
+  });
+  if (!networkHeadCollisionRuntime) throw new Error("PROJECT GSS0 玩家头撞协调器未加载");
   const networkFoodClaimRuntime = globalThis.GSS0FoodClaimRuntime?.create({ maximumBatchSize: 32, retryAfterMs: 750 });
   if (!networkFoodClaimRuntime) throw new Error("PROJECT GSS0 吃球检测运行时未加载");
   const spawnPlanner = globalThis.GSS0SpawnPlanner;
@@ -1142,6 +1156,9 @@
       projectiles = networkProjectileRuntime.items;
     });
     socket.on("ultra:effects", receiveNetworkEffects);
+    socket.on("ultra:player-head-collision", (event) => {
+      networkHeadCollisionRuntime.receive(event, performance.now());
+    });
     socket.on("ultra:roster", (roster) => {
       network.roster = Array.isArray(roster) ? roster : [];
       renderNetworkRoster(network.snapshot?.players);
@@ -1218,6 +1235,7 @@
     network.localDeathPending = false;
     network.collisionClaims.clear();
     network.localEnemyDeaths.clear();
+    networkHeadCollisionRuntime.clear();
     networkPlayerPredictionRuntime.clear();
   }
 
@@ -1401,8 +1419,8 @@
     const elapsedSinceLatest = Math.max(0, now - network.receivedAt);
     const interpolationDelay = clamp(
       Math.max(network.snapshotIntervalMs * 1.55, network.snapshotGapMs * 0.85) + network.snapshotJitterMs * 1.2,
-      90,
-      240
+      Math.min(NETWORK_INTERPOLATION_MIN_MS, NETWORK_INTERPOLATION_MAX_MS),
+      Math.max(NETWORK_INTERPOLATION_MIN_MS, NETWORK_INTERPOLATION_MAX_MS)
     );
     const desiredServerTime = latest.snapshot.serverTime + elapsedSinceLatest - interpolationDelay;
     if (!Number.isFinite(network.renderServerTime) || Math.abs(desiredServerTime - network.renderServerTime) > 1000) {
@@ -1446,6 +1464,7 @@
     network.lastFoodContactAt = 0;
     network.moduleIds.length = 0;
     networkPlayerPredictionRuntime.clear();
+    networkHeadCollisionRuntime.clear();
     networkProjectileRuntime.clear();
     networkFoodClaimRuntime.clear();
   }
@@ -1671,7 +1690,82 @@
     network.presentationSnapshot = current;
   }
 
+  function networkPlayerHeadContactRange() {
+    return playerHeadRadiusPixels() * 2 / arena.cellSize;
+  }
+
+  function networkPlayerView(entityId) {
+    return network.playerViews.get(entityId) || null;
+  }
+
+  function processNetworkPlayerHeadCollisionEvents(now) {
+    const visualRange = networkPlayerHeadContactRange() + NETWORK_HEAD_COLLISION_CONTACT_ALLOWANCE;
+    const ready = networkHeadCollisionRuntime.takeReady(now, (event) => {
+      const source = networkPlayerView(event.sourceEntityId);
+      const target = networkPlayerView(event.targetEntityId);
+      return Boolean(source && target && Math.hypot(source.col - target.col, source.row - target.row) <= visualRange);
+    });
+    for (const event of ready) {
+      if (!networkHeadCollisionRuntime.apply(event, network.selfEntityId, now)) continue;
+      if (testMode || (event.sourceEntityId !== network.selfEntityId && event.targetEntityId !== network.selfEntityId)) continue;
+      if (!player || state !== "running") continue;
+      const sourceIsSelf = event.sourceEntityId === network.selfEntityId;
+      const other = networkPlayerView(sourceIsSelf ? event.targetEntityId : event.sourceEntityId);
+      bounceNetworkSelf(
+        sourceIsSelf ? event.normalCol : -event.normalCol,
+        sourceIsSelf ? event.normalRow : -event.normalRow,
+        other?.playerColor || "#dffcff"
+      );
+    }
+  }
+
+  function applyNetworkPlayerHeadCollisionOffsets(now) {
+    for (const view of visiblePlayers) {
+      if (view.isSelf) continue;
+      const offset = networkHeadCollisionRuntime.offsetFor(view.entityId, now);
+      if (!offset) continue;
+      view.col += offset.col;
+      view.row += offset.row;
+      syncNodePosition(view);
+      for (const segment of view.segments) {
+        segment.col += offset.col;
+        segment.row += offset.row;
+        syncNodePosition(segment);
+      }
+    }
+  }
+
+  function stabilizeNetworkPlayerHeadSeparation(dt, now) {
+    if (!player) return;
+    const contactRange = networkPlayerHeadContactRange();
+    let moved = false;
+    for (const other of visiblePlayers) {
+      if (
+        other.isSelf
+        || !networkHeadCollisionRuntime.isPairCooling(network.selfEntityId, other.entityId, now)
+      ) continue;
+      let normalCol = player.col - other.col;
+      let normalRow = player.row - other.row;
+      let distance = Math.hypot(normalCol, normalRow);
+      if (distance >= contactRange) continue;
+      const overlap = contactRange - distance;
+      if (distance < 0.001) {
+        normalCol = -Math.cos(player.angle);
+        normalRow = -Math.sin(player.angle);
+        distance = 1;
+      }
+      const separation = Math.min(overlap, NETWORK_HEAD_COLLISION_SEPARATION_RATE * dt);
+      player.col += normalCol / distance * separation;
+      player.row += normalRow / distance * separation;
+      moved = true;
+    }
+    if (!moved) return;
+    networkPlayerPredictionRuntime.adoptLocal(player);
+    applyNetworkSelfPrediction(player);
+  }
+
   function updateNetwork(dt) {
+    const now = performance.now();
     const presentation = selectNetworkPresentation();
     if (presentation) applyNetworkPresentation(
       presentation.previous.snapshot,
@@ -1679,6 +1773,7 @@
       presentation.previous.indexes,
       presentation.amount
     );
+    processNetworkPlayerHeadCollisionEvents(now);
     networkProjectileRuntime.update(dt, (id) => network.enemyViews.get(id) || null, arena);
     projectiles = networkProjectileRuntime.items;
     for (const visiblePlayer of visiblePlayers) {
@@ -1709,11 +1804,13 @@
         const feastMultiplier = predictedState.foodBoost > 0 ? 1 + moduleCount("feast") * MODULE_TUNING.feast.speedPerStack : 1;
         networkPlayerPredictionRuntime.update(dt, network.localDesiredAngle, turnRate, playerBaseSpeed() * slowMultiplier * feastMultiplier);
         applyNetworkSelfPrediction(player);
+        stabilizeNetworkPlayerHeadSeparation(dt, now);
         checkNetworkPlayerCollisions();
         sendNetworkInput();
       }
       claimNetworkFoodContacts();
     }
+    applyNetworkPlayerHeadCollisionOffsets(now);
     updateEffects(dt);
     if (network.lastHudTick !== network.presentationSnapshot?.tick) {
       network.lastHudTick = network.presentationSnapshot?.tick ?? -1;
@@ -1721,19 +1818,21 @@
     }
   }
 
-  function sendNetworkInput(force = false) {
+  function sendNetworkInput(force = false, reliable = false) {
     const socket = network.socket;
-    if (!socket?.connected || !player) return;
+    if (!socket?.connected || !player) return null;
     const now = performance.now();
     const elapsed = now - network.lastInputAt;
-    if (!force && elapsed < NETWORK_INPUT_INTERVAL_MS) return;
+    if (!force && elapsed < NETWORK_INPUT_INTERVAL_MS) return null;
     network.lastInputAt = now;
     const sequence = ++network.inputSequence;
-    socket.volatile.emit("ultra:input", networkPlayerStateCodec.encode(sequence, player));
+    const payload = networkPlayerStateCodec.encode(sequence, player);
+    if (reliable) socket.emit("ultra:input", payload);
+    else socket.volatile.emit("ultra:input", payload);
+    return sequence;
   }
 
-  function reportNetworkCollision(claim, key, onRejected = null) {
-    const now = performance.now();
+  function reportNetworkCollision(claim, key, onRejected = null, now = performance.now()) {
     const previous = network.collisionClaims.get(key) || 0;
     if (now - previous < NETWORK_COLLISION_CLAIM_COOLDOWN_MS) return false;
     network.collisionClaims.set(key, now);
@@ -1752,7 +1851,7 @@
     bounceEntity(player, normalCol, normalRow, color, 0.58);
     networkPlayerPredictionRuntime.adoptLocal(player);
     applyNetworkSelfPrediction(player);
-    sendNetworkInput(true);
+    sendNetworkInput(true, true);
   }
 
   function eliminateNetworkSelf(claim, key) {
@@ -1840,7 +1939,39 @@
     }
     if (collision.kind === "player-head") {
       const other = visiblePlayers.find((item) => item.entityId === collision.targetId);
-      bounceNetworkSelf(collision.normalCol, collision.normalRow, other?.playerColor || "#dffcff");
+      if (!other) return;
+      const collisionAt = performance.now();
+      if (networkHeadCollisionRuntime.isPairCooling(network.selfEntityId, collision.targetId, collisionAt)) return;
+      const sourceCol = player.col;
+      const sourceRow = player.row;
+      const sequence = sendNetworkInput(true, true);
+      if (!Number.isSafeInteger(sequence)) return;
+      const observedAt = Number.isFinite(network.renderServerTime)
+        ? network.renderServerTime
+        : network.snapshot?.serverTime || Date.now();
+      const collisionKey = `player-head:${Math.min(network.selfEntityId, collision.targetId)}:${Math.max(network.selfEntityId, collision.targetId)}`;
+      const claim = {
+        kind: "player-head",
+        targetId: collision.targetId,
+        sequence,
+        observedAt,
+        sourceCol,
+        sourceRow,
+        targetCol: other.col,
+        targetRow: other.row,
+        normalCol: collision.normalCol,
+        normalRow: collision.normalRow
+      };
+      if (!reportNetworkCollision(claim, collisionKey, null, collisionAt)) return;
+      networkHeadCollisionRuntime.markLocal(
+        network.selfEntityId,
+        collision.targetId,
+        sequence,
+        collision.normalCol,
+        collision.normalRow,
+        collisionAt
+      );
+      bounceNetworkSelf(collision.normalCol, collision.normalRow, other.playerColor || "#dffcff");
       return;
     }
     if (collision.kind === "enemy-protected") {
