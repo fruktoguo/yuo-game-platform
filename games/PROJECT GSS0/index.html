@@ -140,7 +140,7 @@
 
     <section id="start-screen" class="modal-layer start-screen is-visible" aria-labelledby="game-title">
       <div class="start-glow" aria-hidden="true"></div>
-      <div class="start-version" aria-label="游戏版本 V20"><span>BUILD</span><strong>V20</strong></div>
+      <div class="start-version" aria-label="游戏版本 V21"><span>BUILD</span><strong>V21</strong></div>
       <div class="start-layout">
         <div class="start-content">
           <div id="network-status" class="title-kicker">TACTICAL SURVIVAL / LOCAL</div>
@@ -212,6 +212,20 @@
           <button id="changelog-close-button" class="icon-button codex-close-button" type="button" aria-label="关闭更新日志" title="关闭更新日志">×</button>
         </header>
         <div class="changelog-list">
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V21</strong></div>
+              <time datetime="2026-07-20">2026.07.20</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">部署修复</span>
+              <h3>二进制状态验证修正</h3>
+              <ul>
+                <li>修正玩家状态包测试对 Float32 量化值使用精确相等判断的问题。</li>
+                <li>全部量化移动字段统一按编码精度校验，避免同类构建误报。</li>
+              </ul>
+            </div>
+          </article>
           <article class="changelog-entry">
             <header>
               <div class="changelog-version"><span>BUILD</span><strong>V20</strong></div>

@@ -6,6 +6,8 @@ import type { UltraSnapshot } from '../src/shared/protocol';
 import { decodePlayerMovementState } from '../src/shared/playerStateCodec';
 import { encodeUltraSnapshot } from '../src/shared/snapshotCodec';
 
+const FLOAT32_DECIMAL_PRECISION = 5;
+
 runInThisContext(readFileSync(new URL('../network-codec.js', import.meta.url), 'utf8'));
 runInThisContext(readFileSync(new URL('../network-player-prediction.js', import.meta.url), 'utf8'));
 runInThisContext(readFileSync(new URL('../network-player-state-codec.js', import.meta.url), 'utf8'));
@@ -140,8 +142,20 @@ describe('客户端网络模块', () => {
   it('完整蛇身状态使用紧凑二进制包往返，碰撞只按客户端可见距离触发', () => {
     const player = snapshotAt(9, 5).players[0];
     const decoded = decodePlayerMovementState(clientGlobals.GSS0PlayerStateCodec.encode(10, player as unknown as Record<string, unknown>));
-    expect(decoded).toMatchObject({ sequence: 10, col: 5, row: 5, angle: 0.4 });
+    expect(decoded.sequence).toBe(10);
+    expect(decoded.col).toBeCloseTo(player.col, FLOAT32_DECIMAL_PRECISION);
+    expect(decoded.row).toBeCloseTo(player.row, FLOAT32_DECIMAL_PRECISION);
+    expect(decoded.angle).toBeCloseTo(player.angle, FLOAT32_DECIMAL_PRECISION);
+    expect(decoded.desiredAngle).toBeCloseTo(player.desiredAngle, FLOAT32_DECIMAL_PRECISION);
+    expect(decoded.speed).toBeCloseTo(player.speed, FLOAT32_DECIMAL_PRECISION);
+    expect(decoded.knockbackX).toBeCloseTo(player.knockbackX, FLOAT32_DECIMAL_PRECISION);
+    expect(decoded.knockbackY).toBeCloseTo(player.knockbackY, FLOAT32_DECIMAL_PRECISION);
+    expect(decoded.collisionCooldown).toBeCloseTo(player.collisionCooldown, FLOAT32_DECIMAL_PRECISION);
+    expect(decoded.slow).toBeCloseTo(player.slow, FLOAT32_DECIMAL_PRECISION);
     expect(decoded.segments).toHaveLength(1);
+    expect(decoded.segments[0].col).toBeCloseTo(player.segments[0].col, FLOAT32_DECIMAL_PRECISION);
+    expect(decoded.segments[0].row).toBeCloseTo(player.segments[0].row, FLOAT32_DECIMAL_PRECISION);
+    expect(decoded.segments[0].angle).toBeCloseTo(player.segments[0].angle, FLOAT32_DECIMAL_PRECISION);
 
     const options = { worldMin: 0, worldMax: 23, selfRange: 0.5, bodyRange: 0.42, playerHeadRange: 1.05, enemyHeadRange: 0.81 };
     const far = clientGlobals.GSS0PlayerCollisions.detect(player, [{ id: 2, col: 5.9, row: 5, angle: Math.PI, segments: [], dead: false }], [player], options);
