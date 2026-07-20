@@ -192,6 +192,19 @@
     .module-name span { display: block; margin-top: 5px; color: var(--module-color); font-size: 10px; font-weight: 900; }
     .module-desc { color: #bdc6c9; font-size: 11px; line-height: 1.58; }
     .module-desc small { display: block; margin-top: 5px; color: var(--muted); font-weight: 800; }
+    .cooldown-control {
+      grid-column: 3 / -1;
+      display: grid;
+      grid-template-columns: minmax(150px, 0.55fr) minmax(220px, 1fr) 110px;
+      gap: 14px;
+      align-items: center;
+      padding: 10px 12px;
+      border-left: 3px solid var(--module-color);
+      background: #101518;
+    }
+    .cooldown-control strong { display: block; color: #fff; font-size: 11px; }
+    .cooldown-control span { display: block; margin-top: 3px; color: var(--muted); font-size: 9px; }
+    .cooldown-control output { color: var(--yellow); text-align: right; font-size: 11px; font-weight: 900; font-variant-numeric: tabular-nums; }
     .status-control { display: grid; grid-template-columns: repeat(4, minmax(64px, 1fr)); border: 1px solid var(--line); }
     .status-control button { min-height: 34px; padding: 0 7px; border: 0; border-right: 1px solid var(--line); background: #101518; color: #9ba7ac; font-size: 10px; font-weight: 900; }
     .status-control button:last-child { border-right: 0; }
@@ -209,7 +222,7 @@
       .sidebar-label { display: none; }
       .tab { width: auto; min-width: 132px; margin: 0; }
       .module-row { grid-template-columns: 38px minmax(140px, 0.5fr) 1fr; }
-      .status-control { grid-column: 2 / -1; }
+      .status-control, .cooldown-control { grid-column: 2 / -1; }
     }
 
     @media (max-width: 660px) {
@@ -226,7 +239,9 @@
       .module-toolbar { grid-template-columns: 1fr 1fr; }
       .filter-input { grid-column: 1 / -1; }
       .module-row { grid-template-columns: 34px 1fr; }
-      .module-desc, .status-control { grid-column: 1 / -1; }
+      .module-desc, .status-control, .cooldown-control { grid-column: 1 / -1; }
+      .cooldown-control { grid-template-columns: 1fr; gap: 8px; }
+      .cooldown-control output { text-align: left; }
       .status-control { grid-template-columns: repeat(2, 1fr); }
       .status-control button:nth-child(2) { border-right: 0; }
       .status-control button:nth-child(-n + 2) { border-bottom: 1px solid var(--line); }
@@ -293,8 +308,7 @@
         { key: "upgradeInvulnerabilityDuration", group: "玩家", label: "升级后无敌时间", hint: "选择机体并恢复移动后的全身保护时间", min: 0, max: 10, step: 0.05, unit: "秒" },
         { key: "respawnLocatorConvergeDuration", group: "表现", label: "复活定位收束时长", hint: "双层外框从屏幕外缩小到玩家蛇头所需的时间", min: 0.1, max: 10, step: 0.1, unit: "秒" },
         { key: "respawnLocatorFadeDuration", group: "表现", label: "复活定位淡出时长", hint: "外框到达玩家蛇头后逐渐变淡消失的时间", min: 0.1, max: 20, step: 0.1, unit: "秒" },
-        { key: "headAttackInterval", group: "玩家", label: "蛇头攻击间隔", hint: "受攻击间隔倍率和超频增幅节影响前的间隔", min: 0.05, max: 30, step: 0.05, unit: "秒" },
-        { key: "headTargetRange", group: "玩家", label: "蛇头索敌距离", hint: "蛇头自动武器发现敌人的像素半径", min: 50, max: 2000, step: 10, unit: "px" },
+        { key: "headAttackInterval", group: "玩家", label: "蛇头攻击间隔", hint: "受蛇头攻击间隔倍率和超频增幅节影响前的间隔", min: 0.05, max: 30, step: 0.05, unit: "秒" },
         { key: "enemyBaseSpeed", group: "敌人", label: "敌人基础速度", hint: "敌人生命长度加速前的每秒移动格数", min: 0.5, max: 12, step: 0.1, unit: "格/秒" },
         { key: "enemySpeedPerInitialHealth", group: "敌人", label: "每点初始生命速度成长", hint: "每点初始生命附加的速度倍率；0.02 表示提高 2%", min: 0, max: 0.5, step: 0.005, unit: "倍率/点" },
         { key: "enemyTurnRateMin", group: "敌人", label: "敌人最低转向", hint: "每次转向采用的随机速度下界", min: 0.1, max: 10, step: 0.05, unit: "弧度/秒" },
@@ -310,9 +324,8 @@
         { key: "enemiesPerPlayerPerWave", group: "波次", label: "每人每波敌人数", hint: "每个存活玩家在新波次贡献的敌蛇数量", min: 0, max: 12, step: 1, unit: "条" },
         { key: "enemySpawnWarning", group: "波次", label: "敌人出生预警", hint: "预警轮廓出现到敌人实体生成的时间", min: 0, max: 10, step: 0.05, unit: "秒" },
         { key: "projectileSpeedScale", group: "战斗", label: "全局子弹速度倍率", hint: "作用于所有以速度参数发射的投射物", min: 0.1, max: 10, step: 0.05, unit: "倍" },
-        { key: "projectileRangeMultiplier", group: "战斗", label: "子弹射程补偿倍率", hint: "有索敌距离限制的子弹在发射后获得的实际飞行距离倍率", min: 0.1, max: 10, step: 0.05, unit: "倍" },
-        { key: "attackIntervalScale", group: "战斗", label: "全局攻击间隔倍率", hint: "头部与大部分定时输出技能共用的冷却时间倍率", min: 0.1, max: 10, step: 0.05, unit: "倍" },
-        { key: "moduleTargetRange", group: "战斗", label: "机体索敌距离", hint: "大部分需要目标的机体共用的索敌半径", min: 50, max: 2000, step: 10, unit: "px" },
+        { key: "attackIntervalScale", group: "战斗", label: "蛇头攻击间隔倍率", hint: "只影响蛇头基础攻击和持续伤害节奏，不再影响主动机体冷却", min: 0.1, max: 10, step: 0.05, unit: "倍" },
+        { key: "activeSkillBaseCooldown", group: "战斗", label: "主动技能基础冷却", hint: "第二页各机体的冷却百分比均以此时间为 100%", min: 0.05, max: 30, step: 0.05, unit: "秒" },
         { key: "arenaAreaPerLevel", group: "场地", label: "每级场地面积成长", hint: "按场上最高玩家等级增加的场地面积倍率", min: 0, max: 0.5, step: 0.005, unit: "倍率/级" },
         { key: "arenaResizeRate", group: "场地", label: "场地缩放速度", hint: "场地面积目标变化后的平滑追随速度", min: 0.1, max: 10, step: 0.1, unit: "速率" },
         { key: "maxRenderFps", group: "性能", label: "最高绘制帧率", hint: "只限制 Canvas 和界面动效绘制，不降低逻辑与网络输入频率", min: 30, max: 240, step: 1, unit: "FPS" },
@@ -336,55 +349,55 @@
       ];
 
       const MODULES = [
-        { id: "spark", name: "赤焰炮节", category: "输出", color: "#ff9f43", cooldown: "5.4秒", desc: "周期锁定最近敌蛇，发射一枚高速焰弹。稳定、直接的单体火力。" },
-        { id: "frost", name: "冰棱节", category: "输出", color: "#58d8ff", cooldown: "7秒", desc: "发射冰晶弹，命中削去一节身体，并让敌蛇短暂减速。" },
-        { id: "prism", name: "三棱镜节", category: "输出", color: "#ff5da2", cooldown: "14.1秒", desc: "向目标方向扇形发射三枚折射弹，单轮具备较高爆发。" },
-        { id: "nova", name: "星爆节", category: "输出", color: "#ff7043", cooldown: "18.5秒", desc: "蓄能后向四周喷射八枚星屑，近身混战时覆盖整片区域。" },
-        { id: "tesla", name: "雷鸣环节", category: "输出", color: "#f7e85b", cooldown: "13.5秒", desc: "电弧在邻近敌蛇间跳跃，最多连续命中三个目标。" },
-        { id: "laser", name: "霓虹线圈", category: "输出", color: "#39f5a6", cooldown: "10.2秒", desc: "定期向最近目标释放瞬发光束，射程远且不会打偏。" },
-        { id: "missile", name: "追迹弹舱", category: "输出", color: "#ef476f", cooldown: "10.6秒", desc: "发射自动修正航向的追迹弹，擅长攻击正在绕行的敌蛇。" },
-        { id: "mine", name: "磁暴雷节", category: "输出", color: "#9a7cff", cooldown: "22.8秒", desc: "留下永久磁雷。敌我蛇头都可触发；玩家触发时只会被击退。" },
-        { id: "blade", name: "旋刃节", category: "输出", color: "#e8eef7", cooldown: "0.96秒/目标", desc: "彩刃在约五节身体长度外旋转，接触敌蛇时切除一节身体。" },
-        { id: "pulse", name: "脉冲核心", category: "输出", color: "#3eb7ff", cooldown: "16.2秒", desc: "周期释放近距离冲击波，同时命中范围内的所有敌蛇。" },
-        { id: "venom", name: "腐蚀囊节", category: "输出", color: "#8be04e", cooldown: "11秒", desc: "发射腐蚀弹，命中后继续造成两次缓慢侵蚀伤害。" },
-        { id: "echo", name: "回声弹匣", category: "输出", color: "#ff8bd7", cooldown: "随头部·3.8秒", desc: "每次头部发射时追加一枚偏转弹，多个回声弹匣可继续叠加。" },
-        { id: "rail", name: "贯穿轨炮节", category: "输出", color: "#7ef9ff", cooldown: "14秒", desc: "发射高速贯穿弹，最多连续穿透四个敌人。" },
-        { id: "ricochet", name: "弹射晶节", category: "输出", color: "#ffcf5a", cooldown: "14.5秒", desc: "发射可反弹两次、最多命中三个敌人的晶体弹。" },
-        { id: "cluster", name: "裂变弹舱", category: "输出", color: "#ff6b4a", cooldown: "16秒", desc: "发射追踪爆弹，命中时对周围所有敌人造成伤害。" },
-        { id: "fan", name: "烈焰扇节", category: "输出", color: "#ff3f68", cooldown: "15秒", desc: "近距离扇形喷射五枚短程焰弹，贴近时爆发极高。" },
-        { id: "gravity", name: "引力井节", category: "输出", color: "#a56cff", cooldown: "20秒", desc: "在目标位置生成引力井，初次伤害并持续拉扯、减速敌人。" },
-        { id: "shield", name: "碧玉护盾", category: "防御", color: "#48e0bf", cooldown: "18秒", desc: "储存一次碰撞防护。触发后短暂无敌并进入冷却。" },
-        { id: "phase", name: "幻相节", category: "防御", color: "#bb8cff", cooldown: "22秒", desc: "周期获得一次相位充能，可穿过致命碰撞并保持当前航向。" },
+        { id: "spark", name: "赤焰炮节", category: "输出", color: "#ff9f43", cooldown: "", desc: "周期锁定最近敌蛇，发射一枚高速焰弹。稳定、直接的单体火力。" },
+        { id: "frost", name: "冰棱节", category: "输出", color: "#58d8ff", cooldown: "", desc: "发射冰晶弹，命中削去一节身体，并让敌蛇短暂减速。" },
+        { id: "prism", name: "三棱镜节", category: "输出", color: "#ff5da2", cooldown: "", desc: "向目标方向扇形发射三枚折射弹，单轮具备较高爆发。" },
+        { id: "nova", name: "星爆节", category: "输出", color: "#ff7043", cooldown: "", desc: "蓄能后向四周喷射八枚星屑，近身混战时覆盖整片区域。" },
+        { id: "tesla", name: "雷鸣环节", category: "输出", color: "#f7e85b", cooldown: "", desc: "电弧在邻近敌蛇间跳跃，最多连续命中三个目标。" },
+        { id: "laser", name: "霓虹线圈", category: "输出", color: "#39f5a6", cooldown: "", desc: "定期向场上最近目标释放瞬发光束，不会打偏。" },
+        { id: "missile", name: "追迹弹舱", category: "输出", color: "#ef476f", cooldown: "", desc: "发射自动修正航向的追迹弹，擅长攻击正在绕行的敌蛇。" },
+        { id: "mine", name: "磁暴雷节", category: "输出", color: "#9a7cff", cooldown: "", desc: "留下永久磁雷。敌我蛇头都可触发；玩家触发时只会被击退。" },
+        { id: "blade", name: "旋刃节", category: "输出", color: "#e8eef7", cooldown: "", desc: "彩刃在约五节身体长度外旋转，接触敌蛇时切除一节身体。" },
+        { id: "pulse", name: "脉冲核心", category: "输出", color: "#3eb7ff", cooldown: "", desc: "周期释放近距离冲击波，同时命中范围内的所有敌蛇。" },
+        { id: "venom", name: "腐蚀囊节", category: "输出", color: "#8be04e", cooldown: "", desc: "发射腐蚀弹，命中后继续造成两次缓慢侵蚀伤害。" },
+        { id: "echo", name: "回声弹匣", category: "输出", color: "#ff8bd7", cooldown: "", desc: "每次头部发射时追加一枚偏转弹，多个回声弹匣可继续叠加。" },
+        { id: "rail", name: "贯穿轨炮节", category: "输出", color: "#7ef9ff", cooldown: "", desc: "发射高速贯穿弹，最多连续穿透四个敌人。" },
+        { id: "ricochet", name: "弹射晶节", category: "输出", color: "#ffcf5a", cooldown: "", desc: "发射可反弹两次、最多命中三个敌人的晶体弹。" },
+        { id: "cluster", name: "裂变弹舱", category: "输出", color: "#ff6b4a", cooldown: "", desc: "发射追踪爆弹，命中时对周围所有敌人造成伤害。" },
+        { id: "fan", name: "烈焰扇节", category: "输出", color: "#ff3f68", cooldown: "", desc: "扇形喷射五枚焰弹，多枚可以命中同一条长蛇。" },
+        { id: "gravity", name: "引力井节", category: "输出", color: "#a56cff", cooldown: "", desc: "在目标位置生成引力井，初次伤害并持续拉扯、减速敌人。" },
+        { id: "shield", name: "碧玉护盾", category: "防御", color: "#48e0bf", cooldown: "", desc: "储存一次碰撞防护。触发后短暂无敌并进入冷却。" },
+        { id: "phase", name: "幻相节", category: "防御", color: "#bb8cff", cooldown: "", desc: "周期获得一次相位充能，可穿过致命碰撞并保持当前航向。" },
         { id: "repulse", name: "斥力环节", category: "防御", color: "#75dfff", cooldown: "常驻", desc: "持续扰动附近敌蛇的转向，让它们更难贴近你的身体。" },
         { id: "armor", name: "黑曜装甲", category: "防御", color: "#b7c0ce", cooldown: "常驻", desc: "压缩护盾与相位模块的冷却时间，多个装甲可叠加。" },
-        { id: "thorns", name: "截击反应节", category: "防御", color: "#9ee55f", cooldown: "6秒", desc: "敌蛇撞上身体并被摧毁时，向四周发射反击弹幕，并在撞击处生成一枚球。" },
+        { id: "thorns", name: "截击反应节", category: "防御", color: "#9ee55f", cooldown: "", desc: "敌蛇撞上身体并被摧毁时，向四周发射反击弹幕，并在撞击处生成一枚球。" },
         { id: "stabilizer", name: "平衡陀螺", category: "防御", color: "#67d5c8", cooldown: "常驻", desc: "缩短玩家反弹后的减速与失控时间，多个模块可叠加。" },
         { id: "magnet", name: "磁吸环节", category: "辅助", color: "#f5cb4c", cooldown: "常驻", desc: "扩大头部的球球吸收范围，多个模块可以继续叠加。" },
         { id: "haste", name: "涡轮节", category: "辅助", color: "#ff8457", cooldown: "常驻", desc: "永久提高移动速度，同时略微提升转向响应。" },
         { id: "chronos", name: "时缓晶节", category: "辅助", color: "#91a7ff", cooldown: "常驻", desc: "降低所有敌蛇的移动速度，为抢球和包抄争取空间。" },
         { id: "tractor", name: "引力环节", category: "辅助", color: "#3ed8b5", cooldown: "常驻", desc: "球进入引力范围后会连续飞向蛇头，直到被真正吞下。" },
         { id: "fortune", name: "幸运星节", category: "辅助", color: "#ffd166", cooldown: "击破触发", desc: "敌蛇死亡时有机会额外吐出球球，模块越多，概率越高。" },
-        { id: "guidance", name: "弹道校准节", category: "辅助", color: "#78a9ff", cooldown: "常驻", desc: "提高子弹速度、存续距离和轻度追踪能力。" },
+        { id: "guidance", name: "弹道校准节", category: "辅助", color: "#78a9ff", cooldown: "常驻", desc: "提高子弹速度和轻度追踪能力。" },
         { id: "feast", name: "吞噬涡轮", category: "辅助", color: "#ffb23f", cooldown: "吃球触发·2.5秒", desc: "吃球后短时间提高移动速度，多个模块增强加速幅度。" },
         { id: "salvage", name: "回收炉节", category: "恢复", color: "#c7f464", cooldown: "伤害触发", desc: "技能削去敌蛇身体时，有概率将碎片回收成可吃的球球。" },
-        { id: "regen", name: "再生芽节", category: "恢复", color: "#ff6f91", cooldown: "17秒", desc: "每隔一段时间在前方培育一枚球球，仍需亲自追上并吞噬。" },
-        { id: "bloom", name: "战利花房", category: "恢复", color: "#ff88c7", cooldown: "30秒", desc: "冷却就绪时，下一次击破敌人会额外培育一枚球。" },
+        { id: "regen", name: "再生芽节", category: "恢复", color: "#ff6f91", cooldown: "", desc: "每隔一段时间在前方培育一枚球球，仍需亲自追上并吞噬。" },
+        { id: "bloom", name: "战利花房", category: "恢复", color: "#ff88c7", cooldown: "", desc: "冷却就绪时，下一次击破敌人会额外培育一枚球。" },
         { id: "amplifier", name: "超频增幅节", category: "辅助", color: "#f2f5fa", cooldown: "常驻", desc: "加快头部和所有定时输出身体的攻击节奏。" },
-        { id: "needle", name: "钨针贯节", category: "输出", color: "#d8f3ff", cooldown: "8.8秒", desc: "发射高速钨针，贯穿第一个目标后仍可继续命中下一个敌人。" },
-        { id: "mortar", name: "震荡榴巢", category: "输出", color: "#ff8a5b", cooldown: "17秒", desc: "发射重型追踪榴弹，命中时对较大范围内的所有敌人造成伤害。" },
-        { id: "sweep", name: "清扫光栅", category: "输出", color: "#65e7ff", cooldown: "14.4秒", desc: "沿目标方向释放贯穿全场的宽幅光栅，伤害路径上的所有敌人。" },
-        { id: "sniper", name: "裁决镜节", category: "输出", color: "#f2f2f2", cooldown: "18秒", desc: "长时间标定最近目标，随后瞬间削去两点长度。" },
-        { id: "flak", name: "近炸蜂巢", category: "输出", color: "#ffcf4d", cooldown: "15.2秒", desc: "在目标位置引爆近炸弹幕，同时命中爆区内的全部敌人。" },
-        { id: "fork", name: "双生电极", category: "输出", color: "#d58cff", cooldown: "13.2秒", desc: "同时发射两枚向左右偏转的追迹电弹，从两侧夹击同一目标。" },
-        { id: "anchor", name: "迟滞锚弹", category: "输出", color: "#6f8cff", cooldown: "14.8秒", desc: "发射大型低速锚弹，命中后对敌人施加更持久的减速。" },
-        { id: "saw", name: "切割链环", category: "输出", color: "#f06a7b", cooldown: "1.4秒/目标", desc: "持续切割靠近该身体节的敌人，每个目标独立计算接触冷却。" },
-        { id: "flare", name: "灼蚀信标", category: "输出", color: "#ff6b35", cooldown: "14秒", desc: "发射灼蚀弹，命中后连续造成四次延迟伤害。" },
-        { id: "scatter", name: "碎晶霰舱", category: "输出", color: "#70d6ff", cooldown: "19秒", desc: "近距离扇形发射七枚碎晶，适合处理贴近身体的敌群。" },
-        { id: "lance", name: "破阵光矛", category: "输出", color: "#b9fff4", cooldown: "18秒", desc: "发射大型高速光矛，最多连续贯穿六个敌人。" },
-        { id: "execute", name: "终结协议", category: "输出", color: "#ff3f55", cooldown: "16秒", desc: "锁定低长度敌人执行双倍打击，对其他目标造成一次普通伤害。" },
-        { id: "crossfire", name: "十字火控", category: "输出", color: "#ffb347", cooldown: "20秒", desc: "朝目标方向及其三个垂直方向同时发射重型弹体。" },
-        { id: "phasebolt", name: "相位回旋节", category: "输出", color: "#b49cff", cooldown: "16秒", desc: "发射可多次反弹并轻度追踪目标的相位弹。" },
-        { id: "ram", name: "破障冲角", category: "防御", color: "#f3c600", cooldown: "5秒", desc: "蛇头互撞时，冷却就绪会额外削去敌人一点长度。" },
+        { id: "needle", name: "钨针贯节", category: "输出", color: "#d8f3ff", cooldown: "", desc: "发射高速钨针，贯穿第一个目标后仍可继续命中下一个敌人。" },
+        { id: "mortar", name: "震荡榴巢", category: "输出", color: "#ff8a5b", cooldown: "", desc: "发射重型追踪榴弹，命中时对较大范围内的所有敌人造成伤害。" },
+        { id: "sweep", name: "清扫光栅", category: "输出", color: "#65e7ff", cooldown: "", desc: "沿目标方向释放贯穿全场的宽幅光栅，伤害路径上的所有敌人。" },
+        { id: "sniper", name: "裁决镜节", category: "输出", color: "#f2f2f2", cooldown: "", desc: "标定最近目标，随后瞬间削去两点长度。" },
+        { id: "flak", name: "近炸蜂巢", category: "输出", color: "#ffcf4d", cooldown: "", desc: "在目标位置引爆近炸弹幕，同时命中爆区内的全部敌人。" },
+        { id: "fork", name: "双生电极", category: "输出", color: "#d58cff", cooldown: "", desc: "同时发射两枚向左右偏转的追迹电弹，从两侧夹击同一目标。" },
+        { id: "anchor", name: "迟滞锚弹", category: "输出", color: "#6f8cff", cooldown: "", desc: "发射大型低速锚弹，命中后对敌人施加更持久的减速。" },
+        { id: "saw", name: "切割链环", category: "输出", color: "#f06a7b", cooldown: "", desc: "持续切割靠近该身体节的敌人，每个目标独立计算接触冷却。" },
+        { id: "flare", name: "灼蚀信标", category: "输出", color: "#ff6b35", cooldown: "", desc: "发射灼蚀弹，命中后连续造成四次延迟伤害。" },
+        { id: "scatter", name: "碎晶霰舱", category: "输出", color: "#70d6ff", cooldown: "", desc: "扇形发射七枚碎晶，适合覆盖敌群或长蛇。" },
+        { id: "lance", name: "破阵光矛", category: "输出", color: "#b9fff4", cooldown: "", desc: "发射大型高速光矛，最多连续贯穿六个敌人。" },
+        { id: "execute", name: "终结协议", category: "输出", color: "#ff3f55", cooldown: "", desc: "锁定低长度敌人执行双倍打击，对其他目标造成一次普通伤害。" },
+        { id: "crossfire", name: "十字火控", category: "输出", color: "#ffb347", cooldown: "", desc: "朝目标方向及其三个垂直方向同时发射重型弹体。" },
+        { id: "phasebolt", name: "相位回旋节", category: "输出", color: "#b49cff", cooldown: "", desc: "发射可多次反弹并轻度追踪目标的相位弹。" },
+        { id: "ram", name: "破障冲角", category: "防御", color: "#f3c600", cooldown: "", desc: "蛇头互撞时，冷却就绪会额外削去敌人一点长度。" },
         { id: "buffer", name: "动能缓冲节", category: "防御", color: "#8fa6ad", cooldown: "常驻", desc: "降低玩家受到的物理击退初速度，多个模块可继续叠加。" },
         { id: "decoy", name: "诱导涂层", category: "防御", color: "#ff7a90", cooldown: "常驻", desc: "干扰敌人的身体避让判断，让精心布置的堵截更容易成功。" },
         { id: "emergency", name: "应急屏障节", category: "防御", color: "#62e6bf", cooldown: "吃球触发", desc: "任意身体吃球后获得短暂无敌，多个模块会延长持续时间。" },
@@ -392,7 +405,7 @@
         { id: "beacon", name: "增压信标", category: "辅助", color: "#ffc857", cooldown: "常驻", desc: "略微加快波次倒计时，让更多敌人与球更快进入场地。" },
         { id: "momentum", name: "冲量增幅器", category: "辅助", color: "#ff965c", cooldown: "常驻", desc: "提高敌人受到的物理击退初速度，不增加玩家自身受到的击退。" },
         { id: "progressor", name: "临界推进节", category: "辅助", color: "#38d6c5", cooldown: "常驻", desc: "当前等级的升级进度越高，玩家获得的移动速度加成越多。" },
-        { id: "nursery", name: "尾部育成舱", category: "恢复", color: "#ff8ec7", cooldown: "24秒", desc: "定期在蛇尾附近培育一枚球，仍需由敌我头部或身体实际吃取。" },
+        { id: "nursery", name: "尾部育成舱", category: "恢复", color: "#ff8ec7", cooldown: "", desc: "定期在蛇尾附近培育一枚球，仍需由敌我头部或身体实际吃取。" },
         { id: "cache", name: "战果缓存节", category: "恢复", color: "#b7e36b", cooldown: "每5次击破", desc: "累计击破敌人后生成一枚球，多个模块会减少所需击破次数。" }
       ];
 
@@ -402,21 +415,24 @@
         missile: "发射自动追踪敌蛇的导弹。", mine: "留下磁雷，炸伤敌蛇并击退玩家。", blade: "让彩刃环绕机体并切割敌蛇。",
         pulse: "释放命中周围敌蛇的冲击波。", venom: "发射会持续腐蚀敌蛇的毒弹。", echo: "头部开火时追加偏转弹。",
         rail: "发射可贯穿多条敌蛇的高速弹。", ricochet: "发射会反弹并连续命中敌蛇的晶体弹。", cluster: "发射追踪爆弹，伤害落点附近敌蛇。",
-        fan: "近距离扇形喷射焰弹。", gravity: "生成拉扯并减速敌蛇的引力井。", shield: "抵消致命碰撞并短暂无敌。",
+        fan: "扇形喷射五枚焰弹。", gravity: "生成拉扯并减速敌蛇的引力井。", shield: "抵消致命碰撞并短暂无敌。",
         phase: "抵消致命碰撞并保持航向穿过。", repulse: "持续干扰附近敌蛇的转向。", armor: "加快护盾与相位的恢复。",
         thorns: "敌蛇撞毁在身体上时触发反击弹幕和球。", stabilizer: "缩短反弹后的减速与失控。", magnet: "扩大蛇头吃球范围。",
         haste: "提高移动速度和转向响应。", chronos: "降低所有敌蛇的移动速度。", tractor: "持续把附近的球拉向蛇头。",
-        fortune: "击破敌蛇时可能额外掉球。", guidance: "强化子弹速度、距离和追踪能力。", feast: "吃球后短暂加速。",
+        fortune: "击破敌蛇时可能额外掉球。", guidance: "强化子弹速度和追踪能力。", feast: "吃球后短暂加速。",
         salvage: "技能削减敌蛇身体时可能回收成球。", regen: "定期在前方培育球。", bloom: "蓄能完成后，击破敌蛇会额外培育球。",
         amplifier: "加快头部和定时输出模块的攻击节奏。", needle: "发射可继续穿透下一目标的高速钨针。", mortar: "发射追踪榴弹，爆炸伤害附近敌蛇。",
         sweep: "释放贯穿全场的宽幅光栅。", sniper: "锁定最近敌蛇并造成强力打击。", flak: "在目标位置引爆范围弹幕。",
         fork: "从两侧发射追踪电弹夹击目标。", anchor: "发射会长时间减速敌蛇的锚弹。", saw: "持续切割靠近身体节的敌蛇。",
-        flare: "发射会持续灼蚀敌蛇的信标。", scatter: "近距离扇形发射碎晶弹幕。", lance: "发射可贯穿多条敌蛇的大型光矛。",
+        flare: "发射会持续灼蚀敌蛇的信标。", scatter: "扇形发射七枚碎晶弹幕。", lance: "发射可贯穿多条敌蛇的大型光矛。",
         execute: "对较短的敌蛇造成更强打击。", crossfire: "朝多个方向同时发射重型弹体。", phasebolt: "发射会反弹并追踪敌蛇的相位弹。",
         ram: "蛇头互撞时额外削减敌蛇身体。", buffer: "降低玩家受到的击退力度。", decoy: "削弱敌蛇对玩家身体的避让。",
         emergency: "身体吃球后获得短暂无敌。", collector: "扩大所有身体节的吃球范围。", beacon: "加快波次刷新速度。",
         momentum: "提高敌蛇受到的击退力度。", progressor: "升级进度越高，移动越快。", nursery: "定期在蛇尾附近培育球。",
         cache: "累计击破敌蛇后生成额外球。"
+      });
+      const DEFAULT_MODULE_COOLDOWN_PERCENTAGES = Object.freeze({
+        ...(globalThis.GSS0_DESIGNER_CONFIG?.moduleCooldownPercentages || {})
       });
       const STATUS_LABELS = { normal: "正常", tune: "需调数值", rework: "需大改", disabled: "禁用" };
       const CONFIG_FILE_NAME = "designer-config.js";
@@ -453,10 +469,15 @@
       const filePickerSupported = typeof window.showOpenFilePicker === "function";
 
       function normalizeConfig(value) {
-        const config = { schemaVersion: 2, balance: {}, moduleStates: {} };
+        const config = { schemaVersion: 3, balance: {}, moduleCooldownPercentages: {}, moduleStates: {} };
         for (const definition of PARAMETER_DEFINITIONS) {
           const candidate = Number(value?.balance?.[definition.key]);
           config.balance[definition.key] = Number.isFinite(candidate) ? Math.max(definition.min, Math.min(definition.max, candidate)) : definition.min;
+        }
+        for (const moduleId of Object.keys(DEFAULT_MODULE_COOLDOWN_PERCENTAGES)) {
+          const candidate = Number(value?.moduleCooldownPercentages?.[moduleId]);
+          const fallback = Number(DEFAULT_MODULE_COOLDOWN_PERCENTAGES[moduleId]);
+          config.moduleCooldownPercentages[moduleId] = Math.max(0, Math.min(1000, Number.isFinite(candidate) ? candidate : fallback));
         }
         for (const module of MODULES) {
           const state = value?.moduleStates?.[module.id];
@@ -473,7 +494,7 @@
         const end = text.lastIndexOf("}");
         if (start < 0 || end <= start) throw new Error("配置内容不完整");
         const parsed = JSON.parse(text.slice(start, end + 1));
-        if (parsed?.schemaVersion !== 2) throw new Error("配置版本无效，需要 schemaVersion 2");
+        if (parsed?.schemaVersion !== 3) throw new Error("配置版本无效，需要 schemaVersion 3");
         return normalizeConfig(parsed);
       }
 
@@ -630,6 +651,23 @@
         }
       }
 
+      function formatCooldownSeconds(seconds) {
+        return `${Number(seconds.toFixed(2))}秒`;
+      }
+
+      function moduleCooldownSeconds(moduleId) {
+        return draft.balance.activeSkillBaseCooldown * draft.moduleCooldownPercentages[moduleId] / 100;
+      }
+
+      function moduleCooldownLabel(module) {
+        if (module.id === "echo") {
+          return `随头部·${formatCooldownSeconds(draft.balance.headAttackInterval * draft.balance.attackIntervalScale)}`;
+        }
+        if (!Object.hasOwn(draft.moduleCooldownPercentages, module.id)) return module.cooldown;
+        const suffix = module.id === "blade" || module.id === "saw" ? "/目标" : "";
+        return `${formatCooldownSeconds(moduleCooldownSeconds(module.id))}${suffix}`;
+      }
+
       function renderParameters() {
         const groups = [...new Set(PARAMETER_DEFINITIONS.map((item) => item.group))];
         ui.parameterGroups.replaceChildren(...groups.map((groupName) => {
@@ -665,6 +703,7 @@
               draft.balance[definition.key] = next;
               range.value = next;
               number.value = next;
+              if (["activeSkillBaseCooldown", "headAttackInterval", "attackIntervalScale"].includes(definition.key)) renderModules();
               scheduleAutoSave();
             };
             range.addEventListener("input", () => update(range.value));
@@ -707,10 +746,11 @@
             const description = document.createElement("div");
             description.className = "module-desc";
             description.textContent = detailedDescriptions ? module.desc : SHORT_MODULE_DESCRIPTIONS[module.id] || module.desc;
+            let cooldownSummary = null;
             if (detailedDescriptions) {
-              const cooldown = document.createElement("small");
-              cooldown.textContent = `冷却 · ${module.cooldown}`;
-              description.append(cooldown);
+              cooldownSummary = document.createElement("small");
+              cooldownSummary.textContent = `冷却 · ${moduleCooldownLabel(module)}`;
+              description.append(cooldownSummary);
             }
             const control = document.createElement("div");
             control.className = "status-control";
@@ -730,6 +770,35 @@
               control.append(button);
             }
             row.append(swatch, name, description, control);
+            if (Object.hasOwn(draft.moduleCooldownPercentages, module.id)) {
+              const cooldownControl = document.createElement("label");
+              cooldownControl.className = "cooldown-control";
+              const copy = document.createElement("div");
+              const title = document.createElement("strong");
+              title.textContent = `冷却时间 · ${draft.moduleCooldownPercentages[module.id]}%`;
+              const hint = document.createElement("span");
+              hint.textContent = "相对于公共基础冷却，范围 0%–1000%";
+              copy.append(title, hint);
+              const range = document.createElement("input");
+              range.type = "range";
+              range.min = "0";
+              range.max = "1000";
+              range.step = "1";
+              range.value = String(draft.moduleCooldownPercentages[module.id]);
+              range.setAttribute("aria-label", `${module.name}冷却时间百分比`);
+              const actual = document.createElement("output");
+              actual.textContent = `实际 ${moduleCooldownLabel(module)}`;
+              range.addEventListener("input", () => {
+                const next = Math.max(0, Math.min(1000, Number(range.value) || 0));
+                draft.moduleCooldownPercentages[module.id] = next;
+                title.textContent = `冷却时间 · ${next}%`;
+                actual.textContent = `实际 ${moduleCooldownLabel(module)}`;
+                if (cooldownSummary) cooldownSummary.textContent = `冷却 · ${moduleCooldownLabel(module)}`;
+                scheduleAutoSave();
+              });
+              cooldownControl.append(copy, range, actual);
+              row.append(cooldownControl);
+            }
             return row;
           }));
         }

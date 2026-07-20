@@ -9,7 +9,7 @@
 # Project Version
 
 - The main menu must always display the current game version in its lower-left corner.
-- The current game version is `V25`.
+- The current game version is `V28`.
 - For every future user request that modifies this project, increment the integer version exactly once and update both the main-menu label and the current-version line in this file as part of the same change.
 
 # Changelog
@@ -21,6 +21,7 @@
 # Project Delivery
 
 - After completing each user request for this project, stage only the intended PROJECT GSS0 changes and create a local Git commit automatically.
+- The user permanently authorizes running `git add` and `git commit` outside the sandbox when required to complete this local delivery step.
 - Do not include unrelated workspace changes or generated caches in that commit.
 - Do not push the commit unless the user explicitly requests a push.
 

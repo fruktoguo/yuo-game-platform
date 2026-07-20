@@ -83,6 +83,41 @@
   };
 
   const TAU = Math.PI * 2;
+  const DESIGNER_CONFIG = globalThis.GSS0_DESIGNER_CONFIG || {};
+  if (DESIGNER_CONFIG.schemaVersion !== 3) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 3");
+  const DESIGNER_BALANCE = DESIGNER_CONFIG.balance || {};
+  const MODULE_DESIGN_STATES = DESIGNER_CONFIG.moduleStates || {};
+  const MODULE_COOLDOWN_PERCENTAGES = DESIGNER_CONFIG.moduleCooldownPercentages || {};
+
+  function designerNumber(key, fallback, minimum, maximum, integer = false) {
+    const candidate = DESIGNER_BALANCE[key];
+    if (!Number.isFinite(candidate)) return fallback;
+    const clamped = Math.max(minimum, Math.min(maximum, candidate));
+    return integer ? Math.round(clamped) : clamped;
+  }
+
+  const ATTACK_INTERVAL_SCALE = designerNumber("attackIntervalScale", 2, 0.1, 10);
+  const HEAD_ATTACK_INTERVAL = designerNumber("headAttackInterval", 1.9, 0.05, 30);
+  const ACTIVE_SKILL_BASE_COOLDOWN = designerNumber("activeSkillBaseCooldown", 3, 0.05, 30);
+
+  function moduleCooldownPercent(moduleId) {
+    const candidate = MODULE_COOLDOWN_PERCENTAGES[moduleId];
+    if (!Number.isFinite(candidate)) throw new Error(`PROJECT GSS0 机体 ${moduleId} 缺少冷却百分比`);
+    return clamp(candidate, 0, 1000);
+  }
+
+  function moduleCooldownSeconds(moduleId) {
+    return ACTIVE_SKILL_BASE_COOLDOWN * moduleCooldownPercent(moduleId) / 100;
+  }
+
+  function formatCooldownSeconds(seconds) {
+    return `${Number(seconds.toFixed(2))}秒`;
+  }
+
+  function activeCooldownLabel(moduleId, perTarget = false) {
+    return `${formatCooldownSeconds(moduleCooldownSeconds(moduleId))}${perTarget ? "/目标" : ""}`;
+  }
+
   const MODULE_TUNING = Object.freeze({
     armor: { cooldownMultiplierPerStack: 0.82 },
     stabilizer: { slowMultiplierPerStack: 0.75, lockMultiplierPerStack: 0.8 },
@@ -91,7 +126,7 @@
     chronos: { enemySpeedMultiplierPerStack: 0.92 },
     tractor: { baseRangeCells: 3.5, rangeCellsPerExtraStack: 1.1, basePullSpeed: 1.8, pullSpeedPerExtraStack: 0.45 },
     fortune: { chancePerStack: 0.18, maxChance: 0.85, extraDropEveryStacks: 3 },
-    guidance: { speedAndLifePerStack: 0.12, homingPerStack: 0.35 },
+    guidance: { projectileSpeedPerStack: 0.12, homingPerStack: 0.35 },
     feast: { duration: 2.5, speedPerStack: 0.12 },
     salvage: { chancePerStack: 0.14, maxChance: 0.72 },
     amplifier: { cooldownMultiplierPerStack: 0.86 },
@@ -103,61 +138,61 @@
     momentum: { enemyKnockbackPerStack: 0.18 },
     progressor: { maxSpeedPerStack: 0.08 },
     repulse: { baseRangePixels: 90, rangePixelsPerStack: 20 },
-    thorns: { baseCooldown: 6, extraStackMultiplier: 0.85, baseShots: 6, shotsPerExtraStack: 2, maxBonusShots: 10 },
-    bloom: { baseCooldown: 30, extraStackMultiplier: 0.88 },
+    thorns: { extraStackMultiplier: 0.85, baseShots: 6, shotsPerExtraStack: 2, maxBonusShots: 10 },
+    bloom: { extraStackMultiplier: 0.88 },
     cache: { baseKills: 6, killsReducedPerStack: 1, minimumKills: 2 },
-    ram: { baseCooldown: 5, extraStackMultiplier: 0.86 }
+    ram: { extraStackMultiplier: 0.86 }
   });
   const MODULES = [
-    { id: "spark", name: "赤焰炮节", category: "输出", color: "#ff9f43", shape: "triangle", cooldown: "5.4秒", desc: "周期锁定最近敌蛇，发射一枚高速焰弹。稳定、直接的单体火力。" },
-    { id: "frost", name: "冰棱节", category: "输出", color: "#58d8ff", shape: "diamond", cooldown: "7秒", desc: "发射冰晶弹，命中削去一节身体，并让敌蛇短暂减速。" },
-    { id: "prism", name: "三棱镜节", category: "输出", color: "#ff5da2", shape: "hex", cooldown: "14.1秒", desc: "向目标方向扇形发射三枚折射弹，单轮具备较高爆发。" },
-    { id: "nova", name: "星爆节", category: "输出", color: "#ff7043", shape: "star", cooldown: "18.5秒", desc: "蓄能后向四周喷射八枚星屑，近身混战时覆盖整片区域。" },
-    { id: "tesla", name: "雷鸣环节", category: "输出", color: "#f7e85b", shape: "ring", cooldown: "13.5秒", desc: "电弧在邻近敌蛇间跳跃，最多连续命中三个目标。" },
-    { id: "laser", name: "霓虹线圈", category: "输出", color: "#39f5a6", shape: "capsule", cooldown: "10.2秒", desc: "定期向最近目标释放瞬发光束，射程远且不会打偏。" },
-    { id: "missile", name: "追迹弹舱", category: "输出", color: "#ef476f", shape: "triangle", cooldown: "10.6秒", desc: "发射自动修正航向的追迹弹，擅长攻击正在绕行的敌蛇。" },
-    { id: "mine", name: "磁暴雷节", category: "输出", color: "#9a7cff", shape: "square", cooldown: "22.8秒", desc: "留下永久磁雷。敌我蛇头都可触发；玩家触发时只会被击退。" },
-    { id: "blade", name: "旋刃节", category: "输出", color: "#e8eef7", shape: "diamond", cooldown: "0.96秒/目标", desc: "彩刃在约五节身体长度外旋转，接触敌蛇时切除一节身体。" },
-    { id: "pulse", name: "脉冲核心", category: "输出", color: "#3eb7ff", shape: "ring", cooldown: "16.2秒", desc: "周期释放近距离冲击波，同时命中范围内的所有敌蛇。" },
-    { id: "venom", name: "腐蚀囊节", category: "输出", color: "#8be04e", shape: "hex", cooldown: "11秒", desc: "发射腐蚀弹，命中后继续造成两次缓慢侵蚀伤害。" },
-    { id: "echo", name: "回声弹匣", category: "输出", color: "#ff8bd7", shape: "capsule", cooldown: "随头部·3.8秒", desc: "每次头部发射时追加一枚偏转弹，多个回声弹匣可继续叠加。" },
-    { id: "rail", name: "贯穿轨炮节", category: "输出", color: "#7ef9ff", shape: "capsule", cooldown: "14秒", desc: "发射高速贯穿弹，最多连续穿透四个敌人。" },
-    { id: "ricochet", name: "弹射晶节", category: "输出", color: "#ffcf5a", shape: "diamond", cooldown: "14.5秒", desc: "发射可反弹两次、最多命中三个敌人的晶体弹。" },
-    { id: "cluster", name: "裂变弹舱", category: "输出", color: "#ff6b4a", shape: "hex", cooldown: "16秒", desc: "发射追踪爆弹，命中时对周围所有敌人造成伤害。" },
-    { id: "fan", name: "烈焰扇节", category: "输出", color: "#ff3f68", shape: "triangle", cooldown: "15秒", desc: "近距离扇形喷射五枚短程焰弹，贴近时爆发极高。" },
-    { id: "gravity", name: "引力井节", category: "输出", color: "#a56cff", shape: "ring", cooldown: "20秒", desc: "在目标位置生成引力井，初次伤害并持续拉扯、减速敌人。" },
-    { id: "shield", name: "碧玉护盾", category: "防御", color: "#48e0bf", shape: "hex", cooldown: "18秒", desc: "储存一次碰撞防护。触发后短暂无敌并进入冷却。" },
-    { id: "phase", name: "幻相节", category: "防御", color: "#bb8cff", shape: "diamond", cooldown: "22秒", desc: "周期获得一次相位充能，可穿过致命碰撞并保持当前航向。" },
+    { id: "spark", name: "赤焰炮节", category: "输出", color: "#ff9f43", shape: "triangle", cooldown: activeCooldownLabel("spark"), activeCooldown: true, desc: "周期锁定最近敌蛇，发射一枚高速焰弹。稳定、直接的单体火力。" },
+    { id: "frost", name: "冰棱节", category: "输出", color: "#58d8ff", shape: "diamond", cooldown: activeCooldownLabel("frost"), activeCooldown: true, desc: "发射冰晶弹，命中削去一节身体，并让敌蛇短暂减速。" },
+    { id: "prism", name: "三棱镜节", category: "输出", color: "#ff5da2", shape: "hex", cooldown: activeCooldownLabel("prism"), activeCooldown: true, desc: "向目标方向扇形发射三枚折射弹，单轮具备较高爆发。" },
+    { id: "nova", name: "星爆节", category: "输出", color: "#ff7043", shape: "star", cooldown: activeCooldownLabel("nova"), activeCooldown: true, desc: "蓄能后向四周喷射八枚星屑，近身混战时覆盖整片区域。" },
+    { id: "tesla", name: "雷鸣环节", category: "输出", color: "#f7e85b", shape: "ring", cooldown: activeCooldownLabel("tesla"), activeCooldown: true, desc: "电弧在邻近敌蛇间跳跃，最多连续命中三个目标。" },
+    { id: "laser", name: "霓虹线圈", category: "输出", color: "#39f5a6", shape: "capsule", cooldown: activeCooldownLabel("laser"), activeCooldown: true, desc: "定期向场上最近目标释放瞬发光束，不会打偏。" },
+    { id: "missile", name: "追迹弹舱", category: "输出", color: "#ef476f", shape: "triangle", cooldown: activeCooldownLabel("missile"), activeCooldown: true, desc: "发射自动修正航向的追迹弹，擅长攻击正在绕行的敌蛇。" },
+    { id: "mine", name: "磁暴雷节", category: "输出", color: "#9a7cff", shape: "square", cooldown: activeCooldownLabel("mine"), activeCooldown: true, desc: "留下永久磁雷。敌我蛇头都可触发；玩家触发时只会被击退。" },
+    { id: "blade", name: "旋刃节", category: "输出", color: "#e8eef7", shape: "diamond", cooldown: activeCooldownLabel("blade", true), activeCooldown: true, desc: "彩刃在约五节身体长度外旋转，接触敌蛇时切除一节身体。" },
+    { id: "pulse", name: "脉冲核心", category: "输出", color: "#3eb7ff", shape: "ring", cooldown: activeCooldownLabel("pulse"), activeCooldown: true, desc: "周期释放近距离冲击波，同时命中范围内的所有敌蛇。" },
+    { id: "venom", name: "腐蚀囊节", category: "输出", color: "#8be04e", shape: "hex", cooldown: activeCooldownLabel("venom"), activeCooldown: true, desc: "发射腐蚀弹，命中后继续造成两次缓慢侵蚀伤害。" },
+    { id: "echo", name: "回声弹匣", category: "输出", color: "#ff8bd7", shape: "capsule", cooldown: `随头部·${formatCooldownSeconds(HEAD_ATTACK_INTERVAL * ATTACK_INTERVAL_SCALE)}`, desc: "每次头部发射时追加一枚偏转弹，多个回声弹匣可继续叠加。" },
+    { id: "rail", name: "贯穿轨炮节", category: "输出", color: "#7ef9ff", shape: "capsule", cooldown: activeCooldownLabel("rail"), activeCooldown: true, desc: "发射高速贯穿弹，最多连续穿透四个敌人。" },
+    { id: "ricochet", name: "弹射晶节", category: "输出", color: "#ffcf5a", shape: "diamond", cooldown: activeCooldownLabel("ricochet"), activeCooldown: true, desc: "发射可反弹两次、最多命中三个敌人的晶体弹。" },
+    { id: "cluster", name: "裂变弹舱", category: "输出", color: "#ff6b4a", shape: "hex", cooldown: activeCooldownLabel("cluster"), activeCooldown: true, desc: "发射追踪爆弹，命中时对周围所有敌人造成伤害。" },
+    { id: "fan", name: "烈焰扇节", category: "输出", color: "#ff3f68", shape: "triangle", cooldown: activeCooldownLabel("fan"), activeCooldown: true, desc: "扇形喷射五枚焰弹，多枚可以命中同一条长蛇。" },
+    { id: "gravity", name: "引力井节", category: "输出", color: "#a56cff", shape: "ring", cooldown: activeCooldownLabel("gravity"), activeCooldown: true, desc: "在目标位置生成引力井，初次伤害并持续拉扯、减速敌人。" },
+    { id: "shield", name: "碧玉护盾", category: "防御", color: "#48e0bf", shape: "hex", cooldown: activeCooldownLabel("shield"), activeCooldown: true, desc: "储存一次碰撞防护。触发后短暂无敌并进入冷却。" },
+    { id: "phase", name: "幻相节", category: "防御", color: "#bb8cff", shape: "diamond", cooldown: activeCooldownLabel("phase"), activeCooldown: true, desc: "周期获得一次相位充能，可穿过致命碰撞并保持当前航向。" },
     { id: "repulse", name: "斥力环节", category: "防御", color: "#75dfff", shape: "ring", cooldown: "常驻", desc: "持续扰动附近敌蛇的转向，让它们更难贴近你的身体。" },
     { id: "armor", name: "黑曜装甲", category: "防御", color: "#b7c0ce", shape: "square", cooldown: "常驻", desc: "压缩护盾与相位模块的冷却时间，多个装甲可叠加。" },
-    { id: "thorns", name: "截击反应节", category: "防御", color: "#9ee55f", shape: "star", cooldown: "6秒", desc: "敌蛇撞上身体并被摧毁时，向四周发射反击弹幕，并在撞击处生成一枚球。" },
+    { id: "thorns", name: "截击反应节", category: "防御", color: "#9ee55f", shape: "star", cooldown: activeCooldownLabel("thorns"), activeCooldown: true, desc: "敌蛇撞上身体并被摧毁时，向四周发射反击弹幕，并在撞击处生成一枚球。" },
     { id: "stabilizer", name: "平衡陀螺", category: "防御", color: "#67d5c8", shape: "ring", cooldown: "常驻", desc: "缩短玩家反弹后的减速与失控时间，多个模块可叠加。" },
     { id: "magnet", name: "磁吸环节", category: "辅助", color: "#f5cb4c", shape: "ring", cooldown: "常驻", desc: "扩大头部的球球吸收范围，多个模块可以继续叠加。" },
     { id: "haste", name: "涡轮节", category: "辅助", color: "#ff8457", shape: "triangle", cooldown: "常驻", desc: "永久提高移动速度，同时略微提升转向响应。" },
     { id: "chronos", name: "时缓晶节", category: "辅助", color: "#91a7ff", shape: "diamond", cooldown: "常驻", desc: "降低所有敌蛇的移动速度，为抢球和包抄争取空间。" },
     { id: "tractor", name: "引力环节", category: "辅助", color: "#3ed8b5", shape: "ring", cooldown: "常驻", desc: "球进入引力范围后会连续飞向蛇头，直到被真正吞下。" },
     { id: "fortune", name: "幸运星节", category: "辅助", color: "#ffd166", shape: "star", cooldown: "击破触发", desc: "敌蛇死亡时有机会额外吐出球球，模块越多，概率越高。" },
-    { id: "guidance", name: "弹道校准节", category: "辅助", color: "#78a9ff", shape: "capsule", cooldown: "常驻", desc: "提高子弹速度、存续距离和轻度追踪能力。" },
+    { id: "guidance", name: "弹道校准节", category: "辅助", color: "#78a9ff", shape: "capsule", cooldown: "常驻", desc: "提高子弹速度和轻度追踪能力。" },
     { id: "feast", name: "吞噬涡轮", category: "辅助", color: "#ffb23f", shape: "triangle", cooldown: "吃球触发·2.5秒", desc: "吃球后短时间提高移动速度，多个模块增强加速幅度。" },
     { id: "salvage", name: "回收炉节", category: "恢复", color: "#c7f464", shape: "hex", cooldown: "伤害触发", desc: "技能削去敌蛇身体时，有概率将碎片回收成可吃的球球。" },
-    { id: "regen", name: "再生芽节", category: "恢复", color: "#ff6f91", shape: "circle", cooldown: "17秒", desc: "每隔一段时间在前方培育一枚球球，仍需亲自追上并吞噬。" },
-    { id: "bloom", name: "战利花房", category: "恢复", color: "#ff88c7", shape: "circle", cooldown: "30秒", desc: "冷却就绪时，下一次击破敌人会额外培育一枚球。" },
+    { id: "regen", name: "再生芽节", category: "恢复", color: "#ff6f91", shape: "circle", cooldown: activeCooldownLabel("regen"), activeCooldown: true, desc: "每隔一段时间在前方培育一枚球球，仍需亲自追上并吞噬。" },
+    { id: "bloom", name: "战利花房", category: "恢复", color: "#ff88c7", shape: "circle", cooldown: activeCooldownLabel("bloom"), activeCooldown: true, desc: "冷却就绪时，下一次击破敌人会额外培育一枚球。" },
     { id: "amplifier", name: "超频增幅节", category: "辅助", color: "#f2f5fa", shape: "capsule", cooldown: "常驻", desc: "加快头部和所有定时输出身体的攻击节奏。" },
-    { id: "needle", name: "钨针贯节", category: "输出", color: "#d8f3ff", shape: "capsule", cooldown: "8.8秒", desc: "发射高速钨针，贯穿第一个目标后仍可继续命中下一个敌人。" },
-    { id: "mortar", name: "震荡榴巢", category: "输出", color: "#ff8a5b", shape: "hex", cooldown: "17秒", desc: "发射重型追踪榴弹，命中时对较大范围内的所有敌人造成伤害。" },
-    { id: "sweep", name: "清扫光栅", category: "输出", color: "#65e7ff", shape: "capsule", cooldown: "14.4秒", desc: "沿目标方向释放贯穿全场的宽幅光栅，伤害路径上的所有敌人。" },
-    { id: "sniper", name: "裁决镜节", category: "输出", color: "#f2f2f2", shape: "diamond", cooldown: "18秒", desc: "长时间标定最近目标，随后瞬间削去两点长度。" },
-    { id: "flak", name: "近炸蜂巢", category: "输出", color: "#ffcf4d", shape: "hex", cooldown: "15.2秒", desc: "在目标位置引爆近炸弹幕，同时命中爆区内的全部敌人。" },
-    { id: "fork", name: "双生电极", category: "输出", color: "#d58cff", shape: "ring", cooldown: "13.2秒", desc: "同时发射两枚向左右偏转的追迹电弹，从两侧夹击同一目标。" },
-    { id: "anchor", name: "迟滞锚弹", category: "输出", color: "#6f8cff", shape: "triangle", cooldown: "14.8秒", desc: "发射大型低速锚弹，命中后对敌人施加更持久的减速。" },
-    { id: "saw", name: "切割链环", category: "输出", color: "#f06a7b", shape: "ring", cooldown: "1.4秒/目标", desc: "持续切割靠近该身体节的敌人，每个目标独立计算接触冷却。" },
-    { id: "flare", name: "灼蚀信标", category: "输出", color: "#ff6b35", shape: "star", cooldown: "14秒", desc: "发射灼蚀弹，命中后连续造成四次延迟伤害。" },
-    { id: "scatter", name: "碎晶霰舱", category: "输出", color: "#70d6ff", shape: "hex", cooldown: "19秒", desc: "近距离扇形发射七枚碎晶，适合处理贴近身体的敌群。" },
-    { id: "lance", name: "破阵光矛", category: "输出", color: "#b9fff4", shape: "triangle", cooldown: "18秒", desc: "发射大型高速光矛，最多连续贯穿六个敌人。" },
-    { id: "execute", name: "终结协议", category: "输出", color: "#ff3f55", shape: "diamond", cooldown: "16秒", desc: "锁定低长度敌人执行双倍打击，对其他目标造成一次普通伤害。" },
-    { id: "crossfire", name: "十字火控", category: "输出", color: "#ffb347", shape: "square", cooldown: "20秒", desc: "朝目标方向及其三个垂直方向同时发射重型弹体。" },
-    { id: "phasebolt", name: "相位回旋节", category: "输出", color: "#b49cff", shape: "circle", cooldown: "16秒", desc: "发射可多次反弹并轻度追踪目标的相位弹。" },
-    { id: "ram", name: "破障冲角", category: "防御", color: "#f3c600", shape: "triangle", cooldown: "5秒", desc: "蛇头互撞时，冷却就绪会额外削去敌人一点长度。" },
+    { id: "needle", name: "钨针贯节", category: "输出", color: "#d8f3ff", shape: "capsule", cooldown: activeCooldownLabel("needle"), activeCooldown: true, desc: "发射高速钨针，贯穿第一个目标后仍可继续命中下一个敌人。" },
+    { id: "mortar", name: "震荡榴巢", category: "输出", color: "#ff8a5b", shape: "hex", cooldown: activeCooldownLabel("mortar"), activeCooldown: true, desc: "发射重型追踪榴弹，命中时对较大范围内的所有敌人造成伤害。" },
+    { id: "sweep", name: "清扫光栅", category: "输出", color: "#65e7ff", shape: "capsule", cooldown: activeCooldownLabel("sweep"), activeCooldown: true, desc: "沿目标方向释放贯穿全场的宽幅光栅，伤害路径上的所有敌人。" },
+    { id: "sniper", name: "裁决镜节", category: "输出", color: "#f2f2f2", shape: "diamond", cooldown: activeCooldownLabel("sniper"), activeCooldown: true, desc: "标定最近目标，随后瞬间削去两点长度。" },
+    { id: "flak", name: "近炸蜂巢", category: "输出", color: "#ffcf4d", shape: "hex", cooldown: activeCooldownLabel("flak"), activeCooldown: true, desc: "在目标位置引爆近炸弹幕，同时命中爆区内的全部敌人。" },
+    { id: "fork", name: "双生电极", category: "输出", color: "#d58cff", shape: "ring", cooldown: activeCooldownLabel("fork"), activeCooldown: true, desc: "同时发射两枚向左右偏转的追迹电弹，从两侧夹击同一目标。" },
+    { id: "anchor", name: "迟滞锚弹", category: "输出", color: "#6f8cff", shape: "triangle", cooldown: activeCooldownLabel("anchor"), activeCooldown: true, desc: "发射大型低速锚弹，命中后对敌人施加更持久的减速。" },
+    { id: "saw", name: "切割链环", category: "输出", color: "#f06a7b", shape: "ring", cooldown: activeCooldownLabel("saw", true), activeCooldown: true, desc: "持续切割靠近该身体节的敌人，每个目标独立计算接触冷却。" },
+    { id: "flare", name: "灼蚀信标", category: "输出", color: "#ff6b35", shape: "star", cooldown: activeCooldownLabel("flare"), activeCooldown: true, desc: "发射灼蚀弹，命中后连续造成四次延迟伤害。" },
+    { id: "scatter", name: "碎晶霰舱", category: "输出", color: "#70d6ff", shape: "hex", cooldown: activeCooldownLabel("scatter"), activeCooldown: true, desc: "扇形发射七枚碎晶，适合覆盖敌群或长蛇。" },
+    { id: "lance", name: "破阵光矛", category: "输出", color: "#b9fff4", shape: "triangle", cooldown: activeCooldownLabel("lance"), activeCooldown: true, desc: "发射大型高速光矛，最多连续贯穿六个敌人。" },
+    { id: "execute", name: "终结协议", category: "输出", color: "#ff3f55", shape: "diamond", cooldown: activeCooldownLabel("execute"), activeCooldown: true, desc: "锁定低长度敌人执行双倍打击，对其他目标造成一次普通伤害。" },
+    { id: "crossfire", name: "十字火控", category: "输出", color: "#ffb347", shape: "square", cooldown: activeCooldownLabel("crossfire"), activeCooldown: true, desc: "朝目标方向及其三个垂直方向同时发射重型弹体。" },
+    { id: "phasebolt", name: "相位回旋节", category: "输出", color: "#b49cff", shape: "circle", cooldown: activeCooldownLabel("phasebolt"), activeCooldown: true, desc: "发射可多次反弹并轻度追踪目标的相位弹。" },
+    { id: "ram", name: "破障冲角", category: "防御", color: "#f3c600", shape: "triangle", cooldown: activeCooldownLabel("ram"), activeCooldown: true, desc: "蛇头互撞时，冷却就绪会额外削去敌人一点长度。" },
     { id: "buffer", name: "动能缓冲节", category: "防御", color: "#8fa6ad", shape: "square", cooldown: "常驻", desc: "降低玩家受到的物理击退初速度，多个模块可继续叠加。" },
     { id: "decoy", name: "诱导涂层", category: "防御", color: "#ff7a90", shape: "diamond", cooldown: "常驻", desc: "干扰敌人的身体避让判断，让精心布置的堵截更容易成功。" },
     { id: "emergency", name: "应急屏障节", category: "防御", color: "#62e6bf", shape: "hex", cooldown: "吃球触发", desc: "任意身体吃球后获得短暂无敌，多个模块会延长持续时间。" },
@@ -165,7 +200,7 @@
     { id: "beacon", name: "增压信标", category: "辅助", color: "#ffc857", shape: "star", cooldown: "常驻", desc: "略微加快波次倒计时，让更多敌人与球更快进入场地。" },
     { id: "momentum", name: "冲量增幅器", category: "辅助", color: "#ff965c", shape: "triangle", cooldown: "常驻", desc: "提高敌人受到的物理击退初速度，不增加玩家自身受到的击退。" },
     { id: "progressor", name: "临界推进节", category: "辅助", color: "#38d6c5", shape: "capsule", cooldown: "常驻", desc: "当前等级的升级进度越高，玩家获得的移动速度加成越多。" },
-    { id: "nursery", name: "尾部育成舱", category: "恢复", color: "#ff8ec7", shape: "circle", cooldown: "24秒", desc: "定期在蛇尾附近培育一枚球，仍需由敌我头部或身体实际吃取。" },
+    { id: "nursery", name: "尾部育成舱", category: "恢复", color: "#ff8ec7", shape: "circle", cooldown: activeCooldownLabel("nursery"), activeCooldown: true, desc: "定期在蛇尾附近培育一枚球，仍需由敌我头部或身体实际吃取。" },
     { id: "cache", name: "战果缓存节", category: "恢复", color: "#b7e36b", shape: "hex", cooldown: "每5次击破", desc: "累计击破敌人后生成一枚球，多个模块会减少所需击破次数。" }
   ];
 
@@ -185,7 +220,7 @@
     rail: "发射可贯穿多条敌蛇的高速弹。",
     ricochet: "发射会反弹并连续命中敌蛇的晶体弹。",
     cluster: "发射追踪爆弹，伤害落点附近敌蛇。",
-    fan: "近距离扇形喷射焰弹。",
+    fan: "扇形喷射五枚焰弹。",
     gravity: "生成拉扯并减速敌蛇的引力井。",
     shield: "抵消致命碰撞并短暂无敌。",
     phase: "抵消致命碰撞并保持航向穿过。",
@@ -198,7 +233,7 @@
     chronos: "降低所有敌蛇的移动速度。",
     tractor: "持续把附近的球拉向蛇头。",
     fortune: "击破敌蛇时可能额外掉球。",
-    guidance: "强化子弹速度、距离和追踪能力。",
+    guidance: "强化子弹速度和追踪能力。",
     feast: "吃球后短暂加速。",
     salvage: "技能削减敌蛇身体时可能回收成球。",
     regen: "定期在前方培育球。",
@@ -213,7 +248,7 @@
     anchor: "发射会长时间减速敌蛇的锚弹。",
     saw: "持续切割靠近身体节的敌蛇。",
     flare: "发射会持续灼蚀敌蛇的信标。",
-    scatter: "近距离扇形发射碎晶弹幕。",
+    scatter: "扇形发射七枚碎晶弹幕。",
     lance: "发射可贯穿多条敌蛇的大型光矛。",
     execute: "对较短的敌蛇造成更强打击。",
     crossfire: "朝多个方向同时发射重型弹体。",
@@ -230,25 +265,19 @@
     cache: "累计击破敌蛇后生成额外球。"
   });
 
-  const DESIGNER_CONFIG = globalThis.GSS0_DESIGNER_CONFIG || {};
-  if (DESIGNER_CONFIG.schemaVersion !== 2) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 2");
-  const DESIGNER_BALANCE = DESIGNER_CONFIG.balance || {};
-  const MODULE_DESIGN_STATES = DESIGNER_CONFIG.moduleStates || {};
-  function designerNumber(key, fallback, minimum, maximum, integer = false) {
-    const candidate = DESIGNER_BALANCE[key];
-    if (!Number.isFinite(candidate)) return fallback;
-    const clamped = Math.max(minimum, Math.min(maximum, candidate));
-    return integer ? Math.round(clamped) : clamped;
-  }
-
   const MODULE_BY_ID = Object.fromEntries(MODULES.map((module) => [module.id, module]));
   const configuredUpgradeModules = MODULES.filter((module) => MODULE_DESIGN_STATES[module.id] !== "disabled");
   const UPGRADE_MODULES = configuredUpgradeModules.length ? configuredUpgradeModules : MODULES;
   const TARGET_REQUIRED_MODULES = new Set([
-    "spark", "frost", "prism", "tesla", "laser", "missile", "venom", "echo",
+    "spark", "frost", "prism", "tesla", "laser", "missile", "venom",
     "rail", "ricochet", "cluster", "fan", "gravity", "needle", "mortar", "sweep",
     "sniper", "flak", "fork", "anchor", "flare", "scatter", "lance", "execute",
     "crossfire", "phasebolt"
+  ]);
+  const UNLIMITED_PROJECTILE_MODULES = new Set([
+    "spark", "frost", "prism", "nova", "missile", "venom", "echo", "rail",
+    "ricochet", "cluster", "fan", "needle", "mortar", "fork", "anchor", "flare",
+    "scatter", "lance", "crossfire", "phasebolt", "thorns"
   ]);
   const FOOD_COLORS = ["#b8f53f", "#36dcff", "#ff4d96", "#ffd166", "#a98cff", "#54e1a6"];
   const ENEMY_COLORS = ["#ff5c62", "#ff8a4c", "#d95cff", "#ff477e", "#f4c542"];
@@ -268,9 +297,7 @@
   const WAVE_POPULATION_PENALTY_PER_UNIT = designerNumber("wavePopulationPenaltyPerUnit", 0.1, 0, 2);
   const FOODS_PER_PLAYER_PER_WAVE = designerNumber("foodsPerPlayerPerWave", 2, 0, 20, true);
   const ENEMIES_PER_PLAYER_PER_WAVE = designerNumber("enemiesPerPlayerPerWave", 1, 0, 12, true);
-  const ATTACK_INTERVAL_SCALE = designerNumber("attackIntervalScale", 2, 0.1, 10);
   const PROJECTILE_SPEED_SCALE = designerNumber("projectileSpeedScale", 3, 0.1, 10);
-  const PROJECTILE_RANGE_MULTIPLIER = designerNumber("projectileRangeMultiplier", 1.2, 0.1, 10);
   const PLAYER_BASE_SPEED = designerNumber("playerBaseSpeed", 5, 1, 12);
   const PLAYER_SPEED_PER_LEVEL = designerNumber("playerSpeedPerLevel", 0, 0, 0.5);
   const PLAYER_TURN_RATE = designerNumber("playerTurnRate", 4.2, 0.5, 12);
@@ -281,9 +308,6 @@
   const ENEMY_BASE_HEALTH = designerNumber("enemyBaseHealth", 1, 1, 100, true);
   const ENEMY_HEALTH_PER_LEVEL_MIN = designerNumber("enemyHealthPerLevelMin", 1, 0, 20);
   const ENEMY_HEALTH_PER_LEVEL_MAX = designerNumber("enemyHealthPerLevelMax", 2, 0, 30);
-  const HEAD_ATTACK_INTERVAL = designerNumber("headAttackInterval", 1.9, 0.05, 30);
-  const HEAD_TARGET_RANGE = designerNumber("headTargetRange", 560, 50, 2000);
-  const MODULE_TARGET_RANGE = designerNumber("moduleTargetRange", 620, 50, 2000);
   const UPGRADE_INVULNERABILITY_DURATION = designerNumber("upgradeInvulnerabilityDuration", 0.5, 0, 10);
   const RESPAWN_LOCATOR_CONVERGE_DURATION = designerNumber("respawnLocatorConvergeDuration", 1, 0.1, 10);
   const RESPAWN_LOCATOR_FADE_DURATION = designerNumber("respawnLocatorFadeDuration", 3, 0.1, 20);
@@ -305,6 +329,17 @@
   const NETWORK_HEAD_COLLISION_REMOTE_IMPULSE = designerNumber("networkHeadCollisionRemoteImpulse", 0.22, 0, 1);
   const NETWORK_HEAD_COLLISION_REMOTE_IMPULSE_DURATION = designerNumber("networkHeadCollisionRemoteImpulseDuration", 0.24, 0.05, 1);
   const NETWORK_FOOD_CONTACT_INTERVAL_MS = 1000 / 30;
+  const NETWORK_SHAKE_BY_FEEDBACK = Object.freeze({
+    growth: 1.5,
+    "growth-special": 2.5,
+    level: 6.5,
+    food: 2.8,
+    "food-special": 4,
+    hit: 2.2,
+    kill: 7,
+    blast: 5,
+    bounce: 4.5
+  });
   const ENEMY_DEATH_HEAD_PARTICLES = designerNumber("enemyDeathHeadParticles", 28, 1, 100, true);
   const ENEMY_DEATH_BODY_PARTICLES = designerNumber("enemyDeathBodyParticles", 7, 1, 40, true);
   const ENEMY_DEATH_HEAD_PARTICLE_SPEED = designerNumber("enemyDeathHeadParticleSpeed", 185, 10, 500);
@@ -353,7 +388,7 @@
   let audioContext = null;
   let nextEatToneAt = 0;
   let soundVolume = loadSetting("ultra-snake-volume", 0.5, 0, 1);
-  let fontScale = loadSetting("ultra-snake-font-scale", 1, 0.5, 1.5);
+  let fontScale = loadSetting("ultra-snake-font-scale", 1.5, 0.5, 2);
   let uiMotionStrength = loadSetting("gss0-ui-motion-strength", 1, 1, 3);
   let backgroundPauseEnabled = loadSetting("gss0-background-pause", 1, 0, 1) >= 0.5;
   let detailedDescriptionsEnabled = loadSetting("gss0-detailed-descriptions", 0, 0, 1) >= 0.5;
@@ -368,6 +403,7 @@
   let projectiles = [];
   let hazards = [];
   let particles = [];
+  let nextParticleSlot = 0;
   let effects = [];
   let pendingEnemySpawns = [];
   let growthQueue = [];
@@ -412,6 +448,9 @@
     playerViews: new Map(),
     enemyViews: new Map(),
     foodViews: new Map(),
+    foodIndexes: new Map(),
+    foodMotions: new Map(),
+    foodRevision: 0,
     hazardViews: new Map(),
     upgradeOffer: null,
     moduleIds: []
@@ -618,14 +657,19 @@
     }
   }
 
+  function updateSettingButtonLabel(button, accessibleLabel, tooltipLabel) {
+    button.setAttribute("aria-label", accessibleLabel);
+    const control = button.closest(".setting-control");
+    if (control) control.dataset.tooltip = tooltipLabel;
+  }
+
   function applyFontScale(value, persist = true) {
-    fontScale = clamp(value, 0.5, 1.5);
+    fontScale = clamp(value, 0.5, 2);
     document.documentElement.style.setProperty("--font-scale", fontScale.toFixed(2));
     const percent = Math.round(fontScale * 100);
     ui.fontSlider.value = String(percent);
     ui.fontOutput.textContent = `${percent}%`;
-    ui.fontButton.setAttribute("aria-label", `调节字体大小，当前 ${percent}%`);
-    ui.fontButton.title = `字体大小 ${percent}%`;
+    updateSettingButtonLabel(ui.fontButton, `调节字体大小，当前 ${percent}%`, `字体大小 ${percent}%`);
     if (persist) {
       saveSetting("ultra-snake-font-scale", fontScale);
       requestAnimationFrame(resize);
@@ -638,8 +682,7 @@
     ui.soundSlider.value = String(percent);
     ui.soundOutput.textContent = `${percent}%`;
     ui.soundButton.classList.toggle("is-muted", percent === 0);
-    ui.soundButton.setAttribute("aria-label", `调节声音大小，当前 ${percent}%`);
-    ui.soundButton.title = `声音大小 ${percent}%`;
+    updateSettingButtonLabel(ui.soundButton, `调节声音大小，当前 ${percent}%`, `声音大小 ${percent}%`);
     if (persist) saveSetting("ultra-snake-volume", soundVolume);
   }
 
@@ -649,8 +692,7 @@
     const percent = Math.round(uiMotionStrength * 100);
     ui.motionSlider.value = String(percent);
     ui.motionOutput.textContent = `${percent}%`;
-    ui.motionButton.setAttribute("aria-label", `调节动态透视强度，当前 ${percent}%`);
-    ui.motionButton.title = `动态透视强度 ${percent}%`;
+    updateSettingButtonLabel(ui.motionButton, `调节动态透视强度，当前 ${percent}%`, `动态透视强度 ${percent}%`);
     if (persist) saveSetting("gss0-ui-motion-strength", uiMotionStrength);
   }
 
@@ -659,8 +701,7 @@
     ui.backgroundPauseToggle.checked = backgroundPauseEnabled;
     ui.backgroundPauseButton.classList.toggle("is-disabled", !backgroundPauseEnabled);
     const status = backgroundPauseEnabled ? "已开启" : "已关闭";
-    ui.backgroundPauseButton.setAttribute("aria-label", `后台暂停${status}`);
-    ui.backgroundPauseButton.title = `后台暂停${status}`;
+    updateSettingButtonLabel(ui.backgroundPauseButton, `后台暂停${status}`, `后台暂停${status}`);
     if (persist) saveSetting("gss0-background-pause", backgroundPauseEnabled ? 1 : 0);
   }
 
@@ -669,8 +710,7 @@
     ui.descriptionToggle.checked = detailedDescriptionsEnabled;
     ui.descriptionButton.classList.toggle("is-active", detailedDescriptionsEnabled);
     const status = detailedDescriptionsEnabled ? "已开启" : "已关闭";
-    ui.descriptionButton.setAttribute("aria-label", `机体详细描述${status}`);
-    ui.descriptionButton.title = `机体详细描述${status}`;
+    updateSettingButtonLabel(ui.descriptionButton, `机体详细描述${status}`, `机体详细描述${status}`);
     for (const card of document.querySelectorAll(".module-card[data-module-id]")) {
       const module = MODULE_BY_ID[card.dataset.moduleId];
       const description = card.querySelector("p");
@@ -1135,6 +1175,9 @@
         network.connecting = false;
         network.selfEntityId = result.data.selfEntityId;
         network.roster = result.data.roster || [];
+        clearNetworkViews();
+        resetNetworkFoodViews(result.data.snapshot.foods, result.data.foodRevision);
+        result.data.snapshot.foods.length = 0;
         network.snapshot = result.data.snapshot;
         network.snapshotBuffer = [networkSnapshotEntry(result.data.snapshot)];
         network.receivedAt = performance.now();
@@ -1143,7 +1186,6 @@
         network.snapshotJitterMs = 0;
         network.renderServerTime = NaN;
         network.lastPresentationAt = 0;
-        clearNetworkViews();
         const joinedSelf = result.data.snapshot.players.find((item) => item.entityId === network.selfEntityId);
         network.localDesiredAngle = joinedSelf?.desiredAngle ?? NaN;
         if (joinedSelf?.alive) {
@@ -1168,11 +1210,15 @@
         ? network.snapshotBuffer.shift()
         : null;
       try {
-        receiveNetworkSnapshot(globalThis.GSS0NetworkCodec.decode(payload, MODULES, reusableEntry?.snapshot), reusableEntry);
+        const snapshot = globalThis.GSS0NetworkCodec.decode(payload, MODULES, reusableEntry?.snapshot);
+        receiveNetworkFoodMotions(snapshot.foods);
+        snapshot.foods.length = 0;
+        receiveNetworkSnapshot(snapshot, reusableEntry);
       } catch (error) {
         console.error("PROJECT GSS0 快照无效", error);
       }
     });
+    socket.on("ultra:foods", receiveNetworkFoodDelta);
     socket.on("ultra:projectiles", (events) => {
       if (localModeForced) return;
       networkProjectileRuntime.applyEvents(events);
@@ -1369,8 +1415,8 @@
         sound(item.kind, item.detail || 0);
         continue;
       }
-      if (item.type === "shake") {
-        shake = Math.max(shake, item.strength || 0);
+      if (item.type === "feedback") {
+        shake = Math.max(shake, NETWORK_SHAKE_BY_FEEDBACK[item.kind] || 0);
         continue;
       }
       if (item.type === "flash") {
@@ -1424,10 +1470,9 @@
   }
 
   function indexNetworkSnapshot(snapshot, indexes = null) {
-    const target = indexes || { players: new Map(), enemies: new Map(), foods: new Map(), hazards: new Map() };
+    const target = indexes || { players: new Map(), enemies: new Map(), hazards: new Map() };
     previousById(snapshot?.players, "entityId", target.players);
     previousById(snapshot?.enemies, "id", target.enemies);
-    previousById(snapshot?.foods, "id", target.foods);
     previousById(snapshot?.hazards, "id", target.hazards);
     return target;
   }
@@ -1490,13 +1535,169 @@
     network.playerViews.clear();
     network.enemyViews.clear();
     network.foodViews.clear();
+    network.foodIndexes.clear();
+    network.foodMotions.clear();
+    network.foodRevision = 0;
     network.hazardViews.clear();
+    foods.length = 0;
     network.lastFoodContactAt = 0;
     network.moduleIds.length = 0;
     networkPlayerPredictionRuntime.clear();
     networkHeadCollisionRuntime.clear();
     networkProjectileRuntime.clear();
     networkFoodClaimRuntime.clear();
+  }
+
+  function syncNetworkFoodView(food) {
+    food.x = arena.left + (food.col - arena.worldMin + 0.5) * arena.cellSize;
+    food.y = arena.top + (food.row - arena.worldMin + 0.5) * arena.cellSize;
+    food.radius = arena.cellSize * 0.13;
+  }
+
+  function addNetworkFoodView(food) {
+    network.foodIndexes.set(food.id, foods.length);
+    food.networkHidden = networkFoodClaimRuntime.shouldHide(food.id);
+    foods.push(food);
+  }
+
+  function removeNetworkFoodView(id) {
+    const index = network.foodIndexes.get(id);
+    if (index === undefined) return;
+    const last = foods.pop();
+    if (index < foods.length) {
+      foods[index] = last;
+      network.foodIndexes.set(last.id, index);
+    }
+    network.foodIndexes.delete(id);
+  }
+
+  function syncNetworkFoodVisibility(ids) {
+    for (const id of ids) {
+      const food = network.foodViews.get(id);
+      if (food) food.networkHidden = networkFoodClaimRuntime.shouldHide(id);
+    }
+  }
+
+  function resetNetworkFoodViews(items, revision = 0) {
+    network.foodViews.clear();
+    network.foodIndexes.clear();
+    network.foodMotions.clear();
+    foods.length = 0;
+    for (const item of items || []) {
+      const food = { ...item };
+      syncNetworkFoodView(food);
+      network.foodViews.set(food.id, food);
+      addNetworkFoodView(food);
+    }
+    network.foodRevision = Number.isSafeInteger(revision) ? revision : 0;
+    networkFoodClaimRuntime.reconcile(network.foodViews.values(), performance.now());
+    syncNetworkFoodVisibility(network.foodViews.keys());
+  }
+
+  function playNetworkFoodSpawn(food) {
+    burst(food.x, food.y, food.color, food.special ? 10 : 7, 62);
+    effects.push({
+      type: "ring",
+      x: food.x,
+      y: food.y,
+      color: food.color,
+      life: 0.42,
+      maxLife: 0.42,
+      radius: 3,
+      endRadius: arena.cellSize * 0.42
+    });
+  }
+
+  function receiveNetworkFoodDelta(delta) {
+    if (localModeForced || !delta || typeof delta !== "object") return;
+    const revision = Number(delta.revision);
+    if (!Number.isSafeInteger(revision) || revision <= network.foodRevision) return;
+    const removedIds = Array.isArray(delta.removedIds) ? delta.removedIds : [];
+    if (delta.reset) {
+      network.foodViews.clear();
+      network.foodIndexes.clear();
+      network.foodMotions.clear();
+      foods.length = 0;
+    }
+    for (const id of removedIds) {
+      network.foodViews.delete(id);
+      network.foodMotions.delete(id);
+      removeNetworkFoodView(id);
+    }
+    const spawnedFoods = [];
+    const upsertedFoods = [];
+    for (const item of Array.isArray(delta.upserts) ? delta.upserts : []) {
+      if (!Number.isSafeInteger(item?.id)) continue;
+      let food = network.foodViews.get(item.id);
+      const isNew = !food;
+      if (!food) {
+        food = {};
+        network.foodViews.set(item.id, food);
+      }
+      Object.assign(food, item);
+      syncNetworkFoodView(food);
+      if (isNew) addNetworkFoodView(food);
+      if (!food.isPulled) network.foodMotions.delete(food.id);
+      upsertedFoods.push(food);
+      if (isNew && !delta.reset) {
+        spawnedFoods.push(food);
+      }
+    }
+    network.foodRevision = revision;
+    networkFoodClaimRuntime.applyDelta(upsertedFoods, removedIds, Boolean(delta.reset), performance.now());
+    syncNetworkFoodVisibility(upsertedFoods.map((food) => food.id));
+    const firstAnimatedFood = Math.max(0, spawnedFoods.length - MAX_DECORATIVE_EFFECTS);
+    for (let index = firstAnimatedFood; index < spawnedFoods.length; index += 1) playNetworkFoodSpawn(spawnedFoods[index]);
+    if (spawnedFoods.length > 0) sound("foodSpawn");
+  }
+
+  function receiveNetworkFoodMotions(items) {
+    if (!Array.isArray(items) || items.length === 0) return;
+    const now = performance.now();
+    const duration = Math.max(16, network.snapshotIntervalMs);
+    let added = false;
+    for (const item of items) {
+      if (!Number.isSafeInteger(item?.id)) continue;
+      let food = network.foodViews.get(item.id);
+      if (!food) {
+        food = { ...item };
+        network.foodViews.set(item.id, food);
+        syncNetworkFoodView(food);
+        addNetworkFoodView(food);
+        networkFoodClaimRuntime.applyDelta([food], [], false, now);
+        added = true;
+      }
+      network.foodMotions.set(item.id, {
+        fromCol: Number.isFinite(food.col) ? food.col : item.col,
+        fromRow: Number.isFinite(food.row) ? food.row : item.row,
+        toCol: item.col,
+        toRow: item.row,
+        startedAt: now,
+        duration,
+        continuous: Boolean(item.isPulled)
+      });
+      food.color = item.color;
+      food.phase = item.phase;
+      food.special = item.special;
+      food.isPulled = item.isPulled;
+    }
+    if (added) syncNetworkFoodVisibility(network.foodViews.keys());
+  }
+
+  function updateNetworkFoodMotions(now) {
+    for (const [id, motion] of network.foodMotions) {
+      const food = network.foodViews.get(id);
+      if (!food) {
+        network.foodMotions.delete(id);
+        continue;
+      }
+      const progress = clamp((now - motion.startedAt) / motion.duration, 0, 1);
+      food.col = motion.fromCol + (motion.toCol - motion.fromCol) * progress;
+      food.row = motion.fromRow + (motion.toRow - motion.fromRow) * progress;
+      syncNetworkFoodView(food);
+      networkFoodClaimRuntime.trackFood(food);
+      if (progress >= 1 && !motion.continuous) network.foodMotions.delete(id);
+    }
   }
 
   function syncNetworkNode(view, current, previous, amount) {
@@ -1593,6 +1794,7 @@
     const snapshotChanged = network.presentationSnapshot !== current;
     const activeTick = current.tick;
     setArenaWorldSize(interpolateNumber(previous?.arenaSize, current.arenaSize, amount));
+    updateNetworkFoodMotions(performance.now());
     gameTime = current.gameTime;
     waveCount = current.waveCount;
     waveTimer = current.waveTimer;
@@ -1676,26 +1878,6 @@
       enemies.push(enemy);
     }
     pruneNetworkViews(network.enemyViews, activeTick);
-
-    if (snapshotChanged) {
-      foods.length = 0;
-      networkFoodClaimRuntime.reconcile(current.foods, performance.now());
-    }
-    for (const item of current.foods) {
-      const old = previousIndexes.foods.get(item.id);
-      let food = network.foodViews.get(item.id);
-      if (!food) {
-        food = {};
-        network.foodViews.set(item.id, food);
-      }
-      if (snapshotChanged || item.isPulled || old?.isPulled) syncNetworkNode(food, item, old, amount);
-      if (snapshotChanged && !networkFoodClaimRuntime.shouldHide(item.id)) {
-        food.radius = arena.cellSize * 0.13;
-        food.seenAtTick = activeTick;
-        foods.push(food);
-      }
-    }
-    if (snapshotChanged) pruneNetworkViews(network.foodViews, activeTick);
 
     if (snapshotChanged) {
       hazards.length = 0;
@@ -2031,15 +2213,15 @@
     network.lastFoodContactAt = now;
     const headRange = 18 / 34 + 0.13 + moduleCount("magnet") * 0.55;
     const bodyRange = 0.42 + moduleCount("collector") * 0.09;
-    const requestedFoodIds = networkFoodClaimRuntime.detect(player, foods, headRange, bodyRange, now);
+    const requestedFoodIds = networkFoodClaimRuntime.detect(player, headRange, bodyRange, now);
     if (requestedFoodIds.length === 0) return;
-    foods = foods.filter((food) => !networkFoodClaimRuntime.shouldHide(food.id));
+    syncNetworkFoodVisibility(requestedFoodIds);
     socket.emit("ultra:claim-food", { foodIds: requestedFoodIds }, (result) => {
       const claimedFoodIds = result?.ok && Array.isArray(result.data?.claimedFoodIds)
         ? result.data.claimedFoodIds.filter(Number.isSafeInteger)
         : [];
       networkFoodClaimRuntime.resolve(requestedFoodIds, claimedFoodIds);
-      if (claimedFoodIds.length > 0) foods = foods.filter((food) => !networkFoodClaimRuntime.shouldHide(food.id));
+      syncNetworkFoodVisibility(requestedFoodIds);
     });
   }
 
@@ -2217,29 +2399,44 @@
     return cells;
   }
 
-  function findFreeCell(preferred = null, wallMargin = 0) {
-    const cells = freeCells(wallMargin);
+  function findFreeCell(preferred = null, wallMargin = 0, occupied = occupiedCellKeys()) {
     const margin = clamp(Math.ceil(wallMargin), 0, Math.floor((arena.worldSize - 1) / 2));
-    if (!cells.length) {
-      if (margin > 0) return null;
-      return preferred || { col: Math.floor(random(arena.worldMin, arena.worldMax + 1)), row: Math.floor(random(arena.worldMin, arena.worldMax + 1)) };
+    const minimum = Math.ceil(arena.worldMin + margin);
+    const maximum = Math.floor(arena.worldMax - margin);
+    let selected = null;
+    let bestDistance = Infinity;
+    let freeCount = 0;
+    for (let row = minimum; row <= maximum; row += 1) {
+      for (let col = minimum; col <= maximum; col += 1) {
+        if (occupied.has(cellKey(col, row))) continue;
+        freeCount += 1;
+        if (!preferred) continue;
+        const distance = Math.abs(col - preferred.col) + Math.abs(row - preferred.row);
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          selected = { col, row };
+        }
+      }
     }
-    if (preferred) {
-      cells.sort((a, b) => {
-        const distanceA = Math.abs(a.col - preferred.col) + Math.abs(a.row - preferred.row);
-        const distanceB = Math.abs(b.col - preferred.col) + Math.abs(b.row - preferred.row);
-        return distanceA - distanceB;
-      });
-      return cells[0];
+    if (!freeCount) return margin > 0 ? null : preferred;
+    if (preferred) return selected;
+    let targetIndex = Math.floor(Math.random() * freeCount);
+    for (let row = minimum; row <= maximum; row += 1) {
+      for (let col = minimum; col <= maximum; col += 1) {
+        if (occupied.has(cellKey(col, row))) continue;
+        if (targetIndex === 0) return { col, row };
+        targetIndex -= 1;
+      }
     }
-    return cells[Math.floor(Math.random() * cells.length)];
+    return null;
   }
 
-  function spawnFood(x, y, special = false) {
+  function spawnFood(x, y, special = false, occupied = null) {
     const preferred = x == null || y == null ? null : pixelToCell(x, y);
-    const cell = findFreeCell(preferred, FOOD_WALL_MARGIN);
+    const cell = findFreeCell(preferred, FOOD_WALL_MARGIN, occupied || undefined);
     if (!cell) return false;
     materializeFood(cell, special);
+    occupied?.add(cellKey(cell.col, cell.row));
     return true;
   }
 
@@ -2731,25 +2928,25 @@
   function moduleDescription(module) {
     const tuning = MODULE_TUNING;
     const descriptions = {
-      spark: "锁定 620px 内最近敌蛇发射 1 枚高速弹，命中造成 1 点伤害。",
+      spark: "锁定最近敌蛇发射 1 枚高速弹，命中造成 1 点伤害。",
       frost: "发射 1 枚冰晶弹，命中造成 1 点伤害，并使敌人以 55% 速度移动 2.6 秒。",
       prism: "朝同一目标扇形发射 3 枚子弹，每枚造成 1 点伤害，可同时命中同一敌人。",
       nova: "不需要目标，向八个方向各发射 1 枚星屑；每枚命中造成 1 点伤害。",
-      tesla: "电击 620px 内最近敌人，并向 155px 内的新目标跳跃；最多命中 3 条敌蛇，每条受到 1 点伤害。",
-      laser: "瞬间命中 620px 内最近敌人，造成 1 点伤害；没有飞行时间，也不会打偏。",
-      missile: "发射 1 枚追迹弹，以 4.2 弧度/秒修正航向，最多飞行 3.4 秒；命中造成 1 点伤害。",
+      tesla: "电击场上最近敌人，并向 155px 内的新目标跳跃；最多命中 3 条敌蛇，每条受到 1 点伤害。",
+      laser: "瞬间命中场上最近敌人，造成 1 点伤害；没有飞行时间，也不会打偏。",
+      missile: "发射 1 枚追迹弹，以 4.2 弧度/秒修正航向；命中造成 1 点伤害。",
       mine: "布置后 0.55 秒生效，并永久留场直到触发。敌人头部进入 62px、或玩家头部直接接触时引爆：任意身体处于爆区的敌蛇受到 1 点伤害，玩家只被击退。",
-      blade: "刀刃在机体外约 2.9 格处旋转，接触敌蛇造成 1 点伤害；同一敌人的受击间隔为 0.96 秒，多份旋刃共享该间隔。",
+      blade: `刀刃在机体外约 2.9 格处旋转，接触敌蛇造成 1 点伤害；同一敌人的受击间隔为 ${formatCooldownSeconds(moduleCooldownSeconds("blade"))}，多份旋刃共享该间隔。`,
       pulse: "释放约 105px 半径的冲击波；任意身体进入范围的每条敌蛇受到 1 点伤害。",
       venom: "命中先造成 1 点伤害，随后再造成 2 次各 1 点的腐蚀伤害；第一次延迟约 1.4 秒，第二次再延迟约 2.3 秒。",
-      echo: "头部每次向 560px 内目标开火时，每节回声弹匣追加 1 枚偏转弹；每枚命中造成 1 点伤害，基础射击间隔为 3.8 秒。",
+      echo: `头部每次向场上最近目标开火时，每节回声弹匣追加 1 枚偏转弹；每枚命中造成 1 点伤害，基础射击间隔为 ${formatCooldownSeconds(HEAD_ATTACK_INTERVAL * ATTACK_INTERVAL_SCALE)}。`,
       rail: "发射 1 枚高速贯穿弹，每个目标受到 1 点伤害，最多连续命中 4 条不同敌蛇。",
       ricochet: "发射 1 枚晶体弹，最多反弹墙壁 2 次、命中 3 条不同敌蛇；每个目标受到 1 点伤害。",
       cluster: "发射追踪爆弹，碰到敌蛇后在 72px 半径内爆炸；范围内每条敌蛇受到 1 点伤害。",
       fan: "朝同一目标扇形发射 5 枚子弹，每枚造成 1 点伤害，可同时命中同一敌人。",
       gravity: "在目标头部位置生成 95px 半径、持续 6 秒的引力井。生成时任意身体处于范围内的敌蛇受到 1 点伤害，头部停留其中时被牵引并以 55% 速度移动。",
-      shield: "抵消 1 次玩家头部撞上敌人身体的致命碰撞，反击敌人 1 点并获得 1.05 秒无敌，随后冷却 18 秒；与幻相同时就绪时优先消耗护盾。",
-      phase: "抵消 1 次玩家头部撞上敌人身体的致命碰撞，反击敌人 1 点并获得 1.55 秒无敌；该次碰撞不会改变当前航向，随后冷却 22 秒。",
+      shield: `抵消 1 次玩家头部撞上敌人身体的致命碰撞，反击敌人 1 点并获得 1.05 秒无敌，随后冷却 ${formatCooldownSeconds(moduleCooldownSeconds("shield"))}；与幻相同时就绪时优先消耗护盾。`,
+      phase: `抵消 1 次玩家头部撞上敌人身体的致命碰撞，反击敌人 1 点并获得 1.55 秒无敌；该次碰撞不会改变当前航向，随后冷却 ${formatCooldownSeconds(moduleCooldownSeconds("phase"))}。`,
       armor: `每节使护盾与相位模块冷却缩短 ${formatTuningPercent(1 - tuning.armor.cooldownMultiplierPerStack)}，按乘法叠加。`,
       stabilizer: `玩家反弹的基础减速时间为 ${formatTuningNumber(BOUNCE_SLOW_TIME)} 秒、转向锁定为 ${formatTuningNumber(BOUNCE_LOCK_TIME)} 秒；每节分别缩短 ${formatTuningPercent(1 - tuning.stabilizer.slowMultiplierPerStack)} 与 ${formatTuningPercent(1 - tuning.stabilizer.lockMultiplierPerStack)}，按乘法叠加。`,
       magnet: `每节将头部球球吸收范围扩大 ${formatTuningNumber(tuning.magnet.pickupRangeCellsPerStack)} 格。`,
@@ -2757,7 +2954,7 @@
       chronos: `每节使所有敌蛇移动速度降低 ${formatTuningPercent(1 - tuning.chronos.enemySpeedMultiplierPerStack)}，按乘法叠加。`,
       tractor: `首节提供 ${formatTuningNumber(tuning.tractor.baseRangeCells)} 格引力范围与 ${formatTuningNumber(tuning.tractor.basePullSpeed)} 格/秒牵引速度；后续每节分别增加 ${formatTuningNumber(tuning.tractor.rangeCellsPerExtraStack)} 格与 ${formatTuningNumber(tuning.tractor.pullSpeedPerExtraStack)} 格/秒。球仍需接触身体才算吃到，途中也可能被敌人截走。`,
       fortune: `击破敌人时，每节增加 ${formatTuningPercent(tuning.fortune.chancePerStack)} 触发概率，上限 ${formatTuningPercent(tuning.fortune.maxChance)}；触发后在固定的 1 枚基础球之外再掉 1 枚，每满 ${tuning.fortune.extraDropEveryStacks} 节再多掉 1 枚。`,
-      guidance: `所有玩家子弹每节提高 ${formatTuningPercent(tuning.guidance.speedAndLifePerStack)} 飞行速度与存续时间，并增加 ${formatTuningNumber(tuning.guidance.homingPerStack)} 弧度/秒追踪速度；弹幕生成时若已有目标，原本无追踪的弹幕也会锁定该目标。`,
+      guidance: `所有玩家子弹每节提高 ${formatTuningPercent(tuning.guidance.projectileSpeedPerStack)} 飞行速度，并增加 ${formatTuningNumber(tuning.guidance.homingPerStack)} 弧度/秒追踪速度；弹幕生成时若已有目标，原本无追踪的弹幕也会锁定该目标。`,
       feast: `吃球后持续 ${formatTuningNumber(tuning.feast.duration)} 秒；每节提高 ${formatTuningPercent(tuning.feast.speedPerStack)} 移动速度。效果期间再次吃球会刷新持续时间，不会叠加多层计时。`,
       salvage: `技能每削去 1 节敌蛇身体，独立进行一次回收判定；每节提供 ${formatTuningPercent(tuning.salvage.chancePerStack)} 概率，上限 ${formatTuningPercent(tuning.salvage.maxChance)}。直接摧毁只剩头部的敌人不会触发回收。`,
       amplifier: `每节使头部和定时发射/爆发类输出模块的冷却缩短 ${formatTuningPercent(1 - tuning.amplifier.cooldownMultiplierPerStack)}，按乘法叠加；不影响旋刃、切割链环、再生芽、尾部育成舱及防御模块。`,
@@ -2769,31 +2966,35 @@
       momentum: `敌人因撞墙、撞自己、撞到其他敌人或与玩家头部相撞而反弹时，每节使其物理击退初速度提高 ${formatTuningPercent(tuning.momentum.enemyKnockbackPerStack)}；不影响玩家。`,
       progressor: `升级进度越高加速越强；经验满时每节最高提高 ${formatTuningPercent(tuning.progressor.maxSpeedPerStack)} 移动速度。`,
       repulse: `持续把靠近玩家头部的敌蛇航向拉向外侧，不造成伤害或击退。首节作用半径为 ${tuning.repulse.baseRangePixels + tuning.repulse.rangePixelsPerStack}px，后续每节扩大 ${tuning.repulse.rangePixelsPerStack}px。`,
-      thorns: `敌人撞上玩家身体并被摧毁时，冷却就绪会额外生成 1 枚球并发射 ${tuning.thorns.baseShots} 枚环形弹幕；后续每节增加 ${tuning.thorns.shotsPerExtraStack} 枚，最多 ${tuning.thorns.baseShots + tuning.thorns.maxBonusShots} 枚。基础冷却 ${formatTuningNumber(tuning.thorns.baseCooldown)} 秒，后续每节缩短 ${formatTuningPercent(1 - tuning.thorns.extraStackMultiplier)}。`,
-      regen: "每节独立计时，装备后 0.2～0.8 秒生成首枚球，此后每 17 秒在玩家头部前方 85～130px 附近生成 1 枚；若目标格被占用，会改放到最近空格，生成后也可能被敌人吃掉。",
-      bloom: `装备后立即就绪：下一次击破额外生成 1 枚球，随后进入 ${formatTuningNumber(tuning.bloom.baseCooldown)} 秒冷却；后续每节使冷却缩短 ${formatTuningPercent(1 - tuning.bloom.extraStackMultiplier)}，不会增加单次掉球数。`,
+      thorns: `敌人撞上玩家身体并被摧毁时，冷却就绪会额外生成 1 枚球并发射 ${tuning.thorns.baseShots} 枚环形弹幕；后续每节增加 ${tuning.thorns.shotsPerExtraStack} 枚，最多 ${tuning.thorns.baseShots + tuning.thorns.maxBonusShots} 枚。基础冷却 ${formatCooldownSeconds(moduleCooldownSeconds("thorns"))}，后续每节缩短 ${formatTuningPercent(1 - tuning.thorns.extraStackMultiplier)}。`,
+      regen: `每节独立计时，装备后 0.2～0.8 秒生成首枚球，此后每 ${formatCooldownSeconds(moduleCooldownSeconds("regen"))} 在玩家头部前方 85～130px 附近生成 1 枚；若目标格被占用，会改放到最近空格，生成后也可能被敌人吃掉。`,
+      bloom: `装备后立即就绪：下一次击破额外生成 1 枚球，随后进入 ${formatCooldownSeconds(moduleCooldownSeconds("bloom"))} 冷却；后续每节使冷却缩短 ${formatTuningPercent(1 - tuning.bloom.extraStackMultiplier)}，不会增加单次掉球数。`,
       needle: "发射 1 枚高速钨针，每个目标受到 1 点伤害；贯穿第一个目标后还能再命中 1 条敌蛇，最多命中 2 条。",
       mortar: "发射大型追踪榴弹，碰到敌蛇后在 92px 半径内爆炸；范围内每条敌蛇受到 1 点伤害。",
       sweep: "向目标方向发射贯穿全场的宽幅光栅，核心宽度约 52px；任意身体与光栅相交的每条敌蛇受到 1 点伤害。",
-      sniper: "瞬间锁定 620px 内最近敌人并造成 2 点伤害；没有蓄力等待或飞行时间。",
+      sniper: "瞬间锁定场上最近敌人并造成 2 点伤害；没有蓄力等待或飞行时间。",
       flak: "以目标头部为中心引爆 84px 半径弹幕；任意身体进入爆区的每条敌蛇受到 1 点伤害。",
       fork: "向目标两侧各发射 1 枚追迹电弹，每枚造成 1 点伤害；两枚可以同时命中同一敌人。",
       anchor: "发射 1 枚大型追踪锚弹，命中造成 1 点伤害，并使敌人以 55% 速度移动 4.2 秒。",
-      saw: "敌蛇接触机体周围 0.82 格范围时受到 1 点伤害；同一敌人的受击间隔为 1.4 秒，多份切割链环共享该间隔。",
+      saw: `敌蛇接触机体周围 0.82 格范围时受到 1 点伤害；同一敌人的受击间隔为 ${formatCooldownSeconds(moduleCooldownSeconds("saw"))}，多份切割链环共享该间隔。`,
       flare: "命中先造成 1 点伤害，随后再造成 4 次各 1 点的延迟灼蚀伤害。",
       scatter: "朝同一目标扇形发射 7 枚碎晶，每枚造成 1 点伤害，可同时命中同一敌人。",
       lance: "发射 1 枚大型高速光矛，每个目标受到 1 点伤害，最多连续命中 6 条不同敌蛇。",
-      execute: "锁定 620px 内最近敌人：敌人总长度不超过 3（包含头部）时造成 2 点伤害，否则造成 1 点伤害。",
+      execute: "锁定场上最近敌人：敌人总长度不超过 3（包含头部）时造成 2 点伤害，否则造成 1 点伤害。",
       crossfire: "朝目标方向、反方向和两侧垂直方向各发射 1 枚重弹；每枚最多命中 2 条敌蛇，每个目标受到 1 点伤害。",
       phasebolt: "发射 1 枚轻度追踪的相位弹，最多反弹墙壁 4 次；命中第一条敌蛇后造成 1 点伤害并消失。",
       cache: `首节每 ${tuning.cache.baseKills - tuning.cache.killsReducedPerStack} 次击破，在敌人的固定基础球之外额外生成 1 枚；每增加一节减少 ${tuning.cache.killsReducedPerStack} 次需求，下限 ${tuning.cache.minimumKills} 次。`,
-      ram: `玩家头部与敌人头部相撞时，冷却就绪会额外造成 1 点伤害。基础冷却 ${formatTuningNumber(tuning.ram.baseCooldown)} 秒；每增加一节使冷却缩短 ${formatTuningPercent(1 - tuning.ram.extraStackMultiplier)}。`,
-      nursery: "每节独立计时，装备后 0.2～0.8 秒生成首枚球，此后每 24 秒在玩家当前尾部附近生成 1 枚；若尾部格被占用，会改放到最近空格，生成后也可能被敌人吃掉。"
+      ram: `玩家头部与敌人头部相撞时，冷却就绪会额外造成 1 点伤害。基础冷却 ${formatCooldownSeconds(moduleCooldownSeconds("ram"))}；每增加一节使冷却缩短 ${formatTuningPercent(1 - tuning.ram.extraStackMultiplier)}。`,
+      nursery: `每节独立计时，装备后 0.2～0.8 秒生成首枚球，此后每 ${formatCooldownSeconds(moduleCooldownSeconds("nursery"))} 在玩家当前尾部附近生成 1 枚；若尾部格被占用，会改放到最近空格，生成后也可能被敌人吃掉。`
     };
-    const description = descriptions[module.id] || module.desc;
-    return TARGET_REQUIRED_MODULES.has(module.id)
-      ? `${description} 锁定范围内没有目标时会保留充能，成功释放后才进入冷却。`
-      : description;
+    let description = descriptions[module.id] || module.desc;
+    if (UNLIMITED_PROJECTILE_MODULES.has(module.id)) {
+      description += " 子弹不会因距离或飞行时间消失，会持续飞行到命中目标或撞上墙壁；穿透与反弹机体遵循自身规则。";
+    }
+    if (TARGET_REQUIRED_MODULES.has(module.id)) {
+      description += " 冷却完成后会锁定场上最近目标；场上没有目标时保留充能，成功释放后才进入冷却。";
+    }
+    return description;
   }
 
   function displayedModuleDescription(module) {
@@ -2964,7 +3165,7 @@
     xp = 0;
     xpNeeded = level + 5;
     const tail = player.segments[player.segments.length - 1] || player;
-    const initialTimer = random(0.2, 0.8) * (module.category === "输出" ? ATTACK_INTERVAL_SCALE : 1);
+    const initialTimer = random(0.2, 0.8);
     player.segments.push(makeSegmentAtCell(tail.col, tail.row, { module: module.id, timer: initialTimer }));
     recentPicks.push(module.id);
     if (recentPicks.length > 6) recentPicks.shift();
@@ -3409,15 +3610,11 @@
 
   function createPlayerProjectile(origin, angle, options = {}) {
     const guidance = moduleCount("guidance");
-    const guidanceMultiplier = 1 + guidance * MODULE_TUNING.guidance.speedAndLifePerStack;
+    const guidanceMultiplier = 1 + guidance * MODULE_TUNING.guidance.projectileSpeedPerStack;
     const scale = arenaVisualScale();
     const speed = (options.speed || 300) * guidanceMultiplier * PROJECTILE_SPEED_SCALE * scale;
     const homing = (options.homing || 0) + guidance * MODULE_TUNING.guidance.homingPerStack;
     const target = options.target && !options.target.dead ? options.target : null;
-    const baseLife = (options.life || 2.1) * guidanceMultiplier;
-    const rangeLife = options.range
-      ? options.range * scale * PROJECTILE_RANGE_MULTIPLIER * guidanceMultiplier / speed
-      : Infinity;
     const projectile = {
       kind: "shot",
       x: origin.x,
@@ -3425,7 +3622,7 @@
       vx: Math.cos(angle) * speed,
       vy: Math.sin(angle) * speed,
       speed,
-      life: Math.min(baseLife, rangeLife),
+      life: Infinity,
       color: options.color || "#dffcff",
       size: (options.size || 4) * scale,
       pierce: options.pierce || 0,
@@ -3444,19 +3641,19 @@
   function spawnShot(origin, target, options = {}) {
     if (!target || target.dead) return false;
     const angle = Math.atan2(target.y - origin.y, target.x - origin.x) + (options.angleOffset || 0);
-    createPlayerProjectile(origin, angle, { range: MODULE_TARGET_RANGE, ...options, target });
+    createPlayerProjectile(origin, angle, { ...options, target });
     return true;
   }
 
   function updateHeadWeapon(dt) {
     headFireTimer -= dt;
     if (headFireTimer > 0) return;
-    const target = nearestEnemy(player, HEAD_TARGET_RANGE * arenaVisualScale());
+    const target = nearestEnemy(player);
     if (!target) {
       headFireTimer = 0;
       return;
     }
-    const fired = spawnShot(player, target, { color: "#dffcff", speed: 360, size: 3.7, range: HEAD_TARGET_RANGE });
+    const fired = spawnShot(player, target, { color: "#dffcff", speed: 360, size: 3.7 });
     const echoes = moduleCount("echo");
     for (let index = 0; index < echoes; index += 1) {
       const direction = index % 2 ? 1 : -1;
@@ -3465,8 +3662,7 @@
         color: MODULE_BY_ID.echo.color,
         speed: 330,
         size: 3.4,
-        angleOffset: direction * tier * 0.13,
-        range: HEAD_TARGET_RANGE
+        angleOffset: direction * tier * 0.13
       });
     }
     if (fired) {
@@ -3489,7 +3685,7 @@
   }
 
   function updateModules(dt) {
-    const rate = outputRateMultiplier() * ATTACK_INTERVAL_SCALE;
+    const rate = outputRateMultiplier();
 
     for (const segment of player.segments) {
       if (!segment.module) continue;
@@ -3514,7 +3710,7 @@
         for (const enemy of enemies) {
           if (enemy.dead || enemy.bladeCooldown > 0) continue;
           if (pointHitsEnemy(bladeX, bladeY, 10 * arenaVisualScale(), enemy)) {
-            enemy.bladeCooldown = 0.48 * ATTACK_INTERVAL_SCALE;
+            enemy.bladeCooldown = moduleCooldownSeconds("blade");
             damageEnemy(enemy, 1, bladeX, bladeY, MODULE_BY_ID.blade.color);
           }
         }
@@ -3526,7 +3722,7 @@
         for (const enemy of enemies) {
           if (enemy.dead || enemy.sawCooldown > 0) continue;
           if (pointHitsEnemy(segment.x, segment.y, contactRadius, enemy)) {
-            enemy.sawCooldown = 1.4;
+            enemy.sawCooldown = moduleCooldownSeconds("saw");
             damageEnemy(enemy, 1, enemy.x, enemy.y, MODULE_BY_ID.saw.color);
             effects.push({ type: "ring", x: segment.x, y: segment.y, color: MODULE_BY_ID.saw.color, life: 0.3, maxLife: 0.3, radius: 5, endRadius: contactRadius });
             playSkillSound("saw");
@@ -3542,7 +3738,7 @@
         spawnFood(x, y, true);
         playSkillSound("regen");
         effects.push({ type: "ring", x, y, color: MODULE_BY_ID.regen.color, life: 0.9, maxLife: 0.9, radius: 8 });
-        segment.timer = 17;
+        segment.timer = moduleCooldownSeconds("regen");
         continue;
       }
 
@@ -3551,12 +3747,12 @@
         spawnFood(tail.x, tail.y, true);
         playSkillSound("regen");
         effects.push({ type: "ring", x: tail.x, y: tail.y, color: MODULE_BY_ID.nursery.color, life: 0.75, maxLife: 0.75, radius: 6, endRadius: arena.cellSize * 0.9 });
-        segment.timer = 24;
+        segment.timer = moduleCooldownSeconds("nursery");
         continue;
       }
 
       if (segment.timer > 0) continue;
-      const target = nearestEnemy(segment, MODULE_TARGET_RANGE * arenaVisualScale());
+      const target = nearestEnemy(segment);
       if (TARGET_REQUIRED_MODULES.has(segment.module) && !target) {
         segment.timer = 0;
         continue;
@@ -3565,34 +3761,34 @@
       switch (segment.module) {
         case "spark":
           if (spawnShot(segment, target, { color: MODULE_BY_ID.spark.color, speed: 390, size: 4.5 })) playSkillSound("spark");
-          segment.timer = 2.7 * rate;
+          segment.timer = moduleCooldownSeconds("spark") * rate;
           break;
         case "frost":
           if (spawnShot(segment, target, { color: MODULE_BY_ID.frost.color, speed: 310, size: 5, slow: 2.6 })) playSkillSound("frost");
-          segment.timer = 3.5 * rate;
+          segment.timer = moduleCooldownSeconds("frost") * rate;
           break;
         case "prism":
           if (target) {
             for (const offset of [-0.17, 0, 0.17]) spawnShot(segment, target, { color: MODULE_BY_ID.prism.color, speed: 330, angleOffset: offset });
             playSkillSound("prism");
           }
-          segment.timer = 7.05 * rate;
+          segment.timer = moduleCooldownSeconds("prism") * rate;
           break;
         case "nova":
           for (let index = 0; index < 8; index += 1) {
             const angle = index * TAU / 8 + segment.orbit * 0.15;
-            createPlayerProjectile(segment, angle, { color: MODULE_BY_ID.nova.color, speed: 250, life: 1.35, size: 4.4, target });
+            createPlayerProjectile(segment, angle, { color: MODULE_BY_ID.nova.color, speed: 250, size: 4.4, target });
           }
           playSkillSound("nova");
           effects.push({ type: "ring", x: segment.x, y: segment.y, color: MODULE_BY_ID.nova.color, life: 0.45, maxLife: 0.45, radius: 8 });
-          segment.timer = 9.25 * rate;
+          segment.timer = moduleCooldownSeconds("nova") * rate;
           break;
         case "tesla":
           if (target) {
             fireTesla(segment, target);
             playSkillSound("tesla");
           }
-          segment.timer = 6.75 * rate;
+          segment.timer = moduleCooldownSeconds("tesla") * rate;
           break;
         case "laser":
           if (target) {
@@ -3600,46 +3796,46 @@
             effects.push({ type: "beam", x: segment.x, y: segment.y, x2: target.x, y2: target.y, color: MODULE_BY_ID.laser.color, life: 0.2, maxLife: 0.2 });
             playSkillSound("laser");
           }
-          segment.timer = 5.1 * rate;
+          segment.timer = moduleCooldownSeconds("laser") * rate;
           break;
         case "missile":
-          if (spawnShot(segment, target, { color: MODULE_BY_ID.missile.color, speed: 230, size: 6, homing: 4.2, life: 3.4 })) playSkillSound("missile");
-          segment.timer = 5.3 * rate;
+          if (spawnShot(segment, target, { color: MODULE_BY_ID.missile.color, speed: 230, size: 6, homing: 4.2 })) playSkillSound("missile");
+          segment.timer = moduleCooldownSeconds("missile") * rate;
           break;
         case "mine":
           hazards.push({ kind: "mine", x: segment.x, y: segment.y, col: segment.col, row: segment.row, life: Infinity, arm: 0.55, radius: 62 * arenaVisualScale(), color: MODULE_BY_ID.mine.color, phase: random(0, TAU) });
           playSkillSound("mine");
-          segment.timer = 11.4 * rate;
+          segment.timer = moduleCooldownSeconds("mine") * rate;
           break;
         case "pulse":
           firePulse(segment);
           playSkillSound("pulse");
-          segment.timer = 8.1 * rate;
+          segment.timer = moduleCooldownSeconds("pulse") * rate;
           break;
         case "venom":
           if (spawnShot(segment, target, { color: MODULE_BY_ID.venom.color, speed: 285, size: 5.5, poison: 2 })) playSkillSound("venom");
-          segment.timer = 5.5 * rate;
+          segment.timer = moduleCooldownSeconds("venom") * rate;
           break;
         case "rail":
-          if (spawnShot(segment, target, { color: MODULE_BY_ID.rail.color, speed: 520, size: 4.8, pierce: 3, life: 2.8 })) playSkillSound("rail");
-          segment.timer = 7 * rate;
+          if (spawnShot(segment, target, { color: MODULE_BY_ID.rail.color, speed: 520, size: 4.8, pierce: 3 })) playSkillSound("rail");
+          segment.timer = moduleCooldownSeconds("rail") * rate;
           break;
         case "ricochet":
-          if (spawnShot(segment, target, { color: MODULE_BY_ID.ricochet.color, speed: 340, size: 5.2, pierce: 2, bounces: 2, life: 7 })) playSkillSound("ricochet");
-          segment.timer = 7.25 * rate;
+          if (spawnShot(segment, target, { color: MODULE_BY_ID.ricochet.color, speed: 340, size: 5.2, pierce: 2, bounces: 2 })) playSkillSound("ricochet");
+          segment.timer = moduleCooldownSeconds("ricochet") * rate;
           break;
         case "cluster":
-          if (spawnShot(segment, target, { color: MODULE_BY_ID.cluster.color, speed: 245, size: 7, homing: 3.6, blastRadius: 72, life: 4 })) playSkillSound("cluster");
-          segment.timer = 8 * rate;
+          if (spawnShot(segment, target, { color: MODULE_BY_ID.cluster.color, speed: 245, size: 7, homing: 3.6, blastRadius: 72 })) playSkillSound("cluster");
+          segment.timer = moduleCooldownSeconds("cluster") * rate;
           break;
         case "fan":
           if (target) {
             for (const offset of [-0.34, -0.17, 0, 0.17, 0.34]) {
-              spawnShot(segment, target, { color: MODULE_BY_ID.fan.color, speed: 300, size: 4.6, angleOffset: offset, life: 1.15 });
+              spawnShot(segment, target, { color: MODULE_BY_ID.fan.color, speed: 300, size: 4.6, angleOffset: offset });
             }
             playSkillSound("fan");
           }
-          segment.timer = 7.5 * rate;
+          segment.timer = moduleCooldownSeconds("fan") * rate;
           break;
         case "gravity":
           if (target) {
@@ -3650,19 +3846,19 @@
             }
             playSkillSound("gravity");
           }
-          segment.timer = 10 * rate;
+          segment.timer = moduleCooldownSeconds("gravity") * rate;
           break;
         case "needle":
-          if (spawnShot(segment, target, { color: MODULE_BY_ID.needle.color, speed: 560, size: 3.8, pierce: 1, life: 2.4 })) playSkillSound("needle");
-          segment.timer = 4.4 * rate;
+          if (spawnShot(segment, target, { color: MODULE_BY_ID.needle.color, speed: 560, size: 3.8, pierce: 1 })) playSkillSound("needle");
+          segment.timer = moduleCooldownSeconds("needle") * rate;
           break;
         case "mortar":
-          if (spawnShot(segment, target, { color: MODULE_BY_ID.mortar.color, speed: 205, size: 8, homing: 3.2, blastRadius: 92, life: 4.4 })) playSkillSound("mortar");
-          segment.timer = 8.5 * rate;
+          if (spawnShot(segment, target, { color: MODULE_BY_ID.mortar.color, speed: 205, size: 8, homing: 3.2, blastRadius: 92 })) playSkillSound("mortar");
+          segment.timer = moduleCooldownSeconds("mortar") * rate;
           break;
         case "sweep":
           if (target && fireSweepBeam(segment, target)) playSkillSound("sweep");
-          segment.timer = 7.2 * rate;
+          segment.timer = moduleCooldownSeconds("sweep") * rate;
           break;
         case "sniper":
           if (target) {
@@ -3670,40 +3866,40 @@
             effects.push({ type: "beam", x: segment.x, y: segment.y, x2: target.x, y2: target.y, color: MODULE_BY_ID.sniper.color, life: 0.28, maxLife: 0.28 });
             playSkillSound("sniper");
           }
-          segment.timer = 9 * rate;
+          segment.timer = moduleCooldownSeconds("sniper") * rate;
           break;
         case "flak":
           if (target && fireFlakBurst(target)) playSkillSound("flak");
-          segment.timer = 7.6 * rate;
+          segment.timer = moduleCooldownSeconds("flak") * rate;
           break;
         case "fork":
           if (target) {
-            spawnShot(segment, target, { color: MODULE_BY_ID.fork.color, speed: 300, size: 5, angleOffset: -0.24, homing: 2.5, life: 3 });
-            spawnShot(segment, target, { color: MODULE_BY_ID.fork.color, speed: 300, size: 5, angleOffset: 0.24, homing: 2.5, life: 3 });
+            spawnShot(segment, target, { color: MODULE_BY_ID.fork.color, speed: 300, size: 5, angleOffset: -0.24, homing: 2.5 });
+            spawnShot(segment, target, { color: MODULE_BY_ID.fork.color, speed: 300, size: 5, angleOffset: 0.24, homing: 2.5 });
             playSkillSound("fork");
           }
-          segment.timer = 6.6 * rate;
+          segment.timer = moduleCooldownSeconds("fork") * rate;
           break;
         case "anchor":
-          if (spawnShot(segment, target, { color: MODULE_BY_ID.anchor.color, speed: 180, size: 8.5, homing: 2, slow: 4.2, life: 4 })) playSkillSound("anchor");
-          segment.timer = 7.4 * rate;
+          if (spawnShot(segment, target, { color: MODULE_BY_ID.anchor.color, speed: 180, size: 8.5, homing: 2, slow: 4.2 })) playSkillSound("anchor");
+          segment.timer = moduleCooldownSeconds("anchor") * rate;
           break;
         case "flare":
-          if (spawnShot(segment, target, { color: MODULE_BY_ID.flare.color, speed: 270, size: 5.8, poison: 4, life: 3 })) playSkillSound("flare");
-          segment.timer = 7 * rate;
+          if (spawnShot(segment, target, { color: MODULE_BY_ID.flare.color, speed: 270, size: 5.8, poison: 4 })) playSkillSound("flare");
+          segment.timer = moduleCooldownSeconds("flare") * rate;
           break;
         case "scatter":
           if (target) {
             for (const offset of [-0.42, -0.28, -0.14, 0, 0.14, 0.28, 0.42]) {
-              spawnShot(segment, target, { color: MODULE_BY_ID.scatter.color, speed: 305, size: 4.2, angleOffset: offset, life: 1.05 });
+              spawnShot(segment, target, { color: MODULE_BY_ID.scatter.color, speed: 305, size: 4.2, angleOffset: offset });
             }
             playSkillSound("scatter");
           }
-          segment.timer = 9.5 * rate;
+          segment.timer = moduleCooldownSeconds("scatter") * rate;
           break;
         case "lance":
-          if (spawnShot(segment, target, { color: MODULE_BY_ID.lance.color, speed: 590, size: 7, pierce: 5, life: 3 })) playSkillSound("lance");
-          segment.timer = 9 * rate;
+          if (spawnShot(segment, target, { color: MODULE_BY_ID.lance.color, speed: 590, size: 7, pierce: 5 })) playSkillSound("lance");
+          segment.timer = moduleCooldownSeconds("lance") * rate;
           break;
         case "execute":
           if (target) {
@@ -3712,15 +3908,15 @@
             effects.push({ type: "beam", x: segment.x, y: segment.y, x2: target.x, y2: target.y, color: MODULE_BY_ID.execute.color, life: 0.2, maxLife: 0.2 });
             playSkillSound("execute");
           }
-          segment.timer = 8 * rate;
+          segment.timer = moduleCooldownSeconds("execute") * rate;
           break;
         case "crossfire":
           if (target && fireCrossfire(segment, target)) playSkillSound("crossfire");
-          segment.timer = 10 * rate;
+          segment.timer = moduleCooldownSeconds("crossfire") * rate;
           break;
         case "phasebolt":
-          if (spawnShot(segment, target, { color: MODULE_BY_ID.phasebolt.color, speed: 320, size: 6, bounces: 4, homing: 1.6, life: 8 })) playSkillSound("phasebolt");
-          segment.timer = 8 * rate;
+          if (spawnShot(segment, target, { color: MODULE_BY_ID.phasebolt.color, speed: 320, size: 6, bounces: 4, homing: 1.6 })) playSkillSound("phasebolt");
+          segment.timer = moduleCooldownSeconds("phasebolt") * rate;
           break;
         default:
           break;
@@ -3829,8 +4025,6 @@
       createPlayerProjectile(origin, angle, {
         target,
         speed: 285,
-        life: 1.7,
-        range: MODULE_TARGET_RANGE,
         color: MODULE_BY_ID.crossfire.color,
         size: 6.2,
         pierce: 1
@@ -3844,13 +4038,12 @@
     const tuning = MODULE_TUNING.thorns;
     const shotCount = tuning.baseShots + Math.min(tuning.maxBonusShots, Math.max(0, stacks - 1) * tuning.shotsPerExtraStack);
     const startAngle = random(0, TAU);
-    const target = nearestEnemy(collisionPoint, 620 * arenaVisualScale());
+    const target = nearestEnemy(collisionPoint);
     for (let index = 0; index < shotCount; index += 1) {
       const angle = startAngle + index * TAU / shotCount;
       createPlayerProjectile(collisionPoint, angle, {
         target,
         speed: 280,
-        life: 1.25,
         color: MODULE_BY_ID.thorns.color,
         size: 4.2
       });
@@ -4067,7 +4260,7 @@
           killEnemy(enemy);
           if (thornsReady) {
             triggerBodyIntercept(enemy, playerCollision.segment, thorns);
-            player.thornsCooldown = MODULE_TUNING.thorns.baseCooldown
+            player.thornsCooldown = moduleCooldownSeconds("thorns")
               * Math.pow(MODULE_TUNING.thorns.extraStackMultiplier, thorns - 1);
           }
         } else {
@@ -4084,7 +4277,7 @@
           const ram = moduleCount("ram");
           if (ram > 0 && player.ramCooldown <= 0) {
             damageEnemy(enemy, 1, enemy.x, enemy.y, MODULE_BY_ID.ram.color);
-            player.ramCooldown = MODULE_TUNING.ram.baseCooldown * Math.pow(MODULE_TUNING.ram.extraStackMultiplier, ram - 1);
+            player.ramCooldown = moduleCooldownSeconds("ram") * Math.pow(MODULE_TUNING.ram.extraStackMultiplier, ram - 1);
             effects.push({ type: "ring", x: player.x, y: player.y, color: MODULE_BY_ID.ram.color, life: 0.42, maxLife: 0.42, radius: 6, endRadius: arena.cellSize });
             playSkillSound("ram");
           }
@@ -4332,6 +4525,7 @@
   function killEnemy(enemy) {
     if (!enemy || enemy.dead) return;
     enemy.dead = true;
+    const dropOccupied = occupiedCellKeys();
     kills += 1;
     score += 100 + enemy.captured * 25;
     playEnemyDeathParticles(enemy, enemy.segments, enemy.color);
@@ -4340,7 +4534,7 @@
     effects.push({ type: "text", x: enemy.x, y: enemy.y - 22, text: "击破", color: "#ffffff", life: 1.05, maxLife: 1.05, emphasis: true });
     sound("kill");
     shake = Math.max(shake, 7);
-    spawnFood(enemy.x, enemy.y, false);
+    spawnFood(enemy.x, enemy.y, false, dropOccupied);
 
     const cache = moduleCount("cache");
     if (cache > 0) {
@@ -4351,15 +4545,15 @@
       );
       if (player.cacheKills >= cacheThreshold) {
         player.cacheKills = 0;
-        spawnFood(enemy.x, enemy.y, true);
+        spawnFood(enemy.x, enemy.y, true, dropOccupied);
         effects.push({ type: "ring", x: enemy.x, y: enemy.y, color: MODULE_BY_ID.cache.color, life: 0.65, maxLife: 0.65, radius: 8, endRadius: arena.cellSize });
       }
     }
 
     const bloom = moduleCount("bloom");
     if (bloom > 0 && player.bloomCooldown <= 0) {
-      spawnFood(enemy.x, enemy.y, true);
-      player.bloomCooldown = MODULE_TUNING.bloom.baseCooldown * Math.pow(MODULE_TUNING.bloom.extraStackMultiplier, bloom - 1);
+      spawnFood(enemy.x, enemy.y, true, dropOccupied);
+      player.bloomCooldown = moduleCooldownSeconds("bloom") * Math.pow(MODULE_TUNING.bloom.extraStackMultiplier, bloom - 1);
     }
 
     let dropCount = enemy.captured;
@@ -4374,7 +4568,7 @@
     for (let index = 0; index < dropCount; index += 1) {
       const angle = index * 2.4 + random(-0.25, 0.25);
       const distance = 22 + Math.sqrt(index + 1) * 12;
-      spawnFood(enemy.x + Math.cos(angle) * distance, enemy.y + Math.sin(angle) * distance, true);
+      spawnFood(enemy.x + Math.cos(angle) * distance, enemy.y + Math.sin(angle) * distance, true, dropOccupied);
     }
     updateHud();
   }
@@ -4394,7 +4588,7 @@
     if (!defense) return false;
 
     defense.ready = false;
-    const baseCooldown = defense.module === "shield" ? 18 : 22;
+    const baseCooldown = moduleCooldownSeconds(defense.module);
     defense.cooldown = baseCooldown * Math.pow(MODULE_TUNING.armor.cooldownMultiplierPerStack, armor);
     player.invulnerable = defense.module === "phase" ? 1.55 : 1.05;
     sound("shield");
@@ -4454,7 +4648,7 @@
       const ram = moduleCount("ram");
       if (ram > 0 && player.ramCooldown <= 0) {
         damageEnemy(enemy, 1, enemy.x, enemy.y, MODULE_BY_ID.ram.color);
-        player.ramCooldown = MODULE_TUNING.ram.baseCooldown * Math.pow(MODULE_TUNING.ram.extraStackMultiplier, ram - 1);
+        player.ramCooldown = moduleCooldownSeconds("ram") * Math.pow(MODULE_TUNING.ram.extraStackMultiplier, ram - 1);
         effects.push({ type: "ring", x: player.x, y: player.y, color: MODULE_BY_ID.ram.color, life: 0.42, maxLife: 0.42, radius: 6, endRadius: arena.cellSize });
         playSkillSound("ram");
       }
@@ -4466,14 +4660,13 @@
   }
 
   function burst(x, y, color, count, speed) {
-    const overflow = particles.length + count - MAX_DECORATIVE_PARTICLES;
-    if (overflow > 0) particles.splice(0, overflow);
+    if (particles.length === 0) nextParticleSlot = 0;
     const scale = arenaVisualScale();
     for (let index = 0; index < count; index += 1) {
       const angle = random(0, TAU);
       const velocity = random(speed * 0.25, speed) * scale;
       const life = random(0.25, 0.75);
-      particles.push({
+      const particle = {
         x,
         y,
         vx: Math.cos(angle) * velocity,
@@ -4482,7 +4675,12 @@
         maxLife: life,
         color,
         size: random(1.4, 3.6) * scale
-      });
+      };
+      if (particles.length < MAX_DECORATIVE_PARTICLES) particles.push(particle);
+      else {
+        particles[nextParticleSlot] = particle;
+        nextParticleSlot = (nextParticleSlot + 1) % MAX_DECORATIVE_PARTICLES;
+      }
     }
   }
 
@@ -4495,6 +4693,7 @@
       particle.vy *= Math.pow(0.04, dt);
     }
     retainInPlace(particles, (particle) => particle.life > 0);
+    if (particles.length < MAX_DECORATIVE_PARTICLES) nextParticleSlot %= Math.max(1, particles.length);
 
     for (const effect of effects) effect.life -= dt;
     retainInPlace(effects, (effect) => effect.life > 0);
@@ -4774,6 +4973,7 @@
 
   function drawFood(time) {
     for (const food of foods) {
+      if (food.networkHidden) continue;
       const pulse = 1 + Math.sin(time * 5 + food.phase) * 0.08;
       ctx.save();
       if (food.isPulled) {
@@ -5039,26 +5239,30 @@
 
   function drawPlayerIdLabel(target, pieceScale) {
     const label = `@${target.playerId || target.name || "PLAYER"}`;
-    const maxWidth = clamp(arena.cellSize * 5.2, 112, 172);
-    let fontSize = clamp(10 * pieceScale, 8, 11);
+    const labelScale = fontScale;
+    const textPadding = 14 * labelScale;
+    const cornerCut = 5 * labelScale;
+    const maxWidth = clamp(arena.cellSize * 5.2, 112, 172) * labelScale;
+    const minFontSize = 7 * labelScale;
+    let fontSize = clamp(10 * pieceScale, 8, 11) * labelScale;
     ctx.save();
     ctx.font = `900 ${fontSize}px Bahnschrift, Arial Narrow, sans-serif`;
-    while (fontSize > 7 && ctx.measureText(label).width > maxWidth - 14) {
-      fontSize -= 0.5;
+    while (fontSize > minFontSize && ctx.measureText(label).width > maxWidth - textPadding) {
+      fontSize -= 0.5 * labelScale;
       ctx.font = `900 ${fontSize}px Bahnschrift, Arial Narrow, sans-serif`;
     }
-    const textWidth = Math.min(maxWidth - 14, ctx.measureText(label).width);
-    const widthValue = textWidth + 14;
-    const heightValue = fontSize + 10;
+    const textWidth = Math.min(maxWidth - textPadding, ctx.measureText(label).width);
+    const widthValue = textWidth + textPadding;
+    const heightValue = fontSize + 10 * labelScale;
     const x = target.x - widthValue / 2;
-    const y = target.y - 31 * pieceScale - heightValue;
+    const y = target.y - 31 * pieceScale * labelScale - heightValue;
     ctx.fillStyle = target.isSelf ? "rgba(243,198,0,0.96)" : "rgba(8,11,13,0.9)";
     ctx.strokeStyle = target.isSelf ? "#ffffff" : target.playerColor;
-    ctx.lineWidth = target.isSelf ? 1.4 : 1;
+    ctx.lineWidth = (target.isSelf ? 1.4 : 1) * labelScale;
     ctx.beginPath();
-    ctx.moveTo(x + 5, y);
+    ctx.moveTo(x + cornerCut, y);
     ctx.lineTo(x + widthValue, y);
-    ctx.lineTo(x + widthValue - 5, y + heightValue);
+    ctx.lineTo(x + widthValue - cornerCut, y + heightValue);
     ctx.lineTo(x, y + heightValue);
     ctx.closePath();
     ctx.fill();
@@ -5066,7 +5270,7 @@
     ctx.fillStyle = target.isSelf ? "#090b0c" : "#f6f7f6";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(label, target.x, y + heightValue / 2 + 0.5, maxWidth - 14);
+    ctx.fillText(label, target.x, y + heightValue / 2 + 0.5 * labelScale, maxWidth - textPadding);
     ctx.restore();
   }
 
@@ -5182,7 +5386,7 @@
         }
 
         if ((segment.module === "shield" || segment.module === "phase") && !segment.ready) {
-          const total = (segment.module === "shield" ? 18 : 22) * Math.pow(MODULE_TUNING.armor.cooldownMultiplierPerStack, moduleCount("armor"));
+          const total = moduleCooldownSeconds(segment.module) * Math.pow(MODULE_TUNING.armor.cooldownMultiplierPerStack, moduleCount("armor"));
           const progress = 1 - clamp(segment.cooldown / total, 0, 1);
           ctx.shadowBlur = 0;
           ctx.strokeStyle = "rgba(255,255,255,0.65)";
@@ -5480,7 +5684,7 @@
     ctx.beginPath();
     ctx.rect(arena.left, arena.top, arena.width, arena.height);
     ctx.clip();
-    for (const food of foods) marker(food.x, food.y, food.color, "food");
+    for (const food of foods) if (!food.networkHidden) marker(food.x, food.y, food.color, "food");
     for (const enemy of enemies) if (!enemy.dead) marker(enemy.x, enemy.y, enemy.color, "enemy");
     for (const spawn of pendingEnemySpawns) {
       const point = cellCenter(spawn.headCell.col, spawn.headCell.row);

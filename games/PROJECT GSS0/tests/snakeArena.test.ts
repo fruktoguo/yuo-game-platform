@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
-  CANONICAL_CELL_SIZE,
   DISCONNECT_GRACE_MS,
   ENEMY_BASE_SPEED,
   LEVEL_UP_TRANSITION_DURATION,
@@ -8,13 +7,21 @@ import {
   RESPAWN_DELAY_MS,
   UPGRADE_INVULNERABILITY_DURATION,
 } from '../src/shared/constants';
-import type { PlayerHeadCollisionEvent, UltraEffect, UltraProjectileEvent } from '../src/shared/protocol';
+import { moduleCooldownSeconds } from '../src/shared/designerConfig';
+import type { PlayerHeadCollisionEvent, UltraEffect, UltraFoodDelta, UltraProjectileEvent } from '../src/shared/protocol';
 import { UltraWorld } from '../src/server/UltraWorld';
 
 describe('UltraWorld 原版 PvE 与多人共享世界', () => {
   it('首帧严格生成两枚球和一条敌蛇预警', () => {
     const effects: UltraEffect[] = [];
-    const world = new UltraWorld({ random: () => 0.25, callbacks: { onEffects: (items) => effects.push(...items) } });
+    const foodDeltas: UltraFoodDelta[] = [];
+    const world = new UltraWorld({
+      random: () => 0.25,
+      callbacks: {
+        onEffects: (items) => effects.push(...items),
+        onFoods: (delta) => foodDeltas.push(delta),
+      },
+    });
     world.connectPlayer('account-a', '玩家甲', 0);
     expect(world.spawn('account-a', 0)).toBe(true);
 
@@ -26,7 +33,9 @@ describe('UltraWorld 原版 PvE 与多人共享世界', () => {
     expect(snapshot.enemies).toHaveLength(0);
     expect(snapshot.pendingSpawns).toHaveLength(1);
     expect(snapshot.pendingSpawns[0].timer).toBeCloseTo(1.5, 2);
-    expect(effects.filter((effect) => effect.type === 'sound').map((effect) => effect.kind)).toEqual(expect.arrayContaining(['start', 'foodSpawn', 'enemyWarning']));
+    expect(effects.filter((effect) => effect.type === 'sound').map((effect) => effect.kind)).toEqual(expect.arrayContaining(['start', 'enemyWarning']));
+    expect(foodDeltas).toHaveLength(1);
+    expect(foodDeltas[0]).toMatchObject({ reset: false, upserts: [{ special: false }, { special: false }], removedIds: [] });
   });
 
   it('客户端吃球确认可覆盖蛇头和身体的网络延迟，但拒绝远距离与重复领取', () => {
@@ -49,6 +58,50 @@ describe('UltraWorld 原版 PvE 与多人共享世界', () => {
     expect(player.xp).toBe(2);
     expect(world.getSnapshot(0).foods.map((food) => food.id)).toEqual([3]);
     expect(world.claimFoods('account-a', [1, 2, 3])).toEqual([]);
+  });
+
+  it('手动玩家只按客户端领取事件吃球，自动玩家仍由服务端自行收集', () => {
+    const world = new UltraWorld({ random: () => 0.25 });
+    world.connectPlayer('account-a', '手动玩家', 0);
+    world.spawn('account-a', 0);
+    Reflect.set(world, 'waveTimer', 999);
+    const player = (Reflect.get(world, 'playersByAccount') as Map<string, TestPlayerEntity & { xp: number }>).get('account-a')!;
+    Reflect.set(world, 'foods', [testFood(1, player.col, player.row)]);
+
+    world.step(0.05, 50);
+    expect(world.getSnapshot(50).foods).toHaveLength(1);
+    expect(player.xp).toBe(0);
+    expect(world.claimFoods('account-a', [1])).toEqual([1]);
+
+    Reflect.set(world, 'foods', [testFood(2, player.col, player.row)]);
+    expect(world.setAutopilot('account-a', true)).toBe(true);
+    world.step(0.05, 100);
+    expect(world.getSnapshot(100).foods).toHaveLength(0);
+    expect(player.xp).toBe(2);
+  });
+
+  it('球的新增、移除与重置按帧合并为可靠增量，高频快照仅携带移动球', () => {
+    const deltas: UltraFoodDelta[] = [];
+    const world = new UltraWorld({ random: () => 0.25, callbacks: { onFoods: (delta) => deltas.push(delta) } });
+    const materializeFood = Reflect.get(world, 'materializeFood') as (cell: { col: number; row: number }, special: boolean) => void;
+    const removeFoodAt = Reflect.get(world, 'removeFoodAt') as (index: number) => unknown;
+    const resetFoodState = Reflect.get(world, 'resetFoodState') as () => void;
+    const flushFoodChanges = Reflect.get(world, 'flushFoodChanges') as () => void;
+
+    materializeFood.call(world, { col: 4, row: 5 }, false);
+    materializeFood.call(world, { col: 7, row: 8 }, true);
+    flushFoodChanges.call(world);
+    expect(deltas[0]).toMatchObject({ revision: 1, reset: false, upserts: [{ id: 1 }, { id: 2 }], removedIds: [] });
+    expect(world.getSnapshot(0).foods).toHaveLength(2);
+    expect(world.getNetworkSnapshot(0).foods).toHaveLength(0);
+
+    removeFoodAt.call(world, 0);
+    flushFoodChanges.call(world);
+    expect(deltas[1]).toMatchObject({ revision: 2, reset: false, upserts: [], removedIds: [1] });
+
+    resetFoodState.call(world);
+    flushFoodChanges.call(world);
+    expect(deltas[2]).toMatchObject({ revision: 3, reset: true, upserts: [], removedIds: [] });
   });
 
   it('最后一颗升级球立即结算全部待增长身体并锁定后续吃球', () => {
@@ -271,12 +324,18 @@ describe('UltraWorld 原版 PvE 与多人共享世界', () => {
     world.connectPlayer('account-a', '玩家甲', 0);
     world.spawn('account-a', 0);
     const internal = (Reflect.get(world, 'playersByAccount') as Map<string, TestPlayerEntity>).get('account-a')!;
+    const staticFood = { ...testFood(1, 6, 7), networkMoving: false };
+    const pulledFood = { ...testFood(2, 8, 9), isPulled: true, networkMoving: false };
+    Reflect.set(world, 'foods', [staticFood, pulledFood]);
+    Reflect.set(world, 'pulledFoods', new Set([pulledFood]));
 
     const networkSnapshot = world.getNetworkSnapshot(100);
     const isolatedSnapshot = world.getSnapshot(100);
 
     expect(networkSnapshot.players[0]).toBe(internal);
     expect(networkSnapshot.players[0].segments).toBe(internal.segments);
+    expect(networkSnapshot.foods).toEqual([pulledFood]);
+    expect(isolatedSnapshot.foods).toHaveLength(2);
     expect(isolatedSnapshot.players[0]).not.toBe(internal);
     expect(isolatedSnapshot.players[0].segments).not.toBe(internal.segments);
   });
@@ -289,6 +348,7 @@ describe('UltraWorld 原版 PvE 与多人共享世界', () => {
     const beam = Reflect.get(world, 'beam') as (...args: unknown[]) => void;
     const textEffect = Reflect.get(world, 'textEffect') as (...args: unknown[]) => void;
     const effectSound = Reflect.get(world, 'effectSound') as (...args: unknown[]) => void;
+    const feedback = Reflect.get(world, 'feedback') as (...args: unknown[]) => void;
     const flushEffects = Reflect.get(world, 'flushEffects') as () => void;
 
     burst.call(world, 4, 5, '#ff5c62', 20, 150, 7);
@@ -297,11 +357,13 @@ describe('UltraWorld 原版 PvE 与多人共享世界', () => {
     textEffect.call(world, 4, 5, '击破', '#ffffff', 0.8, 7);
     effectSound.call(world, 'kill', 7);
     effectSound.call(world, 'level', 7);
+    feedback.call(world, 'hit', 7);
     flushEffects.call(world);
 
-    expect(effects.filter((effect) => effect.type !== 'sound').every((effect) => effect.audienceEntityId === undefined)).toBe(true);
+    expect(effects.filter((effect) => effect.type !== 'sound' && effect.type !== 'feedback').every((effect) => effect.audienceEntityId === undefined)).toBe(true);
     expect(effects.find((effect) => effect.type === 'sound' && effect.kind === 'kill')?.audienceEntityId).toBeUndefined();
     expect(effects.find((effect) => effect.type === 'sound' && effect.kind === 'level')?.audienceEntityId).toBe(7);
+    expect(effects.find((effect) => effect.type === 'feedback')).toMatchObject({ kind: 'hit', audienceEntityId: 7 });
   });
 
   it('投射物只通过生命周期事件同步，常规广播快照不再携带逐帧位置', () => {
@@ -347,10 +409,18 @@ describe('UltraWorld 原版 PvE 与多人共享世界', () => {
 
   it('击破敌人会保留原版普通球掉落，并向全场广播对应视听事件', () => {
     const effects: UltraEffect[] = [];
-    const world = new UltraWorld({ random: () => 0.3, callbacks: { onEffects: (items) => effects.push(...items) } });
+    const foodDeltas: UltraFoodDelta[] = [];
+    const world = new UltraWorld({
+      random: () => 0.3,
+      callbacks: {
+        onEffects: (items) => effects.push(...items),
+        onFoods: (delta) => foodDeltas.push(delta),
+      },
+    });
     world.connectPlayer('account-a', '玩家甲', 0);
     world.spawn('account-a', 0);
     const flushEffects = Reflect.get(world, 'flushEffects') as () => void;
+    const flushFoodChanges = Reflect.get(world, 'flushFoodChanges') as () => void;
     flushEffects.call(world);
     effects.length = 0;
 
@@ -360,12 +430,15 @@ describe('UltraWorld 原版 PvE 与多人共享世界', () => {
     const killEnemy = Reflect.get(world, 'killEnemy') as (target: unknown, player: unknown) => void;
     killEnemy.call(world, enemy, owner);
     flushEffects.call(world);
+    flushFoodChanges.call(world);
 
     expect(world.getSnapshot(0).foods).toHaveLength(1);
     expect(effects.map((effect) => effect.type)).toEqual(expect.arrayContaining(['snakeDeath', 'ring', 'text', 'sound']));
     expect(effects.find((effect) => effect.type === 'snakeDeath')).toMatchObject({ enemyId: 99, segments: [{ col: 17.4 }, { col: 16.8 }] });
-    expect(effects.filter((effect) => effect.type === 'sound').map((effect) => effect.kind)).toEqual(expect.arrayContaining(['kill', 'foodSpawn']));
-    expect(effects.filter((effect) => effect.type !== 'shake').every((effect) => effect.audienceEntityId === undefined)).toBe(true);
+    expect(effects.filter((effect) => effect.type === 'sound').map((effect) => effect.kind)).toContain('kill');
+    expect(effects.find((effect) => effect.type === 'feedback')).toMatchObject({ kind: 'kill', audienceEntityId: owner.entityId });
+    expect(effects.filter((effect) => effect.type !== 'feedback').every((effect) => effect.audienceEntityId === undefined)).toBe(true);
+    expect(foodDeltas.at(-1)).toMatchObject({ reset: false, upserts: [expect.objectContaining({ special: false })], removedIds: [] });
   });
 
   it('最后一名玩家死亡并重置场地后仍保留本次死亡演出', () => {
@@ -598,7 +671,7 @@ describe('UltraWorld 原版 PvE 与多人共享世界', () => {
     expect(world.getSnapshot(5_000).projectiles).toHaveLength(0);
   });
 
-  it('锁定技能会等到找到目标并成功释放后才进入冷却', () => {
+  it('锁定技能会跨越全场寻找目标，成功释放后才进入冷却', () => {
     const world = new UltraWorld({ random: () => 0.3 });
     world.connectPlayer('account-a', '玩家甲', 0);
     world.spawn('account-a', 0);
@@ -617,16 +690,20 @@ describe('UltraWorld 原版 PvE 与多人共享世界', () => {
     expect(spark.timer).toBe(0);
     expect(Reflect.get(world, 'projectiles')).toHaveLength(0);
 
-    Reflect.set(world, 'enemies', [testEnemy(owner.col + 3, owner.row)]);
+    owner.col = 1;
+    owner.row = 12;
+    spark.col = 1.5;
+    spark.row = 12;
+    Reflect.set(world, 'enemies', [testEnemy(23, 12)]);
     updateHeadWeapon.call(world, owner, 0.05);
     updateModules.call(world, owner, 0.05);
 
-    expect(owner.headFireTimer).toBeGreaterThan(0);
-    expect(spark.timer).toBeGreaterThan(0);
+    expect(owner.headFireTimer).toBeCloseTo(3.8);
+    expect(spark.timer).toBeCloseTo(moduleCooldownSeconds('spark'));
     expect(Reflect.get(world, 'projectiles')).toHaveLength(2);
   });
 
-  it('有锁定距离的子弹最多飞行对应距离的 1.2 倍', () => {
+  it('子弹不会因飞行时间或距离自然消失', () => {
     const world = new UltraWorld({ random: () => 0.3 });
     world.connectPlayer('account-a', '玩家甲', 0);
     world.spawn('account-a', 0);
@@ -638,13 +715,17 @@ describe('UltraWorld 原版 PvE 与多人共享世界', () => {
       options: Record<string, number>,
     ) => void;
 
-    createProjectile.call(world, owner, owner, 0, { speed: 300, life: 99, range: 620 });
-    const projectile = (Reflect.get(world, 'projectiles') as Array<{ speed: number; life: number }>)[0];
+    createProjectile.call(world, owner, { col: 10, row: 10 }, 0, { speed: 10 });
+    const projectile = (Reflect.get(world, 'projectiles') as Array<{ col: number; speed: number; life: number }>)[0];
+    const updateProjectiles = Reflect.get(world, 'updateProjectiles') as (delta: number) => void;
+    updateProjectiles.call(world, 5);
 
-    expect(projectile.speed * projectile.life).toBeCloseTo(620 * 1.2 / CANONICAL_CELL_SIZE, 5);
+    expect(projectile.life).toBe(Number.POSITIVE_INFINITY);
+    expect(projectile.col).toBeGreaterThan(10);
+    expect(projectile.col).toBeLessThan(23.5);
   });
 
-  it('子弹未命中而结束飞行时生成轻量消散动画', () => {
+  it('子弹撞墙结束飞行时生成轻量消散动画', () => {
     const world = new UltraWorld({ random: () => 0.3 });
     world.connectPlayer('account-a', '玩家甲', 0);
     world.spawn('account-a', 0);
@@ -657,7 +738,7 @@ describe('UltraWorld 原版 PvE 与多人共享世界', () => {
     ) => void;
     const updateProjectiles = Reflect.get(world, 'updateProjectiles') as (delta: number) => void;
 
-    createProjectile.call(world, owner, owner, 0, { speed: 50, life: 0.01, color: '#123456' });
+    createProjectile.call(world, owner, { col: 23.45, row: 12 }, 0, { speed: 100, color: '#123456' });
     updateProjectiles.call(world, 0.05);
     const expiryEffects = (Reflect.get(world, 'pendingEffects') as UltraEffect[]).filter((effect) => 'color' in effect && effect.color === '#123456');
 
@@ -822,7 +903,7 @@ describe('UltraWorld 原版 PvE 与多人共享世界', () => {
     ) => void;
     const updateProjectiles = Reflect.get(world, 'updateProjectiles') as (delta: number) => void;
 
-    createProjectile.call(world, owner, { col: 5, row: 10 }, 0, { speed: 590, size: 7, life: 0.01 });
+    createProjectile.call(world, owner, { col: 5, row: 10 }, 0, { speed: 590, size: 7 });
     updateProjectiles.call(world, 0.05);
 
     expect(target.segments).toHaveLength(0);

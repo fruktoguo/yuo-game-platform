@@ -44,17 +44,17 @@
         <button id="lobby-button" class="icon-button lobby-icon" type="button" aria-label="返回大厅" title="返回大厅">
           <span aria-hidden="true"></span>
         </button>
-        <div class="setting-control">
-          <button id="font-button" class="icon-button font-icon" type="button" aria-label="调节字体大小" title="调节字体大小" aria-expanded="false" aria-controls="font-popover">
+        <div class="setting-control" data-tooltip="字体大小 150%">
+          <button id="font-button" class="icon-button font-icon" type="button" aria-label="调节字体大小，当前 150%" aria-expanded="false" aria-controls="font-popover">
             <span aria-hidden="true">Aa</span>
           </button>
           <div id="font-popover" class="setting-popover" role="group" aria-label="字体大小" aria-hidden="true">
-            <div class="setting-heading"><span>字体大小</span><output id="font-output" for="font-slider">100%</output></div>
-            <input id="font-slider" type="range" min="50" max="150" step="10" value="100" aria-label="字体大小百分比">
+            <div class="setting-heading"><span>字体大小</span><output id="font-output" for="font-slider">150%</output></div>
+            <input id="font-slider" type="range" min="50" max="200" step="10" value="150" aria-label="字体大小百分比">
           </div>
         </div>
-        <div class="setting-control">
-          <button id="sound-button" class="icon-button" type="button" aria-label="调节声音大小" title="调节声音大小" aria-expanded="false" aria-controls="sound-popover">
+        <div class="setting-control" data-tooltip="声音大小 50%">
+          <button id="sound-button" class="icon-button" type="button" aria-label="调节声音大小，当前 50%" aria-expanded="false" aria-controls="sound-popover">
             <span class="sound-on" aria-hidden="true">♪</span>
             <span class="sound-off" aria-hidden="true">×</span>
           </button>
@@ -63,8 +63,8 @@
             <input id="sound-slider" type="range" min="0" max="100" step="5" value="50" aria-label="声音大小百分比">
           </div>
         </div>
-        <div class="setting-control">
-          <button id="motion-button" class="icon-button" type="button" aria-label="调节动态透视强度" title="调节动态透视强度" aria-expanded="false" aria-controls="motion-popover">
+        <div class="setting-control" data-tooltip="动态透视强度 100%">
+          <button id="motion-button" class="icon-button" type="button" aria-label="调节动态透视强度，当前 100%" aria-expanded="false" aria-controls="motion-popover">
             <span class="motion-icon" aria-hidden="true"></span>
           </button>
           <div id="motion-popover" class="setting-popover" role="group" aria-label="动态透视强度" aria-hidden="true">
@@ -72,8 +72,8 @@
             <input id="motion-slider" type="range" min="100" max="300" step="25" value="100" aria-label="动态透视强度百分比">
           </div>
         </div>
-        <div class="setting-control">
-          <button id="background-pause-button" class="icon-button" type="button" aria-label="后台暂停已开启" title="后台暂停已开启" aria-expanded="false" aria-controls="background-pause-popover">
+        <div class="setting-control" data-tooltip="后台暂停已开启">
+          <button id="background-pause-button" class="icon-button" type="button" aria-label="后台暂停已开启" aria-expanded="false" aria-controls="background-pause-popover">
             <span class="background-pause-icon" aria-hidden="true"></span>
           </button>
           <div id="background-pause-popover" class="setting-popover toggle-popover" role="group" aria-label="后台暂停" aria-hidden="true">
@@ -84,8 +84,8 @@
             </label>
           </div>
         </div>
-        <div class="setting-control">
-          <button id="description-button" class="icon-button description-icon" type="button" aria-label="机体详细描述已关闭" title="机体详细描述已关闭" aria-expanded="false" aria-controls="description-popover">
+        <div class="setting-control" data-tooltip="机体详细描述已关闭">
+          <button id="description-button" class="icon-button description-icon" type="button" aria-label="机体详细描述已关闭" aria-expanded="false" aria-controls="description-popover">
             <span aria-hidden="true">i</span>
           </button>
           <div id="description-popover" class="setting-popover toggle-popover" role="group" aria-label="机体详细描述" aria-hidden="true">
@@ -140,7 +140,7 @@
 
     <section id="start-screen" class="modal-layer start-screen is-visible" aria-labelledby="game-title">
       <div class="start-glow" aria-hidden="true"></div>
-      <div class="start-version" aria-label="游戏版本 V25"><span>BUILD</span><strong>V25</strong></div>
+      <div class="start-version" aria-label="游戏版本 V28"><span>BUILD</span><strong>V28</strong></div>
       <div class="start-layout">
         <div class="start-content">
           <div id="network-status" class="title-kicker">TACTICAL SURVIVAL / LOCAL</div>
@@ -216,6 +216,51 @@
           <button id="changelog-close-button" class="icon-button codex-close-button" type="button" aria-label="关闭更新日志" title="关闭更新日志">×</button>
         </header>
         <div class="changelog-list">
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V28</strong></div>
+              <time datetime="2026-07-20">2026.07.20</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">联机优化</span>
+              <h3>密集球场与本地反馈</h3>
+              <ul>
+                <li>球改用可靠增量同步，静止球不再反复占用高频快照带宽。</li>
+                <li>吃球、牵引、敌人寻球与大量掉落改用空间索引和批量计算，降低后期阵卡。</li>
+                <li>震屏强度由本地客户端生成，且只响应与自己有关的吃球、攻击、升级和碰撞。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V27</strong></div>
+              <time datetime="2026-07-20">2026.07.20</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">易用性</span>
+              <h3>更大的界面与即时提示</h3>
+              <ul>
+                <li>字体缩放上限提升至 200%，新存档默认使用 150%。</li>
+                <li>玩家头顶铭牌会随字体设置整体缩放。</li>
+                <li>右上角配置按钮的说明改为悬停后立即显示。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V26</strong></div>
+              <time datetime="2026-07-20">2026.07.20</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">火力重构</span>
+              <h3>全场索敌与独立冷却</h3>
+              <ul>
+                <li>攻击机体改为全场索敌，子弹会持续飞行到命中目标或撞上墙壁。</li>
+                <li>主动技能改用公共基础冷却与独立百分比，并重新平衡全部输出机体。</li>
+                <li>设计控制台可逐个调整主动机体冷却，并即时查看换算后的实际秒数。</li>
+              </ul>
+            </div>
+          </article>
           <article class="changelog-entry">
             <header>
               <div class="changelog-version"><span>BUILD</span><strong>V25</strong></div>

@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { DESIGNER_BALANCE, moduleDesignState } from '../src/shared/designerConfig';
-import { MODULES, UPGRADE_MODULES } from '../src/shared/modules';
+import { DESIGNER_BALANCE, moduleCooldownPercent, moduleCooldownSeconds, moduleDesignState } from '../src/shared/designerConfig';
+import { ACTIVE_SKILL_MODULES, MODULES, UPGRADE_MODULES } from '../src/shared/modules';
 
 const editorHtml = readFileSync(new URL('../balance-editor.html', import.meta.url), 'utf8');
 const launcherCmd = readFileSync(new URL('../balance-editor-launcher.cmd', import.meta.url), 'utf8');
@@ -32,9 +32,9 @@ describe('设计配置', () => {
       foodsPerPlayerPerWave: 2,
       enemiesPerPlayerPerWave: 1,
       projectileSpeedScale: 3,
-      projectileRangeMultiplier: 1.2,
       attackIntervalScale: 2,
       headAttackInterval: 1.9,
+      activeSkillBaseCooldown: 3,
       arenaAreaPerLevel: 0.05,
       upgradeInvulnerabilityDuration: 0.5,
       respawnLocatorConvergeDuration: 1,
@@ -60,6 +60,20 @@ describe('设计配置', () => {
     });
   });
 
+  it('主动技能使用公共基础冷却与独立百分比', () => {
+    const source = (globalThis as typeof globalThis & {
+      GSS0_DESIGNER_CONFIG: { moduleCooldownPercentages: Record<string, number> };
+    }).GSS0_DESIGNER_CONFIG;
+
+    expect(Object.keys(source.moduleCooldownPercentages).sort()).toEqual(ACTIVE_SKILL_MODULES.map((module) => module.id).sort());
+    expect(moduleCooldownPercent('spark')).toBe(100);
+    expect(moduleCooldownSeconds('spark')).toBe(3);
+    expect(moduleCooldownPercent('crossfire')).toBe(240);
+    expect(moduleCooldownSeconds('crossfire')).toBeCloseTo(7.2);
+    expect(moduleCooldownPercent('fan')).toBe(375);
+    expect(moduleCooldownSeconds('fan')).toBeCloseTo(11.25);
+  });
+
   it('全部现有机体都有状态且默认进入升级池', () => {
     const source = (globalThis as typeof globalThis & { GSS0_DESIGNER_CONFIG: { moduleStates: Record<string, string> } }).GSS0_DESIGNER_CONFIG;
     expect(Object.keys(source.moduleStates).sort()).toEqual(MODULES.map((module) => module.id).sort());
@@ -73,7 +87,7 @@ describe('设计配置', () => {
 
     expect(parameterKeys.sort()).toEqual(Object.keys(DESIGNER_BALANCE).sort());
     expect(moduleIds.sort()).toEqual(MODULES.map((module) => module.id).sort());
-    expect(new Set(parameterKeys).size).toBe(46);
+    expect(new Set(parameterKeys).size).toBe(44);
     expect(new Set(moduleIds).size).toBe(58);
   });
 
@@ -88,6 +102,9 @@ describe('设计配置', () => {
     expect(editorHtml).toContain('<script src="designer-config.js"></script>');
     expect(editorHtml).toContain('scheduleAutoSave();');
     expect(editorHtml).toContain('id="description-detail"');
+    expect(editorHtml).toContain('draft.moduleCooldownPercentages[module.id]');
+    expect(editorHtml).toContain('range.max = "1000"');
+    expect(editorHtml).toContain('actual.textContent = `实际 ${moduleCooldownLabel(module)}`');
     expect(editorHtml).not.toContain('id="save-config"');
   });
 

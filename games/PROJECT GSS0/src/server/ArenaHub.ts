@@ -26,6 +26,7 @@ import type {
   ServerToClientEvents,
   SocketData,
   UltraEffect,
+  UltraFoodDelta,
   UltraProjectileEvent,
   UpgradeOffer,
 } from '../shared/protocol';
@@ -66,6 +67,7 @@ export class ArenaHub {
     const profiles = await SnakeProfileStore.open(dataPath);
     let publishEvent: (event: ArenaEvent) => void = () => undefined;
     let publishEffects: (effects: UltraEffect[]) => void = () => undefined;
+    let publishFoods: (delta: UltraFoodDelta) => void = () => undefined;
     let publishProjectiles: (events: UltraProjectileEvent[]) => void = () => undefined;
     let publishPlayerHeadCollision: (event: PlayerHeadCollisionEvent) => void = () => undefined;
     let finishRun: (result: RunResult) => void = () => undefined;
@@ -73,6 +75,7 @@ export class ArenaHub {
     const world = new UltraWorld({
       callbacks: {
         onEffects: (effects) => publishEffects(effects),
+        onFoods: (delta) => publishFoods(delta),
         onProjectiles: (events) => publishProjectiles(events),
         onPlayerHeadCollision: (event) => publishPlayerHeadCollision(event),
         onEvent: (event) => publishEvent(event),
@@ -83,6 +86,7 @@ export class ArenaHub {
     const hub = new ArenaHub(io, world, profiles);
     publishEvent = (event) => hub.publishEvent(event);
     publishEffects = (effects) => hub.publishEffects(effects);
+    publishFoods = (delta) => hub.publishFoods(delta);
     publishProjectiles = (events) => hub.publishProjectiles(events);
     publishPlayerHeadCollision = (event) => hub.publishPlayerHeadCollision(event);
     finishRun = (result) => hub.finishRun(result);
@@ -149,6 +153,7 @@ export class ArenaHub {
       ok: true,
       data: {
         selfEntityId: player.entityId,
+        foodRevision: this.world.getFoodRevision(),
         profile: this.profiles.get(principal.accountId),
         snapshot: this.world.getSnapshot(Date.now(), false),
         projectiles: this.world.getProjectileStates(),
@@ -321,6 +326,10 @@ export class ArenaHub {
 
   private publishProjectiles(events: UltraProjectileEvent[]): void {
     if (events.length > 0 && this.socketsByAccount.size > 0) this.io.emit('ultra:projectiles', events);
+  }
+
+  private publishFoods(delta: UltraFoodDelta): void {
+    if (this.socketsByAccount.size > 0) this.io.emit('ultra:foods', delta);
   }
 
   private publishPlayerHeadCollision(event: PlayerHeadCollisionEvent): void {

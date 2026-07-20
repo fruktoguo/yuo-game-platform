@@ -71,6 +71,13 @@ export interface UltraFoodView extends GridPoint {
   isPulled: boolean;
 }
 
+export interface UltraFoodDelta {
+  revision: number;
+  reset: boolean;
+  upserts: UltraFoodView[];
+  removedIds: number[];
+}
+
 export interface UltraProjectileView {
   id: number;
   col: number;
@@ -130,13 +137,15 @@ export interface UltraSnapshot {
 
 export type UltraSoundKind = 'ui' | 'start' | 'pause' | 'resume' | 'foodSpawn' | 'enemyWarning' | 'enemySpawn' | 'bounce' | 'shoot' | 'skill' | 'frost' | 'electric' | 'nova' | 'laser' | 'mine' | 'pulse' | 'regen' | 'hit' | 'kill' | 'level' | 'levelCharge' | 'select' | 'shield' | 'death' | 'eat';
 
+export type UltraFeedbackKind = 'growth' | 'growth-special' | 'level' | 'food' | 'food-special' | 'hit' | 'kill' | 'blast' | 'bounce';
+
 export type UltraEffect =
   | { id: string; type: 'burst'; col: number; row: number; color: string; count: number; speed: number; audienceEntityId?: number }
   | { id: string; type: 'ring'; col: number; row: number; color: string; life: number; radius: number; endRadius: number; endRadiusUnit: 'pixels' | 'cells'; audienceEntityId?: number }
   | { id: string; type: 'beam' | 'lightning'; col: number; row: number; col2: number; row2: number; color: string; life: number; audienceEntityId?: number }
   | { id: string; type: 'text'; col: number; row: number; text: string; color: string; life: number; audienceEntityId?: number }
   | { id: string; type: 'sound'; kind: UltraSoundKind; detail?: number; audienceEntityId?: number }
-  | { id: string; type: 'shake'; strength: number; audienceEntityId?: number }
+  | { id: string; type: 'feedback'; kind: UltraFeedbackKind; audienceEntityId: number }
   | { id: string; type: 'flash'; color: string; strength: number; audienceEntityId?: number }
   | { id: string; type: 'snakeDeath'; enemyId: number; head: GridPoint; segments: GridPoint[]; color: string; audienceEntityId?: number };
 
@@ -185,6 +194,7 @@ export interface LeaderboardEntry {
 
 export interface ArenaJoinData {
   selfEntityId: number;
+  foodRevision: number;
   profile: UltraProfileView;
   snapshot: UltraSnapshot;
   projectiles: UltraProjectileState[];
@@ -260,6 +270,7 @@ export interface ActionResult<T = undefined> {
 
 export interface ServerToClientEvents {
   'ultra:snapshot': (snapshot: Uint8Array) => void;
+  'ultra:foods': (delta: UltraFoodDelta) => void;
   'ultra:projectiles': (events: UltraProjectileEvent[]) => void;
   'ultra:effects': (effects: UltraEffect[]) => void;
   'ultra:player-head-collision': (event: PlayerHeadCollisionEvent) => void;

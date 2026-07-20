@@ -354,6 +354,34 @@ input:focus-visible {
   position: relative;
 }
 
+.setting-control[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  z-index: 80;
+  top: calc(100% + 8px);
+  right: 0;
+  visibility: hidden;
+  width: max-content;
+  max-width: min(240px, calc(100vw - 20px));
+  padding: 6px 9px;
+  border: 1px solid rgba(255, 255, 255, 0.34);
+  background: rgba(8, 11, 13, 0.97);
+  color: var(--white);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.38);
+  font-size: calc(9px * var(--font-scale));
+  font-weight: 800;
+  line-height: 1.2;
+  opacity: 0;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.setting-control[data-tooltip]:not(.is-open):hover::after,
+.setting-control[data-tooltip]:not(.is-open):focus-within::after {
+  visibility: visible;
+  opacity: 1;
+}
+
 .icon-button {
   position: relative;
   display: grid;

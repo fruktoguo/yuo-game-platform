@@ -27,19 +27,16 @@ import {
   LEVEL_UP_TIME_SCALE,
   LEVEL_UP_TRANSITION_DURATION,
   MAX_PLAYERS,
-  MODULE_TARGET_RANGE,
   NETWORK_COLLISION_CLAIM_COOLDOWN_MS,
   NETWORK_COLLISION_HISTORY_MS,
   NETWORK_HEAD_COLLISION_CONTACT_ALLOWANCE,
   NETWORK_HEAD_COLLISION_EVENT_GRACE_MS,
   NETWORK_HEAD_COLLISION_VALIDATION_TOLERANCE,
   HEAD_ATTACK_INTERVAL,
-  HEAD_TARGET_RANGE,
   PLAYER_BASE_SPEED,
   PLAYER_COLORS,
   PLAYER_SPEED_PER_LEVEL,
   PLAYER_TURN_RATE,
-  PROJECTILE_RANGE_MULTIPLIER,
   PROJECTILE_SPEED_SCALE,
   RESPAWN_DELAY_MS,
   UPGRADE_INVULNERABILITY_DURATION,
@@ -48,6 +45,7 @@ import {
   WAVE_POPULATION_SOFT_CAP,
   WAVE_RATE_PER_LEVEL,
 } from '../shared/constants';
+import { moduleCooldownSeconds } from '../shared/designerConfig';
 import { isModuleId, MODULE_BY_ID, UPGRADE_MODULES, type ModuleId } from '../shared/modules';
 import type { PlayerMovementState } from '../shared/playerStateCodec';
 import { chooseSerpentineSpawn } from '../shared/spawnPlanner';
@@ -61,6 +59,8 @@ import type {
   RosterPlayer,
   UltraEffect,
   UltraEnemyView,
+  UltraFeedbackKind,
+  UltraFoodDelta,
   UltraFoodView,
   UltraHazardView,
   UltraPlayerView,
@@ -74,7 +74,7 @@ import type {
 
 const TAU = Math.PI * 2;
 const TARGET_REQUIRED_MODULES = new Set<ModuleId>([
-  'spark', 'frost', 'prism', 'tesla', 'laser', 'missile', 'venom', 'echo',
+  'spark', 'frost', 'prism', 'tesla', 'laser', 'missile', 'venom',
   'rail', 'ricochet', 'cluster', 'fan', 'gravity', 'needle', 'mortar', 'sweep',
   'sniper', 'flak', 'fork', 'anchor', 'flare', 'scatter', 'lance', 'execute',
   'crossfire', 'phasebolt',
@@ -155,6 +155,7 @@ interface EnemyBodyBucket {
 
 interface FoodEntity extends UltraFoodView {
   pullTimer: number;
+  networkMoving: boolean;
 }
 
 interface PendingSpawn extends PendingSpawnView {
@@ -188,8 +189,6 @@ interface HazardEntity extends UltraHazardView {
 
 interface ShotOptions {
   speed?: number;
-  life?: number;
-  range?: number;
   color?: string;
   size?: number;
   pierce?: number;
@@ -215,6 +214,7 @@ export interface RunResult {
 
 export interface UltraWorldCallbacks {
   onEffects?: (effects: UltraEffect[]) => void;
+  onFoods?: (delta: UltraFoodDelta) => void;
   onProjectiles?: (events: UltraProjectileEvent[]) => void;
   onUpgrade?: (entityId: number, offer: UpgradeOffer | null) => void;
   onRunEnded?: (result: RunResult) => void;
@@ -240,6 +240,16 @@ export class UltraWorld {
   private pendingEffects: UltraEffect[] = [];
   private pendingProjectileEvents: UltraProjectileEvent[] = [];
   private readonly foodsById = new Map<number, FoodEntity>();
+  private readonly foodIndexesById = new Map<number, number>();
+  private readonly pendingFoodUpserts = new Map<number, FoodEntity>();
+  private readonly pendingFoodRemovals = new Set<number>();
+  private readonly networkMovingFoods: FoodEntity[] = [];
+  private readonly networkMovedFoods = new Set<FoodEntity>();
+  private readonly foodSpatialBuckets = new Map<number, FoodEntity[]>();
+  private readonly foodSpatialBucketPool: FoodEntity[][] = [];
+  private pulledFoods = new Set<FoodEntity>();
+  private nextPulledFoods = new Set<FoodEntity>();
+  private spawnOccupiedCells: Set<string> | null = null;
   private readonly projectileTargetsById = new Map<number, EnemyEntity>();
   private readonly enemyBodyBuckets = new Map<number, EnemyBodyBucket>();
   private readonly enemyBodyBucketPool: EnemyBodyBucket[] = [];
@@ -267,6 +277,10 @@ export class UltraWorld {
   private nextProjectileId = 1;
   private nextHazardId = 1;
   private nextEffectId = 1;
+  private foodRevision = 0;
+  private foodResetPending = false;
+  private foodSpatialDirty = true;
+  private staleFoodSpatialEntries = 0;
   private now = Date.now();
 
   constructor(options: UltraWorldOptions = {}) {
@@ -456,7 +470,7 @@ export class UltraWorld {
         const ram = this.moduleCount(player, 'ram');
         if (ram > 0 && player.ramCooldown <= 0) {
           this.damageTarget(player, enemy, 1, enemy, MODULE_BY_ID.ram.color);
-          player.ramCooldown = 5 * Math.pow(0.86, ram - 1);
+          player.ramCooldown = moduleCooldownSeconds('ram') * Math.pow(0.86, ram - 1);
           this.ring(player.col, player.row, MODULE_BY_ID.ram.color, 0.42, 6, 1, player.entityId);
           this.playSkillSound(player, 'ram');
         }
@@ -479,7 +493,7 @@ export class UltraWorld {
     this.killEnemy(enemy, player);
     if (thornsReady) {
       this.triggerBodyIntercept(player, bodySegment, enemy, thorns);
-      player.thornsCooldown = 6 * Math.pow(0.85, thorns - 1);
+      player.thornsCooldown = moduleCooldownSeconds('thorns') * Math.pow(0.85, thorns - 1);
     }
     return true;
   }
@@ -645,10 +659,11 @@ export class UltraWorld {
     if (!player?.connected || !player.alive || player.paused || player.choosingUpgrade || player.upgradePending) return [];
     const claimedFoodIds: number[] = [];
     const latencyAllowance = Math.min(1.25, Math.max(0.35, player.speed * 0.12));
+    this.ensureFoodIndexes();
     for (const foodId of foodIds) {
       if (player.upgradePending) break;
-      const foodIndex = this.foods.findIndex((food) => food.id === foodId);
-      if (foodIndex < 0) continue;
+      const foodIndex = this.foodIndexesById.get(foodId);
+      if (foodIndex === undefined) continue;
       const food = this.foods[foodIndex];
       const contact = this.findFoodCollector(player, food, latencyAllowance);
       if (!contact) continue;
@@ -668,6 +683,7 @@ export class UltraWorld {
 
   step(deltaSeconds: number, now = Date.now()): void {
     const delta = clamp(deltaSeconds, 0, 0.05);
+    this.spawnOccupiedCells = null;
     this.tick = (this.tick + 1) >>> 0;
     this.now = now;
     this.removeExpiredPlayers(now);
@@ -724,7 +740,9 @@ export class UltraWorld {
       this.updateModules(player, worldDelta);
     }
     this.updateTargetStatuses(worldDelta);
+    this.ensureFoodSpatialBuckets();
     this.updateEnemies(worldDelta, active, present);
+    this.spawnOccupiedCells = null;
     this.updateProjectiles(worldDelta);
     this.updateHazards(worldDelta);
     this.checkCollisions(now, active, present);
@@ -762,6 +780,15 @@ export class UltraWorld {
     // Encoding is synchronous, so the broadcaster can safely borrow live entity arrays without cloning them.
     this.networkPlayers.length = 0;
     for (const player of this.playersByEntity.values()) this.networkPlayers.push(player);
+    this.networkMovingFoods.length = 0;
+    for (const food of this.pulledFoods) {
+      if (this.foodsById.get(food.id) === food) this.networkMovingFoods.push(food);
+    }
+    for (const food of this.networkMovedFoods) {
+      if (!food.isPulled && this.foodsById.get(food.id) === food) this.networkMovingFoods.push(food);
+      food.networkMoving = false;
+    }
+    this.networkMovedFoods.clear();
     const snapshot = this.networkSnapshotCache ??= {
       tick: 0,
       serverTime: 0,
@@ -772,7 +799,7 @@ export class UltraWorld {
       arenaSize: GRID_SIZE,
       players: this.networkPlayers,
       enemies: this.enemies,
-      foods: this.foods,
+      foods: this.networkMovingFoods,
       projectiles: this.networkProjectiles,
       hazards: this.hazards,
       pendingSpawns: this.pendingSpawns,
@@ -785,7 +812,7 @@ export class UltraWorld {
     snapshot.threatLevel = this.threatLevel();
     snapshot.arenaSize = this.arenaSize;
     snapshot.enemies = this.enemies;
-    snapshot.foods = this.foods;
+    snapshot.foods = this.networkMovingFoods;
     snapshot.hazards = this.hazards;
     snapshot.pendingSpawns = this.pendingSpawns;
     return snapshot;
@@ -834,6 +861,10 @@ export class UltraWorld {
 
   get currentTick(): number {
     return this.tick;
+  }
+
+  getFoodRevision(): number {
+    return this.foodRevision;
   }
 
   private createPlayer(accountId: string, name: string, playerId: string): PlayerEntity {
@@ -946,7 +977,7 @@ export class UltraWorld {
     this.waveCount = 0;
     this.arenaSize = GRID_SIZE;
     this.nextEnemyId = 1;
-    this.foods = [];
+    this.resetFoodState();
     this.enemies = [];
     for (const projectile of this.projectiles) {
       this.pendingProjectileEvents.push({ type: 'destroy', id: projectile.id, col: projectile.col, row: projectile.row });
@@ -986,14 +1017,25 @@ export class UltraWorld {
     const highestLevel = presentPlayers.reduce((maximum, player) => Math.max(maximum, player.level), 0);
     const target = GRID_SIZE * Math.sqrt(1 + highestLevel * ARENA_AREA_PER_LEVEL);
     const amount = 1 - Math.exp(-ARENA_RESIZE_RATE * delta);
+    const previousSize = this.arenaSize;
     this.arenaSize += (target - this.arenaSize) * amount;
     if (Math.abs(target - this.arenaSize) < 0.0001) this.arenaSize = target;
+    if (this.arenaSize >= previousSize) return;
     const minimum = this.arenaMinimum();
     const maximum = this.arenaMaximum();
+    let movedFood = false;
     for (const food of this.foods) {
-      food.col = clamp(food.col, minimum, maximum);
-      food.row = clamp(food.row, minimum, maximum);
+      const col = clamp(food.col, minimum, maximum);
+      const row = clamp(food.row, minimum, maximum);
+      if (col !== food.col || row !== food.row) {
+        food.networkMoving = true;
+        this.networkMovedFoods.add(food);
+        movedFood = true;
+      }
+      food.col = col;
+      food.row = row;
     }
+    if (movedFood) this.foodSpatialDirty = true;
     for (const hazard of this.hazards) {
       hazard.col = clamp(hazard.col, minimum, maximum);
       hazard.row = clamp(hazard.row, minimum, maximum);
@@ -1147,7 +1189,7 @@ export class UltraWorld {
     this.burst(tail.col, tail.row, '#eef5ff', completed.special ? 18 : 12, completed.special ? 135 : 105, player.entityId);
     this.ring(tail.col, tail.row, completed.color, 0.46, 3, 0.78, player.entityId);
     this.ring(tail.col, tail.row, '#ffffff', 0.28, 2, 0.46, player.entityId);
-    this.shake(completed.special ? 2.5 : 1.5, player.entityId);
+    this.feedback(completed.special ? 'growth-special' : 'growth', player.entityId);
     player.growth = null;
     if (player.growthQueue.length > 0) {
       player.growth = { ...player.growthQueue.shift()!, elapsed: 0, nodeCount: player.segments.length + 1 };
@@ -1174,7 +1216,7 @@ export class UltraWorld {
     this.ring(player.col, player.row, '#f3c600', LEVEL_UP_TRANSITION_DURATION, 8, 3.8, player.entityId);
     this.ring(player.col, player.row, '#ffffff', 0.68, 5, 2.5, player.entityId);
     this.textEffect(player.col, player.row - 0.8, 'LEVEL UP', '#f3c600', LEVEL_UP_TRANSITION_DURATION, player.entityId);
-    this.shake(6.5, player.entityId);
+    this.feedback('level', player.entityId);
     this.pendingEffects.push({ id: this.effectId(), type: 'flash', color: '#f3c600', strength: 0.18, audienceEntityId: player.entityId });
     this.effectSound('levelCharge', player.entityId);
   }
@@ -1232,7 +1274,7 @@ export class UltraWorld {
     player.xpNeeded = player.level + 5;
     const tail = player.segments.at(-1) ?? player;
     const definition = MODULE_BY_ID[moduleId];
-    const initialTimer = this.randomBetween(0.2, 0.8) * (definition.category === '输出' ? ATTACK_INTERVAL_SCALE : 1);
+    const initialTimer = this.randomBetween(0.2, 0.8);
     player.segments.push(makeSegment(tail.col, tail.row, { module: moduleId, timer: initialTimer }, this.randomSource));
     player.recentPicks.push(moduleId);
     if (player.recentPicks.length > 6) player.recentPicks.shift();
@@ -1248,7 +1290,7 @@ export class UltraWorld {
   }
 
   private collectFood(player: PlayerEntity, foodIndex: number, collector: GridPoint): void {
-    const [food] = this.foods.splice(foodIndex, 1);
+    const food = this.removeFoodAt(foodIndex);
     if (!food) return;
     player.xp += 1;
     player.score += food.special ? 35 : 20;
@@ -1271,7 +1313,7 @@ export class UltraWorld {
     this.ring(collector.col, collector.row, '#ffffff', 0.32, 4, 0.82, player.entityId);
     this.textEffect(collector.col, collector.row, '+1', food.color, 0.72, player.entityId);
     this.effectSound('eat', player.entityId, player.segments.filter((segment) => segment.neutral).length + player.growthQueue.length + (player.growth ? 1 : 0));
-    this.shake(food.special ? 4 : 2.8, player.entityId);
+    this.feedback(food.special ? 'food-special' : 'food', player.entityId);
     if (completesLevel) this.startLevelUpTransition(player);
   }
 
@@ -1287,30 +1329,73 @@ export class UltraWorld {
         bodyRange: 0.42 + this.moduleCount(player, 'collector') * 0.09,
       };
     });
-    for (const food of this.foods) {
-      food.isPulled = false;
-      let puller: { profile: typeof profiles[number]; distance: number } | null = null;
-      for (const profile of profiles) {
-        if (profile.tractor <= 0) continue;
-        const distance = Math.hypot(profile.player.col - food.col, profile.player.row - food.row);
-        if (distance <= 0.001 || distance > profile.tractorRange || (puller && puller.distance <= distance)) continue;
-        puller = { profile, distance };
-      }
-      if (puller) {
-        const step = Math.min(puller.distance, puller.profile.tractorSpeed * delta);
-        food.col += (puller.profile.player.col - food.col) / puller.distance * step;
-        food.row += (puller.profile.player.row - food.row) / puller.distance * step;
-        food.isPulled = true;
+    const tractorProfiles = profiles.filter((profile) => profile.tractor > 0);
+    const pullers = new Map<number, { food: FoodEntity; profile: typeof profiles[number]; distanceSquared: number }>();
+    if (tractorProfiles.length > 0) {
+      this.ensureFoodSpatialBuckets();
+      for (const profile of tractorProfiles) {
+        const rangeSquared = profile.tractorRange * profile.tractorRange;
+        this.forEachNearbyFood(profile.player, profile.tractorRange, (food) => {
+          const distance = distanceSquared(profile.player, food);
+          const current = pullers.get(food.id);
+          if (distance <= 0.000001 || distance > rangeSquared || (current && current.distanceSquared <= distance)) return;
+          pullers.set(food.id, { food, profile, distanceSquared: distance });
+        });
       }
     }
 
-    for (let index = this.foods.length - 1; index >= 0; index -= 1) {
-      const food = this.foods[index];
-      let winner: { player: PlayerEntity; collector: GridPoint; distance: number } | null = null;
-      for (const profile of profiles) {
-        if (profile.player.upgradePending) continue;
-        const contact = this.findFoodCollectorWithin(profile.player, food, profile.headRange, profile.bodyRange);
-        if (contact && (!winner || contact.distance < winner.distance)) winner = { player: profile.player, ...contact };
+    this.nextPulledFoods.clear();
+    for (const puller of pullers.values()) {
+      const { food, profile, distanceSquared: pullDistanceSquared } = puller;
+      const pullDistance = Math.sqrt(pullDistanceSquared);
+      const step = Math.min(pullDistance, profile.tractorSpeed * delta);
+      food.col += (profile.player.col - food.col) / pullDistance * step;
+      food.row += (profile.player.row - food.row) / pullDistance * step;
+      food.isPulled = true;
+      this.nextPulledFoods.add(food);
+      this.foodSpatialDirty = true;
+    }
+    for (const food of this.pulledFoods) {
+      if (this.nextPulledFoods.has(food) || this.foodsById.get(food.id) !== food) continue;
+      food.isPulled = false;
+      this.queueFoodUpsert(food);
+    }
+    const previousPulledFoods = this.pulledFoods;
+    this.pulledFoods = this.nextPulledFoods;
+    this.nextPulledFoods = previousPulledFoods;
+
+    const collectorProfiles = profiles.filter((profile) => profile.player.autopilot);
+    if (collectorProfiles.length === 0) return;
+    this.ensureFoodSpatialBuckets();
+    const winners = new Map<number, { food: FoodEntity; player: PlayerEntity; collector: GridPoint; distance: number }>();
+    const considerCollector = (profile: typeof profiles[number], collector: GridPoint, range: number): void => {
+      const rangeSquared = range * range;
+      this.forEachNearbyFood(collector, range, (food) => {
+        const distance = distanceSquared(collector, food);
+        const current = winners.get(food.id);
+        if (distance > rangeSquared || (current && current.distance <= distance)) return;
+        winners.set(food.id, { food, player: profile.player, collector, distance });
+      });
+    };
+    for (const profile of collectorProfiles) {
+      if (profile.player.upgradePending) continue;
+      considerCollector(profile, profile.player, profile.headRange);
+      for (const segment of profile.player.segments) considerCollector(profile, segment, profile.bodyRange);
+    }
+
+    const orderedWinners = [...winners.values()].sort((left, right) =>
+      (this.foodIndexesById.get(right.food.id) ?? -1) - (this.foodIndexesById.get(left.food.id) ?? -1));
+    for (const candidate of orderedWinners) {
+      const index = this.foodIndexesById.get(candidate.food.id);
+      if (index === undefined) continue;
+      let winner: { player: PlayerEntity; collector: GridPoint; distance: number } | null = candidate;
+      if (winner.player.upgradePending) {
+        winner = null;
+        for (const profile of collectorProfiles) {
+          if (profile.player.upgradePending) continue;
+          const contact = this.findFoodCollectorWithin(profile.player, candidate.food, profile.headRange, profile.bodyRange);
+          if (contact && (!winner || contact.distance < winner.distance)) winner = { player: profile.player, ...contact };
+        }
       }
       if (winner) this.collectFood(winner.player, index, winner.collector);
     }
@@ -1323,11 +1408,12 @@ export class UltraWorld {
   }
 
   private findFoodCollectorWithin(player: PlayerEntity, food: FoodEntity, headRange: number, bodyRange: number): { collector: GridPoint; distance: number } | null {
-    const headDistance = Math.hypot(player.col - food.col, player.row - food.row);
-    let nearest = headDistance <= headRange ? { collector: player as GridPoint, distance: headDistance } : null;
+    const headDistance = distanceSquared(player, food);
+    let nearest = headDistance <= headRange * headRange ? { collector: player as GridPoint, distance: headDistance } : null;
+    const bodyRangeSquared = bodyRange * bodyRange;
     for (const segment of player.segments) {
-      const distance = Math.hypot(segment.col - food.col, segment.row - food.row);
-      if (distance <= bodyRange && (!nearest || distance < nearest.distance)) nearest = { collector: segment, distance };
+      const distance = distanceSquared(segment, food);
+      if (distance <= bodyRangeSquared && (!nearest || distance < nearest.distance)) nearest = { collector: segment, distance };
     }
     return nearest;
   }
@@ -1353,34 +1439,37 @@ export class UltraWorld {
     this.waveTimer -= delta * this.waveCountdownRate(activePlayers);
     if (this.waveTimer > 0) return;
     const playerCount = activePlayers.length;
+    const foodCells = this.freeCells(FOOD_WALL_MARGIN);
+    const occupied = this.occupiedCellCodes();
     for (const player of players) {
-      this.spawnWaveFoods(FOODS_PER_PLAYER_PER_WAVE);
-      const occupied = this.occupiedCellCodes();
+      this.spawnWaveFoods(FOODS_PER_PLAYER_PER_WAVE, foodCells, occupied);
       for (let index = 0; index < ENEMIES_PER_PLAYER_PER_WAVE; index += 1) this.queueEnemySpawn(player, playerCount, occupied);
     }
     this.waveCount += 1;
     this.waveTimer = WAVE_BASE_INTERVAL;
   }
 
-  private spawnFood(preferred?: GridPoint, special = false): boolean {
-    const cell = this.findFreeCell(preferred ?? null, FOOD_WALL_MARGIN);
+  private spawnFood(preferred?: GridPoint, special = false, occupied?: Set<string>): boolean {
+    const occupiedCells = occupied ?? this.spawnOccupiedCellKeys();
+    const cell = this.findFreeCell(preferred ?? null, FOOD_WALL_MARGIN, occupiedCells);
     if (!cell) return false;
     this.materializeFood(cell, special);
+    occupiedCells.add(cellKey(cell));
     return true;
   }
 
-  private spawnWaveFoods(count: number): void {
-    const cells = this.freeCells(FOOD_WALL_MARGIN);
+  private spawnWaveFoods(count: number, cells = this.freeCells(FOOD_WALL_MARGIN), occupiedCodes?: Set<number>): void {
     for (let index = 0; index < count && cells.length > 0; index += 1) {
       const selectedIndex = Math.floor(this.random() * cells.length);
       const [cell] = cells.splice(selectedIndex, 1);
       this.materializeFood(cell, false);
+      occupiedCodes?.add(cellCode(cell));
     }
   }
 
   private materializeFood(cell: GridPoint, special: boolean): void {
     const color = FOOD_COLORS[Math.floor(this.random() * FOOD_COLORS.length)];
-    this.foods.push({
+    const food: FoodEntity = {
       id: this.allocateFoodId(),
       col: cell.col,
       row: cell.row,
@@ -1389,10 +1478,198 @@ export class UltraWorld {
       pullTimer: this.randomBetween(0.4, 1),
       special,
       isPulled: false,
-    });
-    this.burst(cell.col, cell.row, color, special ? 10 : 7, 62);
-    this.ring(cell.col, cell.row, color, 0.42, 3, 0.42);
-    this.effectSound('foodSpawn');
+      networkMoving: false,
+    };
+    this.addFood(food);
+  }
+
+  private addFood(food: FoodEntity): void {
+    const index = this.foods.length;
+    this.foods.push(food);
+    this.foodsById.set(food.id, food);
+    this.foodIndexesById.set(food.id, index);
+    this.pendingFoodRemovals.delete(food.id);
+    this.pendingFoodUpserts.set(food.id, food);
+    if (food.isPulled) this.pulledFoods.add(food);
+    this.foodSpatialDirty = true;
+  }
+
+  private removeFoodAt(index: number): FoodEntity | null {
+    if (index < 0 || index >= this.foods.length) return null;
+    const lastIndex = this.foods.length - 1;
+    const removed = this.foods[index];
+    const last = this.foods[lastIndex];
+    this.foods.pop();
+    if (index !== lastIndex) {
+      this.foods[index] = last;
+      this.foodIndexesById.set(last.id, index);
+    }
+    this.foodsById.delete(removed.id);
+    this.foodIndexesById.delete(removed.id);
+    this.pulledFoods.delete(removed);
+    this.nextPulledFoods.delete(removed);
+    this.networkMovedFoods.delete(removed);
+    this.staleFoodSpatialEntries += 1;
+    if (this.staleFoodSpatialEntries > Math.max(64, this.foods.length / 4)) this.foodSpatialDirty = true;
+    if (!this.pendingFoodUpserts.delete(removed.id)) this.pendingFoodRemovals.add(removed.id);
+    return removed;
+  }
+
+  private ensureFoodIndexes(): void {
+    if (this.foodsById.size === this.foods.length && this.foodIndexesById.size === this.foods.length) return;
+    this.foodsById.clear();
+    this.foodIndexesById.clear();
+    for (let index = 0; index < this.foods.length; index += 1) {
+      const food = this.foods[index];
+      this.foodsById.set(food.id, food);
+      this.foodIndexesById.set(food.id, index);
+    }
+  }
+
+  private resetFoodSpatialBuckets(): void {
+    for (const bucket of this.foodSpatialBuckets.values()) {
+      bucket.length = 0;
+      this.foodSpatialBucketPool.push(bucket);
+    }
+    this.foodSpatialBuckets.clear();
+  }
+
+  private rebuildFoodSpatialBuckets(): void {
+    this.resetFoodSpatialBuckets();
+    for (const food of this.foods) {
+      const code = spatialBucketCode(food.col, food.row);
+      let bucket = this.foodSpatialBuckets.get(code);
+      if (!bucket) {
+        bucket = this.foodSpatialBucketPool.pop() ?? [];
+        this.foodSpatialBuckets.set(code, bucket);
+      }
+      bucket.push(food);
+    }
+    this.foodSpatialDirty = false;
+    this.staleFoodSpatialEntries = 0;
+  }
+
+  private ensureFoodSpatialBuckets(): void {
+    if (this.foodSpatialDirty) this.rebuildFoodSpatialBuckets();
+  }
+
+  private forEachNearbyFood(origin: GridPoint, range: number, visit: (food: FoodEntity) => void): void {
+    const minimumCol = Math.floor(origin.col - range);
+    const maximumCol = Math.floor(origin.col + range);
+    const minimumRow = Math.floor(origin.row - range);
+    const maximumRow = Math.floor(origin.row + range);
+    for (let col = minimumCol; col <= maximumCol; col += 1) {
+      for (let row = minimumRow; row <= maximumRow; row += 1) {
+        const bucket = this.foodSpatialBuckets.get(spatialBucketCode(col, row));
+        if (!bucket) continue;
+        for (const food of bucket) if (this.foodsById.get(food.id) === food) visit(food);
+      }
+    }
+  }
+
+  private nearestFoods(origin: GridPoint, limit: number): FoodEntity[] {
+    if (limit <= 0 || this.foods.length === 0) return [];
+    this.ensureFoodSpatialBuckets();
+    const candidates: Array<{ food: FoodEntity; distance: number }> = [];
+    const centerCol = Math.floor(origin.col);
+    const centerRow = Math.floor(origin.row);
+    const maximumRadius = Math.ceil(this.arenaSize) + 2;
+    const considerBucket = (col: number, row: number): void => {
+      const bucket = this.foodSpatialBuckets.get(spatialBucketCode(col, row));
+      if (!bucket) return;
+      for (const food of bucket) {
+        if (this.foodsById.get(food.id) !== food) continue;
+        const candidate = { food, distance: distanceSquared(origin, food) };
+        let insertAt = candidates.length;
+        while (insertAt > 0 && candidate.distance < candidates[insertAt - 1].distance) insertAt -= 1;
+        if (insertAt >= limit) continue;
+        candidates.splice(insertAt, 0, candidate);
+        if (candidates.length > limit) candidates.pop();
+      }
+    };
+
+    for (let radius = 0; radius <= maximumRadius; radius += 1) {
+      if (radius === 0) considerBucket(centerCol, centerRow);
+      else {
+        const minimumCol = centerCol - radius;
+        const maximumCol = centerCol + radius;
+        const minimumRow = centerRow - radius;
+        const maximumRow = centerRow + radius;
+        for (let col = minimumCol; col <= maximumCol; col += 1) {
+          considerBucket(col, minimumRow);
+          considerBucket(col, maximumRow);
+        }
+        for (let row = minimumRow + 1; row < maximumRow; row += 1) {
+          considerBucket(minimumCol, row);
+          considerBucket(maximumCol, row);
+        }
+      }
+      if (candidates.length < limit) continue;
+      const minimumOutsideDistance = Math.min(
+        origin.col - (centerCol - radius),
+        centerCol + radius + 1 - origin.col,
+        origin.row - (centerRow - radius),
+        centerRow + radius + 1 - origin.row,
+      );
+      if (candidates[candidates.length - 1].distance <= minimumOutsideDistance * minimumOutsideDistance) break;
+    }
+    return candidates.map((candidate) => candidate.food);
+  }
+
+  private enemyFoodContact(enemy: EnemyEntity): { food: FoodEntity; index: number; collector: GridPoint } | null {
+    this.ensureFoodSpatialBuckets();
+    const contactRangeSquared = 0.4 * 0.4;
+    let selectedIndex = -1;
+    let selectedFood: FoodEntity | null = null;
+    const visited = new Set<number>();
+    for (const node of [enemy as GridPoint, ...enemy.segments]) {
+      const minimumCol = Math.floor(node.col - 0.4);
+      const maximumCol = Math.floor(node.col + 0.4);
+      const minimumRow = Math.floor(node.row - 0.4);
+      const maximumRow = Math.floor(node.row + 0.4);
+      for (let col = minimumCol; col <= maximumCol; col += 1) {
+        for (let row = minimumRow; row <= maximumRow; row += 1) {
+          const bucket = this.foodSpatialBuckets.get(spatialBucketCode(col, row));
+          if (!bucket) continue;
+          for (const food of bucket) {
+            if (visited.has(food.id) || this.foodsById.get(food.id) !== food) continue;
+            visited.add(food.id);
+            const index = this.foodIndexesById.get(food.id);
+            if (index === undefined || index <= selectedIndex || distanceSquared(node, food) > contactRangeSquared) continue;
+            selectedIndex = index;
+            selectedFood = food;
+          }
+        }
+      }
+    }
+    if (!selectedFood) return null;
+    let collector: GridPoint = enemy;
+    if (distanceSquared(enemy, selectedFood) > contactRangeSquared) {
+      collector = enemy.segments.find((segment) => distanceSquared(segment, selectedFood!) <= contactRangeSquared) ?? enemy;
+    }
+    return { food: selectedFood, index: selectedIndex, collector };
+  }
+
+  private queueFoodUpsert(food: FoodEntity): void {
+    this.pendingFoodRemovals.delete(food.id);
+    this.pendingFoodUpserts.set(food.id, food);
+  }
+
+  private resetFoodState(): void {
+    this.foods = [];
+    this.foodsById.clear();
+    this.foodIndexesById.clear();
+    this.pendingFoodUpserts.clear();
+    this.pendingFoodRemovals.clear();
+    this.networkMovingFoods.length = 0;
+    this.networkMovedFoods.clear();
+    this.pulledFoods.clear();
+    this.nextPulledFoods.clear();
+    this.resetFoodSpatialBuckets();
+    this.foodSpatialDirty = true;
+    this.staleFoodSpatialEntries = 0;
+    this.spawnOccupiedCells = null;
+    this.foodResetPending = true;
   }
 
   private updateEnemySpawnWarnings(delta: number): void {
@@ -1467,7 +1744,6 @@ export class UltraWorld {
     this.burst(spawn.headCell.col, spawn.headCell.row, spawn.color, 22, 145);
     this.ring(spawn.headCell.col, spawn.headCell.row, spawn.color, 0.58, 5, 1.25);
     this.effectSound('enemySpawn');
-    this.shake(4);
   }
 
   private chooseEnemySpawn(bodySegmentCount: number, minimumHeadDistance: number, occupied = this.occupiedCellCodes()): { head: GridPoint; body: GridPoint[]; next: GridPoint } | null {
@@ -1503,6 +1779,10 @@ export class UltraWorld {
     return occupied;
   }
 
+  private spawnOccupiedCellKeys(): Set<string> {
+    return this.spawnOccupiedCells ??= this.occupiedCellKeys();
+  }
+
   private occupiedCellCodes(): Set<number> {
     const occupied = new Set<number>();
     for (const player of this.alivePlayers()) {
@@ -1534,13 +1814,90 @@ export class UltraWorld {
     return cells;
   }
 
-  private findFreeCell(preferred: GridPoint | null, wallMargin = 0): GridPoint | null {
-    const cells = this.freeCells(wallMargin);
+  private findFreeCell(preferred: GridPoint | null, wallMargin = 0, occupied = this.spawnOccupiedCellKeys()): GridPoint | null {
     const margin = clamp(Math.ceil(wallMargin), 0, Math.floor((this.arenaSize - 1) / 2));
-    if (cells.length === 0) return margin > 0 ? null : preferred;
-    if (!preferred) return cells[Math.floor(this.random() * cells.length)];
-    cells.sort((left, right) => manhattan(left, preferred) - manhattan(right, preferred));
-    return cells[0];
+    const bounds = this.arenaIntegerBounds(margin);
+    if (preferred) {
+      const centerCol = clamp(Math.round(preferred.col), bounds.minimum, bounds.maximum);
+      const centerRow = clamp(Math.round(preferred.row), bounds.minimum, bounds.maximum);
+      const maximumRadius = Math.max(
+        centerCol - bounds.minimum,
+        bounds.maximum - centerCol,
+        centerRow - bounds.minimum,
+        bounds.maximum - centerRow,
+      );
+      let selected: GridPoint | null = null;
+      let bestDistance = Number.POSITIVE_INFINITY;
+      const intervalDistance = (value: number, minimum: number, maximum: number): number =>
+        value < minimum ? minimum - value : value > maximum ? value - maximum : 0;
+      for (let radius = 0; radius <= maximumRadius; radius += 1) {
+        const minimumCol = Math.max(bounds.minimum, centerCol - radius);
+        const maximumCol = Math.min(bounds.maximum, centerCol + radius);
+        const minimumRow = Math.max(bounds.minimum, centerRow - radius);
+        const maximumRow = Math.min(bounds.maximum, centerRow + radius);
+        for (let row = minimumRow; row <= maximumRow; row += 1) {
+          for (let col = minimumCol; col <= maximumCol; col += 1) {
+            if (Math.max(Math.abs(col - centerCol), Math.abs(row - centerRow)) !== radius) continue;
+            const point = { col, row };
+            if (occupied.has(cellKey(point))) continue;
+            const distance = manhattan(point, preferred);
+            if (distance < bestDistance || (distance === bestDistance && selected && (row < selected.row || (row === selected.row && col < selected.col)))) {
+              bestDistance = distance;
+              selected = point;
+            }
+          }
+        }
+        if (selected) {
+          let minimumFutureDistance = Number.POSITIVE_INFINITY;
+          const leftMaximum = centerCol - radius - 1;
+          if (leftMaximum >= bounds.minimum) {
+            minimumFutureDistance = Math.min(minimumFutureDistance,
+              intervalDistance(preferred.col, bounds.minimum, leftMaximum)
+              + intervalDistance(preferred.row, bounds.minimum, bounds.maximum));
+          }
+          const rightMinimum = centerCol + radius + 1;
+          if (rightMinimum <= bounds.maximum) {
+            minimumFutureDistance = Math.min(minimumFutureDistance,
+              intervalDistance(preferred.col, rightMinimum, bounds.maximum)
+              + intervalDistance(preferred.row, bounds.minimum, bounds.maximum));
+          }
+          const topMaximum = centerRow - radius - 1;
+          if (topMaximum >= bounds.minimum) {
+            minimumFutureDistance = Math.min(minimumFutureDistance,
+              intervalDistance(preferred.row, bounds.minimum, topMaximum)
+              + intervalDistance(preferred.col, bounds.minimum, bounds.maximum));
+          }
+          const bottomMinimum = centerRow + radius + 1;
+          if (bottomMinimum <= bounds.maximum) {
+            minimumFutureDistance = Math.min(minimumFutureDistance,
+              intervalDistance(preferred.row, bottomMinimum, bounds.maximum)
+              + intervalDistance(preferred.col, bounds.minimum, bounds.maximum));
+          }
+          if (bestDistance <= minimumFutureDistance) return selected;
+        }
+      }
+      return selected ?? (margin > 0 ? null : preferred);
+    }
+
+    let freeCount = 0;
+    for (let row = bounds.minimum; row <= bounds.maximum; row += 1) {
+      for (let col = bounds.minimum; col <= bounds.maximum; col += 1) {
+        const point = { col, row };
+        if (occupied.has(cellKey(point))) continue;
+        freeCount += 1;
+      }
+    }
+    if (freeCount === 0) return null;
+    let targetIndex = Math.floor(this.random() * freeCount);
+    for (let row = bounds.minimum; row <= bounds.maximum; row += 1) {
+      for (let col = bounds.minimum; col <= bounds.maximum; col += 1) {
+        const point = { col, row };
+        if (occupied.has(cellKey(point))) continue;
+        if (targetIndex === 0) return point;
+        targetIndex -= 1;
+      }
+    }
+    return null;
   }
 
   private findPlayerSpawn(): GridPoint {
@@ -1572,12 +1929,12 @@ export class UltraWorld {
   private updateHeadWeapon(player: PlayerEntity, delta: number): void {
     player.headFireTimer -= delta;
     if (player.headFireTimer > 0) return;
-    const target = this.nearestTarget(player, player, this.pixelsToCells(HEAD_TARGET_RANGE));
+    const target = this.nearestTarget(player, player, Number.POSITIVE_INFINITY);
     if (!target) {
       player.headFireTimer = 0;
       return;
     }
-    const fired = this.spawnShot(player, player, target, { color: '#dffcff', speed: 360, size: 3.7, range: HEAD_TARGET_RANGE });
+    const fired = this.spawnShot(player, player, target, { color: '#dffcff', speed: 360, size: 3.7 });
     const echoes = this.moduleCount(player, 'echo');
     for (let index = 0; index < echoes; index += 1) {
       const direction = index % 2 ? 1 : -1;
@@ -1587,7 +1944,6 @@ export class UltraWorld {
         speed: 330,
         size: 3.4,
         angleOffset: direction * tier * 0.13,
-        range: HEAD_TARGET_RANGE,
       });
     }
     if (fired) {
@@ -1597,7 +1953,7 @@ export class UltraWorld {
   }
 
   private updateModules(player: PlayerEntity, delta: number): void {
-    const rate = this.outputRateMultiplier(player) * ATTACK_INTERVAL_SCALE;
+    const rate = this.outputRateMultiplier(player);
     for (const segment of player.segments) {
       if (!segment.module) continue;
       segment.timer -= delta;
@@ -1621,7 +1977,7 @@ export class UltraWorld {
         };
         for (const target of this.enemies) {
           if (target.dead || target.bladeCooldown > 0 || !this.pointHitsTarget(blade, this.pixelsToCells(10), target)) continue;
-          target.bladeCooldown = 0.48 * ATTACK_INTERVAL_SCALE;
+          target.bladeCooldown = moduleCooldownSeconds('blade');
           this.damageTarget(player, target, 1, blade, MODULE_BY_ID.blade.color);
         }
         continue;
@@ -1630,7 +1986,7 @@ export class UltraWorld {
       if (segment.module === 'saw') {
         for (const target of this.enemies) {
           if (target.dead || target.sawCooldown > 0 || !this.pointHitsTarget(segment, 0.82, target)) continue;
-          target.sawCooldown = 1.4;
+          target.sawCooldown = moduleCooldownSeconds('saw');
           this.damageTarget(player, target, 1, target, MODULE_BY_ID.saw.color);
           this.ring(segment.col, segment.row, MODULE_BY_ID.saw.color, 0.3, 5, 0.82, player.entityId);
           this.playSkillSound(player, 'saw');
@@ -1644,7 +2000,7 @@ export class UltraWorld {
         this.spawnFood(point, true);
         this.playSkillSound(player, 'regen');
         this.ring(point.col, point.row, MODULE_BY_ID.regen.color, 0.9, 8, 53, player.entityId, 'pixels');
-        segment.timer = 17;
+        segment.timer = moduleCooldownSeconds('regen');
         continue;
       }
 
@@ -1653,12 +2009,12 @@ export class UltraWorld {
         this.spawnFood(tail, true);
         this.playSkillSound(player, 'regen');
         this.ring(tail.col, tail.row, MODULE_BY_ID.nursery.color, 0.75, 6, 0.9, player.entityId);
-        segment.timer = 24;
+        segment.timer = moduleCooldownSeconds('nursery');
         continue;
       }
 
       if (segment.timer > 0) continue;
-      const target = this.nearestTarget(player, segment, this.pixelsToCells(MODULE_TARGET_RANGE));
+      const target = this.nearestTarget(player, segment, Number.POSITIVE_INFINITY);
       if (TARGET_REQUIRED_MODULES.has(segment.module) && !target) {
         segment.timer = 0;
         continue;
@@ -1666,34 +2022,34 @@ export class UltraWorld {
       switch (segment.module) {
         case 'spark':
           if (this.spawnShot(player, segment, target, { color: MODULE_BY_ID.spark.color, speed: 390, size: 4.5 })) this.playSkillSound(player, 'spark');
-          segment.timer = 2.7 * rate;
+          segment.timer = moduleCooldownSeconds('spark') * rate;
           break;
         case 'frost':
           if (this.spawnShot(player, segment, target, { color: MODULE_BY_ID.frost.color, speed: 310, size: 5, slow: 2.6 })) this.playSkillSound(player, 'frost');
-          segment.timer = 3.5 * rate;
+          segment.timer = moduleCooldownSeconds('frost') * rate;
           break;
         case 'prism':
           if (target) {
             for (const offset of [-0.17, 0, 0.17]) this.spawnShot(player, segment, target, { color: MODULE_BY_ID.prism.color, speed: 330, angleOffset: offset });
             this.playSkillSound(player, 'prism');
           }
-          segment.timer = 7.05 * rate;
+          segment.timer = moduleCooldownSeconds('prism') * rate;
           break;
         case 'nova':
           for (let index = 0; index < 8; index += 1) {
             const angle = index * TAU / 8 + segment.orbit * 0.15;
-            this.createProjectile(player, segment, angle, { speed: 250, life: 1.35, color: MODULE_BY_ID.nova.color, size: 4.4 });
+            this.createProjectile(player, segment, angle, { speed: 250, color: MODULE_BY_ID.nova.color, size: 4.4 });
           }
           this.playSkillSound(player, 'nova');
           this.ring(segment.col, segment.row, MODULE_BY_ID.nova.color, 0.45, 8, 53, player.entityId, 'pixels');
-          segment.timer = 9.25 * rate;
+          segment.timer = moduleCooldownSeconds('nova') * rate;
           break;
         case 'tesla':
           if (target) {
             this.fireTesla(player, segment, target);
             this.playSkillSound(player, 'tesla');
           }
-          segment.timer = 6.75 * rate;
+          segment.timer = moduleCooldownSeconds('tesla') * rate;
           break;
         case 'laser':
           if (target) {
@@ -1701,44 +2057,44 @@ export class UltraWorld {
             this.beam('beam', segment, target, MODULE_BY_ID.laser.color, 0.2, player.entityId);
             this.playSkillSound(player, 'laser');
           }
-          segment.timer = 5.1 * rate;
+          segment.timer = moduleCooldownSeconds('laser') * rate;
           break;
         case 'missile':
-          if (this.spawnShot(player, segment, target, { color: MODULE_BY_ID.missile.color, speed: 230, size: 6, homing: 4.2, life: 3.4 })) this.playSkillSound(player, 'missile');
-          segment.timer = 5.3 * rate;
+          if (this.spawnShot(player, segment, target, { color: MODULE_BY_ID.missile.color, speed: 230, size: 6, homing: 4.2 })) this.playSkillSound(player, 'missile');
+          segment.timer = moduleCooldownSeconds('missile') * rate;
           break;
         case 'mine':
           this.hazards.push({ id: this.allocateHazardId(), ownerEntityId: player.entityId, kind: 'mine', col: segment.col, row: segment.row, life: Number.POSITIVE_INFINITY, arm: 0.55, radius: this.pixelsToCells(62), color: MODULE_BY_ID.mine.color, phase: this.randomBetween(0, TAU) });
           this.playSkillSound(player, 'mine');
-          segment.timer = 11.4 * rate;
+          segment.timer = moduleCooldownSeconds('mine') * rate;
           break;
         case 'pulse':
           this.firePulse(player, segment);
           this.playSkillSound(player, 'pulse');
-          segment.timer = 8.1 * rate;
+          segment.timer = moduleCooldownSeconds('pulse') * rate;
           break;
         case 'venom':
           if (this.spawnShot(player, segment, target, { color: MODULE_BY_ID.venom.color, speed: 285, size: 5.5, poison: 2 })) this.playSkillSound(player, 'venom');
-          segment.timer = 5.5 * rate;
+          segment.timer = moduleCooldownSeconds('venom') * rate;
           break;
         case 'rail':
-          if (this.spawnShot(player, segment, target, { color: MODULE_BY_ID.rail.color, speed: 520, size: 4.8, pierce: 3, life: 2.8 })) this.playSkillSound(player, 'rail');
-          segment.timer = 7 * rate;
+          if (this.spawnShot(player, segment, target, { color: MODULE_BY_ID.rail.color, speed: 520, size: 4.8, pierce: 3 })) this.playSkillSound(player, 'rail');
+          segment.timer = moduleCooldownSeconds('rail') * rate;
           break;
         case 'ricochet':
-          if (this.spawnShot(player, segment, target, { color: MODULE_BY_ID.ricochet.color, speed: 340, size: 5.2, pierce: 2, bounces: 2, life: 7 })) this.playSkillSound(player, 'ricochet');
-          segment.timer = 7.25 * rate;
+          if (this.spawnShot(player, segment, target, { color: MODULE_BY_ID.ricochet.color, speed: 340, size: 5.2, pierce: 2, bounces: 2 })) this.playSkillSound(player, 'ricochet');
+          segment.timer = moduleCooldownSeconds('ricochet') * rate;
           break;
         case 'cluster':
-          if (this.spawnShot(player, segment, target, { color: MODULE_BY_ID.cluster.color, speed: 245, size: 7, homing: 3.6, blastRadius: 72, life: 4 })) this.playSkillSound(player, 'cluster');
-          segment.timer = 8 * rate;
+          if (this.spawnShot(player, segment, target, { color: MODULE_BY_ID.cluster.color, speed: 245, size: 7, homing: 3.6, blastRadius: 72 })) this.playSkillSound(player, 'cluster');
+          segment.timer = moduleCooldownSeconds('cluster') * rate;
           break;
         case 'fan':
           if (target) {
-            for (const offset of [-0.34, -0.17, 0, 0.17, 0.34]) this.spawnShot(player, segment, target, { color: MODULE_BY_ID.fan.color, speed: 300, size: 4.6, angleOffset: offset, life: 1.15 });
+            for (const offset of [-0.34, -0.17, 0, 0.17, 0.34]) this.spawnShot(player, segment, target, { color: MODULE_BY_ID.fan.color, speed: 300, size: 4.6, angleOffset: offset });
             this.playSkillSound(player, 'fan');
           }
-          segment.timer = 7.5 * rate;
+          segment.timer = moduleCooldownSeconds('fan') * rate;
           break;
         case 'gravity':
           if (target) {
@@ -1749,19 +2105,19 @@ export class UltraWorld {
             }
             this.playSkillSound(player, 'gravity');
           }
-          segment.timer = 10 * rate;
+          segment.timer = moduleCooldownSeconds('gravity') * rate;
           break;
         case 'needle':
-          if (this.spawnShot(player, segment, target, { color: MODULE_BY_ID.needle.color, speed: 560, size: 3.8, pierce: 1, life: 2.4 })) this.playSkillSound(player, 'needle');
-          segment.timer = 4.4 * rate;
+          if (this.spawnShot(player, segment, target, { color: MODULE_BY_ID.needle.color, speed: 560, size: 3.8, pierce: 1 })) this.playSkillSound(player, 'needle');
+          segment.timer = moduleCooldownSeconds('needle') * rate;
           break;
         case 'mortar':
-          if (this.spawnShot(player, segment, target, { color: MODULE_BY_ID.mortar.color, speed: 205, size: 8, homing: 3.2, blastRadius: 92, life: 4.4 })) this.playSkillSound(player, 'mortar');
-          segment.timer = 8.5 * rate;
+          if (this.spawnShot(player, segment, target, { color: MODULE_BY_ID.mortar.color, speed: 205, size: 8, homing: 3.2, blastRadius: 92 })) this.playSkillSound(player, 'mortar');
+          segment.timer = moduleCooldownSeconds('mortar') * rate;
           break;
         case 'sweep':
           if (target && this.fireSweepBeam(player, segment, target)) this.playSkillSound(player, 'sweep');
-          segment.timer = 7.2 * rate;
+          segment.timer = moduleCooldownSeconds('sweep') * rate;
           break;
         case 'sniper':
           if (target) {
@@ -1769,38 +2125,38 @@ export class UltraWorld {
             this.beam('beam', segment, target, MODULE_BY_ID.sniper.color, 0.28, player.entityId);
             this.playSkillSound(player, 'sniper');
           }
-          segment.timer = 9 * rate;
+          segment.timer = moduleCooldownSeconds('sniper') * rate;
           break;
         case 'flak':
           if (target && this.fireFlakBurst(player, target)) this.playSkillSound(player, 'flak');
-          segment.timer = 7.6 * rate;
+          segment.timer = moduleCooldownSeconds('flak') * rate;
           break;
         case 'fork':
           if (target) {
-            this.spawnShot(player, segment, target, { color: MODULE_BY_ID.fork.color, speed: 300, size: 5, angleOffset: -0.24, homing: 2.5, life: 3 });
-            this.spawnShot(player, segment, target, { color: MODULE_BY_ID.fork.color, speed: 300, size: 5, angleOffset: 0.24, homing: 2.5, life: 3 });
+            this.spawnShot(player, segment, target, { color: MODULE_BY_ID.fork.color, speed: 300, size: 5, angleOffset: -0.24, homing: 2.5 });
+            this.spawnShot(player, segment, target, { color: MODULE_BY_ID.fork.color, speed: 300, size: 5, angleOffset: 0.24, homing: 2.5 });
             this.playSkillSound(player, 'fork');
           }
-          segment.timer = 6.6 * rate;
+          segment.timer = moduleCooldownSeconds('fork') * rate;
           break;
         case 'anchor':
-          if (this.spawnShot(player, segment, target, { color: MODULE_BY_ID.anchor.color, speed: 180, size: 8.5, homing: 2, slow: 4.2, life: 4 })) this.playSkillSound(player, 'anchor');
-          segment.timer = 7.4 * rate;
+          if (this.spawnShot(player, segment, target, { color: MODULE_BY_ID.anchor.color, speed: 180, size: 8.5, homing: 2, slow: 4.2 })) this.playSkillSound(player, 'anchor');
+          segment.timer = moduleCooldownSeconds('anchor') * rate;
           break;
         case 'flare':
-          if (this.spawnShot(player, segment, target, { color: MODULE_BY_ID.flare.color, speed: 270, size: 5.8, poison: 4, life: 3 })) this.playSkillSound(player, 'flare');
-          segment.timer = 7 * rate;
+          if (this.spawnShot(player, segment, target, { color: MODULE_BY_ID.flare.color, speed: 270, size: 5.8, poison: 4 })) this.playSkillSound(player, 'flare');
+          segment.timer = moduleCooldownSeconds('flare') * rate;
           break;
         case 'scatter':
           if (target) {
-            for (const offset of [-0.42, -0.28, -0.14, 0, 0.14, 0.28, 0.42]) this.spawnShot(player, segment, target, { color: MODULE_BY_ID.scatter.color, speed: 305, size: 4.2, angleOffset: offset, life: 1.05 });
+            for (const offset of [-0.42, -0.28, -0.14, 0, 0.14, 0.28, 0.42]) this.spawnShot(player, segment, target, { color: MODULE_BY_ID.scatter.color, speed: 305, size: 4.2, angleOffset: offset });
             this.playSkillSound(player, 'scatter');
           }
-          segment.timer = 9.5 * rate;
+          segment.timer = moduleCooldownSeconds('scatter') * rate;
           break;
         case 'lance':
-          if (this.spawnShot(player, segment, target, { color: MODULE_BY_ID.lance.color, speed: 590, size: 7, pierce: 5, life: 3 })) this.playSkillSound(player, 'lance');
-          segment.timer = 9 * rate;
+          if (this.spawnShot(player, segment, target, { color: MODULE_BY_ID.lance.color, speed: 590, size: 7, pierce: 5 })) this.playSkillSound(player, 'lance');
+          segment.timer = moduleCooldownSeconds('lance') * rate;
           break;
         case 'execute':
           if (target) {
@@ -1809,18 +2165,18 @@ export class UltraWorld {
             this.beam('beam', segment, target, MODULE_BY_ID.execute.color, 0.2, player.entityId);
             this.playSkillSound(player, 'execute');
           }
-          segment.timer = 8 * rate;
+          segment.timer = moduleCooldownSeconds('execute') * rate;
           break;
         case 'crossfire':
           if (target) {
             this.fireCrossfire(player, segment, target);
             this.playSkillSound(player, 'crossfire');
           }
-          segment.timer = 10 * rate;
+          segment.timer = moduleCooldownSeconds('crossfire') * rate;
           break;
         case 'phasebolt':
-          if (this.spawnShot(player, segment, target, { color: MODULE_BY_ID.phasebolt.color, speed: 320, size: 6, bounces: 4, homing: 1.6, life: 8 })) this.playSkillSound(player, 'phasebolt');
-          segment.timer = 8 * rate;
+          if (this.spawnShot(player, segment, target, { color: MODULE_BY_ID.phasebolt.color, speed: 320, size: 6, bounces: 4, homing: 1.6 })) this.playSkillSound(player, 'phasebolt');
+          segment.timer = moduleCooldownSeconds('phasebolt') * rate;
           break;
         default:
           break;
@@ -1846,7 +2202,7 @@ export class UltraWorld {
   private spawnShot(player: PlayerEntity, origin: GridPoint, target: EnemyEntity | null, options: ShotOptions = {}): boolean {
     if (!target || !this.isTargetAlive(target)) return false;
     const angle = Math.atan2(target.row - origin.row, target.col - origin.col) + (options.angleOffset ?? 0);
-    this.createProjectile(player, origin, angle, { range: MODULE_TARGET_RANGE, ...options }, this.targetRef(target));
+    this.createProjectile(player, origin, angle, options, this.targetRef(target));
     return true;
   }
 
@@ -1854,10 +2210,6 @@ export class UltraWorld {
     const guidance = this.moduleCount(player, 'guidance');
     const guidanceMultiplier = 1 + guidance * 0.12;
     const speed = this.pixelsToCells((options.speed ?? 300) * guidanceMultiplier * PROJECTILE_SPEED_SCALE);
-    const baseLife = (options.life ?? 2.1) * guidanceMultiplier;
-    const rangeLife = options.range
-      ? this.pixelsToCells(options.range * PROJECTILE_RANGE_MULTIPLIER * guidanceMultiplier) / speed
-      : Number.POSITIVE_INFINITY;
     const projectile: ProjectileEntity = {
       id: this.allocateProjectileId(),
       ownerEntityId: player.entityId,
@@ -1866,7 +2218,7 @@ export class UltraWorld {
       vx: Math.cos(angle) * speed,
       vy: Math.sin(angle) * speed,
       speed,
-      life: Math.min(baseLife, rangeLife),
+      life: Number.POSITIVE_INFINITY,
       color: options.color ?? '#dffcff',
       size: options.size ?? 4,
       pierce: options.pierce ?? 0,
@@ -1949,7 +2301,7 @@ export class UltraWorld {
 
   private fireCrossfire(player: PlayerEntity, origin: GridPoint, target: EnemyEntity): void {
     const baseAngle = Math.atan2(target.row - origin.row, target.col - origin.col);
-    for (let index = 0; index < 4; index += 1) this.createProjectile(player, origin, baseAngle + index * Math.PI / 2, { speed: 285, life: 1.7, range: MODULE_TARGET_RANGE, color: MODULE_BY_ID.crossfire.color, size: 6.2, pierce: 1 });
+    for (let index = 0; index < 4; index += 1) this.createProjectile(player, origin, baseAngle + index * Math.PI / 2, { speed: 285, color: MODULE_BY_ID.crossfire.color, size: 6.2, pierce: 1 });
     this.ring(origin.col, origin.row, MODULE_BY_ID.crossfire.color, 0.4, 5, 1, player.entityId);
   }
 
@@ -1971,9 +2323,8 @@ export class UltraWorld {
   private updateEnemies(delta: number, activePlayers: PlayerEntity[], presentPlayers: PlayerEntity[]): void {
     const chronosMultiplier = Math.pow(0.92, this.maximumModuleCount('chronos', activePlayers));
     const collisionPlayers = presentPlayers.filter((player) => player.autopilot || player.paused || player.choosingUpgrade);
+    this.ensureFoodIndexes();
     const foodsById = this.foodsById;
-    foodsById.clear();
-    for (const food of this.foods) foodsById.set(food.id, food);
     for (const enemy of this.enemies) {
       if (enemy.dead) continue;
       enemy.collisionCooldown = Math.max(0, enemy.collisionCooldown - delta);
@@ -1981,16 +2332,8 @@ export class UltraWorld {
         enemy.think -= delta;
         if (enemy.think <= 0) {
           enemy.think = this.randomBetween(0.24, 0.62);
-          const candidates: Array<{ food: FoodEntity; distance: number }> = [];
-          for (const food of this.foods) {
-            const candidate = { food, distance: distanceSquared(food, enemy) };
-            let insertAt = candidates.length;
-            while (insertAt > 0 && candidate.distance < candidates[insertAt - 1].distance) insertAt -= 1;
-            if (insertAt >= 6) continue;
-            candidates.splice(insertAt, 0, candidate);
-            if (candidates.length > 6) candidates.pop();
-          }
-          enemy.targetFoodId = candidates.length > 0 ? candidates[Math.floor(Math.pow(this.random(), 1.8) * candidates.length)].food.id : null;
+          const candidates = this.nearestFoods(enemy, 6);
+          enemy.targetFoodId = candidates.length > 0 ? candidates[Math.floor(Math.pow(this.random(), 1.8) * candidates.length)].id : null;
           enemy.wobble += this.randomBetween(-1.2, 1.2);
         }
         const targetFood = enemy.targetFoodId === null ? null : foodsById.get(enemy.targetFoodId) ?? null;
@@ -2038,14 +2381,14 @@ export class UltraWorld {
           this.killEnemy(enemy, playerCollision.player);
           if (thornsReady) {
             this.triggerBodyIntercept(playerCollision.player, playerCollision.segment, enemy, thorns);
-            playerCollision.player.thornsCooldown = 6 * Math.pow(0.85, thorns - 1);
+            playerCollision.player.thornsCooldown = moduleCooldownSeconds('thorns') * Math.pow(0.85, thorns - 1);
           }
         } else {
           const normal = collisionNormal(playerCollision.player, enemy);
           const ram = this.moduleCount(playerCollision.player, 'ram');
           if (ram > 0 && playerCollision.player.ramCooldown <= 0) {
             this.damageTarget(playerCollision.player, enemy, 1, enemy, MODULE_BY_ID.ram.color);
-            playerCollision.player.ramCooldown = 5 * Math.pow(0.86, ram - 1);
+            playerCollision.player.ramCooldown = moduleCooldownSeconds('ram') * Math.pow(0.86, ram - 1);
             this.ring(playerCollision.player.col, playerCollision.player.row, MODULE_BY_ID.ram.color, 0.42, 6, 1, playerCollision.player.entityId);
             this.playSkillSound(playerCollision.player, 'ram');
           }
@@ -2072,19 +2415,13 @@ export class UltraWorld {
           continue;
         }
       }
-      for (let index = this.foods.length - 1; index >= 0; index -= 1) {
-        const food = this.foods[index];
-        const collector = Math.hypot(enemy.col - food.col, enemy.row - food.row) <= 0.4
-          ? enemy
-          : enemy.segments.find((segment) => Math.hypot(segment.col - food.col, segment.row - food.row) <= 0.4);
-        if (!collector) continue;
-        this.foods.splice(index, 1);
-        foodsById.delete(food.id);
+      const foodContact = this.enemyFoodContact(enemy);
+      if (foodContact) {
+        this.removeFoodAt(foodContact.index);
         enemy.captured += 1;
         enemy.targetFoodId = null;
-        this.burst(collector.col, collector.row, enemy.color, 5, 55);
-        this.textEffect(collector.col, collector.row - 0.4, `×${enemy.captured}`, enemy.color, 0.55);
-        break;
+        this.burst(foodContact.collector.col, foodContact.collector.row, enemy.color, 5, 55);
+        this.textEffect(foodContact.collector.col, foodContact.collector.row - 0.4, `×${enemy.captured}`, enemy.color, 0.55);
       }
     }
     this.resolveEnemyCollisions();
@@ -2328,7 +2665,7 @@ export class UltraWorld {
   private explodeProjectile(owner: PlayerEntity, projectile: ProjectileEntity): void {
     this.ring(projectile.col, projectile.row, projectile.color, 0.52, 7, projectile.blastRadius, owner.entityId);
     this.burst(projectile.col, projectile.row, projectile.color, 20, 165, owner.entityId);
-    this.shake(5, owner.entityId);
+    this.feedback('blast', owner.entityId);
     for (const hostile of this.enemies) {
       if (!hostile.dead && this.pointHitsTarget(projectile, projectile.blastRadius, hostile)) this.damageTarget(owner, hostile, 1, hostile, projectile.color);
     }
@@ -2375,7 +2712,7 @@ export class UltraWorld {
   private triggerMine(hazard: HazardEntity, owner: PlayerEntity, bounceOwner: boolean): void {
     this.ring(hazard.col, hazard.row, hazard.color, 0.5, 10, hazard.radius, owner.entityId);
     this.burst(hazard.col, hazard.row, hazard.color, 18, 150, owner.entityId);
-    this.shake(5, owner.entityId);
+    this.feedback('blast', owner.entityId);
     for (const hostile of this.enemies) {
       if (!hostile.dead && distanceSquared(hazard, hostile) < hazard.radius * hazard.radius) {
         this.damageTarget(owner, hostile, 1, hostile, hazard.color);
@@ -2421,7 +2758,7 @@ export class UltraWorld {
         const ram = this.moduleCount(player, 'ram');
         if (ram > 0 && player.ramCooldown <= 0) {
           this.damageTarget(player, enemy, 1, enemy, MODULE_BY_ID.ram.color);
-          player.ramCooldown = 5 * Math.pow(0.86, ram - 1);
+          player.ramCooldown = moduleCooldownSeconds('ram') * Math.pow(0.86, ram - 1);
           this.ring(player.col, player.row, MODULE_BY_ID.ram.color, 0.42, 6, 1, player.entityId);
           this.playSkillSound(player, 'ram');
         }
@@ -2510,7 +2847,7 @@ export class UltraWorld {
     const defense = player.segments.find((segment) => (segment.module === 'shield' || segment.module === 'phase') && segment.ready);
     if (!defense?.module) return false;
     defense.ready = false;
-    defense.cooldown = (defense.module === 'shield' ? 18 : 22) * Math.pow(0.82, this.moduleCount(player, 'armor'));
+    defense.cooldown = moduleCooldownSeconds(defense.module) * Math.pow(0.82, this.moduleCount(player, 'armor'));
     player.invulnerable = defense.module === 'phase' ? 1.55 : 1.05;
     this.effectSound('shield', player.entityId);
     this.ring(player.col, player.row, MODULE_BY_ID[defense.module].color, 0.7, 18, 76, player.entityId, 'pixels');
@@ -2536,7 +2873,7 @@ export class UltraWorld {
     this.ring(point.col, point.row, color, 0.34, 3, 0.48, owner.entityId);
     this.textEffect(point.col, point.row - 0.35, `-${applied}`, color, 0.62, owner.entityId);
     this.effectSound('hit', owner.entityId);
-    this.shake(2.2, owner.entityId);
+    this.feedback('hit', owner.entityId);
     if (!destroysHead) return;
     this.killEnemy(target, owner);
   }
@@ -2544,6 +2881,7 @@ export class UltraWorld {
   private killEnemy(enemy: EnemyEntity, owner: PlayerEntity | null): void {
     if (enemy.dead) return;
     enemy.dead = true;
+    const dropOccupied = this.spawnOccupiedCellKeys();
     if (owner) {
       owner.kills += 1;
       owner.botKills += 1;
@@ -2553,14 +2891,14 @@ export class UltraWorld {
         owner.cacheKills += 1;
         if (owner.cacheKills >= Math.max(2, 6 - cache)) {
           owner.cacheKills = 0;
-          this.spawnFood(enemy, true);
+          this.spawnFood(enemy, true, dropOccupied);
           this.ring(enemy.col, enemy.row, MODULE_BY_ID.cache.color, 0.65, 8, 1, owner.entityId);
         }
       }
       const bloom = this.moduleCount(owner, 'bloom');
       if (bloom > 0 && owner.bloomCooldown <= 0) {
-        this.spawnFood(enemy, true);
-        owner.bloomCooldown = 30 * Math.pow(0.88, bloom - 1);
+        this.spawnFood(enemy, true, dropOccupied);
+        owner.bloomCooldown = moduleCooldownSeconds('bloom') * Math.pow(0.88, bloom - 1);
       }
       let dropCount = enemy.captured;
       const fortune = this.moduleCount(owner, 'fortune');
@@ -2568,7 +2906,7 @@ export class UltraWorld {
       for (let index = 0; index < dropCount; index += 1) {
         const angle = index * 2.4 + this.randomBetween(-0.25, 0.25);
         const distance = this.pixelsToCells(22 + Math.sqrt(index + 1) * 12);
-        this.spawnFood({ col: enemy.col + Math.cos(angle) * distance, row: enemy.row + Math.sin(angle) * distance }, true);
+        this.spawnFood({ col: enemy.col + Math.cos(angle) * distance, row: enemy.row + Math.sin(angle) * distance }, true, dropOccupied);
       }
       this.emitEvent('bot-kill', `${owner.name} 击破了一条敌蛇`, this.now, owner.entityId);
       this.effectSound('kill', owner.entityId);
@@ -2584,14 +2922,18 @@ export class UltraWorld {
     });
     this.ring(enemy.col, enemy.row, enemy.color, 0.72, 12, 88, owner?.entityId, 'pixels');
     this.textEffect(enemy.col, enemy.row - 0.65, '击破', '#ffffff', 0.9, owner?.entityId);
-    this.shake(7, owner?.entityId);
-    this.spawnFood(enemy);
+    if (owner) this.feedback('kill', owner.entityId);
+    this.spawnFood(enemy, false, dropOccupied);
   }
 
   private triggerBodyIntercept(player: PlayerEntity, point: GridPoint, defeatedAt: GridPoint, stacks: number): void {
     const shotCount = 6 + Math.min(10, Math.max(0, stacks - 1) * 2);
     const startAngle = this.randomBetween(0, TAU);
-    for (let index = 0; index < shotCount; index += 1) this.createProjectile(player, point, startAngle + index * TAU / shotCount, { speed: 280, life: 1.25, color: MODULE_BY_ID.thorns.color, size: 4.2 });
+    const target = this.nearestTarget(player, point, Number.POSITIVE_INFINITY);
+    const targetRef = target ? this.targetRef(target) : null;
+    for (let index = 0; index < shotCount; index += 1) {
+      this.createProjectile(player, point, startAngle + index * TAU / shotCount, { speed: 280, color: MODULE_BY_ID.thorns.color, size: 4.2 }, targetRef);
+    }
     this.spawnFood(defeatedAt, true);
     this.burst(point.col, point.row, MODULE_BY_ID.thorns.color, 18, 145, player.entityId);
     this.ring(point.col, point.row, MODULE_BY_ID.thorns.color, 0.55, 8, 1.4, player.entityId);
@@ -2715,6 +3057,7 @@ export class UltraWorld {
   private eliminatePlayer(victim: PlayerEntity, killer: PlayerEntity | null, now: number, reason: string): void {
     if (!victim.alive) return;
     const result = this.createRunResult(victim);
+    const dropOccupied = this.spawnOccupiedCellKeys();
     if (killer && killer !== victim && killer.alive) {
       killer.kills += 1;
       killer.pvpKills += 1;
@@ -2724,14 +3067,14 @@ export class UltraWorld {
         killer.cacheKills += 1;
         if (killer.cacheKills >= Math.max(2, 6 - cache)) {
           killer.cacheKills = 0;
-          this.spawnFood(victim, true);
+          this.spawnFood(victim, true, dropOccupied);
           this.ring(victim.col, victim.row, MODULE_BY_ID.cache.color, 0.65, 8, 1, killer.entityId);
         }
       }
       const bloom = this.moduleCount(killer, 'bloom');
       if (bloom > 0 && killer.bloomCooldown <= 0) {
-        this.spawnFood(victim, true);
-        killer.bloomCooldown = 30 * Math.pow(0.88, bloom - 1);
+        this.spawnFood(victim, true, dropOccupied);
+        killer.bloomCooldown = moduleCooldownSeconds('bloom') * Math.pow(0.88, bloom - 1);
       }
       this.emitEvent('pvp-kill', `${killer.name} 截停了 ${victim.name}`, now, killer.entityId);
     } else {
@@ -2745,7 +3088,7 @@ export class UltraWorld {
     for (let index = 0; index < dropCount; index += 1) {
       const angle = index * 2.4 + this.randomBetween(-0.25, 0.25);
       const distance = 0.65 + Math.sqrt(index + 1) * 0.35;
-      this.spawnFood({ col: victim.col + Math.cos(angle) * distance, row: victim.row + Math.sin(angle) * distance }, true);
+      this.spawnFood({ col: victim.col + Math.cos(angle) * distance, row: victim.row + Math.sin(angle) * distance }, true, dropOccupied);
     }
     victim.alive = false;
     victim.paused = false;
@@ -2759,7 +3102,6 @@ export class UltraWorld {
     if (this.alivePlayers().length === 0) this.resetSharedWorld();
     this.burst(victim.col, victim.row, '#b8f53f', 28, 170, victim.entityId);
     this.effectSound('death', victim.entityId);
-    this.shake(16, victim.entityId);
     this.pendingEffects.push({ id: this.effectId(), type: 'flash', color: '#ff4f70', strength: 0.5, audienceEntityId: victim.entityId });
   }
 
@@ -2808,7 +3150,7 @@ export class UltraWorld {
     followContinuousSegments(entity.col, entity.row, entity.segments, spacing);
     this.burst(entity.col, entity.row, color, 13, 135);
     this.ring(entity.col, entity.row, color, 0.38, 5, 0.85);
-    this.shake(4.5);
+    if (isPlayer) this.feedback('bounce', entity.entityId);
     this.effectSound('bounce');
   }
 
@@ -2833,8 +3175,8 @@ export class UltraWorld {
     this.pendingEffects.push({ id: this.effectId(), type: 'ring', col, row, color, life, radius, endRadius, endRadiusUnit });
   }
 
-  private shake(strength: number, audienceEntityId?: number): void {
-    this.pendingEffects.push({ id: this.effectId(), type: 'shake', strength, audienceEntityId });
+  private feedback(kind: UltraFeedbackKind, audienceEntityId: number): void {
+    this.pendingEffects.push({ id: this.effectId(), type: 'feedback', kind, audienceEntityId });
   }
 
   private beam(type: 'beam' | 'lightning', from: GridPoint, to: GridPoint, color: string, life: number, audienceEntityId?: number): void {
@@ -2867,7 +3209,22 @@ export class UltraWorld {
     this.pendingProjectileEvents.length = 0;
   }
 
+  private flushFoodChanges(): void {
+    if (!this.foodResetPending && this.pendingFoodUpserts.size === 0 && this.pendingFoodRemovals.size === 0) return;
+    this.foodRevision = this.foodRevision >= 0xffff_ffff ? 1 : this.foodRevision + 1;
+    this.callbacks.onFoods?.({
+      revision: this.foodRevision,
+      reset: this.foodResetPending,
+      upserts: [...this.pendingFoodUpserts.values()].map(toFoodView),
+      removedIds: [...this.pendingFoodRemovals],
+    });
+    this.foodResetPending = false;
+    this.pendingFoodUpserts.clear();
+    this.pendingFoodRemovals.clear();
+  }
+
   private flushOutputs(): void {
+    this.flushFoodChanges();
     this.flushProjectileEvents();
     this.flushEffects();
   }
@@ -3016,6 +3373,18 @@ function toProjectileState(projectile: ProjectileEntity): UltraProjectileState {
 
 function toHazardView(hazard: HazardEntity): UltraHazardView {
   return { id: hazard.id, ownerEntityId: hazard.ownerEntityId, kind: hazard.kind, col: hazard.col, row: hazard.row, radius: hazard.radius, color: hazard.color, phase: hazard.phase, arm: hazard.arm };
+}
+
+function toFoodView(food: FoodEntity): UltraFoodView {
+  return {
+    id: food.id,
+    col: food.col,
+    row: food.row,
+    color: food.color,
+    phase: food.phase,
+    special: food.special,
+    isPulled: food.isPulled,
+  };
 }
 
 function toPendingSpawnView(spawn: PendingSpawn): PendingSpawnView {

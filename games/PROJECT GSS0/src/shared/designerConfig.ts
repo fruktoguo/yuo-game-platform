@@ -5,11 +5,12 @@ export type ModuleDesignState = 'normal' | 'tune' | 'rework' | 'disabled';
 interface DesignerConfigSource {
   schemaVersion?: unknown;
   balance?: Record<string, unknown>;
+  moduleCooldownPercentages?: Record<string, unknown>;
   moduleStates?: Record<string, unknown>;
 }
 
 const source = (globalThis as typeof globalThis & { GSS0_DESIGNER_CONFIG?: DesignerConfigSource }).GSS0_DESIGNER_CONFIG;
-if (source?.schemaVersion !== 2) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 2');
+if (source?.schemaVersion !== 3) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 3');
 
 function numberSetting(key: string, fallback: number, minimum: number, maximum: number, integer = false): number {
   const candidate = source?.balance?.[key];
@@ -37,11 +38,9 @@ export const DESIGNER_BALANCE = Object.freeze({
   enemiesPerPlayerPerWave: numberSetting('enemiesPerPlayerPerWave', 1, 0, 12, true),
   enemySpawnWarning: numberSetting('enemySpawnWarning', 1.5, 0, 10),
   projectileSpeedScale: numberSetting('projectileSpeedScale', 3, 0.1, 10),
-  projectileRangeMultiplier: numberSetting('projectileRangeMultiplier', 1.2, 0.1, 10),
   attackIntervalScale: numberSetting('attackIntervalScale', 2, 0.1, 10),
   headAttackInterval: numberSetting('headAttackInterval', 1.9, 0.05, 30),
-  headTargetRange: numberSetting('headTargetRange', 560, 50, 2_000),
-  moduleTargetRange: numberSetting('moduleTargetRange', 620, 50, 2_000),
+  activeSkillBaseCooldown: numberSetting('activeSkillBaseCooldown', 3, 0.05, 30),
   arenaAreaPerLevel: numberSetting('arenaAreaPerLevel', 0.05, 0, 0.5),
   arenaResizeRate: numberSetting('arenaResizeRate', 2.4, 0.1, 10),
   upgradeInvulnerabilityDuration: numberSetting('upgradeInvulnerabilityDuration', 0.5, 0, 10),
@@ -66,6 +65,22 @@ export const DESIGNER_BALANCE = Object.freeze({
   enemyDeathBodyParticleSpeed: numberSetting('enemyDeathBodyParticleSpeed', 105, 10, 400),
   profileSaveDelaySeconds: numberSetting('profileSaveDelaySeconds', 30, 1, 300),
 });
+
+export function moduleCooldownPercent(moduleId: string): number {
+  const candidate = source?.moduleCooldownPercentages?.[moduleId];
+  if (typeof candidate !== 'number' || !Number.isFinite(candidate)) {
+    throw new Error(`PROJECT GSS0 机体 ${moduleId} 缺少冷却百分比`);
+  }
+  return Math.max(0, Math.min(1_000, candidate));
+}
+
+export function moduleCooldownSeconds(moduleId: string): number {
+  return DESIGNER_BALANCE.activeSkillBaseCooldown * moduleCooldownPercent(moduleId) / 100;
+}
+
+export function formatCooldownSeconds(seconds: number): string {
+  return `${Number(seconds.toFixed(2))}秒`;
+}
 
 export function moduleDesignState(moduleId: string): ModuleDesignState {
   const state = source?.moduleStates?.[moduleId];

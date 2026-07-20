@@ -27,10 +27,15 @@ const clientGlobals = globalThis as typeof globalThis & {
 };
 
 interface ClientFoodClaimRuntime {
+  applyDelta(
+    upserts: Array<{ id: number; col: number; row: number }>,
+    removedIds: number[],
+    reset: boolean,
+    now: number,
+  ): void;
   clear(): void;
   detect(
     player: { col: number; row: number; segments: Array<{ col: number; row: number }> },
-    foods: Array<{ id: number; col: number; row: number }>,
     headRange: number,
     bodyRange: number,
     now: number,
@@ -38,6 +43,7 @@ interface ClientFoodClaimRuntime {
   reconcile(authoritativeFoods: Array<number | { id: number }>, now: number): void;
   resolve(requestedFoodIds: number[], claimedFoodIds: number[]): void;
   shouldHide(foodId: number): boolean;
+  trackFood(food: { id: number; col: number; row: number }): void;
 }
 
 interface ClientPlayerPredictionRuntime {
@@ -228,19 +234,54 @@ describe('客户端网络模块', () => {
       { id: 3, col: 10, row: 10 },
     ];
 
-    expect(runtime.detect(player, foods, 0.7, 0.42, 100)).toEqual([1, 2]);
-    expect(runtime.detect(player, foods, 0.7, 0.42, 110)).toEqual([]);
+    runtime.reconcile(foods, 90);
+    expect(runtime.detect(player, 0.7, 0.42, 100)).toEqual([1, 2]);
+    expect(runtime.detect(player, 0.7, 0.42, 110)).toEqual([]);
     expect(runtime.shouldHide(1)).toBe(true);
     expect(runtime.shouldHide(2)).toBe(true);
 
     runtime.resolve([1, 2], [1]);
     expect(runtime.shouldHide(1)).toBe(true);
     expect(runtime.shouldHide(2)).toBe(false);
-    runtime.reconcile([2, 3], 120);
+    runtime.reconcile(foods.slice(1), 120);
     expect(runtime.shouldHide(1)).toBe(false);
-    expect(runtime.detect(player, foods.slice(1), 0.7, 0.42, 130)).toEqual([2]);
-    runtime.reconcile([{ id: 2 }, { id: 3 }], 140);
+    expect(runtime.detect(player, 0.7, 0.42, 130)).toEqual([2]);
+    runtime.reconcile(foods.slice(1), 140);
     expect(runtime.shouldHide(2)).toBe(true);
+  });
+
+  it('大量远处球只在增量重建时入桶，逐帧接触检测不会再次全量读取', () => {
+    const runtime = clientGlobals.GSS0FoodClaimRuntime.create();
+    let distantCoordinateReads = 0;
+    const distantFoods = Array.from({ length: 2_000 }, (_, index) => ({
+      id: index + 1,
+      get col() { distantCoordinateReads += 1; return 20 + index % 2 * 0.1; },
+      get row() { distantCoordinateReads += 1; return 20 + index % 3 * 0.1; },
+    }));
+    const nearby = { id: 2_001, col: 5.25, row: 5 };
+    runtime.reconcile([...distantFoods, nearby], 0);
+    distantCoordinateReads = 0;
+
+    expect(runtime.detect({ col: 5, row: 5, segments: [] }, 0.7, 0.42, 10)).toEqual([2_001]);
+    expect(distantCoordinateReads).toBe(0);
+  });
+
+  it('updates only the spatial bucket touched by a moving or changed food', () => {
+    const runtime = clientGlobals.GSS0FoodClaimRuntime.create();
+    const moving = { id: 1, col: 2, row: 2 };
+    runtime.reconcile([moving], 0);
+
+    moving.col = 8.25;
+    moving.row = 8;
+    runtime.trackFood(moving);
+    expect(runtime.detect({ col: 2, row: 2, segments: [] }, 0.7, 0.42, 10)).toEqual([]);
+    expect(runtime.detect({ col: 8, row: 8, segments: [] }, 0.7, 0.42, 20)).toEqual([1]);
+    runtime.resolve([1], []);
+
+    const replacement = { id: 2, col: 4.2, row: 4 };
+    runtime.applyDelta([replacement], [1], false, 30);
+    expect(runtime.shouldHide(1)).toBe(false);
+    expect(runtime.detect({ col: 4, row: 4, segments: [] }, 0.7, 0.42, 40)).toEqual([2]);
   });
 });
 

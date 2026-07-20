@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { ArenaHub } from '../src/server/ArenaHub';
 import { SIMULATION_HZ, SNAPSHOT_HZ } from '../src/shared/constants';
 import { encodePlayerMovementState } from '../src/shared/playerStateCodec';
-import type { ActionResult, FoodClaimPayload, FoodClaimResult, PlayerHeadCollisionEvent, UltraEffect, UltraProjectileEvent } from '../src/shared/protocol';
+import type { ActionResult, FoodClaimPayload, FoodClaimResult, PlayerHeadCollisionEvent, UltraEffect, UltraFoodDelta, UltraProjectileEvent } from '../src/shared/protocol';
 
 describe('ArenaHub 联机投递', () => {
   it('合法转向输入立即进入权威世界，不额外等待下一次模拟刷新', () => {
@@ -49,9 +49,9 @@ describe('ArenaHub 联机投递', () => {
     });
     Reflect.set(hub, 'socketsByEntity', new Map([[7, 'socket-a']]));
     Reflect.set(hub, 'socketsByAccount', new Map([['account-a', 'socket-a']]));
-    const shared: UltraEffect = { id: 'shared', type: 'shake', strength: 2 };
-    const personal: UltraEffect = { id: 'personal', type: 'sound', kind: 'hit', audienceEntityId: 7 };
-    const offline: UltraEffect = { id: 'offline', type: 'sound', kind: 'hit', audienceEntityId: 9 };
+    const shared: UltraEffect = { id: 'shared', type: 'burst', col: 1, row: 2, color: '#ffffff', count: 4, speed: 80 };
+    const personal: UltraEffect = { id: 'personal', type: 'feedback', kind: 'hit', audienceEntityId: 7 };
+    const offline: UltraEffect = { id: 'offline', type: 'feedback', kind: 'hit', audienceEntityId: 9 };
     const publishEffects = Reflect.get(hub, 'publishEffects') as (effects: UltraEffect[]) => void;
 
     publishEffects.call(hub, [shared, personal, offline]);
@@ -60,6 +60,16 @@ describe('ArenaHub 联机投递', () => {
     expect(personalEmit).toHaveBeenCalledWith('ultra:effects', [personal]);
     expect(personalEmit).toHaveBeenCalledTimes(1);
     expect(globalEmit).not.toHaveBeenCalled();
+
+    const foodDelta: UltraFoodDelta = {
+      revision: 3,
+      reset: false,
+      upserts: [{ id: 5, col: 4, row: 6, color: '#b8f53f', phase: 0, special: false, isPulled: false }],
+      removedIds: [2],
+    };
+    const publishFoods = Reflect.get(hub, 'publishFoods') as (delta: UltraFoodDelta) => void;
+    publishFoods.call(hub, foodDelta);
+    expect(reliableEmit).toHaveBeenCalledWith('ultra:foods', foodDelta);
 
     const projectileEvents: UltraProjectileEvent[] = [{
       type: 'spawn',
