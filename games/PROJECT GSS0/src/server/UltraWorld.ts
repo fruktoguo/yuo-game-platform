@@ -387,6 +387,10 @@ export class UltraWorld {
     const player = this.playersByAccount.get(accountId);
     if (!player?.connected) return false;
     player.autopilot = enabled;
+    if (enabled && player.choosingUpgrade && player.upgradeOffer) {
+      const options = player.upgradeOffer.options;
+      this.applyUpgrade(player, options[Math.floor(this.random() * options.length)], this.now);
+    }
     return true;
   }
 

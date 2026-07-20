@@ -434,6 +434,22 @@ input:focus-visible {
   color: var(--yellow);
 }
 
+.automatic-mode-icon span {
+  font-size: calc(14px * var(--font-scale));
+  font-weight: 900;
+  line-height: 1;
+}
+
+.automatic-mode-icon.is-active {
+  border-color: var(--yellow);
+  background: var(--yellow);
+  color: var(--ink);
+}
+
+.automatic-mode-icon.is-active::after {
+  background: var(--ink);
+}
+
 .lobby-icon span {
   position: relative;
   display: block;
@@ -1376,6 +1392,13 @@ input:focus-visible {
   transform: translate(3px, 3px);
 }
 
+.primary-button:disabled,
+.secondary-button:disabled {
+  opacity: 0.46;
+  cursor: not-allowed;
+  filter: grayscale(0.45) drop-shadow(0 5px 9px rgba(0, 0, 0, 0.18));
+}
+
 .secondary-button {
   background: transparent;
   color: inherit;
@@ -1387,51 +1410,17 @@ input:focus-visible {
   color: var(--ink);
 }
 
-.auto-test-button {
-  border-color: var(--ink);
-  background: rgba(255, 255, 255, 0.58);
-  color: var(--ink);
-  box-shadow: var(--ui-shadow-x) var(--ui-shadow-y) 16px rgba(0, 0, 0, 0.18);
-}
-
-.auto-test-button span {
-  display: inline-grid;
-  width: 22px;
-  height: 22px;
-  margin-right: 8px;
-  place-items: center;
-  background: var(--ink);
-  color: var(--yellow);
-  font-size: calc(11px * var(--font-scale));
-  line-height: 1;
-}
-
-.auto-test-button:hover {
-  background: var(--ink);
-  color: var(--white);
-}
-
-.local-mode-button {
-  width: min(500px, 80vw);
-  margin-top: 28px;
-  border-color: var(--ink);
-  background: rgba(8, 11, 13, 0.94);
-  color: var(--white);
-}
-
-.local-mode-button span {
+.mode-entry-button span {
   display: inline-grid;
   width: 30px;
   height: 22px;
   margin-right: 9px;
   place-items: center;
-  background: var(--yellow);
-  color: var(--ink);
   font-size: calc(10px * var(--font-scale));
   line-height: 1;
 }
 
-.local-mode-button:hover {
+.local-mode-button span {
   background: var(--yellow);
   color: var(--ink);
 }
@@ -1439,6 +1428,28 @@ input:focus-visible {
 .local-mode-button:hover span {
   background: var(--ink);
   color: var(--yellow);
+}
+
+.multiplayer-mode-button {
+  border-color: var(--ink);
+  background: rgba(255, 255, 255, 0.58);
+  color: var(--ink);
+  box-shadow: var(--ui-shadow-x) var(--ui-shadow-y) 16px rgba(0, 0, 0, 0.18);
+}
+
+.multiplayer-mode-button span {
+  background: var(--ink);
+  color: var(--cyan);
+}
+
+.multiplayer-mode-button:hover:not(:disabled) {
+  background: var(--ink);
+  color: var(--white);
+}
+
+.multiplayer-mode-button:disabled:hover {
+  background: rgba(255, 255, 255, 0.58);
+  color: var(--ink);
 }
 
 .best-line {
@@ -2470,14 +2481,20 @@ input:focus-visible {
 
   .start-actions {
     width: 100%;
-  }
-
-  .local-mode-button {
-    width: 100%;
+    gap: 10px;
   }
 
   .start-actions button {
     width: 100%;
+    padding-right: 10px;
+    padding-left: 10px;
+    font-size: calc(11px * var(--font-scale));
+    white-space: nowrap;
+  }
+
+  .mode-entry-button span {
+    width: 24px;
+    margin-right: 6px;
   }
 
   .level-up-banner {

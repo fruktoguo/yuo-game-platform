@@ -6,14 +6,14 @@
 - Syntax checks, typechecks, production builds, and the deployment checks below are not considered automated tests and may still be run when required for delivery safety.
 - This remains a fully local static game. Players may open `index.html` directly; do not add or require a production server.
 - For Codex browser verification, never navigate to a `file://` URL. Before the first browser action, start an ephemeral localhost static server, test through `http://127.0.0.1:<port>`, and stop that server after verification.
-- For Codex gameplay verification, enter through the main-menu `自动测试` button. Do not test gameplay through normal mouse steering.
+- For Codex gameplay verification, enable the top-right `自动模式` setting and enter through the required `单人模式` or `多人模式` button. Do not test gameplay through normal mouse steering.
 - Keep normal play and automatic testing on the same `index.html` entry. Do not reintroduce URL query parameters for test mode.
-- Automatic testing must steer the snake independently of the mouse, automatically choose upgrades, and ignore background-pause settings so unattended runs continue.
+- Automatic mode must only steer the snake independently of manual input, automatically choose upgrades, and automatically restart after death. It must respect the separate background-pause setting; disable background pause explicitly for unattended verification.
 
 # Project Version
 
 - The main menu must always display the current game version in its lower-left corner.
-- The current game version is `V35`.
+- The current game version is `V36`.
 - For every future user request that modifies this project, increment the integer version exactly once and update both the main-menu label and the current-version line in this file as part of the same change.
 - Whenever the version changes, update every classic runtime script query in `index.html` and `balance-editor.html` to `?v=<version integer>` so mutable client files cannot be mixed across browser or CDN caches.
 

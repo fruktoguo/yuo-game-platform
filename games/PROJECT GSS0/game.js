@@ -9,7 +9,6 @@
   const arenaTextureCtx = arenaTextureCanvas.getContext("2d", { alpha: false });
   const arenaShadowCanvas = document.createElement("canvas");
   const arenaShadowCtx = arenaShadowCanvas.getContext("2d");
-  let testMode = false;
   let localModeForced = false;
   const PLAYER_COLORS = ["#f3c600", "#08c7dc", "#ef3e4a", "#8be04e", "#b49cff", "#ff8a5b", "#70d6ff", "#ff88c7"];
 
@@ -38,8 +37,7 @@
     finalKills: document.querySelector("#final-kills"),
     finalTime: document.querySelector("#final-time"),
     newBest: document.querySelector("#new-best"),
-    startButton: document.querySelector("#start-button"),
-    autoTestButton: document.querySelector("#auto-test-button"),
+    multiplayerModeButton: document.querySelector("#multiplayer-mode-button"),
     localModeButton: document.querySelector("#local-mode-button"),
     codexButton: document.querySelector("#codex-button"),
     codex: document.querySelector("#codex-screen"),
@@ -66,6 +64,9 @@
     backgroundPauseButton: document.querySelector("#background-pause-button"),
     backgroundPauseToggle: document.querySelector("#background-pause-toggle"),
     backgroundPausePopover: document.querySelector("#background-pause-popover"),
+    automaticModeButton: document.querySelector("#automatic-mode-button"),
+    automaticModeToggle: document.querySelector("#automatic-mode-toggle"),
+    automaticModePopover: document.querySelector("#automatic-mode-popover"),
     descriptionButton: document.querySelector("#description-button"),
     descriptionToggle: document.querySelector("#description-toggle"),
     descriptionPopover: document.querySelector("#description-popover"),
@@ -444,6 +445,8 @@
   let fontScale = loadSetting("ultra-snake-font-scale", 1.5, 0.5, 2);
   let uiMotionStrength = loadSetting("gss0-ui-motion-strength", 1, 1, 3);
   let backgroundPauseEnabled = loadSetting("gss0-background-pause", 1, 0, 1) >= 0.5;
+  let automaticModeEnabled = loadSetting("gss0-automatic-mode", 0, 0, 1) >= 0.5;
+  let automaticModeSyncRevision = 0;
   let detailedDescriptionsEnabled = loadSetting("gss0-detailed-descriptions", 0, 0, 1) >= 0.5;
   let bestScore = loadBestScore();
   let recentPicks = [];
@@ -761,6 +764,67 @@
     if (persist) saveSetting("gss0-background-pause", backgroundPauseEnabled ? 1 : 0);
   }
 
+  function updateAutomaticModeState(enabled, persist = true) {
+    automaticModeEnabled = Boolean(enabled);
+    ui.automaticModeToggle.checked = automaticModeEnabled;
+    ui.automaticModeButton.classList.toggle("is-active", automaticModeEnabled);
+    ui.shell.classList.toggle("is-automatic-mode", automaticModeEnabled);
+    const status = automaticModeEnabled ? "已开启" : "已关闭";
+    updateSettingButtonLabel(ui.automaticModeButton, `自动模式${status}`, `自动模式${status}`);
+    if (automaticModeEnabled) ui.shell.dataset.automaticMode = "enabled";
+    else delete ui.shell.dataset.automaticMode;
+    pointer.active = false;
+    if (!automaticModeEnabled && network.enabled && player?.alive) {
+      networkPlayerPredictionRuntime.adoptLocal(player);
+      network.localDesiredAngle = player.desiredAngle;
+    }
+    if (automaticModeEnabled) {
+      scheduleAutomaticUpgrade();
+      if (!network.enabled && state === "gameover") {
+        window.setTimeout(() => {
+          if (automaticModeEnabled && !network.enabled && state === "gameover") startGame();
+        }, 0);
+      }
+    }
+    if (persist) saveSetting("gss0-automatic-mode", automaticModeEnabled ? 1 : 0);
+  }
+
+  function reconcileAutomaticNetworkState() {
+    if (!network.enabled) return;
+    if (automaticModeEnabled) {
+      resetNetworkPredictionInput();
+      if (state === "gameover") {
+        state = "running";
+        ui.gameOver.classList.remove("is-visible");
+      }
+      return;
+    }
+    if (player?.alive && state === "running") {
+      networkPlayerPredictionRuntime.adoptLocal(player);
+      network.localDesiredAngle = player.desiredAngle;
+      sendNetworkInput(true, true);
+    }
+    const self = network.snapshot?.players.find((item) => item.entityId === network.selfEntityId);
+    if (self && !self.alive && state !== "menu" && state !== "gameover") showNetworkGameOver(self);
+  }
+
+  function setAutomaticMode(enabled, persist = true, synchronizeNetwork = true) {
+    const previous = automaticModeEnabled;
+    updateAutomaticModeState(enabled, persist);
+    if (!synchronizeNetwork || !network.enabled || !network.socket?.connected) return;
+    const revision = ++automaticModeSyncRevision;
+    void emitNetworkAction("ultra:autopilot", automaticModeEnabled).then((result) => {
+      if (revision !== automaticModeSyncRevision) return;
+      if (!result?.ok) {
+        updateAutomaticModeState(previous, persist);
+        reconcileAutomaticNetworkState();
+        setNetworkStatus("error", `ULTRA LINK / ${result?.error || "无法切换自动模式"}`);
+        return;
+      }
+      reconcileAutomaticNetworkState();
+    });
+  }
+
   function applyDetailedDescriptions(enabled, persist = true) {
     detailedDescriptionsEnabled = Boolean(enabled);
     ui.descriptionToggle.checked = detailedDescriptionsEnabled;
@@ -790,6 +854,7 @@
       [ui.soundButton, ui.soundPopover],
       [ui.motionButton, ui.motionPopover],
       [ui.backgroundPauseButton, ui.backgroundPausePopover],
+      [ui.automaticModeButton, ui.automaticModePopover],
       [ui.descriptionButton, ui.descriptionPopover]
     ]) {
       const control = button.closest(".setting-control");
@@ -1146,8 +1211,7 @@
   }
 
   function setNetworkButtonsDisabled(disabled) {
-    ui.startButton.disabled = disabled;
-    ui.autoTestButton.disabled = disabled;
+    ui.multiplayerModeButton.disabled = disabled || !network.enabled;
   }
 
   function loadSocketClient() {
@@ -1216,6 +1280,7 @@
         return;
       }
       resetNetworkPredictionInput(true);
+      setNetworkButtonsDisabled(true);
       setNetworkStatus("connecting", "TACTICAL SURVIVAL / 正在同步");
       socket.emit("ultra:join", (result) => {
         if (localModeForced) {
@@ -1224,7 +1289,7 @@
         }
         if (!result?.ok || !result.data) {
           setNetworkStatus("error", `联机接入失败 / ${result?.error || "会话无效"}`);
-          setNetworkButtonsDisabled(false);
+          setNetworkButtonsDisabled(true);
           return;
         }
         if (!validateNetworkSnapshotProtocol(result.data.snapshotProtocolVersion, socket)) return;
@@ -1259,6 +1324,13 @@
         setNetworkStatus("online", `ULTRA LINK / @${network.principal.username}`);
         renderNetworkRoster(result.data.snapshot.players);
         applyNetworkPresentation(result.data.snapshot, result.data.snapshot, network.snapshotBuffer[0].indexes, 1);
+        void emitNetworkAction("ultra:autopilot", automaticModeEnabled).then((modeResult) => {
+          if (!modeResult?.ok) {
+            setNetworkStatus("error", `ULTRA LINK / ${modeResult?.error || "无法同步自动模式"}`);
+            return;
+          }
+          reconcileAutomaticNetworkState();
+        });
       });
     });
     socket.on("ultra:snapshot", (payload) => {
@@ -1304,10 +1376,12 @@
     });
     socket.on("disconnect", () => {
       if (!network.enabled) return;
+      setNetworkButtonsDisabled(true);
       setNetworkStatus("connecting", "ULTRA LINK / 正在重连");
     });
     socket.on("connect_error", () => {
       if (localModeForced) return;
+      setNetworkButtonsDisabled(true);
       if (network.principal) setNetworkStatus("error", "ULTRA LINK / 连接中断");
     });
   }
@@ -1383,7 +1457,7 @@
     }
     const selfAlive = Boolean(self?.alive);
     if (network.lastSelfAlive && self && !self.alive && state !== "menu" && state !== "gameover") {
-      if (testMode) {
+      if (automaticModeEnabled) {
         state = "running";
         ui.upgrade.classList.remove("is-visible");
         ui.gameOver.classList.remove("is-visible");
@@ -1391,7 +1465,7 @@
         showNetworkGameOver(self);
       }
     }
-    if (!network.lastSelfAlive && selfAlive && testMode && state !== "menu") {
+    if (!network.lastSelfAlive && selfAlive && automaticModeEnabled && state !== "menu") {
       state = "running";
       ui.upgrade.classList.remove("is-visible");
       ui.gameOver.classList.remove("is-visible");
@@ -1928,7 +2002,7 @@
       view.desiredAngle = item.desiredAngle;
       view.protectedState = item.paused || item.choosingUpgrade || item.invulnerable > 0;
       syncNetworkSegments(view.segments, item.segments, old?.segments, playerAmount);
-      if (view.isSelf && !testMode && !item.paused && !item.choosingUpgrade) applyNetworkSelfPrediction(view);
+      if (view.isSelf && !automaticModeEnabled && !item.paused && !item.choosingUpgrade) applyNetworkSelfPrediction(view);
       view.protectedState = item.paused || item.choosingUpgrade || view.invulnerable > 0;
       let previousNode = view;
       for (const segment of view.segments) {
@@ -2033,7 +2107,7 @@
     });
     for (const event of ready) {
       if (!networkHeadCollisionRuntime.apply(event, network.selfEntityId, now)) continue;
-      if (testMode || (event.sourceEntityId !== network.selfEntityId && event.targetEntityId !== network.selfEntityId)) continue;
+      if (automaticModeEnabled || (event.sourceEntityId !== network.selfEntityId && event.targetEntityId !== network.selfEntityId)) continue;
       if (!player || state !== "running") continue;
       const sourceIsSelf = event.sourceEntityId === network.selfEntityId;
       const other = networkPlayerView(sourceIsSelf ? event.targetEntityId : event.sourceEntityId);
@@ -2124,7 +2198,7 @@
     }
     for (const spawn of pendingEnemySpawns) spawn.timer = Math.max(0, spawn.timer - dt);
     if (state === "running" && player) {
-      if (!testMode) {
+      if (!automaticModeEnabled) {
         updateInput(dt, false);
         network.localDesiredAngle = player.desiredAngle;
         const turnRate = PLAYER_TURN_RATE + moduleCount("haste") * MODULE_TUNING.haste.turnRatePerStack;
@@ -2355,11 +2429,10 @@
     });
   }
 
-  async function startNetworkGame(autopilot = false, restart = false) {
+  async function startNetworkGame(restart = false) {
     ensureAudio();
     closeSettingPopovers();
-    setTestMode(autopilot === true);
-    const modeResult = await emitNetworkAction("ultra:autopilot", testMode);
+    const modeResult = await emitNetworkAction("ultra:autopilot", automaticModeEnabled);
     if (!modeResult?.ok) {
       setNetworkStatus("error", `ULTRA LINK / ${modeResult?.error || "无法切换行动模式"}`);
       return;
@@ -2755,14 +2828,6 @@
     }
   }
 
-  function setTestMode(enabled) {
-    testMode = Boolean(enabled);
-    ui.shell.classList.toggle("is-test-mode", testMode);
-    if (testMode) ui.shell.dataset.testMode = "codex";
-    else delete ui.shell.dataset.testMode;
-    pointer.active = false;
-  }
-
   function startRespawnLocator(now = performance.now()) {
     respawnLocatorStartedAt = now;
   }
@@ -2792,17 +2857,16 @@
     renderNetworkRoster([]);
     setNetworkButtonsDisabled(false);
     setNetworkStatus("", "TACTICAL SURVIVAL / LOCAL");
-    startGame(false);
+    startGame();
   }
 
-  function startGame(autopilot = false) {
+  function startGame() {
     if (network.enabled) {
-      void startNetworkGame(autopilot, network.lastSelfAlive);
+      void startNetworkGame(network.lastSelfAlive);
       return;
     }
     ensureAudio();
     closeSettingPopovers();
-    setTestMode(autopilot === true);
     resetGame();
     state = "running";
     hideAllModals();
@@ -2855,7 +2919,6 @@
       network.lastSelfAlive = false;
       network.upgradeOffer = null;
       resetNetworkPredictionInput();
-      setTestMode(false);
       state = "menu";
       player = null;
       visiblePlayers = [];
@@ -2866,7 +2929,6 @@
       return;
     }
     closeSettingPopovers();
-    setTestMode(false);
     resetGame();
     state = "menu";
     hideAllModals();
@@ -2908,7 +2970,11 @@
     ui.finalTime.textContent = formatTime(gameTime);
     ui.newBest.classList.toggle("is-visible", isNewBest);
     ui.best.textContent = Math.floor(bestScore).toLocaleString("zh-CN");
-    window.setTimeout(() => ui.gameOver.classList.add("is-visible"), 330);
+    window.setTimeout(() => {
+      if (state !== "gameover") return;
+      if (automaticModeEnabled) startGame();
+      else ui.gameOver.classList.add("is-visible");
+    }, 330);
   }
 
   function ensureAudio() {
@@ -3283,6 +3349,16 @@
     return choices;
   }
 
+  function scheduleAutomaticUpgrade() {
+    if (!automaticModeEnabled || state !== "upgrade") return;
+    const choices = Array.from(ui.options.querySelectorAll("button.upgrade-card"));
+    if (choices.length === 0) return;
+    const automaticChoice = choices[Math.floor(Math.random() * choices.length)];
+    window.setTimeout(() => {
+      if (automaticModeEnabled && state === "upgrade" && automaticChoice.isConnected) automaticChoice.click();
+    }, 650);
+  }
+
   function showUpgrade(networkChoices = null) {
     state = "upgrade";
     ui.levelUpBanner.classList.remove("is-active");
@@ -3299,12 +3375,7 @@
     })));
     ui.upgrade.classList.add("is-visible");
 
-    if (testMode) {
-      const automaticChoice = choices[Math.floor(Math.random() * choices.length)];
-      window.setTimeout(() => {
-        if (testMode && state === "upgrade") selectUpgrade(automaticChoice);
-      }, 650);
-    }
+    scheduleAutomaticUpgrade();
   }
 
   function selectUpgrade(module) {
@@ -3608,10 +3679,10 @@
     if (keys.has("ArrowUp") || keys.has("KeyW")) dy -= 1;
     if (keys.has("ArrowDown") || keys.has("KeyS")) dy += 1;
 
-    if (dx || dy) {
-      player.desiredAngle = Math.atan2(dy, dx);
-    } else if (testMode) {
+    if (automaticModeEnabled) {
       player.desiredAngle = testAutopilotAngle();
+    } else if (dx || dy) {
+      player.desiredAngle = Math.atan2(dy, dx);
     } else if (pointer.active) {
       const pointerWorld = screenToWorld(pointer.x, pointer.y);
       const px = pointerWorld.x - player.x;
@@ -6306,7 +6377,7 @@
       return;
     }
     keys.add(event.code);
-    if (player && state === "running") {
+    if (player && state === "running" && !automaticModeEnabled) {
       const tapDirections = {
         ArrowLeft: Math.PI,
         KeyA: Math.PI,
@@ -6325,7 +6396,8 @@
     }
     if ((event.code === "Escape" || event.code === "KeyP") && (state === "running" || state === "paused")) setPaused(state === "running");
     if (event.code === "Enter" && !ui.codex.classList.contains("is-visible") && !ui.changelog.classList.contains("is-visible") && (state === "menu" || state === "gameover")) {
-      startGame(state === "gameover" && testMode);
+      if (state === "menu") startPureLocalGame();
+      else startGame();
     }
   });
 
@@ -6333,24 +6405,23 @@
   window.addEventListener("blur", () => {
     keys.clear();
     resetUIMotionTarget();
-    if (backgroundPauseEnabled && !testMode && state === "running") setPaused(true);
+    if (backgroundPauseEnabled && state === "running") setPaused(true);
   });
   document.addEventListener("visibilitychange", () => {
-    if (document.hidden && backgroundPauseEnabled && !testMode && state === "running") setPaused(true);
+    if (document.hidden && backgroundPauseEnabled && state === "running") setPaused(true);
   });
   window.addEventListener("resize", resize);
 
-  ui.startButton.addEventListener("click", () => startGame(false));
-  ui.autoTestButton.addEventListener("click", () => startGame(true));
+  ui.multiplayerModeButton.addEventListener("click", startGame);
   ui.localModeButton.addEventListener("click", startPureLocalGame);
   ui.lobbyButton.addEventListener("click", () => void returnToLobby());
   ui.codexButton.addEventListener("click", openCodex);
   ui.codexCloseButton.addEventListener("click", closeCodex);
   ui.changelogButton.addEventListener("click", openChangelog);
   ui.changelogCloseButton.addEventListener("click", closeChangelog);
-  ui.restartButton.addEventListener("click", () => startGame(testMode));
+  ui.restartButton.addEventListener("click", startGame);
   ui.gameOverMenuButton.addEventListener("click", returnToMenu);
-  ui.pauseRestart.addEventListener("click", () => startGame(testMode));
+  ui.pauseRestart.addEventListener("click", startGame);
   ui.pauseMenuButton.addEventListener("click", returnToMenu);
   ui.resumeButton.addEventListener("click", () => setPaused(false));
   ui.pauseButton.addEventListener("click", () => {
@@ -6398,6 +6469,16 @@
     sound("ui");
   });
 
+  ui.automaticModeButton.addEventListener("click", (event) => {
+    event.stopPropagation();
+    ensureAudio();
+    const control = ui.automaticModeButton.closest(".setting-control");
+    const open = !control.classList.contains("is-open");
+    closeSettingPopovers(control);
+    setSettingPopover(ui.automaticModeButton, ui.automaticModePopover, open);
+    sound("ui");
+  });
+
   ui.descriptionButton.addEventListener("click", (event) => {
     event.stopPropagation();
     ensureAudio();
@@ -6412,6 +6493,7 @@
   ui.soundPopover.addEventListener("click", (event) => event.stopPropagation());
   ui.motionPopover.addEventListener("click", (event) => event.stopPropagation());
   ui.backgroundPausePopover.addEventListener("click", (event) => event.stopPropagation());
+  ui.automaticModePopover.addEventListener("click", (event) => event.stopPropagation());
   ui.descriptionPopover.addEventListener("click", (event) => event.stopPropagation());
   ui.fontSlider.addEventListener("input", () => applyFontScale(Number(ui.fontSlider.value) / 100));
   ui.fontSlider.addEventListener("change", () => {
@@ -6433,6 +6515,11 @@
     applyBackgroundPause(ui.backgroundPauseToggle.checked);
     sound("ui");
   });
+  ui.automaticModeToggle.addEventListener("change", () => {
+    ensureAudio();
+    setAutomaticMode(ui.automaticModeToggle.checked);
+    sound("ui");
+  });
   ui.descriptionToggle.addEventListener("change", () => {
     ensureAudio();
     applyDetailedDescriptions(ui.descriptionToggle.checked);
@@ -6444,8 +6531,9 @@
   applySoundVolume(soundVolume, false);
   applyUIMotionStrength(uiMotionStrength, false);
   applyBackgroundPause(backgroundPauseEnabled, false);
+  setAutomaticMode(automaticModeEnabled, false, false);
   applyDetailedDescriptions(detailedDescriptionsEnabled, false);
-  setTestMode(false);
+  setNetworkButtonsDisabled(false);
   ui.best.textContent = Math.floor(bestScore).toLocaleString("zh-CN");
   resize();
   resetGame();

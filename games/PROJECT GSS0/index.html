@@ -86,6 +86,18 @@
             </label>
           </div>
         </div>
+        <div class="setting-control" data-tooltip="自动模式已关闭">
+          <button id="automatic-mode-button" class="icon-button automatic-mode-icon" type="button" aria-label="自动模式已关闭" aria-expanded="false" aria-controls="automatic-mode-popover">
+            <span aria-hidden="true">A</span>
+          </button>
+          <div id="automatic-mode-popover" class="setting-popover toggle-popover" role="group" aria-label="自动模式" aria-hidden="true">
+            <label class="toggle-row" for="automatic-mode-toggle">
+              <span>自动模式</span>
+              <input id="automatic-mode-toggle" type="checkbox">
+              <i aria-hidden="true"></i>
+            </label>
+          </div>
+        </div>
         <div class="setting-control" data-tooltip="机体详细描述已关闭">
           <button id="description-button" class="icon-button description-icon" type="button" aria-label="机体详细描述已关闭" aria-expanded="false" aria-controls="description-popover">
             <span aria-hidden="true">i</span>
@@ -144,20 +156,20 @@
 
     <section id="start-screen" class="modal-layer start-screen is-visible" aria-labelledby="game-title">
       <div class="start-glow" aria-hidden="true"></div>
-      <div class="start-version" aria-label="游戏版本 V35"><span>BUILD</span><strong>V35</strong></div>
+      <div class="start-version" aria-label="游戏版本 V36"><span>BUILD</span><strong>V36</strong></div>
       <div class="start-layout">
         <div class="start-content">
           <div id="network-status" class="title-kicker">TACTICAL SURVIVAL / LOCAL</div>
           <h1 id="game-title"><span>PROJECT GSS0</span></h1>
           <p>吞噬 / 构筑 / 生存</p>
           <div class="start-actions">
-            <button id="start-button" class="primary-button" type="button">
-              <span aria-hidden="true">▶</span>
-              开始行动
+            <button id="local-mode-button" class="primary-button mode-entry-button local-mode-button" type="button">
+              <span aria-hidden="true">1P</span>
+              单人模式
             </button>
-            <button id="auto-test-button" class="secondary-button auto-test-button" type="button">
-              <span aria-hidden="true">A</span>
-              自动测试
+            <button id="multiplayer-mode-button" class="secondary-button mode-entry-button multiplayer-mode-button" type="button" disabled>
+              <span aria-hidden="true">MP</span>
+              多人模式
             </button>
             <button id="codex-button" class="secondary-button codex-button" type="button">
               <span aria-hidden="true">M</span>
@@ -168,10 +180,6 @@
               更新日志
             </button>
           </div>
-          <button id="local-mode-button" class="secondary-button local-mode-button" type="button">
-            <span aria-hidden="true">1P</span>
-            单机模式
-          </button>
           <div class="best-line">本地最高分 <strong id="best-value">0</strong></div>
         </div>
 
@@ -220,6 +228,21 @@
           <button id="changelog-close-button" class="icon-button codex-close-button" type="button" aria-label="关闭更新日志" title="关闭更新日志">×</button>
         </header>
         <div class="changelog-list">
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V36</strong></div>
+              <time datetime="2026-07-20">2026.07.20</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">操作模式</span>
+              <h3>自动行动改为随时切换</h3>
+              <ul>
+                <li>自动测试抽离为右上角自动模式，可在单人或多人对局中随时开启和关闭。</li>
+                <li>自动模式仅接管移动、升级选择和死亡重开，其余设置与玩法保持独立。</li>
+                <li>主菜单入口重排为左上单人模式、右上多人模式，图鉴与更新日志位于第二行。</li>
+              </ul>
+            </div>
+          </article>
           <article class="changelog-entry">
             <header>
               <div class="changelog-version"><span>BUILD</span><strong>V35</strong></div>
@@ -561,15 +584,15 @@
     </section>
   </main>
 
-  <script src="designer-config.js?v=35"></script>
-  <script src="spawn-planner.js?v=35"></script>
-  <script src="network-codec.js?v=35"></script>
-  <script src="network-player-prediction.js?v=35"></script>
-  <script src="network-player-state-codec.js?v=35"></script>
-  <script src="network-player-collisions.js?v=35"></script>
-  <script src="network-head-collisions.js?v=35"></script>
-  <script src="network-food-claims.js?v=35"></script>
-  <script src="network-projectiles.js?v=35"></script>
-  <script src="game.js?v=35"></script>
+  <script src="designer-config.js?v=36"></script>
+  <script src="spawn-planner.js?v=36"></script>
+  <script src="network-codec.js?v=36"></script>
+  <script src="network-player-prediction.js?v=36"></script>
+  <script src="network-player-state-codec.js?v=36"></script>
+  <script src="network-player-collisions.js?v=36"></script>
+  <script src="network-head-collisions.js?v=36"></script>
+  <script src="network-food-claims.js?v=36"></script>
+  <script src="network-projectiles.js?v=36"></script>
+  <script src="game.js?v=36"></script>
 </body>
 </html>

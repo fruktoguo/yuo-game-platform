@@ -12,6 +12,6 @@ describe('纯单机模式入口', () => {
     expect(gameSource).toContain('network.enabled = false;');
     expect(gameSource).toContain('socket?.disconnect?.();');
     expect(gameSource).toContain('ui.localModeButton.addEventListener("click", startPureLocalGame);');
-    expect(gameSource).toContain('startGame(false);');
+    expect(gameSource).toContain('startGame();');
   });
 });

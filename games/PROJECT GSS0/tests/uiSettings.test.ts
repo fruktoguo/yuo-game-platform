@@ -20,13 +20,14 @@ describe('界面设置', () => {
     expect(gameSource).toContain('ctx.lineWidth = (target.isSelf ? 1.4 : 1) * labelScale;');
   });
 
-  it('七个右上角按钮使用零延迟自定义提示', () => {
+  it('八个右上角按钮使用零延迟自定义提示', () => {
     const settingButtonIds = [
       'lobby-button',
       'font-button',
       'sound-button',
       'motion-button',
       'background-pause-button',
+      'automatic-mode-button',
       'description-button',
       'pause-button'
     ];

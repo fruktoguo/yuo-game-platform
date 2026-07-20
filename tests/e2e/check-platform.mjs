@@ -192,12 +192,12 @@ try {
     firstPage.goto(firstSnakeLaunch.launchUrl, { waitUntil: 'domcontentloaded' }),
     secondPage.goto(secondSnakeLaunch.launchUrl, { waitUntil: 'domcontentloaded' }),
   ]);
-  await Promise.all([enterSnakeUltra(firstPage), enterSnakeUltra(secondPage, '自动测试')]);
+  await Promise.all([enterSnakeUltra(firstPage), enterSnakeUltra(secondPage, { automatic: true })]);
   await firstPage.locator('.multiplayer-scoreboard').waitFor({ timeout: 10_000 });
   await firstPage.getByText(`@${secondAccount.username}`, { exact: true }).waitFor({ timeout: 10_000 });
   assert.equal(await firstPage.locator('#multiplayer-players > li').count(), 2, '多人记分板应显示两名玩家');
-  assert.equal(await firstPage.locator('#game-shell.is-test-mode').count(), 0, '手动玩家不应被自动测试模式影响');
-  assert.equal(await secondPage.locator('#game-shell.is-test-mode').count(), 1, '自动测试只应作用于自己的玩家');
+  assert.equal(await firstPage.locator('#game-shell.is-automatic-mode').count(), 0, '手动玩家不应被自动模式影响');
+  assert.equal(await secondPage.locator('#game-shell.is-automatic-mode').count(), 1, '自动模式只应作用于自己的玩家');
   await firstPage.getByRole('button', { name: '暂停', exact: true }).click();
   await firstPage.locator('#pause-screen.is-visible').waitFor();
   const secondScoreBefore = await secondPage.locator('#score-value').textContent();
@@ -541,11 +541,17 @@ function logStep(message) {
   console.log(`\n[验收] ${message}`);
 }
 
-async function enterSnakeUltra(page, mode = '开始行动') {
+async function enterSnakeUltra(page, { automatic = false } = {}) {
   await page.locator('#network-status.is-online').waitFor({ timeout: 15_000 });
   const startScreen = page.locator('#start-screen');
   if (await startScreen.evaluate((element) => element.classList.contains('is-visible'))) {
-    await page.getByRole('button', { name: mode }).evaluate((button) => button.click());
+    if (automatic) {
+      await page.locator('#background-pause-button').click();
+      await page.locator('#background-pause-toggle').uncheck({ force: true });
+      await page.locator('#automatic-mode-button').click();
+      await page.locator('#automatic-mode-toggle').check({ force: true });
+    }
+    await page.getByRole('button', { name: '多人模式' }).evaluate((button) => button.click());
   }
   await page.locator('#start-screen').waitFor({ state: 'hidden', timeout: 10_000 });
   await page.locator('canvas#game').waitFor({ state: 'visible', timeout: 10_000 });
