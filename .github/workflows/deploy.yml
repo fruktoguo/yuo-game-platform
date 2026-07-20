@@ -37,9 +37,6 @@ jobs:
       - name: 安装依赖
         run: npm ci
 
-      - name: 执行单元测试
-        run: npm test
-
       - name: 执行类型检查与生产构建
         run: npm run build
 

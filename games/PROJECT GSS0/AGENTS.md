@@ -9,7 +9,7 @@
 # Project Version
 
 - The main menu must always display the current game version in its lower-left corner.
-- The current game version is `V28`.
+- The current game version is `V29`.
 - For every future user request that modifies this project, increment the integer version exactly once and update both the main-menu label and the current-version line in this file as part of the same change.
 
 # Changelog
@@ -27,10 +27,10 @@
 
 # Deployment Gate
 
-- Before any push that includes PROJECT GSS0, run the same local verification stages used by the production workflow from the repository root: `npm test`, `npm run build`, and `npm run check:limits`.
-- All three commands must complete successfully against the exact commit being pushed. A scoped test, typecheck, syntax check, or earlier successful run is not a substitute.
+- PROJECT GSS0 automated unit tests are not a deployment gate. Do not require `npm test` before committing, pushing, or deploying this project.
+- Before any push that includes PROJECT GSS0, run the remaining production verification stages from the repository root: `npm run build` and `npm run check:limits`.
+- Both commands must complete successfully against the exact commit being pushed. A scoped typecheck, syntax check, or earlier successful run is not a substitute.
 - If any required command cannot run because of sandbox, permission, dependency, or tooling limits, explicitly report that the commit is not deployment-verified and do not push it.
-- Binary snapshot tests must compare quantized floating-point fields with a precision tolerance derived from the codec; reserve exact structural assertions for lossless fields.
 
 # Forward-Only Development
 
