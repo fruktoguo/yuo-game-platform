@@ -66,45 +66,6 @@
     }
     .command:hover:not(:disabled) { border-color: var(--cyan); }
     .command.primary { border-color: var(--yellow); background: var(--yellow); color: #080a0b; }
-    .detail-toggle {
-      display: flex;
-      min-height: 38px;
-      align-items: center;
-      gap: 10px;
-      padding: 0 12px;
-      border: 1px solid var(--line);
-      border-radius: 3px;
-      background: var(--panel-2);
-      color: #f4f6f5;
-      font-size: 12px;
-      font-weight: 900;
-      cursor: pointer;
-    }
-    .detail-toggle input { position: absolute; width: 1px; height: 1px; opacity: 0; }
-    .detail-toggle i {
-      position: relative;
-      width: 34px;
-      height: 18px;
-      flex: 0 0 auto;
-      border: 1px solid #657178;
-      border-radius: 9px;
-      background: #0f1315;
-      transition: border-color 140ms ease, background 140ms ease;
-    }
-    .detail-toggle i::after {
-      position: absolute;
-      top: 3px;
-      left: 3px;
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-      background: #9ba7ac;
-      content: "";
-      transition: transform 140ms ease, background 140ms ease;
-    }
-    .detail-toggle input:checked + i { border-color: var(--yellow); background: rgba(243, 198, 0, 0.2); }
-    .detail-toggle input:checked + i::after { background: var(--yellow); transform: translateX(16px); }
-    .detail-toggle input:focus-visible + i { outline: 2px solid var(--cyan); outline-offset: 2px; }
     .scale-control {
       display: grid;
       min-height: 38px;
@@ -330,11 +291,6 @@
         <input id="interface-scale" type="range" min="80" max="160" step="10" value="100">
         <output id="interface-scale-output" for="interface-scale">100%</output>
       </label>
-      <label class="detail-toggle" title="切换机体图鉴中的简略与完整描述">
-        <span>机体详细描述</span>
-        <input id="description-detail" type="checkbox" role="switch">
-        <i aria-hidden="true"></i>
-      </label>
       <button id="open-config" class="command primary" type="button">授权自动保存</button>
       <button id="reload-config" class="command" type="button">重新加载</button>
     </div>
@@ -396,16 +352,18 @@
     </div>
   </main>
 
-  <script src="enemy-codex.js?v=49"></script>
-  <script src="wave-director.js?v=49"></script>
-  <script src="designer-config.js?v=49"></script>
+  <script src="enemy-codex.js?v=50"></script>
+  <script src="wave-director.js?v=50"></script>
+  <script src="designer-config.js?v=50"></script>
+  <script src="module-catalog.js?v=50"></script>
   <script>
     (() => {
       "use strict";
 
       const enemyCodex = globalThis.GSS0EnemyCodex;
       const waveDirectorApi = globalThis.GSS0WaveDirector;
-      if (!enemyCodex || !waveDirectorApi) {
+      const moduleCatalog = globalThis.GSS0ModuleCatalog;
+      if (!enemyCodex || !waveDirectorApi || !Array.isArray(moduleCatalog) || moduleCatalog.length === 0) {
         const fileState = document.querySelector("#file-state");
         fileState.textContent = "设计控制台依赖加载失败 · 请关闭并重启本地启动器";
         fileState.className = "file-state is-dirty";
@@ -530,89 +488,8 @@
       ]);
       const WAVE_PREVIEW_WAVES = Object.freeze([1, 5, 10, 11, 30, 31, 90, 91, 95, 100]);
 
-      const MODULES = [
-        { id: "spark", name: "赤焰炮节", category: "输出", color: "#ff9f43", cooldown: "", desc: "周期锁定最近敌蛇，发射一枚高速焰弹。稳定、直接的单体火力。" },
-        { id: "frost", name: "冰棱节", category: "输出", color: "#58d8ff", cooldown: "", desc: "发射冰晶弹，命中削去一节身体，并让敌蛇短暂减速。" },
-        { id: "prism", name: "三棱镜节", category: "输出", color: "#ff5da2", cooldown: "", desc: "向目标方向扇形发射三枚折射弹，单轮具备较高爆发。" },
-        { id: "nova", name: "星爆节", category: "输出", color: "#ff7043", cooldown: "", desc: "蓄能后向四周喷射八枚星屑，近身混战时覆盖整片区域。" },
-        { id: "tesla", name: "雷鸣环节", category: "输出", color: "#f7e85b", cooldown: "", desc: "电弧在邻近敌蛇间跳跃，最多连续命中三个目标。" },
-        { id: "laser", name: "霓虹线圈", category: "输出", color: "#39f5a6", cooldown: "", desc: "定期向场上最近目标释放瞬发光束，不会打偏。" },
-        { id: "missile", name: "追迹弹舱", category: "输出", color: "#ef476f", cooldown: "", desc: "发射自动修正航向的追迹弹，擅长攻击正在绕行的敌蛇。" },
-        { id: "mine", name: "磁暴雷节", category: "输出", color: "#9a7cff", cooldown: "", desc: "留下永久磁雷。敌我蛇头都可触发；玩家触发时只会被击退。" },
-        { id: "blade", name: "旋刃节", category: "输出", color: "#e8eef7", cooldown: "", desc: "彩刃在约五节身体长度外旋转，接触敌蛇时切除一节身体。" },
-        { id: "pulse", name: "脉冲核心", category: "输出", color: "#3eb7ff", cooldown: "", desc: "周期释放近距离冲击波，同时命中范围内的所有敌蛇。" },
-        { id: "venom", name: "腐蚀囊节", category: "输出", color: "#8be04e", cooldown: "", desc: "发射腐蚀弹，命中后继续造成两次缓慢侵蚀伤害。" },
-        { id: "echo", name: "回声弹匣", category: "输出", color: "#ff8bd7", cooldown: "", desc: "每次头部发射时追加一枚偏转弹，多个回声弹匣可继续叠加。" },
-        { id: "rail", name: "贯穿轨炮节", category: "输出", color: "#7ef9ff", cooldown: "", desc: "发射高速贯穿弹，最多连续穿透四个敌人。" },
-        { id: "ricochet", name: "弹射晶节", category: "输出", color: "#ffcf5a", cooldown: "", desc: "发射可反弹两次、最多命中三个敌人的晶体弹。" },
-        { id: "cluster", name: "裂变弹舱", category: "输出", color: "#ff6b4a", cooldown: "", desc: "发射追踪爆弹，命中时对周围所有敌人造成伤害。" },
-        { id: "fan", name: "烈焰扇节", category: "输出", color: "#ff3f68", cooldown: "", desc: "扇形喷射五枚焰弹，多枚可以命中同一条长蛇。" },
-        { id: "gravity", name: "引力井节", category: "输出", color: "#a56cff", cooldown: "", desc: "在目标位置生成引力井，初次伤害并持续拉扯、减速敌人。" },
-        { id: "shield", name: "碧玉护盾", category: "防御", color: "#48e0bf", cooldown: "", desc: "储存一次碰撞防护。触发后短暂无敌并进入冷却。" },
-        { id: "phase", name: "幻相节", category: "防御", color: "#bb8cff", cooldown: "", desc: "周期获得一次相位充能，可穿过致命碰撞并保持当前航向。" },
-        { id: "repulse", name: "斥力环节", category: "防御", color: "#75dfff", cooldown: "常驻", desc: "持续扰动附近敌蛇的转向，让它们更难贴近你的身体。" },
-        { id: "armor", name: "黑曜装甲", category: "防御", color: "#b7c0ce", cooldown: "常驻", desc: "压缩护盾与相位模块的冷却时间，多个装甲可叠加。" },
-        { id: "thorns", name: "截击反应节", category: "防御", color: "#9ee55f", cooldown: "", desc: "敌蛇撞上身体并被摧毁时，向四周发射反击弹幕，并在撞击处生成一枚球。" },
-        { id: "stabilizer", name: "平衡陀螺", category: "防御", color: "#67d5c8", cooldown: "常驻", desc: "缩短玩家反弹后的减速与失控时间，多个模块可叠加。" },
-        { id: "magnet", name: "磁吸环节", category: "辅助", color: "#f5cb4c", cooldown: "常驻", desc: "扩大头部的球球吸收范围，多个模块可以继续叠加。" },
-        { id: "haste", name: "涡轮节", category: "辅助", color: "#ff8457", cooldown: "常驻", desc: "永久提高移动速度，同时略微提升转向响应。" },
-        { id: "chronos", name: "时缓晶节", category: "辅助", color: "#91a7ff", cooldown: "常驻", desc: "降低所有敌蛇的移动速度，为抢球和包抄争取空间。" },
-        { id: "tractor", name: "引力环节", category: "辅助", color: "#3ed8b5", cooldown: "常驻", desc: "球进入引力范围后会连续飞向蛇头，直到被真正吞下。" },
-        { id: "fortune", name: "幸运星节", category: "辅助", color: "#ffd166", cooldown: "击破触发", desc: "敌蛇死亡时有机会额外吐出球球，模块越多，概率越高。" },
-        { id: "guidance", name: "弹道校准节", category: "辅助", color: "#78a9ff", cooldown: "常驻", desc: "提高子弹速度和轻度追踪能力。" },
-        { id: "feast", name: "吞噬涡轮", category: "辅助", color: "#ffb23f", cooldown: "吃球触发·2.5秒", desc: "吃球后短时间提高移动速度，多个模块增强加速幅度。" },
-        { id: "salvage", name: "回收炉节", category: "恢复", color: "#c7f464", cooldown: "伤害触发", desc: "技能削去敌蛇身体时，有概率将碎片回收成可吃的球球。" },
-        { id: "regen", name: "再生芽节", category: "恢复", color: "#ff6f91", cooldown: "", desc: "每隔一段时间在前方培育一枚球球，仍需亲自追上并吞噬。" },
-        { id: "bloom", name: "战利花房", category: "恢复", color: "#ff88c7", cooldown: "", desc: "冷却就绪时，下一次击破敌人会额外培育一枚球。" },
-        { id: "amplifier", name: "超频增幅节", category: "辅助", color: "#f2f5fa", cooldown: "常驻", desc: "加快头部和所有定时输出身体的攻击节奏。" },
-        { id: "needle", name: "钨针贯节", category: "输出", color: "#d8f3ff", cooldown: "", desc: "发射高速钨针，贯穿第一个目标后仍可继续命中下一个敌人。" },
-        { id: "mortar", name: "震荡榴巢", category: "输出", color: "#ff8a5b", cooldown: "", desc: "发射重型追踪榴弹，命中时对较大范围内的所有敌人造成伤害。" },
-        { id: "sweep", name: "清扫光栅", category: "输出", color: "#65e7ff", cooldown: "", desc: "沿目标方向释放贯穿全场的宽幅光栅，伤害路径上的所有敌人。" },
-        { id: "sniper", name: "裁决镜节", category: "输出", color: "#f2f2f2", cooldown: "", desc: "标定最近目标，随后瞬间削去两点长度。" },
-        { id: "flak", name: "近炸蜂巢", category: "输出", color: "#ffcf4d", cooldown: "", desc: "在目标位置引爆近炸弹幕，同时命中爆区内的全部敌人。" },
-        { id: "fork", name: "双生电极", category: "输出", color: "#d58cff", cooldown: "", desc: "同时发射两枚向左右偏转的追迹电弹，从两侧夹击同一目标。" },
-        { id: "anchor", name: "迟滞锚弹", category: "输出", color: "#6f8cff", cooldown: "", desc: "发射大型低速锚弹，命中后对敌人施加更持久的减速。" },
-        { id: "saw", name: "切割链环", category: "输出", color: "#f06a7b", cooldown: "", desc: "持续切割靠近该身体节的敌人，每个目标独立计算接触冷却。" },
-        { id: "flare", name: "灼蚀信标", category: "输出", color: "#ff6b35", cooldown: "", desc: "发射灼蚀弹，命中后连续造成四次延迟伤害。" },
-        { id: "scatter", name: "碎晶霰舱", category: "输出", color: "#70d6ff", cooldown: "", desc: "扇形发射七枚碎晶，适合覆盖敌群或长蛇。" },
-        { id: "lance", name: "破阵光矛", category: "输出", color: "#b9fff4", cooldown: "", desc: "发射大型高速光矛，最多连续贯穿六个敌人。" },
-        { id: "execute", name: "终结协议", category: "输出", color: "#ff3f55", cooldown: "", desc: "锁定低长度敌人执行双倍打击，对其他目标造成一次普通伤害。" },
-        { id: "crossfire", name: "十字火控", category: "输出", color: "#ffb347", cooldown: "", desc: "朝目标方向及其三个垂直方向同时发射重型弹体。" },
-        { id: "phasebolt", name: "相位回旋节", category: "输出", color: "#b49cff", cooldown: "", desc: "发射可多次反弹并轻度追踪目标的相位弹。" },
-        { id: "ram", name: "破障冲角", category: "防御", color: "#f3c600", cooldown: "", desc: "蛇头互撞时，冷却就绪会额外削去敌人一点长度。" },
-        { id: "buffer", name: "动能缓冲节", category: "防御", color: "#8fa6ad", cooldown: "常驻", desc: "降低玩家受到的物理击退初速度，多个模块可继续叠加。" },
-        { id: "decoy", name: "诱导涂层", category: "防御", color: "#ff7a90", cooldown: "常驻", desc: "干扰敌人的身体避让判断，让精心布置的堵截更容易成功。" },
-        { id: "emergency", name: "应急屏障节", category: "防御", color: "#62e6bf", cooldown: "吃球触发", desc: "任意身体吃球后获得短暂无敌，多个模块会延长持续时间。" },
-        { id: "collector", name: "全身采集节", category: "辅助", color: "#d4f05c", cooldown: "常驻", desc: "扩大所有玩家身体节的接触吃球半径。" },
-        { id: "beacon", name: "增压信标", category: "辅助", color: "#ffc857", cooldown: "常驻", desc: "略微加快波次倒计时，让更多敌人与球更快进入场地。" },
-        { id: "momentum", name: "冲量增幅器", category: "辅助", color: "#ff965c", cooldown: "常驻", desc: "提高敌人受到的物理击退初速度，不增加玩家自身受到的击退。" },
-        { id: "progressor", name: "临界推进节", category: "辅助", color: "#38d6c5", cooldown: "常驻", desc: "当前等级的升级进度越高，玩家获得的移动速度加成越多。" },
-        { id: "nursery", name: "尾部育成舱", category: "恢复", color: "#ff8ec7", cooldown: "", desc: "定期在蛇尾附近培育一枚球，仍需由敌我头部或身体实际吃取。" },
-        { id: "cache", name: "战果缓存节", category: "恢复", color: "#b7e36b", cooldown: "每5次击破", desc: "累计击破敌人后生成一枚球，多个模块会减少所需击破次数。" }
-      ];
+      const MODULES = moduleCatalog;
 
-      const SHORT_MODULE_DESCRIPTIONS = Object.freeze({
-        spark: "自动锁定并发射高速焰弹。", frost: "发射冰晶弹，削减并减速敌蛇。", prism: "朝目标扇形发射折射弹。",
-        nova: "向四周释放星屑弹幕。", tesla: "在邻近敌蛇间释放连锁电弧。", laser: "瞬间照射最近的敌蛇。",
-        missile: "发射自动追踪敌蛇的导弹。", mine: "留下磁雷，炸伤敌蛇并击退玩家。", blade: "让彩刃环绕机体并切割敌蛇。",
-        pulse: "释放命中周围敌蛇的冲击波。", venom: "发射会持续腐蚀敌蛇的毒弹。", echo: "头部开火时追加偏转弹。",
-        rail: "发射可贯穿多条敌蛇的高速弹。", ricochet: "发射会反弹并连续命中敌蛇的晶体弹。", cluster: "发射追踪爆弹，伤害落点附近敌蛇。",
-        fan: "扇形喷射五枚焰弹。", gravity: "生成拉扯并减速敌蛇的引力井。", shield: "抵消致命碰撞并短暂无敌。",
-        phase: "抵消致命碰撞并保持航向穿过。", repulse: "持续干扰附近敌蛇的转向。", armor: "加快护盾与相位的恢复。",
-        thorns: "敌蛇撞毁在身体上时触发反击弹幕和球。", stabilizer: "缩短反弹后的减速与失控。", magnet: "扩大蛇头吃球范围。",
-        haste: "提高移动速度和转向响应。", chronos: "降低所有敌蛇的移动速度。", tractor: "持续把附近的球拉向蛇头。",
-        fortune: "击破敌蛇时可能额外掉球。", guidance: "强化子弹速度和追踪能力。", feast: "吃球后短暂加速。",
-        salvage: "技能削减敌蛇身体时可能回收成球。", regen: "定期在前方培育球。", bloom: "蓄能完成后，击破敌蛇会额外培育球。",
-        amplifier: "加快头部和定时输出模块的攻击节奏。", needle: "发射可继续穿透下一目标的高速钨针。", mortar: "发射追踪榴弹，爆炸伤害附近敌蛇。",
-        sweep: "释放贯穿全场的宽幅光栅。", sniper: "锁定最近敌蛇并造成强力打击。", flak: "在目标位置引爆范围弹幕。",
-        fork: "从两侧发射追踪电弹夹击目标。", anchor: "发射会长时间减速敌蛇的锚弹。", saw: "持续切割靠近身体节的敌蛇。",
-        flare: "发射会持续灼蚀敌蛇的信标。", scatter: "扇形发射七枚碎晶弹幕。", lance: "发射可贯穿多条敌蛇的大型光矛。",
-        execute: "对较短的敌蛇造成更强打击。", crossfire: "朝多个方向同时发射重型弹体。", phasebolt: "发射会反弹并追踪敌蛇的相位弹。",
-        ram: "蛇头互撞时额外削减敌蛇身体。", buffer: "降低玩家受到的击退力度。", decoy: "削弱敌蛇对玩家身体的避让。",
-        emergency: "身体吃球后获得短暂无敌。", collector: "扩大所有身体节的吃球范围。", beacon: "加快波次刷新速度。",
-        momentum: "提高敌蛇受到的击退力度。", progressor: "升级进度越高，移动越快。", nursery: "定期在蛇尾附近培育球。",
-        cache: "累计击破敌蛇后生成额外球。"
-      });
       const DEFAULT_MODULE_COOLDOWN_PERCENTAGES = Object.freeze({
         ...(globalThis.GSS0_DESIGNER_CONFIG?.moduleCooldownPercentages || {})
       });
@@ -638,7 +515,7 @@
         parameterGroups: document.querySelector("#parameter-groups"), parameterCount: document.querySelector("#parameter-count"), moduleList: document.querySelector("#module-list"), moduleCount: document.querySelector("#module-count"),
         enemyConfigList: document.querySelector("#enemy-config-list"), enemyCount: document.querySelector("#enemy-count"),
         waveSummary: document.querySelector("#wave-summary"), waveScheduleList: document.querySelector("#wave-schedule-list"), waveMetrics: document.querySelector("#wave-metrics"), waveParameterList: document.querySelector("#wave-parameter-list"), wavePreviewBody: document.querySelector("#wave-preview-body"), wavePreviewNote: document.querySelector("#wave-preview-note"),
-        search: document.querySelector("#module-search"), category: document.querySelector("#category-filter"), status: document.querySelector("#status-filter"), descriptionDetail: document.querySelector("#description-detail"),
+        search: document.querySelector("#module-search"), category: document.querySelector("#category-filter"), status: document.querySelector("#status-filter"),
         interfaceScale: document.querySelector("#interface-scale"), interfaceScaleOutput: document.querySelector("#interface-scale-output")
       };
 
@@ -651,8 +528,6 @@
       let saveQueued = false;
       let writePermissionReady = false;
       let helperReady = false;
-      let detailedDescriptions = false;
-      try { detailedDescriptions = localStorage.getItem("gss0-detailed-descriptions") === "1"; } catch {}
       const filePickerSupported = typeof window.showOpenFilePicker === "function";
 
       function normalizeConfig(value) {
@@ -1118,7 +993,7 @@
           const state = draft.moduleStates[module.id];
           return (ui.category.value === "all" || module.category === ui.category.value)
             && (ui.status.value === "all" || state === ui.status.value)
-            && (!query || `${module.name} ${module.id} ${module.desc} ${SHORT_MODULE_DESCRIPTIONS[module.id] || ""}`.toLocaleLowerCase("zh-CN").includes(query));
+            && (!query || `${module.name} ${module.id} ${module.desc}`.toLocaleLowerCase("zh-CN").includes(query));
         });
         if (modules.length === 0) {
           const empty = document.createElement("div");
@@ -1138,13 +1013,10 @@
             name.innerHTML = `<strong>${module.name}</strong><span>${module.category} / ${module.id}</span>`;
             const description = document.createElement("div");
             description.className = "module-desc";
-            description.textContent = detailedDescriptions ? module.desc : SHORT_MODULE_DESCRIPTIONS[module.id] || module.desc;
-            let cooldownSummary = null;
-            if (detailedDescriptions) {
-              cooldownSummary = document.createElement("small");
-              cooldownSummary.textContent = `冷却 · ${moduleCooldownLabel(module)}`;
-              description.append(cooldownSummary);
-            }
+            description.textContent = module.desc;
+            const cooldownSummary = document.createElement("small");
+            cooldownSummary.textContent = `冷却 · ${moduleCooldownLabel(module)}`;
+            description.append(cooldownSummary);
             const control = document.createElement("div");
             control.className = "status-control";
             control.setAttribute("role", "group");
@@ -1279,11 +1151,6 @@
       ui.search.addEventListener("input", renderModules);
       ui.category.addEventListener("change", renderModules);
       ui.status.addEventListener("change", renderModules);
-      ui.descriptionDetail.addEventListener("change", () => {
-        detailedDescriptions = ui.descriptionDetail.checked;
-        try { localStorage.setItem("gss0-detailed-descriptions", detailedDescriptions ? "1" : "0"); } catch {}
-        renderModules();
-      });
       ui.interfaceScale.addEventListener("input", () => {
         const value = Math.max(80, Math.min(160, Number(ui.interfaceScale.value) || 100));
         document.documentElement.style.zoom = String(value / 100);
@@ -1309,7 +1176,6 @@
         ui.open.disabled = true;
         setFileState(`${CONFIG_FILE_NAME} · 已自动加载 · 当前浏览器不支持写回文件`, "dirty");
       }
-      ui.descriptionDetail.checked = detailedDescriptions;
       let storedInterfaceScale = 100;
       try { storedInterfaceScale = Math.max(80, Math.min(160, Number(localStorage.getItem("gss0-editor-interface-scale")) || 100)); } catch {}
       ui.interfaceScale.value = String(storedInterfaceScale);

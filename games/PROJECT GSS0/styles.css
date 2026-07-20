@@ -442,18 +442,6 @@ input:focus-visible {
   font-weight: 900;
 }
 
-.description-icon span {
-  font-size: calc(17px * var(--font-scale));
-  font-weight: 900;
-  font-family: Georgia, serif;
-  font-style: italic;
-}
-
-.description-icon.is-active {
-  border-color: var(--yellow);
-  color: var(--yellow);
-}
-
 .automatic-mode-icon span {
   font-size: calc(14px * var(--font-scale));
   font-weight: 900;

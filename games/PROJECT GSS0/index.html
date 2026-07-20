@@ -19,7 +19,7 @@
           <strong>代号：几何贪吃蛇</strong>
         </div>
         <span class="signature">by 四季鸽</span>
-        <span class="brand-version" aria-label="游戏版本 V49">V49</span>
+        <span class="brand-version" aria-label="游戏版本 V50">V50</span>
       </div>
 
       <div class="run-stats">
@@ -99,18 +99,6 @@
             </label>
           </div>
         </div>
-        <div class="setting-control" data-tooltip="机体详细描述已关闭">
-          <button id="description-button" class="icon-button description-icon" type="button" aria-label="机体详细描述已关闭" aria-expanded="false" aria-controls="description-popover">
-            <span aria-hidden="true">i</span>
-          </button>
-          <div id="description-popover" class="setting-popover toggle-popover" role="group" aria-label="机体详细描述" aria-hidden="true">
-            <label class="toggle-row" for="description-toggle">
-              <span>机体详细描述</span>
-              <input id="description-toggle" type="checkbox">
-              <i aria-hidden="true"></i>
-            </label>
-          </div>
-        </div>
         <div class="setting-control" data-tooltip="暂停">
           <button id="pause-button" class="icon-button pause-icon" type="button" aria-label="暂停">
             <span aria-hidden="true"></span>
@@ -157,7 +145,7 @@
 
     <section id="start-screen" class="modal-layer start-screen is-visible" aria-labelledby="game-title">
       <div class="start-glow" aria-hidden="true"></div>
-      <div class="start-version" aria-label="游戏版本 V49"><span>BUILD</span><strong>V49</strong></div>
+      <div class="start-version" aria-label="游戏版本 V50"><span>BUILD</span><strong>V50</strong></div>
       <div class="start-layout">
         <div class="start-content">
           <div id="network-status" class="title-kicker">TACTICAL SURVIVAL / LOCAL</div>
@@ -248,6 +236,20 @@
           <button id="changelog-close-button" class="icon-button codex-close-button" type="button" aria-label="关闭更新日志" title="关闭更新日志">×</button>
         </header>
         <div class="changelog-list">
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V50</strong></div>
+              <time datetime="2026-07-21">2026.07.21</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">信息规范</span>
+              <h3>统一机体说明</h3>
+              <ul>
+                <li>移除简略与详细描述开关，全部机体改用精简且参数明确的统一说明。</li>
+                <li>游戏图鉴、升级界面、局内提示与设计控制台共享同一份机体目录。</li>
+              </ul>
+            </div>
+          </article>
           <article class="changelog-entry">
             <header>
               <div class="changelog-version"><span>BUILD</span><strong>V49</strong></div>
@@ -784,18 +786,19 @@
     </section>
   </main>
 
-  <script src="designer-config.js?v=49"></script>
-  <script src="wave-director.js?v=49"></script>
-  <script src="spawn-planner.js?v=49"></script>
-  <script src="network-codec.js?v=49"></script>
-  <script src="network-player-prediction.js?v=49"></script>
-  <script src="network-player-state-codec.js?v=49"></script>
-  <script src="network-player-collisions.js?v=49"></script>
-  <script src="network-head-collisions.js?v=49"></script>
-  <script src="network-food-claims.js?v=49"></script>
-  <script src="network-projectiles.js?v=49"></script>
-  <script src="lobby-navigation.js?v=49"></script>
-  <script src="enemy-codex.js?v=49"></script>
-  <script src="game.js?v=49"></script>
+  <script src="designer-config.js?v=50"></script>
+  <script src="module-catalog.js?v=50"></script>
+  <script src="wave-director.js?v=50"></script>
+  <script src="spawn-planner.js?v=50"></script>
+  <script src="network-codec.js?v=50"></script>
+  <script src="network-player-prediction.js?v=50"></script>
+  <script src="network-player-state-codec.js?v=50"></script>
+  <script src="network-player-collisions.js?v=50"></script>
+  <script src="network-head-collisions.js?v=50"></script>
+  <script src="network-food-claims.js?v=50"></script>
+  <script src="network-projectiles.js?v=50"></script>
+  <script src="lobby-navigation.js?v=50"></script>
+  <script src="enemy-codex.js?v=50"></script>
+  <script src="game.js?v=50"></script>
 </body>
 </html>

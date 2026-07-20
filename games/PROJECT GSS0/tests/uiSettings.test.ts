@@ -9,7 +9,7 @@ describe('界面设置', () => {
   it('使用正式游戏名并在左上品牌卡显示当前版本', () => {
     expect(indexHtml).toContain('<title>代号：几何贪吃蛇</title>');
     expect(indexHtml).toContain('<h1 id="game-title"><span>代号：几何贪吃蛇</span></h1>');
-    expect(indexHtml).toContain('<span class="brand-version" aria-label="游戏版本 V49">V49</span>');
+    expect(indexHtml).toContain('<span class="brand-version" aria-label="游戏版本 V50">V50</span>');
     expect(styles).toContain('.brand-version');
     const brandTitleRule = styles.match(/\.brand-lockup strong\s*\{([^}]*)\}/)?.[1];
     const brandVersionRule = styles.match(/\.brand-version\s*\{([^}]*)\}/)?.[1];
@@ -33,7 +33,7 @@ describe('界面设置', () => {
     expect(gameSource).toContain('ctx.lineWidth = (target.isSelf ? 1.4 : 1) * labelScale;');
   });
 
-  it('八个右上角按钮使用零延迟自定义提示', () => {
+  it('七个右上角按钮使用零延迟自定义提示', () => {
     const settingButtonIds = [
       'lobby-button',
       'font-button',
@@ -41,7 +41,6 @@ describe('界面设置', () => {
       'motion-button',
       'background-pause-button',
       'automatic-mode-button',
-      'description-button',
       'pause-button'
     ];
 
@@ -56,5 +55,11 @@ describe('界面设置', () => {
     const tooltipRule = styles.match(/\.setting-control\[data-tooltip\]::after\s*\{([^}]*)\}/)?.[1];
     expect(tooltipRule).toBeDefined();
     expect(tooltipRule).not.toContain('transition');
+    expect(indexHtml).not.toContain('id="description-button"');
+    expect(indexHtml).not.toContain('id="description-toggle"');
+    expect(indexHtml).toContain('src="module-catalog.js?v=50"');
+    expect(gameSource).toContain('const MODULE_CATALOG = globalThis.GSS0ModuleCatalog;');
+    expect(gameSource).not.toContain('SHORT_MODULE_DESCRIPTIONS');
+    expect(gameSource).not.toContain('gss0-detailed-descriptions');
   });
 });

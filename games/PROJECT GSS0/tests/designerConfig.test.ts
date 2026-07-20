@@ -5,6 +5,7 @@ import { experienceRequiredForLevel } from '../src/shared/constants';
 import { ACTIVE_SKILL_MODULES, MODULES, UPGRADE_MODULES } from '../src/shared/modules';
 
 const editorHtml = readFileSync(new URL('../balance-editor.html', import.meta.url), 'utf8');
+const moduleCatalogSource = readFileSync(new URL('../module-catalog.js', import.meta.url), 'utf8');
 const launcherCmd = readFileSync(new URL('../balance-editor-launcher.cmd', import.meta.url), 'utf8');
 const launcherServer = readFileSync(new URL('../balance-editor-server.ps1', import.meta.url), 'utf8');
 
@@ -120,12 +121,24 @@ describe('设计配置', () => {
 
   it('本地编辑器与运行时配置使用完全相同的参数和机体 ID', () => {
     const parameterKeys = editorDefinitionIds('const ALL_PARAMETER_DEFINITIONS = [', 'const ENEMY_PARAMETER_GROUPS =', 'key');
-    const moduleIds = editorDefinitionIds('const MODULES = [', 'const STATUS_LABELS =', 'id');
+    const moduleIds = [...moduleCatalogSource.matchAll(/\{ id: "([^"]+)"/g)].map((match) => match[1]);
 
     expect(parameterKeys.sort()).toEqual(Object.keys(DESIGNER_BALANCE).sort());
     expect(moduleIds.sort()).toEqual(MODULES.map((module) => module.id).sort());
     expect(new Set(parameterKeys).size).toBe(103);
     expect(new Set(moduleIds).size).toBe(58);
+  });
+
+  it('全部机体共用唯一描述目录且被动参数明确', () => {
+    expect(MODULES).toHaveLength(58);
+    expect(MODULES.every((module) => module.desc.trim().length > 0)).toBe(true);
+    expect(new Set(MODULES.map((module) => module.id)).size).toBe(MODULES.length);
+    expect(MODULES.find((module) => module.id === 'spark')?.desc).toBe('发射1枚高速焰弹，造成1伤害。');
+    expect(MODULES.find((module) => module.id === 'haste')?.desc).toContain('4.5%移动速度');
+    expect(MODULES.find((module) => module.id === 'haste')?.desc).toContain('0.18弧度/秒转向速度');
+    expect(editorHtml).toContain('src="module-catalog.js?v=50"');
+    expect(editorHtml).toContain('const MODULES = moduleCatalog;');
+    expect(editorHtml).toContain('description.textContent = module.desc;');
   });
 
   it('本地编辑器默认加载配置、自动保存且不存在缺失控件', () => {
@@ -138,7 +151,8 @@ describe('设计配置', () => {
     for (const script of inlineScripts) expect(() => new Function(script)).not.toThrow();
     expect(editorHtml).toMatch(/<script src="designer-config\.js\?v=\d+"><\/script>/u);
     expect(editorHtml).toContain('scheduleAutoSave();');
-    expect(editorHtml).toContain('id="description-detail"');
+    expect(editorHtml).not.toContain('id="description-detail"');
+    expect(editorHtml).not.toContain('gss0-detailed-descriptions');
     expect(editorHtml).toContain('draft.moduleCooldownPercentages[module.id]');
     expect(editorHtml).toContain('range.max = "1000"');
     expect(editorHtml).toContain('actual.textContent = `实际 ${moduleCooldownLabel(module)}`');

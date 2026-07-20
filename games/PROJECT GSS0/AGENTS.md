@@ -14,7 +14,7 @@
 # Project Version
 
 - The main menu must always display the current game version in its lower-left corner.
-- The current game version is `V49`.
+- The current game version is `V50`.
 - For every future user request that modifies this project, increment the integer version exactly once and update both the main-menu label and the current-version line in this file as part of the same change.
 - Whenever the version changes, update every classic runtime script query in `index.html` and `balance-editor.html` to `?v=<version integer>` so mutable client files cannot be mixed across browser or CDN caches.
 
@@ -49,3 +49,5 @@
 - Put every new tunable gameplay, presentation-performance, timing, growth, distance, probability, and scaling value in `designer-config.js`; do not introduce adjustable numeric literals directly in client or server runtime logic.
 - Expose each new designer value in `balance-editor.html` and consume shared multiplayer values through `src/shared/designerConfig.ts` and `src/shared/constants.ts` so local and network play cannot drift.
 - Structural implementation constants, binary format markers, and hard protocol safety limits may remain in code when they are not designer-adjustable.
+- `module-catalog.js` is the canonical source for every module's identity, visual metadata, and player-facing description. The game, design console, and TypeScript runtime must consume that catalog instead of maintaining parallel descriptions.
+- Keep module descriptions concise: state defining active effects and damage, expose meaningful passive per-stack values and caps, omit generic projectile rules and incidental implementation details.
