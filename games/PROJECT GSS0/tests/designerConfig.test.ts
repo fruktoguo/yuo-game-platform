@@ -136,7 +136,7 @@ describe('设计配置', () => {
     expect(MODULES.find((module) => module.id === 'spark')?.desc).toBe('发射1枚高速焰弹，造成1伤害。');
     expect(MODULES.find((module) => module.id === 'haste')?.desc).toContain('4.5%移动速度');
     expect(MODULES.find((module) => module.id === 'haste')?.desc).toContain('0.18弧度/秒转向速度');
-    expect(editorHtml).toContain('src="module-catalog.js?v=50"');
+    expect(editorHtml).toContain('src="module-catalog.js?v=51"');
     expect(editorHtml).toContain('const MODULES = moduleCatalog;');
     expect(editorHtml).toContain('description.textContent = module.desc;');
   });

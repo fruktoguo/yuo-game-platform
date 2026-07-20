@@ -14,7 +14,7 @@
 # Project Version
 
 - The main menu must always display the current game version in its lower-left corner.
-- The current game version is `V50`.
+- The current game version is `V51`.
 - For every future user request that modifies this project, increment the integer version exactly once and update both the main-menu label and the current-version line in this file as part of the same change.
 - Whenever the version changes, update every classic runtime script query in `index.html` and `balance-editor.html` to `?v=<version integer>` so mutable client files cannot be mixed across browser or CDN caches.
 
@@ -37,6 +37,7 @@
 - Before any push that includes PROJECT GSS0, run the remaining production verification stages from the repository root: `npm run build` and `npm run check:limits`.
 - Both commands must complete successfully against the exact commit being pushed. A scoped typecheck, syntax check, or earlier successful run is not a substitute.
 - If any required command cannot run because of sandbox, permission, dependency, or tooling limits, explicitly report that the commit is not deployment-verified and do not push it.
+- Keep production classic-script assets derived automatically from the local script references in `index.html`; do not reintroduce a manually maintained filename allowlist in `vite.config.ts`.
 
 # Forward-Only Development
 

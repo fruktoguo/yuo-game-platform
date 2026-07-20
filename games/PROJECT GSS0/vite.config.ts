@@ -1,7 +1,18 @@
 import { readFile } from 'node:fs/promises';
 import { defineConfig } from 'vite';
 
-const CLASSIC_SCRIPTS = ['designer-config.js', 'spawn-planner.js', 'lobby-navigation.js', 'enemy-codex.js', 'game.js', 'network-codec.js', 'network-player-prediction.js', 'network-player-state-codec.js', 'network-player-collisions.js', 'network-head-collisions.js', 'network-food-claims.js', 'network-projectiles.js'] as const;
+const INDEX_HTML_URL = new URL('index.html', import.meta.url);
+const CLASSIC_SCRIPT_PATTERN = /<script\s+src="([^"]+\.js)(?:\?[^"]*)?"><\/script>/gu;
+
+export function referencedClassicScripts(indexHtml: string): string[] {
+  const scripts: string[] = [];
+  for (const match of indexHtml.matchAll(CLASSIC_SCRIPT_PATTERN)) {
+    const fileName = match[1].replace(/^\.\//u, '');
+    if (fileName.startsWith('/') || fileName.includes('://') || scripts.includes(fileName)) continue;
+    scripts.push(fileName);
+  }
+  return scripts;
+}
 
 export default defineConfig({
   base: './',
@@ -9,7 +20,8 @@ export default defineConfig({
     name: 'project-gss0-classic-script',
     apply: 'build',
     async generateBundle() {
-      for (const fileName of CLASSIC_SCRIPTS) {
+      const indexHtml = await readFile(INDEX_HTML_URL, 'utf8');
+      for (const fileName of referencedClassicScripts(indexHtml)) {
         this.emitFile({ type: 'asset', fileName, source: await readFile(new URL(fileName, import.meta.url)) });
       }
     },
