@@ -1274,9 +1274,6 @@
     network.snapshotBuffer.push(networkSnapshotEntry(snapshot, reusableEntry));
     if (network.snapshotBuffer.length > NETWORK_SNAPSHOT_BUFFER_SIZE) network.snapshotBuffer.splice(0, network.snapshotBuffer.length - NETWORK_SNAPSHOT_BUFFER_SIZE);
     network.receivedAt = receivedAt;
-    for (const enemyId of network.localEnemyDeaths.keys()) {
-      if (!snapshot.enemies.some((enemy) => enemy.id === enemyId)) network.localEnemyDeaths.delete(enemyId);
-    }
     const self = snapshot.players.find((item) => item.entityId === network.selfEntityId);
     if (self) {
       if (!Number.isFinite(network.localDesiredAngle)) network.localDesiredAngle = self.desiredAngle;
@@ -1412,7 +1409,7 @@
             ui.shell.classList.remove("is-leveling");
           }, LEVEL_UP_TRANSITION_DURATION * 1000);
         }
-        sound(item.kind, item.detail || 0);
+        sound(item.kind, item.detail || 0, item.sourceEntityId);
         continue;
       }
       if (item.type === "feedback") {
@@ -1424,10 +1421,19 @@
         continue;
       }
       if (item.type === "snakeDeath") {
-        if (network.localEnemyDeaths.delete(item.enemyId)) continue;
-        const head = cellCenter(item.head.col, item.head.row);
-        const segments = item.segments.map((segment) => cellCenter(segment.col, segment.row));
-        playEnemyDeathParticles(head, segments, item.color);
+        if (network.localEnemyDeaths.has(item.enemyId)) continue;
+        network.localEnemyDeaths.set(item.enemyId, performance.now());
+        const renderedEnemy = network.enemyViews.get(item.enemyId);
+        const head = renderedEnemy || cellCenter(item.head.col, item.head.row);
+        const segments = renderedEnemy?.segments?.length
+          ? renderedEnemy.segments
+          : item.segments.map((segment) => cellCenter(segment.col, segment.row));
+        if (renderedEnemy) renderedEnemy.dead = true;
+        playEnemyDeathPresentation(head, segments, item.color, {
+          playSound: item.ownerEntityId != null,
+          rewardSelf: item.ownerEntityId === network.selfEntityId,
+          soundSourceEntityId: item.ownerEntityId
+        });
         continue;
       }
       const from = cellCenter(item.col, item.row);
@@ -1856,6 +1862,9 @@
     }
 
     enemies.length = 0;
+    for (const enemyId of network.localEnemyDeaths.keys()) {
+      if (!current.enemies.some((item) => item.id === enemyId)) network.localEnemyDeaths.delete(enemyId);
+    }
     for (const item of current.enemies) {
       if (network.localEnemyDeaths.has(item.id)) continue;
       const old = previousIndexes.enemies.get(item.id);
@@ -2202,7 +2211,11 @@
     )) return;
     network.localEnemyDeaths.set(collision.targetId, performance.now());
     enemy.dead = true;
-    playEnemyDeathParticles(enemy, enemy.segments, enemy.color);
+    playEnemyDeathPresentation(enemy, enemy.segments, enemy.color, {
+      playSound: true,
+      rewardSelf: true,
+      soundSourceEntityId: network.selfEntityId
+    });
   }
 
   function claimNetworkFoodContacts() {
@@ -2818,7 +2831,7 @@
     }
   }
 
-  function sound(kind, detail = 0) {
+  function sound(kind, detail = 0, sourceEntityId = null) {
     if (soundVolume <= 0) return;
     ensureAudio();
     if (!audioContext) return;
@@ -2836,8 +2849,9 @@
     const cooldowns = { shoot: 45, skill: 65, frost: 70, electric: 75, hit: 48, foodSpawn: 70, bounce: 90, ui: 70 };
     const wallTime = performance.now();
     const cooldown = cooldowns[kind] || 0;
-    if (cooldown && wallTime - (lastSoundAt[kind] || 0) < cooldown) return;
-    lastSoundAt[kind] = wallTime;
+    const cooldownKey = sourceEntityId == null ? kind : `${kind}:${sourceEntityId}`;
+    if (cooldown && wallTime - (lastSoundAt[cooldownKey] || 0) < cooldown) return;
+    lastSoundAt[cooldownKey] = wallTime;
 
     const settings = {
       ui: [620, 760, 0.055, "sine", 0.018],
@@ -4528,12 +4542,7 @@
     const dropOccupied = occupiedCellKeys();
     kills += 1;
     score += 100 + enemy.captured * 25;
-    playEnemyDeathParticles(enemy, enemy.segments, enemy.color);
-    effects.push({ type: "ring", x: enemy.x, y: enemy.y, color: enemy.color, life: 0.72, maxLife: 0.72, radius: 12, endRadius: 88 });
-    effects.push({ type: "ring", x: enemy.x, y: enemy.y, color: "#ffffff", life: 0.42, maxLife: 0.42, radius: 7, endRadius: 52 });
-    effects.push({ type: "text", x: enemy.x, y: enemy.y - 22, text: "击破", color: "#ffffff", life: 1.05, maxLife: 1.05, emphasis: true });
-    sound("kill");
-    shake = Math.max(shake, 7);
+    playEnemyDeathPresentation(enemy, enemy.segments, enemy.color, { playSound: true, rewardSelf: true });
     spawnFood(enemy.x, enemy.y, false, dropOccupied);
 
     const cache = moduleCount("cache");
@@ -4578,6 +4587,15 @@
       burst(segment.x, segment.y, color, ENEMY_DEATH_BODY_PARTICLES, ENEMY_DEATH_BODY_PARTICLE_SPEED);
     }
     burst(head.x, head.y, color, ENEMY_DEATH_HEAD_PARTICLES, ENEMY_DEATH_HEAD_PARTICLE_SPEED);
+  }
+
+  function playEnemyDeathPresentation(head, segments, color, options = {}) {
+    playEnemyDeathParticles(head, segments, color);
+    effects.push({ type: "ring", x: head.x, y: head.y, color, life: 0.72, maxLife: 0.72, radius: 12, endRadius: 88 });
+    effects.push({ type: "ring", x: head.x, y: head.y, color: "#ffffff", life: 0.42, maxLife: 0.42, radius: 7, endRadius: 52 });
+    effects.push({ type: "text", x: head.x, y: head.y - 22, text: "击破", color: "#ffffff", life: 1.05, maxLife: 1.05, emphasis: true });
+    if (options.playSound) sound("kill", 0, options.soundSourceEntityId);
+    if (options.rewardSelf) shake = Math.max(shake, 7);
   }
 
   function consumeDefense(enemy = null) {

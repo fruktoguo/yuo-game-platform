@@ -1,10 +1,51 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ArenaHub } from '../src/server/ArenaHub';
+import { UltraWorld } from '../src/server/UltraWorld';
 import { SIMULATION_HZ, SNAPSHOT_HZ } from '../src/shared/constants';
 import { encodePlayerMovementState } from '../src/shared/playerStateCodec';
 import type { ActionResult, FoodClaimPayload, FoodClaimResult, PlayerHeadCollisionEvent, UltraEffect, UltraFoodDelta, UltraProjectileEvent } from '../src/shared/protocol';
 
 describe('ArenaHub 联机投递', () => {
+  it('keeps combat sound cooldown sources separate while personal sounds stay private', () => {
+    const delivered: UltraEffect[][] = [];
+    const world = new UltraWorld({ callbacks: { onEffects: (effects) => delivered.push([...effects]) } });
+    const effectSound = Reflect.get(world, 'effectSound') as (kind: 'skill' | 'start' | 'enemySpawn', entityId?: number) => void;
+    const flushOutputs = Reflect.get(world, 'flushOutputs') as () => void;
+
+    effectSound.call(world, 'skill', 7);
+    effectSound.call(world, 'start', 7);
+    effectSound.call(world, 'enemySpawn');
+    flushOutputs.call(world);
+
+    expect(delivered.flat()).toEqual([
+      expect.objectContaining({ type: 'sound', kind: 'skill', sourceEntityId: 7, audienceEntityId: undefined }),
+      expect.objectContaining({ type: 'sound', kind: 'start', sourceEntityId: undefined, audienceEntityId: 7 }),
+      expect.objectContaining({ type: 'sound', kind: 'enemySpawn', sourceEntityId: undefined, audienceEntityId: undefined }),
+    ]);
+  });
+
+  it('packages enemy death presentation into one attributed event', () => {
+    const delivered: UltraEffect[][] = [];
+    const world = new UltraWorld({ callbacks: { onEffects: (effects) => delivered.push([...effects]) } });
+    world.connectPlayer('account-a', 'Player A', 100, 'player-a');
+    expect(world.spawn('account-a', 100)).toBe(true);
+    const flushOutputs = Reflect.get(world, 'flushOutputs') as () => void;
+    flushOutputs.call(world);
+    delivered.length = 0;
+
+    const player = (Reflect.get(world, 'playersByAccount') as Map<string, { entityId: number }>).get('account-a');
+    expect(player).toBeDefined();
+    const enemy = { id: 99, col: 4, row: 5, angle: 0, color: '#ff4f70', captured: 0, segments: [{ col: 3.5, row: 5 }], dead: false };
+    const killEnemy = Reflect.get(world, 'killEnemy') as (enemy: unknown, owner: unknown) => void;
+    killEnemy.call(world, enemy, player);
+    flushOutputs.call(world);
+
+    const effects = delivered.flat();
+    expect(effects).toEqual([
+      expect.objectContaining({ type: 'snakeDeath', enemyId: 99, ownerEntityId: player?.entityId }),
+    ]);
+  });
+
   it('合法转向输入立即进入权威世界，不额外等待下一次模拟刷新', () => {
     const applyInput = vi.fn(() => true);
     const hub = Object.create(ArenaHub.prototype) as ArenaHub;

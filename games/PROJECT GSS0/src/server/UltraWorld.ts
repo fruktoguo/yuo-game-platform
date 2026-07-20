@@ -2909,7 +2909,6 @@ export class UltraWorld {
         this.spawnFood({ col: enemy.col + Math.cos(angle) * distance, row: enemy.row + Math.sin(angle) * distance }, true, dropOccupied);
       }
       this.emitEvent('bot-kill', `${owner.name} 击破了一条敌蛇`, this.now, owner.entityId);
-      this.effectSound('kill', owner.entityId);
     }
     enemy.captured = 0;
     this.pendingEffects.push({
@@ -2919,10 +2918,8 @@ export class UltraWorld {
       head: { col: enemy.col, row: enemy.row },
       segments: enemy.segments.map((segment) => ({ col: segment.col, row: segment.row })),
       color: enemy.color,
+      ownerEntityId: owner?.entityId,
     });
-    this.ring(enemy.col, enemy.row, enemy.color, 0.72, 12, 88, owner?.entityId, 'pixels');
-    this.textEffect(enemy.col, enemy.row - 0.65, '击破', '#ffffff', 0.9, owner?.entityId);
-    if (owner) this.feedback('kill', owner.entityId);
     this.spawnFood(enemy, false, dropOccupied);
   }
 
@@ -3188,12 +3185,14 @@ export class UltraWorld {
   }
 
   private effectSound(kind: Extract<UltraEffect, { type: 'sound' }>['kind'], audienceEntityId?: number, detail?: number): void {
+    const personal = PERSONAL_SOUND_KINDS.has(kind);
     this.pendingEffects.push({
       id: this.effectId(),
       type: 'sound',
       kind,
       detail,
-      audienceEntityId: PERSONAL_SOUND_KINDS.has(kind) ? audienceEntityId : undefined,
+      sourceEntityId: personal ? undefined : audienceEntityId,
+      audienceEntityId: personal ? audienceEntityId : undefined,
     });
   }
 
