@@ -283,6 +283,8 @@
   const HEAD_TARGET_RANGE = designerNumber("headTargetRange", 560, 50, 2000);
   const MODULE_TARGET_RANGE = designerNumber("moduleTargetRange", 620, 50, 2000);
   const UPGRADE_INVULNERABILITY_DURATION = designerNumber("upgradeInvulnerabilityDuration", 0.5, 0, 10);
+  const RESPAWN_LOCATOR_CONVERGE_DURATION = designerNumber("respawnLocatorConvergeDuration", 1, 0.1, 10);
+  const RESPAWN_LOCATOR_FADE_DURATION = designerNumber("respawnLocatorFadeDuration", 3, 0.1, 20);
   const GROWTH_NODE_DELAY = 0.045;
   const GROWTH_PULSE_DURATION = 0.3;
   const SEGMENT_BIRTH_DURATION = 0.34;
@@ -370,6 +372,7 @@
   let activeGrowth = null;
   let upgradePending = false;
   let upgradeRevealTimer = 0;
+  let respawnLocatorStartedAt = -Infinity;
   let lastAmbientRender = -Infinity;
 
   const network = {
@@ -1128,7 +1131,10 @@
         clearNetworkViews();
         const joinedSelf = result.data.snapshot.players.find((item) => item.entityId === network.selfEntityId);
         network.localDesiredAngle = joinedSelf?.desiredAngle ?? NaN;
-        if (joinedSelf?.alive) networkPlayerPredictionRuntime.reconcile(joinedSelf);
+        if (joinedSelf?.alive) {
+          networkPlayerPredictionRuntime.reconcile(joinedSelf);
+          startRespawnLocator();
+        }
         networkProjectileRuntime.reset(result.data.projectiles || result.data.snapshot.projectiles || []);
         projectiles = networkProjectileRuntime.items;
         network.lastSelfAlive = Boolean(joinedSelf?.alive);
@@ -1223,6 +1229,7 @@
       ui.upgrade.classList.remove("is-visible");
       ui.gameOver.classList.remove("is-visible");
     }
+    if (!network.lastSelfAlive && selfAlive) startRespawnLocator(receivedAt);
     if (self && !self.alive) networkPlayerPredictionRuntime.clear();
     network.lastSelfAlive = selfAlive;
     renderNetworkRoster(snapshot.players);
@@ -2041,6 +2048,7 @@
     hideAllModals();
     particles = [];
     effects = [];
+    startRespawnLocator();
     sound("start");
   }
 
@@ -2120,6 +2128,7 @@
       segments: []
     };
     visiblePlayers = [];
+    startRespawnLocator();
 
     renderModuleRack();
     updateHud(true);
@@ -2365,6 +2374,10 @@
     if (testMode) ui.shell.dataset.testMode = "codex";
     else delete ui.shell.dataset.testMode;
     pointer.active = false;
+  }
+
+  function startRespawnLocator(now = performance.now()) {
+    respawnLocatorStartedAt = now;
   }
 
   function startGame(autopilot = false) {
@@ -5007,6 +5020,45 @@
     ctx.restore();
   }
 
+  function drawRespawnLocator(now) {
+    if (state !== "running" || !player || !Number.isFinite(respawnLocatorStartedAt)) return;
+    if (network.enabled && (!player.isSelf || player.alive === false)) return;
+    const elapsed = Math.max(0, (now - respawnLocatorStartedAt) / 1000);
+    const totalDuration = RESPAWN_LOCATOR_CONVERGE_DURATION + RESPAWN_LOCATOR_FADE_DURATION;
+    if (elapsed >= totalDuration) return;
+
+    const center = worldToScreen(player.x, player.y);
+    const pieceScale = arenaPieceScale();
+    const finalRadius = 25 * pieceScale;
+    const startRadius = Math.max(
+      Math.hypot(center.x, center.y),
+      Math.hypot(width - center.x, center.y),
+      Math.hypot(center.x, height - center.y),
+      Math.hypot(width - center.x, height - center.y)
+    ) + finalRadius;
+    const convergeProgress = clamp(elapsed / RESPAWN_LOCATOR_CONVERGE_DURATION, 0, 1);
+    const easedProgress = 1 - Math.pow(1 - convergeProgress, 3);
+    const radius = startRadius + (finalRadius - startRadius) * easedProgress;
+    const fadeProgress = clamp((elapsed - RESPAWN_LOCATOR_CONVERGE_DURATION) / RESPAWN_LOCATOR_FADE_DURATION, 0, 1);
+    const innerInset = 4 * pieceScale;
+
+    ctx.save();
+    ctx.translate(center.x, center.y);
+    ctx.rotate(Math.PI / 8);
+    ctx.globalAlpha = 1 - fadeProgress;
+    ctx.strokeStyle = "rgba(255,255,255,0.95)";
+    ctx.lineWidth = Math.max(1, 1.2 * pieceScale);
+    ctx.strokeRect(-radius + innerInset, -radius + innerInset, (radius - innerInset) * 2, (radius - innerInset) * 2);
+    ctx.strokeStyle = "#f3c600";
+    ctx.shadowColor = "#f3c600";
+    ctx.shadowBlur = 12;
+    ctx.lineWidth = Math.max(1.8, 2.4 * pieceScale);
+    ctx.setLineDash([6 * pieceScale, 4 * pieceScale]);
+    ctx.lineDashOffset = -elapsed * finalRadius;
+    ctx.strokeRect(-radius, -radius, radius * 2, radius * 2);
+    ctx.restore();
+  }
+
   function drawPlayer(target = player) {
     if (!target) return;
     const previousPlayer = player;
@@ -5415,6 +5467,7 @@
       ctx.fillStyle = `rgba(255, 79, 112, ${flash * 0.24})`;
       ctx.fillRect(0, 0, width, height);
     }
+    drawRespawnLocator(now);
   }
 
   function updateFpsMeter(now, frameInterval) {

@@ -45,6 +45,8 @@ export const DESIGNER_BALANCE = Object.freeze({
   arenaAreaPerLevel: numberSetting('arenaAreaPerLevel', 0.05, 0, 0.5),
   arenaResizeRate: numberSetting('arenaResizeRate', 2.4, 0.1, 10),
   upgradeInvulnerabilityDuration: numberSetting('upgradeInvulnerabilityDuration', 0.5, 0, 10),
+  respawnLocatorConvergeDuration: numberSetting('respawnLocatorConvergeDuration', 1, 0.1, 10),
+  respawnLocatorFadeDuration: numberSetting('respawnLocatorFadeDuration', 3, 0.1, 20),
   maxRenderFps: numberSetting('maxRenderFps', 60, 30, 240, true),
   maxRenderDpr: numberSetting('maxRenderDpr', 1.25, 1, 2),
   networkPlayerStateHz: numberSetting('networkPlayerStateHz', 20, 5, 60, true),

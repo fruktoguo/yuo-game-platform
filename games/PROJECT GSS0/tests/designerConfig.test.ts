@@ -37,6 +37,8 @@ describe('设计配置', () => {
       headAttackInterval: 1.9,
       arenaAreaPerLevel: 0.05,
       upgradeInvulnerabilityDuration: 0.5,
+      respawnLocatorConvergeDuration: 1,
+      respawnLocatorFadeDuration: 3,
       maxRenderFps: 60,
       maxRenderDpr: 1.25,
       networkPlayerStateHz: 20,
@@ -71,7 +73,7 @@ describe('设计配置', () => {
 
     expect(parameterKeys.sort()).toEqual(Object.keys(DESIGNER_BALANCE).sort());
     expect(moduleIds.sort()).toEqual(MODULES.map((module) => module.id).sort());
-    expect(new Set(parameterKeys).size).toBe(44);
+    expect(new Set(parameterKeys).size).toBe(46);
     expect(new Set(moduleIds).size).toBe(58);
   });
 

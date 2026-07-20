@@ -27,6 +27,8 @@ globalThis.GSS0_DESIGNER_CONFIG = {
     "arenaAreaPerLevel": 0.05,
     "arenaResizeRate": 2.4,
     "upgradeInvulnerabilityDuration": 0.5,
+    "respawnLocatorConvergeDuration": 1,
+    "respawnLocatorFadeDuration": 3,
     "maxRenderFps": 60,
     "maxRenderDpr": 1.25,
     "networkPlayerStateHz": 20,
