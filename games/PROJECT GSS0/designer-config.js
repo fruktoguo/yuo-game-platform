@@ -19,6 +19,7 @@ globalThis.GSS0_DESIGNER_CONFIG = {
     "enemiesPerPlayerPerWave": 1,
     "enemySpawnWarning": 1.5,
     "projectileSpeedScale": 3,
+    "projectileSizeScale": 2,
     "attackIntervalScale": 2,
     "headAttackInterval": 1.9,
     "activeSkillBaseCooldown": 3,

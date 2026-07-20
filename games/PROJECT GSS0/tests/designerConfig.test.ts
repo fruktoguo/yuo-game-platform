@@ -32,6 +32,7 @@ describe('设计配置', () => {
       foodsPerPlayerPerWave: 2,
       enemiesPerPlayerPerWave: 1,
       projectileSpeedScale: 3,
+      projectileSizeScale: 2,
       attackIntervalScale: 2,
       headAttackInterval: 1.9,
       activeSkillBaseCooldown: 3,
@@ -87,7 +88,7 @@ describe('设计配置', () => {
 
     expect(parameterKeys.sort()).toEqual(Object.keys(DESIGNER_BALANCE).sort());
     expect(moduleIds.sort()).toEqual(MODULES.map((module) => module.id).sort());
-    expect(new Set(parameterKeys).size).toBe(44);
+    expect(new Set(parameterKeys).size).toBe(45);
     expect(new Set(moduleIds).size).toBe(58);
   });
 

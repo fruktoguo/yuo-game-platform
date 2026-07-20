@@ -38,6 +38,7 @@ export const DESIGNER_BALANCE = Object.freeze({
   enemiesPerPlayerPerWave: numberSetting('enemiesPerPlayerPerWave', 1, 0, 12, true),
   enemySpawnWarning: numberSetting('enemySpawnWarning', 1.5, 0, 10),
   projectileSpeedScale: numberSetting('projectileSpeedScale', 3, 0.1, 10),
+  projectileSizeScale: numberSetting('projectileSizeScale', 2, 0.1, 10),
   attackIntervalScale: numberSetting('attackIntervalScale', 2, 0.1, 10),
   headAttackInterval: numberSetting('headAttackInterval', 1.9, 0.05, 30),
   activeSkillBaseCooldown: numberSetting('activeSkillBaseCooldown', 3, 0.05, 30),

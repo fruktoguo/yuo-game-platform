@@ -298,6 +298,7 @@
   const FOODS_PER_PLAYER_PER_WAVE = designerNumber("foodsPerPlayerPerWave", 2, 0, 20, true);
   const ENEMIES_PER_PLAYER_PER_WAVE = designerNumber("enemiesPerPlayerPerWave", 1, 0, 12, true);
   const PROJECTILE_SPEED_SCALE = designerNumber("projectileSpeedScale", 3, 0.1, 10);
+  const PROJECTILE_SIZE_SCALE = designerNumber("projectileSizeScale", 2, 0.1, 10);
   const PLAYER_BASE_SPEED = designerNumber("playerBaseSpeed", 5, 1, 12);
   const PLAYER_SPEED_PER_LEVEL = designerNumber("playerSpeedPerLevel", 0, 0, 0.5);
   const PLAYER_TURN_RATE = designerNumber("playerTurnRate", 4.2, 0.5, 12);
@@ -3638,7 +3639,7 @@
       speed,
       life: Infinity,
       color: options.color || "#dffcff",
-      size: (options.size || 4) * scale,
+      size: (options.size || 4) * PROJECTILE_SIZE_SCALE * scale,
       pierce: options.pierce || 0,
       bounces: options.bounces || 0,
       blastRadius: (options.blastRadius || 0) * scale,
