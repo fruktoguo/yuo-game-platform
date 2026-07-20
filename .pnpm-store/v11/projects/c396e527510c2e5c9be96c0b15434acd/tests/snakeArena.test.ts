@@ -79,6 +79,7 @@ describe('UltraWorld 原版 PvE 与多人共享世界', () => {
 
     survivor.col = -3;
     survivor.row = 12;
+    survivor.autopilot = true;
     world.step(0, 100);
     const minimum = (24 - world.getSnapshot(100).arenaSize) / 2;
     expect(survivor.col).toBeGreaterThanOrEqual(minimum);
@@ -208,6 +209,7 @@ describe('UltraWorld 原版 PvE 与多人共享世界', () => {
     attacker.col = 10.2;
     attacker.row = 10;
     attacker.collisionCooldown = 0;
+    attacker.autopilot = true;
     const checkCollisions = Reflect.get(world, 'checkCollisions') as (now: number, active: unknown[], present: unknown[]) => void;
     checkCollisions.call(world, 100, [attacker, protectedPlayer], [attacker, protectedPlayer]);
     expect(attacker.alive).toBe(true);
@@ -304,14 +306,15 @@ describe('UltraWorld 原版 PvE 与多人共享世界', () => {
     effects.length = 0;
 
     const owner = (Reflect.get(world, 'playersByAccount') as Map<string, TestPlayerEntity>).get('account-a')!;
-    const enemy = testEnemy(18, 18);
+    const enemy = testEnemy(18, 18, { segments: [testSegment(17.4, 18), testSegment(16.8, 18)] });
     Reflect.set(world, 'enemies', [enemy]);
     const killEnemy = Reflect.get(world, 'killEnemy') as (target: unknown, player: unknown) => void;
     killEnemy.call(world, enemy, owner);
     flushEffects.call(world);
 
     expect(world.getSnapshot(0).foods).toHaveLength(1);
-    expect(effects.map((effect) => effect.type)).toEqual(expect.arrayContaining(['burst', 'ring', 'text', 'sound']));
+    expect(effects.map((effect) => effect.type)).toEqual(expect.arrayContaining(['snakeDeath', 'ring', 'text', 'sound']));
+    expect(effects.find((effect) => effect.type === 'snakeDeath')).toMatchObject({ enemyId: 99, segments: [{ col: 17.4 }, { col: 16.8 }] });
     expect(effects.filter((effect) => effect.type === 'sound').map((effect) => effect.kind)).toEqual(expect.arrayContaining(['kill', 'foodSpawn']));
     expect(effects.filter((effect) => effect.type !== 'shake').every((effect) => effect.audienceEntityId === undefined)).toBe(true);
   });
@@ -342,8 +345,9 @@ describe('UltraWorld 原版 PvE 与多人共享世界', () => {
     const world = new UltraWorld({ random: () => 0.4 });
     world.connectPlayer('account-a', '玩家甲', 0);
     world.spawn('account-a', 0);
-    expect(world.applyInput('account-a', { sequence: 1, desiredAngle: Math.PI / 2 })).toBe(true);
-    expect(world.applyInput('account-a', { sequence: 1, desiredAngle: 0 })).toBe(false);
+    const controlled = (Reflect.get(world, 'playersByAccount') as Map<string, TestPlayerEntity>).get('account-a')!;
+    expect(world.applyInput('account-a', movementState(controlled, 1, Math.PI / 2))).toBe(true);
+    expect(world.applyInput('account-a', movementState(controlled, 1, 0))).toBe(false);
 
     const before = world.getSnapshot(0).players[0];
     world.step(0.05, 50);
@@ -358,12 +362,36 @@ describe('UltraWorld 原版 PvE 与多人共享世界', () => {
     const world = new UltraWorld({ random: () => 0.4 });
     world.connectPlayer('account-a', '玩家甲', 0);
     world.spawn('account-a', 0);
-    expect(world.applyInput('account-a', { sequence: 900, desiredAngle: Math.PI / 2 })).toBe(true);
+    const controlled = (Reflect.get(world, 'playersByAccount') as Map<string, TestPlayerEntity>).get('account-a')!;
+    expect(world.applyInput('account-a', movementState(controlled, 900, Math.PI / 2))).toBe(true);
 
     world.disconnectPlayer('account-a', 50);
     world.connectPlayer('account-a', '玩家甲', 100);
 
-    expect(world.applyInput('account-a', { sequence: 1, desiredAngle: Math.PI })).toBe(true);
+    expect(world.applyInput('account-a', movementState(controlled, 1, Math.PI))).toBe(true);
+  });
+
+  it('手动玩家位置由客户端状态包驱动，服务器只结算其可靠碰撞声明', () => {
+    const world = new UltraWorld({ random: () => 0.4 });
+    world.connectPlayer('account-a', '本地权威玩家', 0);
+    world.spawn('account-a', 0);
+    Reflect.set(world, 'waveTimer', 999);
+    const controlled = (Reflect.get(world, 'playersByAccount') as Map<string, TestPlayerEntity>).get('account-a')!;
+    controlled.col = 8;
+    controlled.row = 8;
+    controlled.angle = 0;
+    controlled.segments = [testSegment(7.42, 8)];
+    const enemy = testEnemy(8, 8);
+    Reflect.set(world, 'enemies', [enemy]);
+
+    expect(world.applyInput('account-a', movementState(controlled, 1, 0))).toBe(true);
+    world.step(0, 50);
+    expect(controlled.collisionCooldown).toBe(0);
+    expect(enemy.collisionCooldown).toBe(0);
+
+    expect(world.applyCollisionClaim('account-a', { kind: 'enemy-head', targetId: 99, normalCol: -1, normalRow: 0 }, 60)).toBe(true);
+    expect(controlled.collisionCooldown).toBe(0);
+    expect(enemy.collisionCooldown).toBeGreaterThan(0);
   });
 
   it('敌蛇在原版 1.5 秒预警后生成并自主移动', () => {
@@ -564,6 +592,8 @@ describe('UltraWorld 原版 PvE 与多人共享世界', () => {
     left.row = right.row = 9;
     left.angle = 0;
     right.angle = Math.PI;
+    left.autopilot = true;
+    right.autopilot = true;
 
     headWorld.step(0, 100);
 
@@ -596,7 +626,7 @@ describe('UltraWorld 原版 PvE 与多人共享世界', () => {
     automatic.angle = 0;
     automatic.desiredAngle = 0;
 
-    expect(world.applyInput('account-a', { sequence: 1, desiredAngle: Math.PI })).toBe(false);
+    expect(world.applyInput('account-a', movementState(automatic, 1, Math.PI))).toBe(false);
     world.step(0.05, 50);
     expect(automatic.angle).toBeGreaterThan(0);
 
@@ -634,6 +664,7 @@ describe('UltraWorld 原版 PvE 与多人共享世界', () => {
     owner.col = 14;
     owner.row = 10;
     owner.angle = 0;
+    owner.autopilot = true;
     owner.segments = Array.from({ length: 6 }, (_, index) => testSegment(13.42 - index * 0.58, 10));
     Reflect.set(world, 'enemies', [testEnemy(9.5, 10, { speed: 30, collisionCooldown: 0.3 })]);
 
@@ -652,6 +683,7 @@ describe('UltraWorld 原版 PvE 与多人共享世界', () => {
     owner.col = 12;
     owner.row = 10;
     owner.angle = 0;
+    owner.autopilot = true;
     owner.segments = Array.from({ length: 5 }, (_, index) => testSegment(11.42 - index * 0.58, 10));
     Reflect.set(world, 'enemies', [testEnemy(14, 10, { angle: Math.PI, desiredAngle: Math.PI, speed: 70 })]);
 
@@ -727,9 +759,29 @@ interface TestPlayerEntity {
   col: number;
   row: number;
   angle: number;
+  speed: number;
   collisionCooldown: number;
   knockbackX: number;
+  knockbackY: number;
+  slow: number;
+  autopilot: boolean;
   segments: ReturnType<typeof testSegment>[];
+}
+
+function movementState(player: TestPlayerEntity, sequence: number, desiredAngle: number) {
+  return {
+    sequence,
+    col: player.col,
+    row: player.row,
+    angle: player.angle,
+    desiredAngle,
+    speed: player.speed,
+    knockbackX: player.knockbackX,
+    knockbackY: player.knockbackY,
+    collisionCooldown: player.collisionCooldown,
+    slow: player.slow,
+    segments: player.segments.map((segment) => ({ col: segment.col, row: segment.row, angle: segment.angle })),
+  };
 }
 
 function testSegment(col: number, row: number) {

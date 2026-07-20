@@ -36,6 +36,8 @@ export interface UltraPlayerView extends GridPoint {
   desiredAngle: number;
   lastInputSequence: number;
   speed: number;
+  slow: number;
+  foodBoost: number;
   knockbackX: number;
   knockbackY: number;
   invulnerable: number;
@@ -91,12 +93,14 @@ export type UltraProjectileEvent =
 
 export interface UltraHazardView {
   id: number;
+  ownerEntityId: number;
   kind: 'mine' | 'gravity';
   col: number;
   row: number;
   radius: number;
   color: string;
   phase: number;
+  arm: number;
 }
 
 export interface PendingSpawnView {
@@ -133,7 +137,8 @@ export type UltraEffect =
   | { id: string; type: 'text'; col: number; row: number; text: string; color: string; life: number; audienceEntityId?: number }
   | { id: string; type: 'sound'; kind: UltraSoundKind; detail?: number; audienceEntityId?: number }
   | { id: string; type: 'shake'; strength: number; audienceEntityId?: number }
-  | { id: string; type: 'flash'; color: string; strength: number; audienceEntityId?: number };
+  | { id: string; type: 'flash'; color: string; strength: number; audienceEntityId?: number }
+  | { id: string; type: 'snakeDeath'; enemyId: number; head: GridPoint; segments: GridPoint[]; color: string; audienceEntityId?: number };
 
 export interface UpgradeOffer {
   level: number;
@@ -189,10 +194,12 @@ export interface ArenaJoinData {
   events: ArenaEvent[];
 }
 
-export interface InputPayload {
-  sequence: number;
-  desiredAngle: number;
-}
+export type InputPayload = Uint8Array;
+
+export type PlayerCollisionClaim =
+  | { kind: 'enemy-head' | 'enemy-protected'; targetId: number; normalCol: number; normalRow: number }
+  | { kind: 'enemy-body' | 'enemy-hit-body' | 'player-body'; targetId: number; segmentIndex: number }
+  | { kind: 'mine'; targetId: number; normalCol: number; normalRow: number };
 
 export interface FoodClaimPayload {
   foodIds: number[];
@@ -245,6 +252,7 @@ export interface ClientToServerEvents {
   'ultra:autopilot': (enabled: boolean, ack: (result: ActionResult) => void) => void;
   'ultra:pause': (paused: boolean, ack: (result: ActionResult) => void) => void;
   'ultra:input': (payload: InputPayload) => void;
+  'ultra:collision': (claim: PlayerCollisionClaim, ack: (result: ActionResult) => void) => void;
   'ultra:claim-food': (payload: FoodClaimPayload, ack: (result: ActionResult<FoodClaimResult>) => void) => void;
   'ultra:upgrade': (moduleId: ModuleId, ack: (result: ActionResult) => void) => void;
   'ultra:chat': (text: string, ack: (result: ActionResult) => void) => void;

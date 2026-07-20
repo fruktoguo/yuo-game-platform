@@ -3,16 +3,21 @@ import { runInThisContext } from 'node:vm';
 import { describe, expect, it } from 'vitest';
 import { MODULES } from '../src/shared/modules';
 import type { UltraSnapshot } from '../src/shared/protocol';
+import { decodePlayerMovementState } from '../src/shared/playerStateCodec';
 import { encodeUltraSnapshot } from '../src/shared/snapshotCodec';
 
 runInThisContext(readFileSync(new URL('../network-codec.js', import.meta.url), 'utf8'));
 runInThisContext(readFileSync(new URL('../network-player-prediction.js', import.meta.url), 'utf8'));
+runInThisContext(readFileSync(new URL('../network-player-state-codec.js', import.meta.url), 'utf8'));
+runInThisContext(readFileSync(new URL('../network-player-collisions.js', import.meta.url), 'utf8'));
 runInThisContext(readFileSync(new URL('../network-food-claims.js', import.meta.url), 'utf8'));
 runInThisContext(readFileSync(new URL('../network-projectiles.js', import.meta.url), 'utf8'));
 
 const clientGlobals = globalThis as typeof globalThis & {
   GSS0NetworkCodec: { decode: (payload: ArrayBuffer | ArrayBufferView, modules: typeof MODULES, target?: UltraSnapshot) => UltraSnapshot };
   GSS0PlayerPrediction: { create: (options?: Record<string, number>) => ClientPlayerPredictionRuntime };
+  GSS0PlayerStateCodec: { encode: (sequence: number, player: Record<string, unknown>) => Uint8Array };
+  GSS0PlayerCollisions: { detect: (...args: unknown[]) => Record<string, unknown> | null };
   GSS0FoodClaimRuntime: { create: (options?: { maximumBatchSize?: number; retryAfterMs?: number }) => ClientFoodClaimRuntime };
   GSS0ProjectileRuntime: { create: (gridSize: number) => ClientProjectileRuntime };
 };
@@ -39,16 +44,10 @@ interface ClientPlayerPredictionRuntime {
     angle: number;
     segments: Array<{ col: number; row: number }>;
   };
-  correction: { col: number; row: number; angle: number };
   clear(): void;
-  reconcile(
-    authoritative: UltraSnapshot['players'][number],
-    pendingInputs: Array<{ duration: number; desiredAngle: number }>,
-    unsentDuration: number,
-    desiredAngle: number,
-    turnRate: number,
-  ): void;
-  update(duration: number, desiredAngle: number, turnRate: number): void;
+  reconcile(authoritative: UltraSnapshot['players'][number]): void;
+  syncAuthoritative(authoritative: UltraSnapshot['players'][number]): void;
+  update(duration: number, desiredAngle: number, turnRate: number, speed: number): void;
 }
 
 interface ClientProjectileRuntime {
@@ -59,12 +58,12 @@ interface ClientProjectileRuntime {
 }
 
 describe('客户端网络模块', () => {
-  it('独立解码器与服务端 V4 动态场地快照格式一致', () => {
+  it('独立解码器与服务端 V5 动态场地快照格式一致', () => {
     const snapshot: UltraSnapshot = {
       tick: 7, serverTime: 700, gameTime: 3, waveCount: 2, waveTimer: 4, threatLevel: 1, arenaSize: 24,
       players: [{
         entityId: 1, name: '玩家甲', colorIndex: 0, connected: true, alive: true, paused: false, choosingUpgrade: false,
-        col: 4.25, row: 5.5, angle: 0.4, desiredAngle: 0.5, lastInputSequence: 7, speed: 5, knockbackX: 0.5, knockbackY: -0.25, invulnerable: 0, collisionCooldown: 0,
+        col: 4.25, row: 5.5, angle: 0.4, desiredAngle: 0.5, lastInputSequence: 7, speed: 5, slow: 0, foodBoost: 0, knockbackX: 0.5, knockbackY: -0.25, invulnerable: 0, collisionCooldown: 0,
         score: 12, kills: 1, botKills: 1, pvpKills: 0, survivalTime: 3, level: 1, xp: 2, xpNeeded: 6, respawnAt: null,
         segments: [
           { col: 3.7, row: 5.5, angle: 0, module: 'shield', neutral: false, timer: 5, ready: false, cooldown: 7.5, orbit: 2, birthAge: null },
@@ -104,32 +103,39 @@ describe('客户端网络模块', () => {
     expect(decoded.players[0].segments[0].col).toBeCloseTo(8.1, 3);
   });
 
-  it('本地预测立即推进蛇头和身体，并从权威快照重放未确认输入', () => {
-    const runtime = clientGlobals.GSS0PlayerPrediction.create({ correctionRate: 14, snapDistance: 1.5 });
+  it('本地权威移动立即推进蛇头和身体，后续服务器快照不会拉回位置', () => {
+    const runtime = clientGlobals.GSS0PlayerPrediction.create();
     const authoritative = snapshotAt(20, 5).players[0];
     authoritative.angle = 0;
     authoritative.desiredAngle = 0;
     authoritative.segments.push({ ...authoritative.segments[0], col: 3.8 });
 
-    runtime.reconcile(authoritative, [], 0, 0, 4.2);
-    runtime.update(0.05, Math.PI / 2, 4.2);
+    runtime.reconcile(authoritative);
+    runtime.update(0.05, Math.PI / 2, 4.2, 5);
 
     expect(runtime.state.angle).toBeGreaterThan(0);
     expect(runtime.state.col).toBeGreaterThan(authoritative.col);
     expect(runtime.state.row).toBeGreaterThan(authoritative.row);
     expect(runtime.state.segments[0].col).toBeGreaterThan(authoritative.segments[0].col);
 
-    runtime.reconcile(
-      authoritative,
-      [{ duration: 0.05, desiredAngle: Math.PI / 2 }],
-      0.02,
-      Math.PI / 2,
-      4.2,
-    );
+    const predictedCol = runtime.state.col;
+    const predictedRow = runtime.state.row;
+    runtime.syncAuthoritative({ ...authoritative, col: 2, row: 2 });
+    expect(runtime.state.col).toBe(predictedCol);
+    expect(runtime.state.row).toBe(predictedRow);
+  });
 
-    expect(runtime.state.col).toBeGreaterThan(authoritative.col);
-    expect(runtime.state.row).toBeGreaterThan(authoritative.row);
-    expect(Math.hypot(runtime.correction.col, runtime.correction.row)).toBeLessThanOrEqual(1.5);
+  it('完整蛇身状态使用紧凑二进制包往返，碰撞只按客户端可见距离触发', () => {
+    const player = snapshotAt(9, 5).players[0];
+    const decoded = decodePlayerMovementState(clientGlobals.GSS0PlayerStateCodec.encode(10, player as unknown as Record<string, unknown>));
+    expect(decoded).toMatchObject({ sequence: 10, col: 5, row: 5, angle: 0.4 });
+    expect(decoded.segments).toHaveLength(1);
+
+    const options = { worldMin: 0, worldMax: 23, selfRange: 0.5, bodyRange: 0.42, playerHeadRange: 1.05, enemyHeadRange: 0.81 };
+    const far = clientGlobals.GSS0PlayerCollisions.detect(player, [{ id: 2, col: 5.9, row: 5, angle: Math.PI, segments: [], dead: false }], [player], options);
+    const touching = clientGlobals.GSS0PlayerCollisions.detect(player, [{ id: 2, col: 5.7, row: 5, angle: Math.PI, segments: [], dead: false }], [player], options);
+    expect(far).toBeNull();
+    expect(touching).toMatchObject({ kind: 'enemy-head', targetId: 2 });
   });
 
   it('本地推进直线、追踪和反弹，并接受可靠生命周期更新', () => {
@@ -192,7 +198,7 @@ function snapshotAt(tick: number, col: number): UltraSnapshot {
     arenaSize: 24,
     players: [{
       entityId: 1, name: '玩家甲', colorIndex: 0, connected: true, alive: true, paused: false, choosingUpgrade: false,
-      col, row: 5, angle: 0.4, desiredAngle: 0.5, lastInputSequence: tick, speed: 5, knockbackX: 0, knockbackY: 0, invulnerable: 0, collisionCooldown: 0,
+      col, row: 5, angle: 0.4, desiredAngle: 0.5, lastInputSequence: tick, speed: 5, slow: 0, foodBoost: 0, knockbackX: 0, knockbackY: 0, invulnerable: 0, collisionCooldown: 0,
       score: 0, kills: 0, botKills: 0, pvpKills: 0, survivalTime: 1, level: 0, xp: 0, xpNeeded: 5,
       respawnAt: null,
       segments: [{ col: col - 0.6, row: 5, angle: 0, module: null, neutral: true, timer: 0, ready: true, cooldown: 0, orbit: 0, birthAge: null }],

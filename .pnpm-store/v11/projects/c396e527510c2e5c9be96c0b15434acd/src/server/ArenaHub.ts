@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
 import type { Server, Socket } from 'socket.io';
 import { IntervalGate } from '@yuo-platform/realtime';
+import { decodePlayerMovementState } from '../shared/playerStateCodec';
 import {
   MAX_CHAT_HISTORY,
   MAX_CHAT_LENGTH,
@@ -19,6 +20,8 @@ import type {
   FoodClaimPayload,
   FoodClaimResult,
   InterServerEvents,
+  InputPayload,
+  PlayerCollisionClaim,
   ServerToClientEvents,
   SocketData,
   UltraEffect,
@@ -111,6 +114,7 @@ export class ArenaHub {
     socket.on('ultra:autopilot', (enabled, ack) => this.handleAutopilot(socket, enabled, ack));
     socket.on('ultra:pause', (paused, ack) => this.handlePause(socket, paused, ack));
     socket.on('ultra:input', (payload) => this.handleInput(socket, payload));
+    socket.on('ultra:collision', (claim, ack) => this.handleCollision(socket, claim, ack));
     socket.on('ultra:claim-food', (payload, ack) => this.handleFoodClaim(socket, payload, ack));
     socket.on('ultra:upgrade', (moduleId, ack) => this.handleUpgrade(socket, moduleId, ack));
     socket.on('ultra:chat', (text, ack) => this.handleChat(socket, text, ack));
@@ -199,17 +203,22 @@ export class ArenaHub {
     this.broadcastMeta();
   }
 
-  private handleInput(socket: UltraSocket, payload: Parameters<UltraWorld['applyInput']>[1]): void {
+  private handleInput(socket: UltraSocket, payload: InputPayload): void {
     const accountId = this.getJoinedAccountId(socket);
-    if (
-      !accountId
-      || !payload
-      || typeof payload !== 'object'
-      || !Number.isSafeInteger(payload.sequence)
-      || !Number.isFinite(payload.desiredAngle)
-      || Math.abs(payload.desiredAngle) > Math.PI * 8
-    ) return;
-    this.world.applyInput(accountId, payload);
+    if (!accountId || !payload || typeof payload !== 'object') return;
+    try {
+      this.world.applyInput(accountId, decodePlayerMovementState(payload));
+    } catch {
+      // Invalid volatile movement packets are discarded without affecting the room.
+    }
+  }
+
+  private handleCollision(socket: UltraSocket, claim: PlayerCollisionClaim, ack: (result: ActionResult) => void): void {
+    if (typeof ack !== 'function') return;
+    const accountId = this.getJoinedAccountId(socket);
+    if (!accountId) return ack({ ok: false, error: '请先接入行动区域' });
+    if (!this.world.applyCollisionClaim(accountId, claim)) return ack({ ok: false, error: '碰撞事件无效' });
+    ack({ ok: true });
   }
 
   private handleFoodClaim(

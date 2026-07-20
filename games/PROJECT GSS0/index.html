@@ -140,7 +140,7 @@
 
     <section id="start-screen" class="modal-layer start-screen is-visible" aria-labelledby="game-title">
       <div class="start-glow" aria-hidden="true"></div>
-      <div class="start-version" aria-label="游戏版本 V18"><span>BUILD</span><strong>V18</strong></div>
+      <div class="start-version" aria-label="游戏版本 V19"><span>BUILD</span><strong>V19</strong></div>
       <div class="start-layout">
         <div class="start-content">
           <div id="network-status" class="title-kicker">TACTICAL SURVIVAL / LOCAL</div>
@@ -212,6 +212,21 @@
           <button id="changelog-close-button" class="icon-button codex-close-button" type="button" aria-label="关闭更新日志" title="关闭更新日志">×</button>
         </header>
         <div class="changelog-list">
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V19</strong></div>
+              <time datetime="2026-07-20">2026.07.20</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">联机碰撞</span>
+              <h3>本地权威移动与碰撞</h3>
+              <ul>
+                <li>手动玩家的蛇头、身体、反弹与自身死亡改为本地即时裁决。</li>
+                <li>完整蛇身状态以紧凑数据包同步，服务器不再用碰撞快照强行拉回手动玩家。</li>
+                <li>敌蛇整体死亡时，头部和每节身体都会按位置播放分层爆散粒子。</li>
+              </ul>
+            </div>
+          </article>
           <article class="changelog-entry">
             <header>
               <div class="changelog-version"><span>BUILD</span><strong>V18</strong></div>
@@ -308,6 +323,8 @@
   <script src="spawn-planner.js"></script>
   <script src="network-codec.js"></script>
   <script src="network-player-prediction.js"></script>
+  <script src="network-player-state-codec.js"></script>
+  <script src="network-player-collisions.js"></script>
   <script src="network-food-claims.js"></script>
   <script src="network-projectiles.js"></script>
   <script src="game.js"></script>

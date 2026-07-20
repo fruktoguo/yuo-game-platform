@@ -39,8 +39,12 @@ describe('设计配置', () => {
       upgradeInvulnerabilityDuration: 0.5,
       maxRenderFps: 60,
       maxRenderDpr: 1.25,
-      networkCorrectionRate: 14,
-      networkCorrectionSnapDistance: 1.5,
+      networkPlayerStateHz: 20,
+      networkCollisionClaimCooldownMs: 500,
+      enemyDeathHeadParticles: 28,
+      enemyDeathBodyParticles: 7,
+      enemyDeathHeadParticleSpeed: 185,
+      enemyDeathBodyParticleSpeed: 105,
       profileSaveDelaySeconds: 30,
     });
   });
@@ -58,7 +62,7 @@ describe('设计配置', () => {
 
     expect(parameterKeys.sort()).toEqual(Object.keys(DESIGNER_BALANCE).sort());
     expect(moduleIds.sort()).toEqual(MODULES.map((module) => module.id).sort());
-    expect(new Set(parameterKeys).size).toBe(31);
+    expect(new Set(parameterKeys).size).toBe(35);
     expect(new Set(moduleIds).size).toBe(58);
   });
 

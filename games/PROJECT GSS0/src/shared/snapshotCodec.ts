@@ -13,7 +13,7 @@ import type {
 } from './protocol';
 
 const MAGIC = 0x5553_4e50;
-const VERSION = 4;
+const VERSION = 5;
 const COORDINATE_SCALE = 65_535;
 const COORDINATE_PADDING = 2;
 const VELOCITY_SCALE = 64;
@@ -102,7 +102,7 @@ function writePlayer(writer: BinaryWriter, player: UltraPlayerView, arenaSize: n
   writer.u8(player.colorIndex);
   writer.u8(Number(player.connected) | Number(player.alive) << 1 | Number(player.paused) << 2 | Number(player.choosingUpgrade) << 3);
   writeCoordinate(writer, player.col, arenaSize); writeCoordinate(writer, player.row, arenaSize); writeAngle(writer, player.angle); writeAngle(writer, player.desiredAngle);
-  writer.u32(player.lastInputSequence + 1); writer.f32(player.speed); writer.f32(player.knockbackX); writer.f32(player.knockbackY);
+  writer.u32(player.lastInputSequence + 1); writer.f32(player.speed); writer.f32(player.slow); writer.f32(player.foodBoost); writer.f32(player.knockbackX); writer.f32(player.knockbackY);
   writer.f32(player.invulnerable); writer.f32(player.collisionCooldown);
   writer.f32(player.score); writer.u16(player.kills); writer.u16(player.botKills); writer.u16(player.pvpKills);
   writer.f32(player.survivalTime); writer.u16(player.level); writer.u16(player.xp); writer.u16(player.xpNeeded);
@@ -127,7 +127,7 @@ function readPlayer(reader: BinaryReader, arenaSize: number): UltraPlayerView {
     paused: Boolean(flags & 4),
     choosingUpgrade: Boolean(flags & 8),
     col: readCoordinate(reader, arenaSize), row: readCoordinate(reader, arenaSize), angle: readAngle(reader), desiredAngle: readAngle(reader),
-    lastInputSequence: reader.u32() - 1, speed: reader.f32(), knockbackX: reader.f32(), knockbackY: reader.f32(),
+    lastInputSequence: reader.u32() - 1, speed: reader.f32(), slow: reader.f32(), foodBoost: reader.f32(), knockbackX: reader.f32(), knockbackY: reader.f32(),
     invulnerable: reader.f32(), collisionCooldown: reader.f32(),
     score: reader.f32(), kills: reader.u16(), botKills: reader.u16(), pvpKills: reader.u16(),
     survivalTime: reader.f32(), level: reader.u16(), xp: reader.u16(), xpNeeded: reader.u16(),
@@ -226,14 +226,15 @@ function readProjectile(reader: BinaryReader, arenaSize: number): UltraProjectil
 }
 
 function writeHazard(writer: BinaryWriter, hazard: UltraHazardView, arenaSize: number): void {
-  writer.u16(hazard.id); writer.u8(hazard.kind === 'mine' ? 0 : 1);
-  writeCoordinate(writer, hazard.col, arenaSize); writeCoordinate(writer, hazard.row, arenaSize); writer.u16(Math.round(hazard.radius * SIZE_SCALE)); writer.color(hazard.color);
+  writer.u16(hazard.id); writer.u16(hazard.ownerEntityId); writer.u8(hazard.kind === 'mine' ? 0 : 1);
+  writeCoordinate(writer, hazard.col, arenaSize); writeCoordinate(writer, hazard.row, arenaSize); writer.u16(Math.round(hazard.radius * SIZE_SCALE)); writer.color(hazard.color); writer.f32(hazard.arm);
 }
 
 function readHazard(reader: BinaryReader, arenaSize: number): UltraHazardView {
   const id = reader.u16();
+  const ownerEntityId = reader.u16();
   const kind = reader.u8() === 0 ? 'mine' : 'gravity';
-  return { id, kind, col: readCoordinate(reader, arenaSize), row: readCoordinate(reader, arenaSize), radius: reader.u16() / SIZE_SCALE, color: reader.color(), phase: visualPhase(id) };
+  return { id, ownerEntityId, kind, col: readCoordinate(reader, arenaSize), row: readCoordinate(reader, arenaSize), radius: reader.u16() / SIZE_SCALE, color: reader.color(), phase: visualPhase(id), arm: reader.f32() };
 }
 
 function writeSpawn(writer: BinaryWriter, spawn: PendingSpawnView, arenaSize: number): void {

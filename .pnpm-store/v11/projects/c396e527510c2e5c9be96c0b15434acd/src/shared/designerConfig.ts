@@ -47,8 +47,12 @@ export const DESIGNER_BALANCE = Object.freeze({
   upgradeInvulnerabilityDuration: numberSetting('upgradeInvulnerabilityDuration', 0.5, 0, 10),
   maxRenderFps: numberSetting('maxRenderFps', 60, 30, 240, true),
   maxRenderDpr: numberSetting('maxRenderDpr', 1.25, 1, 2),
-  networkCorrectionRate: numberSetting('networkCorrectionRate', 14, 1, 40),
-  networkCorrectionSnapDistance: numberSetting('networkCorrectionSnapDistance', 1.5, 0.25, 6),
+  networkPlayerStateHz: numberSetting('networkPlayerStateHz', 20, 5, 60, true),
+  networkCollisionClaimCooldownMs: numberSetting('networkCollisionClaimCooldownMs', 500, 100, 2_000, true),
+  enemyDeathHeadParticles: numberSetting('enemyDeathHeadParticles', 28, 1, 100, true),
+  enemyDeathBodyParticles: numberSetting('enemyDeathBodyParticles', 7, 1, 40, true),
+  enemyDeathHeadParticleSpeed: numberSetting('enemyDeathHeadParticleSpeed', 185, 10, 500),
+  enemyDeathBodyParticleSpeed: numberSetting('enemyDeathBodyParticleSpeed', 105, 10, 400),
   profileSaveDelaySeconds: numberSetting('profileSaveDelaySeconds', 30, 1, 300),
 });
 

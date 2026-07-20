@@ -291,11 +291,13 @@
   const NETWORK_BASE_SNAPSHOT_MS = 1000 / 15;
   const NETWORK_SNAPSHOT_BUFFER_SIZE = 6;
   const NETWORK_MAX_EXTRAPOLATION_MS = 90;
-  const NETWORK_INPUT_INTERVAL_MS = 1000 / 30;
-  const NETWORK_MAX_PENDING_INPUTS = 120;
+  const NETWORK_INPUT_INTERVAL_MS = 1000 / designerNumber("networkPlayerStateHz", 20, 5, 60, true);
+  const NETWORK_COLLISION_CLAIM_COOLDOWN_MS = designerNumber("networkCollisionClaimCooldownMs", 500, 100, 2000, true);
   const NETWORK_FOOD_CONTACT_INTERVAL_MS = 1000 / 30;
-  const NETWORK_CORRECTION_RATE = designerNumber("networkCorrectionRate", 14, 1, 40);
-  const NETWORK_CORRECTION_SNAP_DISTANCE = designerNumber("networkCorrectionSnapDistance", 1.5, 0.25, 6);
+  const ENEMY_DEATH_HEAD_PARTICLES = designerNumber("enemyDeathHeadParticles", 28, 1, 100, true);
+  const ENEMY_DEATH_BODY_PARTICLES = designerNumber("enemyDeathBodyParticles", 7, 1, 40, true);
+  const ENEMY_DEATH_HEAD_PARTICLE_SPEED = designerNumber("enemyDeathHeadParticleSpeed", 185, 10, 500);
+  const ENEMY_DEATH_BODY_PARTICLE_SPEED = designerNumber("enemyDeathBodyParticleSpeed", 105, 10, 400);
   const MAX_RENDER_FPS = designerNumber("maxRenderFps", 60, 30, 240, true);
   const MAX_RENDER_DPR = designerNumber("maxRenderDpr", 1.25, 1, 2);
   const MIN_RENDER_DPR = 1;
@@ -391,9 +393,9 @@
     inputSequence: 0,
     lastInputAt: 0,
     localDesiredAngle: NaN,
-    unsentPredictionTime: 0,
-    pendingInputs: [],
-    inputPool: [],
+    localDeathPending: false,
+    collisionClaims: new Map(),
+    localEnemyDeaths: new Map(),
     lastFoodContactAt: 0,
     playerViews: new Map(),
     enemyViews: new Map(),
@@ -406,11 +408,13 @@
   if (!networkProjectileRuntime) throw new Error("PROJECT GSS0 投射物运行时未加载");
   const networkPlayerPredictionRuntime = globalThis.GSS0PlayerPrediction?.create({
     knockbackDecay: KNOCKBACK_DECAY,
-    segmentSpacing: 0.58,
-    correctionRate: NETWORK_CORRECTION_RATE,
-    snapDistance: NETWORK_CORRECTION_SNAP_DISTANCE
+    segmentSpacing: 0.58
   });
   if (!networkPlayerPredictionRuntime) throw new Error("PROJECT GSS0 玩家预测运行时未加载");
+  const networkPlayerStateCodec = globalThis.GSS0PlayerStateCodec;
+  if (!networkPlayerStateCodec) throw new Error("PROJECT GSS0 玩家状态编码器未加载");
+  const networkPlayerCollisions = globalThis.GSS0PlayerCollisions;
+  if (!networkPlayerCollisions) throw new Error("PROJECT GSS0 玩家碰撞运行时未加载");
   const networkFoodClaimRuntime = globalThis.GSS0FoodClaimRuntime?.create({ maximumBatchSize: 32, retryAfterMs: 750 });
   if (!networkFoodClaimRuntime) throw new Error("PROJECT GSS0 吃球检测运行时未加载");
   const spawnPlanner = globalThis.GSS0SpawnPlanner;
@@ -1110,13 +1114,7 @@
         clearNetworkViews();
         const joinedSelf = result.data.snapshot.players.find((item) => item.entityId === network.selfEntityId);
         network.localDesiredAngle = joinedSelf?.desiredAngle ?? NaN;
-        if (joinedSelf) networkPlayerPredictionRuntime.reconcile(
-          joinedSelf,
-          network.pendingInputs,
-          0,
-          network.localDesiredAngle,
-          networkTurnRateForSegments(joinedSelf.segments)
-        );
+        if (joinedSelf?.alive) networkPlayerPredictionRuntime.reconcile(joinedSelf);
         networkProjectileRuntime.reset(result.data.projectiles || result.data.snapshot.projectiles || []);
         projectiles = networkProjectileRuntime.items;
         network.lastSelfAlive = Boolean(joinedSelf?.alive);
@@ -1185,17 +1183,13 @@
     network.snapshotBuffer.push(networkSnapshotEntry(snapshot, reusableEntry));
     if (network.snapshotBuffer.length > NETWORK_SNAPSHOT_BUFFER_SIZE) network.snapshotBuffer.splice(0, network.snapshotBuffer.length - NETWORK_SNAPSHOT_BUFFER_SIZE);
     network.receivedAt = receivedAt;
+    for (const enemyId of network.localEnemyDeaths.keys()) {
+      if (!snapshot.enemies.some((enemy) => enemy.id === enemyId)) network.localEnemyDeaths.delete(enemyId);
+    }
     const self = snapshot.players.find((item) => item.entityId === network.selfEntityId);
     if (self) {
       if (!Number.isFinite(network.localDesiredAngle)) network.localDesiredAngle = self.desiredAngle;
-      releaseAcknowledgedNetworkInputs(self.lastInputSequence);
-      networkPlayerPredictionRuntime.reconcile(
-        self,
-        network.pendingInputs,
-        network.unsentPredictionTime,
-        network.localDesiredAngle,
-        networkTurnRateForSegments(self.segments)
-      );
+      if (self.alive) networkPlayerPredictionRuntime.syncAuthoritative(self);
     }
     const selfAlive = Boolean(self?.alive);
     if (network.lastSelfAlive && self && !self.alive && state !== "menu" && state !== "gameover") {
@@ -1212,37 +1206,19 @@
       ui.upgrade.classList.remove("is-visible");
       ui.gameOver.classList.remove("is-visible");
     }
+    if (self && !self.alive) networkPlayerPredictionRuntime.clear();
     network.lastSelfAlive = selfAlive;
     renderNetworkRoster(snapshot.players);
   }
 
-  function clearPendingNetworkInputs() {
-    for (const input of network.pendingInputs) network.inputPool.push(input);
-    network.pendingInputs.length = 0;
-  }
-
   function resetNetworkPredictionInput(resetSequence = false) {
-    clearPendingNetworkInputs();
     if (resetSequence) network.inputSequence = 0;
     network.lastInputAt = 0;
     network.localDesiredAngle = NaN;
-    network.unsentPredictionTime = 0;
+    network.localDeathPending = false;
+    network.collisionClaims.clear();
+    network.localEnemyDeaths.clear();
     networkPlayerPredictionRuntime.clear();
-  }
-
-  function releaseAcknowledgedNetworkInputs(sequence) {
-    let writeIndex = 0;
-    for (const input of network.pendingInputs) {
-      if (input.sequence <= sequence) network.inputPool.push(input);
-      else network.pendingInputs[writeIndex++] = input;
-    }
-    network.pendingInputs.length = writeIndex;
-  }
-
-  function networkTurnRateForSegments(segments) {
-    let haste = 0;
-    for (const segment of segments || []) if (segment.module === "haste") haste += 1;
-    return PLAYER_TURN_RATE + haste * MODULE_TUNING.haste.turnRatePerStack;
   }
 
   function renderNetworkRoster(snapshotPlayers = []) {
@@ -1351,6 +1327,13 @@
       }
       if (item.type === "flash") {
         flash = Math.max(flash, item.strength || 0);
+        continue;
+      }
+      if (item.type === "snakeDeath") {
+        if (network.localEnemyDeaths.delete(item.enemyId)) continue;
+        const head = cellCenter(item.head.col, item.head.row);
+        const segments = item.segments.map((segment) => cellCenter(segment.col, segment.row));
+        playEnemyDeathParticles(head, segments, item.color);
         continue;
       }
       const from = cellCenter(item.col, item.row);
@@ -1462,7 +1445,6 @@
     network.hazardViews.clear();
     network.lastFoodContactAt = 0;
     network.moduleIds.length = 0;
-    network.unsentPredictionTime = 0;
     networkPlayerPredictionRuntime.clear();
     networkProjectileRuntime.clear();
     networkFoodClaimRuntime.clear();
@@ -1528,20 +1510,26 @@
 
   function applyNetworkSelfPrediction(view) {
     const prediction = networkPlayerPredictionRuntime.state;
-    const correction = networkPlayerPredictionRuntime.correction;
     if (!prediction.initialized) return;
-    view.col = prediction.col + correction.col;
-    view.row = prediction.row + correction.row;
-    view.angle = prediction.angle + correction.angle;
+    view.col = prediction.col;
+    view.row = prediction.row;
+    view.angle = prediction.angle;
     view.desiredAngle = network.localDesiredAngle;
+    view.speed = prediction.speed;
+    view.slow = prediction.slow;
+    view.foodBoost = prediction.foodBoost;
+    view.knockbackX = prediction.knockbackX;
+    view.knockbackY = prediction.knockbackY;
+    view.collisionCooldown = prediction.collisionCooldown;
+    view.invulnerable = prediction.invulnerable;
     view.x = arena.left + (view.col - arena.worldMin + 0.5) * arena.cellSize;
     view.y = arena.top + (view.row - arena.worldMin + 0.5) * arena.cellSize;
     const count = Math.min(view.segments.length, prediction.segments.length);
     for (let index = 0; index < count; index += 1) {
       const segment = view.segments[index];
       const predictedSegment = prediction.segments[index];
-      segment.col = predictedSegment.col + correction.col;
-      segment.row = predictedSegment.row + correction.row;
+      segment.col = predictedSegment.col;
+      segment.row = predictedSegment.row;
       segment.x = arena.left + (segment.col - arena.worldMin + 0.5) * arena.cellSize;
       segment.y = arena.top + (segment.row - arena.worldMin + 0.5) * arena.cellSize;
     }
@@ -1561,7 +1549,7 @@
     waveTimer = current.waveTimer;
     visiblePlayers.length = 0;
     for (const item of current.players) {
-      if (!item.alive) continue;
+      if (!item.alive || (item.entityId === network.selfEntityId && network.localDeathPending)) continue;
       const old = previousIndexes.players.get(item.entityId);
       const rosterPlayer = network.rosterByEntity.get(item.entityId);
       const playerAmount = amount;
@@ -1582,6 +1570,7 @@
       view.protectedState = item.paused || item.choosingUpgrade || item.invulnerable > 0;
       syncNetworkSegments(view.segments, item.segments, old?.segments, playerAmount);
       if (view.isSelf && !testMode && !item.paused && !item.choosingUpgrade) applyNetworkSelfPrediction(view);
+      view.protectedState = item.paused || item.choosingUpgrade || view.invulnerable > 0;
       let previousNode = view;
       for (const segment of view.segments) {
         segment.angle = Math.atan2(previousNode.row - segment.row, previousNode.col - segment.col);
@@ -1617,6 +1606,7 @@
 
     enemies.length = 0;
     for (const item of current.enemies) {
+      if (network.localEnemyDeaths.has(item.id)) continue;
       const old = previousIndexes.enemies.get(item.id);
       let enemy = network.enemyViews.get(item.id);
       if (!enemy) {
@@ -1704,16 +1694,22 @@
         }
       }
     }
-    for (const hazard of hazards) hazard.phase += dt * 4;
+    for (const hazard of hazards) {
+      hazard.phase += dt * 4;
+      hazard.arm = Math.max(0, (hazard.arm || 0) - dt);
+    }
     for (const spawn of pendingEnemySpawns) spawn.timer = Math.max(0, spawn.timer - dt);
     if (state === "running" && player) {
       if (!testMode) {
         updateInput(dt, false);
         network.localDesiredAngle = player.desiredAngle;
         const turnRate = PLAYER_TURN_RATE + moduleCount("haste") * MODULE_TUNING.haste.turnRatePerStack;
-        networkPlayerPredictionRuntime.update(dt, network.localDesiredAngle, turnRate);
-        network.unsentPredictionTime = Math.min(0.1, network.unsentPredictionTime + dt);
+        const predictedState = networkPlayerPredictionRuntime.state;
+        const slowMultiplier = predictedState.slow > 0 ? 0.48 : 1;
+        const feastMultiplier = predictedState.foodBoost > 0 ? 1 + moduleCount("feast") * MODULE_TUNING.feast.speedPerStack : 1;
+        networkPlayerPredictionRuntime.update(dt, network.localDesiredAngle, turnRate, playerBaseSpeed() * slowMultiplier * feastMultiplier);
         applyNetworkSelfPrediction(player);
+        checkNetworkPlayerCollisions();
         sendNetworkInput();
       }
       claimNetworkFoodContacts();
@@ -1725,26 +1721,145 @@
     }
   }
 
-  function sendNetworkInput() {
+  function sendNetworkInput(force = false) {
     const socket = network.socket;
     if (!socket?.connected || !player) return;
     const now = performance.now();
     const elapsed = now - network.lastInputAt;
-    if (elapsed < NETWORK_INPUT_INTERVAL_MS) return;
+    if (!force && elapsed < NETWORK_INPUT_INTERVAL_MS) return;
     network.lastInputAt = now;
     const sequence = ++network.inputSequence;
-    const input = network.inputPool.pop() || {};
-    input.sequence = sequence;
-    input.desiredAngle = player.desiredAngle;
-    input.duration = network.unsentPredictionTime;
-    network.unsentPredictionTime = 0;
-    network.pendingInputs.push(input);
-    if (network.pendingInputs.length > NETWORK_MAX_PENDING_INPUTS) {
-      network.inputPool.push(network.pendingInputs[0]);
-      for (let index = 1; index < network.pendingInputs.length; index += 1) network.pendingInputs[index - 1] = network.pendingInputs[index];
-      network.pendingInputs.length -= 1;
+    socket.volatile.emit("ultra:input", networkPlayerStateCodec.encode(sequence, player));
+  }
+
+  function reportNetworkCollision(claim, key, onRejected = null) {
+    const now = performance.now();
+    const previous = network.collisionClaims.get(key) || 0;
+    if (now - previous < NETWORK_COLLISION_CLAIM_COOLDOWN_MS) return false;
+    network.collisionClaims.set(key, now);
+    for (const [storedKey, claimedAt] of network.collisionClaims) {
+      if (now - claimedAt > NETWORK_COLLISION_CLAIM_COOLDOWN_MS * 4) network.collisionClaims.delete(storedKey);
     }
-    socket.volatile.emit("ultra:input", { sequence, desiredAngle: player.desiredAngle });
+    void emitNetworkAction("ultra:collision", claim).then((result) => {
+      if (result?.ok) return;
+      network.collisionClaims.delete(key);
+      onRejected?.();
+    });
+    return true;
+  }
+
+  function bounceNetworkSelf(normalCol, normalRow, color) {
+    bounceEntity(player, normalCol, normalRow, color, 0.58);
+    networkPlayerPredictionRuntime.adoptLocal(player);
+    applyNetworkSelfPrediction(player);
+    sendNetworkInput(true);
+  }
+
+  function eliminateNetworkSelf(claim, key) {
+    if (network.localDeathPending || state !== "running") return;
+    sendNetworkInput(true);
+    network.localDeathPending = true;
+    burst(player.x, player.y, "#b8f53f", 28, 170);
+    showNetworkGameOver(player);
+    reportNetworkCollision(claim, key);
+  }
+
+  function checkNetworkMineCollision() {
+    const headRange = playerHeadRadiusPixels() / arena.cellSize + 6 / 34;
+    for (const hazard of hazards) {
+      if (
+        hazard.kind !== "mine"
+        || hazard.ownerEntityId !== network.selfEntityId
+        || hazard.arm > 0
+        || Math.hypot(player.col - hazard.col, player.row - hazard.row) >= headRange
+      ) continue;
+      const normalCol = player.col - hazard.col;
+      const normalRow = player.row - hazard.row;
+      const key = `mine:${hazard.id}`;
+      if (!reportNetworkCollision({ kind: "mine", targetId: hazard.id, normalCol, normalRow }, key)) return true;
+      bounceNetworkSelf(normalCol, normalRow, hazard.color);
+      return true;
+    }
+    return false;
+  }
+
+  function checkNetworkPlayerCollisions() {
+    if (!player?.alive || !networkPlayerPredictionRuntime.state.initialized || checkNetworkMineCollision()) return;
+    const collision = networkPlayerCollisions.detect(player, enemies, visiblePlayers, {
+      worldMin: arena.worldMin,
+      worldMax: arena.worldMax,
+      selfRange: 0.5,
+      bodyRange: 0.42,
+      playerHeadRange: playerHeadRadiusPixels() * 2 / arena.cellSize,
+      enemyHeadRange: playerHeadRadiusPixels() / arena.cellSize + 0.28
+    });
+    if (!collision) return;
+    if (collision.kind === "wall") {
+      player.col = clamp(player.col, arena.worldMin, arena.worldMax);
+      player.row = clamp(player.row, arena.worldMin, arena.worldMax);
+      bounceNetworkSelf(collision.normalCol, collision.normalRow, "#b8f53f");
+      return;
+    }
+    if (collision.kind === "self") {
+      bounceNetworkSelf(player.col - collision.point.col, player.row - collision.point.row, "#f4ffdc");
+      return;
+    }
+    if (collision.kind === "protected-player") {
+      const other = visiblePlayers.find((item) => item.entityId === collision.targetId);
+      bounceNetworkSelf(player.col - collision.point.col, player.row - collision.point.row, other?.playerColor || "#dffcff");
+      return;
+    }
+    if (collision.kind === "enemy-body") {
+      if (consumeDefense()) {
+        networkPlayerPredictionRuntime.adoptLocal(player);
+        applyNetworkSelfPrediction(player);
+        sendNetworkInput(true);
+        reportNetworkCollision({ kind: "enemy-body", targetId: collision.targetId, segmentIndex: collision.segmentIndex }, `enemy-body:${collision.targetId}`);
+      } else {
+        eliminateNetworkSelf(
+          { kind: "enemy-body", targetId: collision.targetId, segmentIndex: collision.segmentIndex },
+          `death:enemy:${collision.targetId}`
+        );
+      }
+      return;
+    }
+    if (collision.kind === "player-body") {
+      eliminateNetworkSelf(
+        { kind: "player-body", targetId: collision.targetId, segmentIndex: collision.segmentIndex },
+        `death:player:${collision.targetId}`
+      );
+      return;
+    }
+    if (collision.kind === "enemy-head") {
+      bounceNetworkSelf(collision.normalCol, collision.normalRow, "#dffcff");
+      reportNetworkCollision(
+        { kind: "enemy-head", targetId: collision.targetId, normalCol: collision.normalCol, normalRow: collision.normalRow },
+        `enemy-head:${collision.targetId}`
+      );
+      return;
+    }
+    if (collision.kind === "player-head") {
+      const other = visiblePlayers.find((item) => item.entityId === collision.targetId);
+      bounceNetworkSelf(collision.normalCol, collision.normalRow, other?.playerColor || "#dffcff");
+      return;
+    }
+    if (collision.kind === "enemy-protected") {
+      reportNetworkCollision(
+        { kind: "enemy-protected", targetId: collision.targetId, normalCol: collision.normalCol, normalRow: collision.normalRow },
+        `enemy-protected:${collision.targetId}`
+      );
+      return;
+    }
+    const enemy = enemies.find((item) => item.id === collision.targetId);
+    const key = `enemy-hit-body:${collision.targetId}`;
+    if (!enemy || !reportNetworkCollision(
+      { kind: "enemy-hit-body", targetId: collision.targetId, segmentIndex: collision.segmentIndex },
+      key,
+      () => network.localEnemyDeaths.delete(collision.targetId)
+    )) return;
+    network.localEnemyDeaths.set(collision.targetId, performance.now());
+    enemy.dead = true;
+    playEnemyDeathParticles(enemy, enemy.segments, enemy.color);
   }
 
   function claimNetworkFoodContacts() {
@@ -4012,7 +4127,7 @@
     enemy.dead = true;
     kills += 1;
     score += 100 + enemy.captured * 25;
-    burst(enemy.x, enemy.y, enemy.color, 24, 175);
+    playEnemyDeathParticles(enemy, enemy.segments, enemy.color);
     effects.push({ type: "ring", x: enemy.x, y: enemy.y, color: enemy.color, life: 0.72, maxLife: 0.72, radius: 12, endRadius: 88 });
     effects.push({ type: "ring", x: enemy.x, y: enemy.y, color: "#ffffff", life: 0.42, maxLife: 0.42, radius: 7, endRadius: 52 });
     effects.push({ type: "text", x: enemy.x, y: enemy.y - 22, text: "击破", color: "#ffffff", life: 1.05, maxLife: 1.05, emphasis: true });
@@ -4055,6 +4170,13 @@
       spawnFood(enemy.x + Math.cos(angle) * distance, enemy.y + Math.sin(angle) * distance, true);
     }
     updateHud();
+  }
+
+  function playEnemyDeathParticles(head, segments, color) {
+    for (const segment of segments || []) {
+      burst(segment.x, segment.y, color, ENEMY_DEATH_BODY_PARTICLES, ENEMY_DEATH_BODY_PARTICLE_SPEED);
+    }
+    burst(head.x, head.y, color, ENEMY_DEATH_HEAD_PARTICLES, ENEMY_DEATH_HEAD_PARTICLE_SPEED);
   }
 
   function consumeDefense(enemy = null) {

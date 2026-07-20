@@ -44,13 +44,14 @@ import {
   WAVE_RATE_PER_LEVEL,
 } from '../shared/constants';
 import { isModuleId, MODULE_BY_ID, UPGRADE_MODULES, type ModuleId } from '../shared/modules';
+import type { PlayerMovementState } from '../shared/playerStateCodec';
 import { chooseSerpentineSpawn } from '../shared/spawnPlanner';
 import type {
   ArenaEvent,
   GridPoint,
-  InputPayload,
   LeaderboardEntry,
   PendingSpawnView,
+  PlayerCollisionClaim,
   RosterPlayer,
   UltraEffect,
   UltraEnemyView,
@@ -350,13 +351,112 @@ export class UltraWorld {
     return true;
   }
 
-  applyInput(accountId: string, payload: InputPayload): boolean {
+  applyInput(accountId: string, payload: PlayerMovementState): boolean {
     const player = this.playersByAccount.get(accountId);
     if (!player?.alive || player.autopilot || player.paused || player.choosingUpgrade || !payload || typeof payload !== 'object') return false;
     if (!Number.isSafeInteger(payload.sequence) || payload.sequence <= player.lastInputSequence) return false;
-    if (!Number.isFinite(payload.desiredAngle) || Math.abs(payload.desiredAngle) > Math.PI * 8) return false;
+    const values = [
+      payload.col,
+      payload.row,
+      payload.angle,
+      payload.desiredAngle,
+      payload.speed,
+      payload.knockbackX,
+      payload.knockbackY,
+      payload.collisionCooldown,
+      payload.slow,
+    ];
+    if (values.some((value) => !Number.isFinite(value))) return false;
+    if (Math.abs(payload.angle) > Math.PI * 8 || Math.abs(payload.desiredAngle) > Math.PI * 8) return false;
+    if (payload.speed < 0 || payload.speed > 40 || Math.abs(payload.knockbackX) > 40 || Math.abs(payload.knockbackY) > 40) return false;
+    if (payload.collisionCooldown < 0 || payload.collisionCooldown > 10 || payload.slow < 0 || payload.slow > 10) return false;
+    if (payload.segments.length !== player.segments.length) return false;
+    const minimum = this.arenaMinimum() - 4;
+    const maximum = this.arenaMaximum() + 4;
+    if (payload.col < minimum || payload.col > maximum || payload.row < minimum || payload.row > maximum) return false;
+    for (const segment of payload.segments) {
+      if (
+        !Number.isFinite(segment.col)
+        || !Number.isFinite(segment.row)
+        || !Number.isFinite(segment.angle)
+        || segment.col < minimum
+        || segment.col > maximum
+        || segment.row < minimum
+        || segment.row > maximum
+        || Math.abs(segment.angle) > Math.PI * 8
+      ) return false;
+    }
     player.lastInputSequence = payload.sequence;
+    player.col = payload.col;
+    player.row = payload.row;
+    player.angle = normalizeAngle(payload.angle);
     player.desiredAngle = normalizeAngle(payload.desiredAngle);
+    player.speed = payload.speed;
+    player.knockbackX = payload.knockbackX;
+    player.knockbackY = payload.knockbackY;
+    player.collisionCooldown = payload.collisionCooldown;
+    player.slow = payload.slow;
+    for (let index = 0; index < player.segments.length; index += 1) {
+      const source = payload.segments[index];
+      const segment = player.segments[index];
+      segment.col = source.col;
+      segment.row = source.row;
+      segment.angle = normalizeAngle(source.angle);
+    }
+    return true;
+  }
+
+  applyCollisionClaim(accountId: string, claim: PlayerCollisionClaim, now = Date.now()): boolean {
+    const player = this.playersByAccount.get(accountId);
+    if (!player?.alive || player.autopilot || !claim || typeof claim !== 'object') return false;
+    if (!Number.isSafeInteger(claim.targetId) || claim.targetId <= 0) return false;
+    if (claim.kind === 'player-body') {
+      const defender = this.playersByEntity.get(claim.targetId);
+      const segment = defender?.segments[claim.segmentIndex];
+      if (!defender?.alive || !segment || distanceSquared(player, segment) > 9) return false;
+      this.eliminatePlayer(player, null, now, '撞上了其他玩家的身体');
+      return true;
+    }
+    if (claim.kind === 'mine') {
+      const hazard = this.hazards.find((item) => item.id === claim.targetId && item.ownerEntityId === player.entityId && item.kind === 'mine');
+      if (!hazard || hazard.life <= 0 || hazard.arm > 0 || distanceSquared(player, hazard) > 9) return false;
+      this.triggerMine(hazard, player, false);
+      return true;
+    }
+    const enemy = this.enemies.find((item) => item.id === claim.targetId && !item.dead);
+    if (!enemy) return false;
+    if (claim.kind === 'enemy-head' || claim.kind === 'enemy-protected') {
+      const nearPlayer = distanceSquared(player, enemy) <= 9 || player.segments.some((segment) => distanceSquared(segment, enemy) <= 9);
+      if (!Number.isFinite(claim.normalCol) || !Number.isFinite(claim.normalRow) || !nearPlayer) return false;
+      if (claim.kind === 'enemy-head') {
+        const ram = this.moduleCount(player, 'ram');
+        if (ram > 0 && player.ramCooldown <= 0) {
+          this.damageTarget(player, enemy, 1, enemy, MODULE_BY_ID.ram.color);
+          player.ramCooldown = 5 * Math.pow(0.86, ram - 1);
+          this.ring(player.col, player.row, MODULE_BY_ID.ram.color, 0.42, 6, 1, player.entityId);
+          this.playSkillSound(player, 'ram');
+        }
+      }
+      if (!enemy.dead) this.bounceEntity(enemy, -claim.normalCol, -claim.normalRow, enemy.color, 0.54);
+      return true;
+    }
+    if (claim.kind === 'enemy-body') {
+      const segment = enemy.segments[claim.segmentIndex];
+      if (!segment || distanceSquared(player, segment) > 9) return false;
+      if (this.consumeDefense(player)) this.damageTarget(player, enemy, 1, segment, '#ffffff');
+      else this.eliminatePlayer(player, null, now, '被敌蛇截停');
+      return true;
+    }
+    if (claim.kind !== 'enemy-hit-body') return false;
+    const bodySegment = player.segments[claim.segmentIndex];
+    if (!bodySegment || distanceSquared(enemy, bodySegment) > 9) return false;
+    const thorns = this.moduleCount(player, 'thorns');
+    const thornsReady = thorns > 0 && player.thornsCooldown <= 0;
+    this.killEnemy(enemy, player);
+    if (thornsReady) {
+      this.triggerBodyIntercept(player, bodySegment, enemy, thorns);
+      player.thornsCooldown = 6 * Math.pow(0.85, thorns - 1);
+    }
     return true;
   }
 
@@ -1653,6 +1753,7 @@ export class UltraWorld {
 
   private updateEnemies(delta: number, activePlayers: PlayerEntity[], presentPlayers: PlayerEntity[]): void {
     const chronosMultiplier = Math.pow(0.92, this.maximumModuleCount('chronos', activePlayers));
+    const collisionPlayers = presentPlayers.filter((player) => player.autopilot || player.paused || player.choosingUpgrade);
     const foodsById = this.foodsById;
     foodsById.clear();
     for (const food of this.foods) foodsById.set(food.id, food);
@@ -1702,7 +1803,7 @@ export class UltraWorld {
       const nextPosition = this.enemyMovementEnd;
       nextPosition.col = nextCol;
       nextPosition.row = nextRow;
-      const playerCollision = this.findPlayerCollision(enemy, previousPosition, nextPosition, presentPlayers);
+      const playerCollision = this.findPlayerCollision(enemy, previousPosition, nextPosition, collisionPlayers);
       if (playerCollision) {
         enemy.col = previousPosition.col + (nextCol - previousPosition.col) * playerCollision.progress;
         enemy.row = previousPosition.row + (nextRow - previousPosition.row) * playerCollision.progress;
@@ -2048,23 +2149,28 @@ export class UltraWorld {
           break;
         }
       }
-      const ownerTriggered = owner.alive && Math.hypot(owner.col - hazard.col, owner.row - hazard.row) < this.playerHeadRadiusCells() + this.pixelsToCells(6);
+      const ownerTriggered = owner.autopilot && owner.alive && Math.hypot(owner.col - hazard.col, owner.row - hazard.row) < this.playerHeadRadiusCells() + this.pixelsToCells(6);
       if (!trigger && !ownerTriggered) continue;
-      this.ring(hazard.col, hazard.row, hazard.color, 0.5, 10, hazard.radius, owner.entityId);
-      this.burst(hazard.col, hazard.row, hazard.color, 18, 150, owner.entityId);
-      this.shake(5, owner.entityId);
-      for (const hostile of this.enemies) {
-        if (!hostile.dead && distanceSquared(hazard, hostile) < hazard.radius * hazard.radius) {
-          this.damageTarget(owner, hostile, 1, hostile, hazard.color);
-        }
-      }
-      if (ownerTriggered) this.bounceEntity(owner, owner.col - hazard.col, owner.row - hazard.row, hazard.color, 0.58);
-      hazard.life = 0;
-      this.effectSound('mine', owner.entityId);
+      this.triggerMine(hazard, owner, ownerTriggered);
     }
   }
 
+  private triggerMine(hazard: HazardEntity, owner: PlayerEntity, bounceOwner: boolean): void {
+    this.ring(hazard.col, hazard.row, hazard.color, 0.5, 10, hazard.radius, owner.entityId);
+    this.burst(hazard.col, hazard.row, hazard.color, 18, 150, owner.entityId);
+    this.shake(5, owner.entityId);
+    for (const hostile of this.enemies) {
+      if (!hostile.dead && distanceSquared(hazard, hostile) < hazard.radius * hazard.radius) {
+        this.damageTarget(owner, hostile, 1, hostile, hazard.color);
+      }
+    }
+    if (bounceOwner) this.bounceEntity(owner, owner.col - hazard.col, owner.row - hazard.row, hazard.color, 0.58);
+    hazard.life = 0;
+    this.effectSound('mine', owner.entityId);
+  }
+
   private checkCollisions(now: number, players = this.activePlayers(), presentPlayers = this.presentPlayers()): void {
+    players = players.filter((player) => player.autopilot);
     for (const player of players) {
       if (!player.alive) continue;
       const wall = wallBounceNormal(player.col, player.row, this.arenaMinimum(), this.arenaMaximum());
@@ -2136,6 +2242,18 @@ export class UltraWorld {
         const normal = collisionNormal(left, right);
         this.bounceEntity(left, normal.col, normal.row, PLAYER_COLORS[left.colorIndex], 0.58);
         if (right.alive) this.bounceEntity(right, -normal.col, -normal.row, PLAYER_COLORS[right.colorIndex], 0.58);
+      }
+    }
+
+    for (const attacker of players) {
+      if (!attacker.alive || attacker.collisionCooldown > 0) continue;
+      for (const defender of presentPlayers) {
+        if (defender.autopilot || attacker === defender || !defender.alive || this.isPlayerProtected(defender)) continue;
+        this.checkPlayerBodyHit(attacker, defender, now);
+        if (!attacker.alive || Math.hypot(attacker.col - defender.col, attacker.row - defender.row) >= this.playerHeadRadiusCells() * 2) continue;
+        const normal = collisionNormal(attacker, defender);
+        this.bounceEntity(attacker, normal.col, normal.row, PLAYER_COLORS[attacker.colorIndex], 0.58);
+        break;
       }
     }
   }
@@ -2237,7 +2355,14 @@ export class UltraWorld {
       this.effectSound('kill', owner.entityId);
     }
     enemy.captured = 0;
-    this.burst(enemy.col, enemy.row, enemy.color, 24, 175, owner?.entityId);
+    this.pendingEffects.push({
+      id: this.effectId(),
+      type: 'snakeDeath',
+      enemyId: enemy.id,
+      head: { col: enemy.col, row: enemy.row },
+      segments: enemy.segments.map((segment) => ({ col: segment.col, row: segment.row })),
+      color: enemy.color,
+    });
     this.ring(enemy.col, enemy.row, enemy.color, 0.72, 12, 88, owner?.entityId, 'pixels');
     this.textEffect(enemy.col, enemy.row - 0.65, '击破', '#ffffff', 0.9, owner?.entityId);
     this.shake(7, owner?.entityId);
@@ -2591,6 +2716,7 @@ function followContinuousSegments(headCol: number, headRow: number, segments: Gr
     const dx = previous.col - segment.col;
     const dy = previous.row - segment.row;
     const distance = Math.hypot(dx, dy) || 1;
+    if ('angle' in segment) (segment as GridPoint & { angle: number }).angle = Math.atan2(dy, dx);
     if (distance > spacing) {
       segment.col = previous.col - dx / distance * spacing;
       segment.row = previous.row - dy / distance * spacing;
@@ -2632,6 +2758,8 @@ function toPlayerView(player: PlayerEntity): UltraPlayerView {
     desiredAngle: player.desiredAngle,
     lastInputSequence: player.lastInputSequence,
     speed: player.speed,
+    slow: player.slow,
+    foodBoost: player.foodBoost,
     knockbackX: player.knockbackX,
     knockbackY: player.knockbackY,
     invulnerable: player.invulnerable,
@@ -2668,7 +2796,7 @@ function toProjectileState(projectile: ProjectileEntity): UltraProjectileState {
 }
 
 function toHazardView(hazard: HazardEntity): UltraHazardView {
-  return { id: hazard.id, kind: hazard.kind, col: hazard.col, row: hazard.row, radius: hazard.radius, color: hazard.color, phase: hazard.phase };
+  return { id: hazard.id, ownerEntityId: hazard.ownerEntityId, kind: hazard.kind, col: hazard.col, row: hazard.row, radius: hazard.radius, color: hazard.color, phase: hazard.phase, arm: hazard.arm };
 }
 
 function toPendingSpawnView(spawn: PendingSpawn): PendingSpawnView {

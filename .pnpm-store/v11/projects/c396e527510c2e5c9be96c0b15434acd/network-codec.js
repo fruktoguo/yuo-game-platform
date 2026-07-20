@@ -2,7 +2,7 @@
   "use strict";
 
   const MAGIC = 0x55534e50;
-  const VERSION = 4;
+  const VERSION = 5;
   const GRID_SIZE = 24;
   const COORDINATE_PADDING = 2;
   const TAU = Math.PI * 2;
@@ -82,6 +82,8 @@
     result.desiredAngle = reader.angle();
     result.lastInputSequence = reader.u32() - 1;
     result.speed = reader.f32();
+    result.slow = reader.f32();
+    result.foodBoost = reader.f32();
     result.knockbackX = reader.f32();
     result.knockbackY = reader.f32();
     result.invulnerable = reader.f32();
@@ -157,12 +159,14 @@
   function readHazard(reader, result) {
     result ||= {};
     result.id = reader.u16();
+    result.ownerEntityId = reader.u16();
     result.kind = reader.u8() === 0 ? "mine" : "gravity";
     result.col = reader.coordinate();
     result.row = reader.coordinate();
     result.radius = reader.u16() / 256;
     result.color = reader.color();
     result.phase = result.id * 2.399963229728653 % TAU;
+    result.arm = reader.f32();
     return result;
   }
 

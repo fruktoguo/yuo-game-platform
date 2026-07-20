@@ -29,8 +29,12 @@ globalThis.GSS0_DESIGNER_CONFIG = {
     "upgradeInvulnerabilityDuration": 0.5,
     "maxRenderFps": 60,
     "maxRenderDpr": 1.25,
-    "networkCorrectionRate": 14,
-    "networkCorrectionSnapDistance": 1.5,
+    "networkPlayerStateHz": 20,
+    "networkCollisionClaimCooldownMs": 500,
+    "enemyDeathHeadParticles": 28,
+    "enemyDeathBodyParticles": 7,
+    "enemyDeathHeadParticleSpeed": 185,
+    "enemyDeathBodyParticleSpeed": 105,
     "profileSaveDelaySeconds": 30
   },
   "moduleStates": {

@@ -13,7 +13,7 @@ describe('Ultra 二进制快照', () => {
     snapshot.players[0].growth = { color: '#b8f53f', special: true, elapsed: 0.18, nodeCount: 3 };
     snapshot.foods.push({ id: 9, col: 2.5, row: 3.5, color: '#36dcff', phase: 1.2, special: true, isPulled: true });
     snapshot.projectiles.push({ id: 7, col: 4, row: 5, vx: 6, vy: -7, color: '#ff9f43', size: 4.5 });
-    snapshot.hazards.push({ id: 3, kind: 'gravity', col: 9, row: 10, radius: 2.5, color: '#a56cff', phase: 0.7 });
+    snapshot.hazards.push({ id: 3, ownerEntityId: 1, kind: 'gravity', col: 9, row: 10, radius: 2.5, color: '#a56cff', phase: 0.7, arm: 0 });
     snapshot.pendingSpawns.push({ id: 5, color: '#ff5c62', headCell: { col: 20, row: 2 }, bodyCells: [{ col: 19, row: 2 }], timer: 1.1, maxTimer: 1.5 });
 
     const encoded = encodeUltraSnapshot(snapshot);
@@ -28,7 +28,7 @@ describe('Ultra 二进制快照', () => {
     expect(decoded.players[0].segments[1].orbit).toBeCloseTo(1.25, 3);
     expect(decoded.players[0].growth?.elapsed).toBeCloseTo(0.18, 5);
     expect(decoded.foods[0]).toMatchObject({ id: 9, color: '#36dcff', special: true, isPulled: true });
-    expect(decoded.hazards[0]).toMatchObject({ id: 3, kind: 'gravity', color: '#a56cff' });
+    expect(decoded.hazards[0]).toMatchObject({ id: 3, ownerEntityId: 1, kind: 'gravity', color: '#a56cff', arm: 0 });
     expect(decoded.pendingSpawns[0].timer).toBeCloseTo(1.1, 5);
     const decodedLater = decodeUltraSnapshot(later);
     expect(decodedLater).toMatchObject({ tick: 43 });
@@ -93,7 +93,7 @@ describe('Ultra 二进制快照', () => {
     expect(decoded.projectiles).toHaveLength(300);
   });
 
-  it('V4 坐标随动态场地归一化，可覆盖向四边扩张出的负坐标', () => {
+  it('V5 坐标随动态场地归一化，可覆盖向四边扩张出的负坐标', () => {
     const snapshot = snapshotAt(100, -3.25);
     snapshot.arenaSize = 24 * Math.sqrt(2);
     snapshot.players[0].row = 26.75;
@@ -119,7 +119,7 @@ function snapshotAt(tick: number, col: number): UltraSnapshot {
     arenaSize: 24,
     players: [{
       entityId: 1, name: '玩家甲', colorIndex: 0, connected: true, alive: true, paused: false, choosingUpgrade: false,
-      col, row: 5, angle: 0, desiredAngle: 0, lastInputSequence: 3, speed: 5, knockbackX: 0, knockbackY: 0, invulnerable: 0, collisionCooldown: 0,
+      col, row: 5, angle: 0, desiredAngle: 0, lastInputSequence: 3, speed: 5, slow: 0, foodBoost: 0, knockbackX: 0, knockbackY: 0, invulnerable: 0, collisionCooldown: 0,
       score: 0, kills: 0, botKills: 0, pvpKills: 0, survivalTime: 1, level: 0, xp: 0, xpNeeded: 5,
       respawnAt: null,
       segments: [{ col: col - 1, row: 5, angle: 0, module: null, neutral: true, timer: 0, ready: true, cooldown: 0, orbit: 0, birthAge: null }],

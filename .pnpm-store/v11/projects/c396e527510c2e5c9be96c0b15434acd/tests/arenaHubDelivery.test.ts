@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ArenaHub } from '../src/server/ArenaHub';
 import { SIMULATION_HZ, SNAPSHOT_HZ } from '../src/shared/constants';
+import { encodePlayerMovementState } from '../src/shared/playerStateCodec';
 import type { ActionResult, FoodClaimPayload, FoodClaimResult, UltraEffect, UltraProjectileEvent } from '../src/shared/protocol';
 
 describe('ArenaHub 联机投递', () => {
@@ -12,11 +13,23 @@ describe('ArenaHub 联机投递', () => {
       id: 'socket-a',
       data: { joinedArena: true, platformPrincipal: { accountId: 'account-a' } },
     };
-    const handleInput = Reflect.get(hub, 'handleInput') as (socket: unknown, payload: { sequence: number; desiredAngle: number }) => void;
+    const handleInput = Reflect.get(hub, 'handleInput') as (socket: unknown, payload: Uint8Array) => void;
 
-    handleInput.call(hub, socket, { sequence: 7, desiredAngle: 1.25 });
+    handleInput.call(hub, socket, encodePlayerMovementState({
+      sequence: 7,
+      col: 4,
+      row: 5,
+      angle: 1,
+      desiredAngle: 1.25,
+      speed: 5,
+      knockbackX: 0,
+      knockbackY: 0,
+      collisionCooldown: 0,
+      slow: 0,
+      segments: [],
+    }));
 
-    expect(applyInput).toHaveBeenCalledWith('account-a', { sequence: 7, desiredAngle: 1.25 });
+    expect(applyInput).toHaveBeenCalledWith('account-a', expect.objectContaining({ sequence: 7, col: 4, row: 5, desiredAngle: 1.25 }));
   });
 
   it('快照保持易失低延迟，战斗反馈与投射物生命周期使用可靠通道', () => {
