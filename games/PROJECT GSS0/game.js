@@ -800,7 +800,7 @@
     if (automaticModeEnabled) {
       resetNetworkPredictionInput();
       if (state === "gameover") {
-        state = "running";
+        enterRunningState();
         ui.gameOver.classList.remove("is-visible");
       }
       return;
@@ -1358,7 +1358,7 @@
       if (offer) showUpgrade(offer.options.map((id) => MODULE_BY_ID[id]).filter(Boolean));
       else if (state === "upgrade") {
         ui.upgrade.classList.remove("is-visible");
-        state = "running";
+        enterRunningState();
       }
     });
     socket.on("disconnect", () => {
@@ -1445,7 +1445,7 @@
     const selfAlive = Boolean(self?.alive);
     if (network.lastSelfAlive && self && !self.alive && state !== "menu" && state !== "gameover") {
       if (automaticModeEnabled) {
-        state = "running";
+        enterRunningState();
         ui.upgrade.classList.remove("is-visible");
         ui.gameOver.classList.remove("is-visible");
       } else {
@@ -1453,7 +1453,7 @@
       }
     }
     if (!network.lastSelfAlive && selfAlive && automaticModeEnabled && state !== "menu") {
-      state = "running";
+      enterRunningState();
       ui.upgrade.classList.remove("is-visible");
       ui.gameOver.classList.remove("is-visible");
     }
@@ -2485,7 +2485,7 @@
       return;
     }
     resetNetworkPredictionInput();
-    state = "running";
+    enterRunningState();
     network.lastSelfAlive = true;
     network.upgradeOffer = null;
     hideAllModals();
@@ -2910,7 +2910,7 @@
     ensureAudio();
     closeSettingPopovers();
     resetGame();
-    state = "running";
+    enterRunningState();
     hideAllModals();
     sound("start");
   }
@@ -2935,9 +2935,8 @@
           if (!result?.ok && state === "paused") setPaused(false);
         });
       } else if (!paused && state === "paused") {
-        state = "running";
         ui.pause.classList.remove("is-visible");
-        lastFrame = performance.now();
+        enterRunningState();
         sound("resume");
         void emitNetworkAction("ultra:pause", false);
       }
@@ -2948,9 +2947,8 @@
       ui.pause.classList.add("is-visible");
       sound("pause");
     } else if (!paused && state === "paused") {
-      state = "running";
       ui.pause.classList.remove("is-visible");
-      lastFrame = performance.now();
+      enterRunningState();
       sound("resume");
     }
   }
@@ -3487,9 +3485,8 @@
         if (!result?.ok) return;
         network.upgradeOffer = null;
         ui.upgrade.classList.remove("is-visible");
-        state = "running";
+        enterRunningState();
         sound("select");
-        lastFrame = performance.now();
       });
       return;
     }
@@ -3513,14 +3510,13 @@
     if (recentPicks.length > 6) recentPicks.shift();
     score += 250 * level;
     ui.upgrade.classList.remove("is-visible");
-    state = "running";
+    enterRunningState();
     player.invulnerable = Math.max(player.invulnerable, UPGRADE_INVULNERABILITY_DURATION);
     sound("select");
     burst(tail.x, tail.y, module.color, 22, 130);
     effects.push({ type: "ring", x: tail.x, y: tail.y, color: module.color, life: 0.7, maxLife: 0.7, radius: 12 });
     renderModuleRack();
     updateHud(true);
-    lastFrame = performance.now();
   }
 
   function addNeutralSegment(animate = false) {
@@ -6405,7 +6401,31 @@
     drawRespawnLocator(now);
   }
 
+  function resetFpsMeasurement(now) {
+    fpsWindowStartedAt = now;
+    fpsFrameCount = 0;
+    fastestFrameIntervals.length = 0;
+    lowFpsWindows = 0;
+  }
+
+  function resetFrameTiming(now = performance.now()) {
+    lastFrame = now;
+    lastCanvasRender = 0;
+    nextCanvasRenderAt = now;
+    pendingUiMotionDt = 0;
+    resetFpsMeasurement(now);
+  }
+
+  function enterRunningState(now = performance.now()) {
+    state = "running";
+    resetFrameTiming(now);
+  }
+
   function updateFpsMeter(now, frameInterval) {
+    if (state !== "running" || document.hidden || frameInterval <= 0) {
+      resetFpsMeasurement(now);
+      return;
+    }
     fpsFrameCount += 1;
     if (frameInterval >= 4 && frameInterval <= 50) recordFastFrameInterval(frameInterval);
     const elapsed = now - fpsWindowStartedAt;
@@ -6480,7 +6500,7 @@
     const renderFps = state === "running" ? MAX_RENDER_FPS : Math.min(30, MAX_RENDER_FPS);
     const renderInterval = 1000 / renderFps;
     if (now + 0.25 >= nextCanvasRenderAt) {
-      const renderedFrameInterval = lastCanvasRender > 0 ? now - lastCanvasRender : renderInterval;
+      const renderedFrameInterval = lastCanvasRender > 0 ? now - lastCanvasRender : 0;
       updateUIMotion(pendingUiMotionDt);
       pendingUiMotionDt = 0;
       render(now);
