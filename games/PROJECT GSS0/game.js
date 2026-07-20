@@ -445,6 +445,7 @@
   let waveCount = 0;
   let headFireTimer = 0;
   let nextEnemyId = 1;
+  let nextLocalFoodId = 1;
   let shake = 0;
   let flash = 0;
   let audioContext = null;
@@ -463,6 +464,8 @@
   let player = null;
   let visiblePlayers = [];
   let foods = [];
+  const locallyPulledFoods = new Set();
+  const localFoodContacts = new Map();
   let enemies = [];
   let projectiles = [];
   let hazards = [];
@@ -543,6 +546,7 @@
   if (!networkHeadCollisionRuntime) throw new Error("PROJECT GSS0 玩家头撞协调器未加载");
   const networkFoodClaimRuntime = globalThis.GSS0FoodClaimRuntime?.create({ maximumBatchSize: 32, retryAfterMs: 750 });
   if (!networkFoodClaimRuntime) throw new Error("PROJECT GSS0 吃球检测运行时未加载");
+  const localFoodSpatialRuntime = globalThis.GSS0FoodClaimRuntime.create();
   const spawnPlanner = globalThis.GSS0SpawnPlanner;
   if (!spawnPlanner) throw new Error("PROJECT GSS0 出生规划器未加载");
 
@@ -1006,8 +1010,11 @@
     transformArenaVisuals(previousArena);
     if (constrainContents) {
       for (const food of foods) {
+        const previousCol = food.col;
+        const previousRow = food.row;
         food.col = clamp(food.col, arena.worldMin, arena.worldMax);
         food.row = clamp(food.row, arena.worldMin, arena.worldMax);
+        if (!network.enabled && (food.col !== previousCol || food.row !== previousRow)) localFoodSpatialRuntime.trackFood(food);
       }
       for (const hazard of hazards) {
         if (!Number.isFinite(hazard.col) || !Number.isFinite(hazard.row)) continue;
@@ -1759,6 +1766,9 @@
     network.foodRevision = 0;
     network.hazardViews.clear();
     foods.length = 0;
+    locallyPulledFoods.clear();
+    localFoodContacts.clear();
+    localFoodSpatialRuntime.clear();
     network.lastFoodContactAt = 0;
     network.moduleIds.length = 0;
     networkPlayerPredictionRuntime.clear();
@@ -2531,10 +2541,14 @@
     waveCount = 0;
     headFireTimer = HEAD_ATTACK_INTERVAL;
     nextEnemyId = 1;
+    nextLocalFoodId = 1;
     shake = 0;
     flash = 0;
     nextEatToneAt = 0;
     recentPicks = [];
+    locallyPulledFoods.clear();
+    localFoodContacts.clear();
+    localFoodSpatialRuntime.clear();
     foods = [];
     enemies = [];
     projectiles = [];
@@ -2693,7 +2707,8 @@
   function materializeFood(cell, special) {
     const point = cellCenter(cell.col, cell.row);
     const color = FOOD_COLORS[Math.floor(Math.random() * FOOD_COLORS.length)];
-    foods.push({
+    const food = {
+      id: nextLocalFoodId++,
       x: point.x,
       y: point.y,
       col: cell.col,
@@ -2703,7 +2718,9 @@
       phase: random(0, TAU),
       pullTimer: random(0.4, 1),
       special
-    });
+    };
+    foods.push(food);
+    localFoodSpatialRuntime.trackFood(food);
     burst(point.x, point.y, color, special ? 10 : 7, 62);
     effects.push({ type: "ring", x: point.x, y: point.y, color, life: 0.42, maxLife: 0.42, radius: 3, endRadius: arena.cellSize * 0.42 });
     sound("foodSpawn");
@@ -3633,6 +3650,8 @@
 
   function collectFood(index, collector = player) {
     const food = foods[index];
+    localFoodSpatialRuntime.untrackFood(food.id);
+    locallyPulledFoods.delete(food);
     foods.splice(index, 1);
     xp += 1;
     score += food.special ? 35 : 20;
@@ -3946,43 +3965,85 @@
     followContinuousSegments(player.col, player.row, player.segments, 0.58);
   }
 
+  function cellDistanceSquared(first, second) {
+    const deltaCol = first.col - second.col;
+    const deltaRow = first.row - second.row;
+    return deltaCol * deltaCol + deltaRow * deltaRow;
+  }
+
+  function registerLocalFoodContacts(collector, range) {
+    const rangeSquared = range * range;
+    localFoodSpatialRuntime.forEachNearbyFood(collector, range, (food) => {
+      if (localFoodContacts.has(food) || cellDistanceSquared(collector, food) > rangeSquared) return;
+      localFoodContacts.set(food, collector);
+    });
+  }
+
+  function findLocalEnemyFoodContact(enemy) {
+    const contactRange = 0.4;
+    const contactRangeSquared = contactRange * contactRange;
+    let selectedFood = null;
+    let collector = null;
+    const consider = (node) => {
+      localFoodSpatialRuntime.forEachNearbyFood(node, contactRange, (food) => {
+        if ((selectedFood && food.id <= selectedFood.id) || cellDistanceSquared(node, food) > contactRangeSquared) return;
+        selectedFood = food;
+        collector = node;
+      });
+    };
+    consider(enemy);
+    for (const segment of enemy.segments) consider(segment);
+    if (!selectedFood) return null;
+    const index = foods.indexOf(selectedFood);
+    return index >= 0 ? { food: selectedFood, collector, index } : null;
+  }
+
   function updateFood(dt) {
     const tractor = moduleCount("tractor");
     const tractorRange = MODULE_TUNING.tractor.baseRangeCells + Math.max(0, tractor - 1) * MODULE_TUNING.tractor.rangeCellsPerExtraStack;
     const tractorSpeed = MODULE_TUNING.tractor.basePullSpeed + Math.max(0, tractor - 1) * MODULE_TUNING.tractor.pullSpeedPerExtraStack;
-    for (const food of foods) {
-      food.isPulled = false;
-      if (tractor <= 0) continue;
-      const deltaCol = player.col - food.col;
-      const deltaRow = player.row - food.row;
-      const distance = Math.hypot(deltaCol, deltaRow);
-      if (distance <= 0.001 || distance > tractorRange) continue;
-      const step = Math.min(distance, tractorSpeed * dt);
-      food.col += deltaCol / distance * step;
-      food.row += deltaRow / distance * step;
-      food.isPulled = true;
-      syncNodePosition(food);
+    for (const food of locallyPulledFoods) food.isPulled = false;
+    locallyPulledFoods.clear();
+    if (tractor > 0) {
+      for (const food of foods) {
+        const deltaCol = player.col - food.col;
+        const deltaRow = player.row - food.row;
+        const distance = Math.hypot(deltaCol, deltaRow);
+        if (distance <= 0.001 || distance > tractorRange) continue;
+        const step = Math.min(distance, tractorSpeed * dt);
+        food.col += deltaCol / distance * step;
+        food.row += deltaRow / distance * step;
+        food.isPulled = true;
+        locallyPulledFoods.add(food);
+        localFoodSpatialRuntime.trackFood(food);
+        syncNodePosition(food);
+      }
     }
 
+    localFoodContacts.clear();
     if (upgradePending) return;
     const magnetRange = moduleCount("magnet") * MODULE_TUNING.magnet.pickupRangeCellsPerStack;
     const pieceScale = arenaPieceScale();
-    const collectorBonus = moduleCount("collector") * arena.cellSize * MODULE_TUNING.collector.pickupRadiusCellsPerStack;
-    for (let index = foods.length - 1; index >= 0; index -= 1) {
-      const food = foods[index];
-      const pickupRadius = player.radius + food.radius + magnetRange * arena.cellSize;
-      let collector = Math.hypot(player.x - food.x, player.y - food.y) <= pickupRadius ? player : null;
-      if (!collector) {
-        collector = player.segments.find((segment) => {
-          const visualRadius = (segment.module ? 11 : segment.neutral ? 10 : 8) * pieceScale;
-          return Math.hypot(segment.x - food.x, segment.y - food.y) <= visualRadius + food.radius + collectorBonus;
-        }) || null;
-      }
-      if (collector) {
-        collectFood(index, collector);
-        if (upgradePending || state === "upgrade") break;
-      }
+    const foodRadiusCells = 0.13;
+    const collectorBonusCells = moduleCount("collector") * MODULE_TUNING.collector.pickupRadiusCellsPerStack;
+    registerLocalFoodContacts(player, player.radius / arena.cellSize + foodRadiusCells + magnetRange);
+    for (const segment of player.segments) {
+      const visualRadiusCells = (segment.module ? 11 : segment.neutral ? 10 : 8) * pieceScale / arena.cellSize;
+      registerLocalFoodContacts(segment, visualRadiusCells + foodRadiusCells + collectorBonusCells);
     }
+    if (localFoodContacts.size === 0) return;
+
+    const orderedContacts = [];
+    for (const [food, collector] of localFoodContacts) {
+      const index = foods.indexOf(food);
+      if (index >= 0) orderedContacts.push({ index, collector });
+    }
+    orderedContacts.sort((left, right) => right.index - left.index);
+    for (const contact of orderedContacts) {
+      collectFood(contact.index, contact.collector);
+      if (upgradePending || state === "upgrade") break;
+    }
+    localFoodContacts.clear();
   }
 
   function nearestJointOnEnemy(origin, enemy) {
@@ -4882,13 +4943,11 @@
         }
       }
 
-      for (let index = foods.length - 1; index >= 0; index -= 1) {
-        const food = foods[index];
-        let collector = Math.hypot(enemy.col - food.col, enemy.row - food.row) <= 0.4 ? enemy : null;
-        if (!collector) {
-          collector = enemy.segments.find((segment) => Math.hypot(segment.col - food.col, segment.row - food.row) <= 0.4) || null;
-        }
-        if (!collector) continue;
+      const foodContact = findLocalEnemyFoodContact(enemy);
+      if (foodContact) {
+        const { food, collector, index } = foodContact;
+        localFoodSpatialRuntime.untrackFood(food.id);
+        locallyPulledFoods.delete(food);
         foods.splice(index, 1);
         activeFoods.delete(food);
         enemy.captured += 1;
@@ -4899,7 +4958,6 @@
         }
         burst(collector.x, collector.y, enemy.color, 5, 55);
         effects.push({ type: "text", x: collector.x, y: collector.y - arena.cellSize * 0.4, text: `×${enemy.captured}`, color: enemy.color, life: 0.55, maxLife: 0.55 });
-        break;
       }
 
     }

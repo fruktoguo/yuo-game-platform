@@ -156,7 +156,7 @@
 
     <section id="start-screen" class="modal-layer start-screen is-visible" aria-labelledby="game-title">
       <div class="start-glow" aria-hidden="true"></div>
-      <div class="start-version" aria-label="游戏版本 V43"><span>BUILD</span><strong>V43</strong></div>
+      <div class="start-version" aria-label="游戏版本 V44"><span>BUILD</span><strong>V44</strong></div>
       <div class="start-layout">
         <div class="start-content">
           <div id="network-status" class="title-kicker">TACTICAL SURVIVAL / LOCAL</div>
@@ -247,6 +247,20 @@
           <button id="changelog-close-button" class="icon-button codex-close-button" type="button" aria-label="关闭更新日志" title="关闭更新日志">×</button>
         </header>
         <div class="changelog-list">
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V44</strong></div>
+              <time datetime="2026-07-21">2026.07.21</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">流畅度优化</span>
+              <h3>吃球判定改用空间索引</h3>
+              <ul>
+                <li>玩家与敌人只检查各关节附近的经验球，不再反复遍历场上全部球。</li>
+                <li>保留磁吸、全身采集、敌人抢球与原有接触半径，球量增大时帧率更加稳定。</li>
+              </ul>
+            </div>
+          </article>
           <article class="changelog-entry">
             <header>
               <div class="changelog-version"><span>BUILD</span><strong>V43</strong></div>
@@ -701,17 +715,17 @@
     </section>
   </main>
 
-  <script src="designer-config.js?v=43"></script>
-  <script src="spawn-planner.js?v=43"></script>
-  <script src="network-codec.js?v=43"></script>
-  <script src="network-player-prediction.js?v=43"></script>
-  <script src="network-player-state-codec.js?v=43"></script>
-  <script src="network-player-collisions.js?v=43"></script>
-  <script src="network-head-collisions.js?v=43"></script>
-  <script src="network-food-claims.js?v=43"></script>
-  <script src="network-projectiles.js?v=43"></script>
-  <script src="lobby-navigation.js?v=43"></script>
-  <script src="enemy-codex.js?v=43"></script>
-  <script src="game.js?v=43"></script>
+  <script src="designer-config.js?v=44"></script>
+  <script src="spawn-planner.js?v=44"></script>
+  <script src="network-codec.js?v=44"></script>
+  <script src="network-player-prediction.js?v=44"></script>
+  <script src="network-player-state-codec.js?v=44"></script>
+  <script src="network-player-collisions.js?v=44"></script>
+  <script src="network-head-collisions.js?v=44"></script>
+  <script src="network-food-claims.js?v=44"></script>
+  <script src="network-projectiles.js?v=44"></script>
+  <script src="lobby-navigation.js?v=44"></script>
+  <script src="enemy-codex.js?v=44"></script>
+  <script src="game.js?v=44"></script>
 </body>
 </html>

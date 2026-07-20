@@ -11,6 +11,7 @@
     const foodBuckets = new Map();
     const foodBucketPool = [];
     const bucketCodesById = new Map();
+    const trackedFoodsById = new Map();
 
     function bucketCode(col, row) {
       return (Math.floor(col) + 32768) * 65536 + Math.floor(row) + 32768;
@@ -23,6 +24,7 @@
       }
       foodBuckets.clear();
       bucketCodesById.clear();
+      trackedFoodsById.clear();
     }
 
     function removeFromBucket(id) {
@@ -41,6 +43,7 @@
         }
       }
       bucketCodesById.delete(id);
+      trackedFoodsById.delete(id);
     }
 
     function trackFood(food) {
@@ -48,9 +51,11 @@
       const code = bucketCode(food.col, food.row);
       const previousCode = bucketCodesById.get(food.id);
       if (previousCode === code) {
+        if (trackedFoodsById.get(food.id) === food) return;
         const bucket = foodBuckets.get(code);
         const index = bucket?.findIndex((item) => item.id === food.id) ?? -1;
         if (bucket && index >= 0) bucket[index] = food;
+        trackedFoodsById.set(food.id, food);
         return;
       }
       removeFromBucket(food.id);
@@ -61,6 +66,31 @@
       }
       bucket.push(food);
       bucketCodesById.set(food.id, code);
+      trackedFoodsById.set(food.id, food);
+    }
+
+    function untrackFood(id) {
+      if (!Number.isSafeInteger(id)) return;
+      present.delete(id);
+      pending.delete(id);
+      confirmed.delete(id);
+      removeFromBucket(id);
+    }
+
+    function forEachNearbyFood(point, range, visit) {
+      if (!point || typeof visit !== "function" || foodBuckets.size === 0) return;
+      const safeRange = Math.max(0, Number(range) || 0);
+      const minimumCol = Math.floor(point.col - safeRange);
+      const maximumCol = Math.floor(point.col + safeRange);
+      const minimumRow = Math.floor(point.row - safeRange);
+      const maximumRow = Math.floor(point.row + safeRange);
+      for (let col = minimumCol; col <= maximumCol; col += 1) {
+        for (let row = minimumRow; row <= maximumRow; row += 1) {
+          const bucket = foodBuckets.get(bucketCode(col, row));
+          if (!bucket) continue;
+          for (const food of bucket) visit(food);
+        }
+      }
     }
 
     function rebuildFoodBuckets(authoritativeFoods) {
@@ -166,7 +196,7 @@
       resetFoodBuckets();
     }
 
-    return Object.freeze({ applyDelta, clear, detect, reconcile, resolve, shouldHide, trackFood });
+    return Object.freeze({ applyDelta, clear, detect, forEachNearbyFood, reconcile, resolve, shouldHide, trackFood, untrackFood });
   }
 
   root.GSS0FoodClaimRuntime = Object.freeze({ create });
