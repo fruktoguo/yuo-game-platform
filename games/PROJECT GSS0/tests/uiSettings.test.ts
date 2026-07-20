@@ -9,8 +9,14 @@ describe('界面设置', () => {
   it('使用正式游戏名并在左上品牌卡显示当前版本', () => {
     expect(indexHtml).toContain('<title>代号：几何贪吃蛇</title>');
     expect(indexHtml).toContain('<h1 id="game-title"><span>代号：几何贪吃蛇</span></h1>');
-    expect(indexHtml).toContain('<span class="brand-version" aria-label="游戏版本 V48">V48</span>');
+    expect(indexHtml).toContain('<span class="brand-version" aria-label="游戏版本 V49">V49</span>');
     expect(styles).toContain('.brand-version');
+    const brandTitleRule = styles.match(/\.brand-lockup strong\s*\{([^}]*)\}/)?.[1];
+    const brandVersionRule = styles.match(/\.brand-version\s*\{([^}]*)\}/)?.[1];
+    expect(brandTitleRule).toContain('overflow: visible;');
+    expect(brandTitleRule).toContain('line-height: 1.15;');
+    expect(brandTitleRule).toContain('transform: translateY(calc(2px * var(--font-scale)));');
+    expect(brandVersionRule).toContain('transform: translateY(calc(2px * var(--font-scale)));');
   });
 
   it('新存档默认使用 150% 字体并允许调整到 200%', () => {

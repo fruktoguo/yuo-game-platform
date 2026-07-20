@@ -214,15 +214,16 @@ input:focus-visible {
 }
 
 .brand-lockup strong {
-  overflow: hidden;
+  overflow: visible;
   max-width: calc(230px * var(--font-scale));
   font-size: calc(17px * var(--font-scale));
   font-weight: 900;
-  line-height: 1;
-  text-overflow: ellipsis;
+  line-height: 1.15;
+  text-overflow: clip;
   white-space: nowrap;
   font-family: "DIN Next LT Pro", "Agency FB", "Arial Black", sans-serif;
   font-weight: 700;
+  transform: translateY(calc(2px * var(--font-scale)));
 }
 
 .brand-lockup > div > span {
@@ -257,6 +258,7 @@ input:focus-visible {
   font-weight: 900;
   line-height: 1;
   white-space: nowrap;
+  transform: translateY(calc(2px * var(--font-scale)));
 }
 
 .run-stats {
