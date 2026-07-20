@@ -83,8 +83,8 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): Platfo
         manifest: {
           id: 'neon-snake-arena',
           slug: 'neon-snake-arena',
-          name: 'PROJECT GSS0',
-          shortDescription: '保留原版肉鸽贪吃蛇机制，第二名玩家加入后自动切换为共享世界联机模式',
+          name: '代号：几何贪吃蛇',
+          shortDescription: '鸽鸽的联机肉鸽贪吃蛇！',
           coverUrl: '/neon-snake-cover.png',
           launchMode: 'navigate',
           status: 'online',

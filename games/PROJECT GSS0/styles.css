@@ -215,7 +215,7 @@ input:focus-visible {
 
 .brand-lockup strong {
   overflow: hidden;
-  max-width: 220px;
+  max-width: calc(230px * var(--font-scale));
   font-size: calc(17px * var(--font-scale));
   font-weight: 900;
   line-height: 1;
@@ -238,6 +238,24 @@ input:focus-visible {
   color: #aeb4b6;
   font-size: calc(10px * var(--font-scale));
   font-weight: 700;
+  white-space: nowrap;
+}
+
+.brand-version {
+  align-self: flex-end;
+  display: inline-flex;
+  min-height: calc(17px * var(--font-scale));
+  align-items: center;
+  justify-content: center;
+  margin: 0 0 1px -4px;
+  padding: calc(2px * var(--font-scale)) calc(5px * var(--font-scale));
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  background: var(--yellow);
+  color: var(--black);
+  font-family: "DIN Next LT Pro", "Agency FB", "Arial Black", sans-serif;
+  font-size: calc(9px * var(--font-scale));
+  font-weight: 900;
+  line-height: 1;
   white-space: nowrap;
 }
 
@@ -1299,7 +1317,7 @@ input:focus-visible {
 
 .start-content h1 span {
   max-width: 100%;
-  font-size: calc(58px * var(--font-scale));
+  font-size: calc(31px * var(--font-scale));
   font-family: "DIN Next LT Pro", "Agency FB", "Arial Black", sans-serif;
   font-weight: 700;
   line-height: 0.98;

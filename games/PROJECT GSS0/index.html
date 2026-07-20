@@ -4,21 +4,22 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
   <meta name="theme-color" content="#0b0d0f">
-  <meta name="description" content="PROJECT GSS0 - 单人及多人共享世界肉鸽贪吃蛇战斗游戏">
-  <title>PROJECT GSS0</title>
+  <meta name="description" content="代号：几何贪吃蛇 - 单人及多人共享世界肉鸽贪吃蛇战斗游戏">
+  <title>代号：几何贪吃蛇</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <main id="game-shell" aria-label="PROJECT GSS0 游戏区域">
+  <main id="game-shell" aria-label="代号：几何贪吃蛇 游戏区域">
     <canvas id="game" aria-label="游戏画布"></canvas>
 
     <header class="hud hud-top" aria-label="对局信息">
       <div class="brand-lockup">
         <span class="brand-mark" aria-hidden="true"></span>
         <div>
-          <strong>PROJECT GSS0</strong>
+          <strong>代号：几何贪吃蛇</strong>
         </div>
         <span class="signature">by 四季鸽</span>
+        <span class="brand-version" aria-label="游戏版本 V47">V47</span>
       </div>
 
       <div class="run-stats">
@@ -156,11 +157,11 @@
 
     <section id="start-screen" class="modal-layer start-screen is-visible" aria-labelledby="game-title">
       <div class="start-glow" aria-hidden="true"></div>
-      <div class="start-version" aria-label="游戏版本 V46"><span>BUILD</span><strong>V46</strong></div>
+      <div class="start-version" aria-label="游戏版本 V47"><span>BUILD</span><strong>V47</strong></div>
       <div class="start-layout">
         <div class="start-content">
           <div id="network-status" class="title-kicker">TACTICAL SURVIVAL / LOCAL</div>
-          <h1 id="game-title"><span>PROJECT GSS0</span></h1>
+          <h1 id="game-title"><span>代号：几何贪吃蛇</span></h1>
           <p>吞噬 / 构筑 / 生存</p>
           <div class="start-actions">
             <button id="local-mode-button" class="primary-button mode-entry-button local-mode-button" type="button">
@@ -247,6 +248,20 @@
           <button id="changelog-close-button" class="icon-button codex-close-button" type="button" aria-label="关闭更新日志" title="关闭更新日志">×</button>
         </header>
         <div class="changelog-list">
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V47</strong></div>
+              <time datetime="2026-07-21">2026.07.21</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">品牌更新</span>
+              <h3>启用正式游戏名称</h3>
+              <ul>
+                <li>游戏内与游戏大厅统一更名为“代号：几何贪吃蛇”，大厅简介同步更新。</li>
+                <li>战斗界面左上角品牌卡新增当前版本号，版本信息更易确认。</li>
+              </ul>
+            </div>
+          </article>
           <article class="changelog-entry">
             <header>
               <div class="changelog-version"><span>BUILD</span><strong>V46</strong></div>
@@ -741,17 +756,17 @@
     </section>
   </main>
 
-  <script src="designer-config.js?v=46"></script>
-  <script src="spawn-planner.js?v=46"></script>
-  <script src="network-codec.js?v=46"></script>
-  <script src="network-player-prediction.js?v=46"></script>
-  <script src="network-player-state-codec.js?v=46"></script>
-  <script src="network-player-collisions.js?v=46"></script>
-  <script src="network-head-collisions.js?v=46"></script>
-  <script src="network-food-claims.js?v=46"></script>
-  <script src="network-projectiles.js?v=46"></script>
-  <script src="lobby-navigation.js?v=46"></script>
-  <script src="enemy-codex.js?v=46"></script>
-  <script src="game.js?v=46"></script>
+  <script src="designer-config.js?v=47"></script>
+  <script src="spawn-planner.js?v=47"></script>
+  <script src="network-codec.js?v=47"></script>
+  <script src="network-player-prediction.js?v=47"></script>
+  <script src="network-player-state-codec.js?v=47"></script>
+  <script src="network-player-collisions.js?v=47"></script>
+  <script src="network-head-collisions.js?v=47"></script>
+  <script src="network-food-claims.js?v=47"></script>
+  <script src="network-projectiles.js?v=47"></script>
+  <script src="lobby-navigation.js?v=47"></script>
+  <script src="enemy-codex.js?v=47"></script>
+  <script src="game.js?v=47"></script>
 </body>
 </html>

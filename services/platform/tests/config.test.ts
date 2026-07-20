@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { loadConfig } from '../src/config';
 
+describe('平台游戏目录', () => {
+  it('发布几何贪吃蛇的大厅名称与简介', () => {
+    const game = loadConfig({}).games.find(({ manifest }) => manifest.id === 'neon-snake-arena');
+    expect(game?.manifest).toMatchObject({
+      name: '代号：几何贪吃蛇',
+      shortDescription: '鸽鸽的联机肉鸽贪吃蛇！',
+    });
+  });
+});
+
 describe('平台身份配置', () => {
   it('默认仅启用本地身份实现', () => {
     const config = loadConfig({});

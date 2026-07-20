@@ -6,6 +6,13 @@ const indexHtml = readFileSync(new URL('../index.html', import.meta.url), 'utf8'
 const styles = readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
 
 describe('界面设置', () => {
+  it('使用正式游戏名并在左上品牌卡显示当前版本', () => {
+    expect(indexHtml).toContain('<title>代号：几何贪吃蛇</title>');
+    expect(indexHtml).toContain('<h1 id="game-title"><span>代号：几何贪吃蛇</span></h1>');
+    expect(indexHtml).toContain('<span class="brand-version" aria-label="游戏版本 V47">V47</span>');
+    expect(styles).toContain('.brand-version');
+  });
+
   it('新存档默认使用 150% 字体并允许调整到 200%', () => {
     expect(gameSource).toContain('loadSetting("ultra-snake-font-scale", 1.5, 0.5, 2)');
     expect(gameSource).toContain('fontScale = clamp(value, 0.5, 2)');
