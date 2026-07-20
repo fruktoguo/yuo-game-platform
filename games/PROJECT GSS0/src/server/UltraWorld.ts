@@ -185,8 +185,16 @@ interface PendingSpawn extends PendingSpawnView {
   nextCell: GridPoint;
 }
 
+interface EnemyTargetSelection {
+  enemy: EnemyEntity;
+  node: GridPoint;
+  segmentIndex: number;
+  distanceSquared: number;
+}
+
 interface TargetRef {
   id: number;
+  segmentIndex: number;
 }
 
 interface ProjectileEntity extends UltraProjectileView {
@@ -2104,14 +2112,17 @@ export class UltraWorld {
           segment.timer = moduleCooldownSeconds('prism') * rate;
           break;
         case 'nova':
-          for (let index = 0; index < 8; index += 1) {
-            const angle = index * TAU / 8 + segment.orbit * 0.15;
-            this.createProjectile(player, segment, angle, { speed: 250, color: MODULE_BY_ID.nova.color, size: 4.4 });
+          {
+            const targetRef = target ? this.targetRef(target) : null;
+            for (let index = 0; index < 8; index += 1) {
+              const angle = index * TAU / 8 + segment.orbit * 0.15;
+              this.createProjectile(player, segment, angle, { speed: 250, color: MODULE_BY_ID.nova.color, size: 4.4 }, targetRef);
+            }
+            this.playSkillSound(player, 'nova');
+            this.ring(segment.col, segment.row, MODULE_BY_ID.nova.color, 0.45, 8, 53, player.entityId, 'pixels');
+            segment.timer = moduleCooldownSeconds('nova') * rate;
+            break;
           }
-          this.playSkillSound(player, 'nova');
-          this.ring(segment.col, segment.row, MODULE_BY_ID.nova.color, 0.45, 8, 53, player.entityId, 'pixels');
-          segment.timer = moduleCooldownSeconds('nova') * rate;
-          break;
         case 'tesla':
           if (target) {
             this.fireTesla(player, segment, target);
@@ -2121,8 +2132,8 @@ export class UltraWorld {
           break;
         case 'laser':
           if (target) {
-            this.damageTarget(player, target, 1, target, MODULE_BY_ID.laser.color);
-            this.beam('beam', segment, target, MODULE_BY_ID.laser.color, 0.2, player.entityId);
+            this.damageTarget(player, target.enemy, 1, target.node, MODULE_BY_ID.laser.color);
+            this.beam('beam', segment, target.node, MODULE_BY_ID.laser.color, 0.2, player.entityId);
             this.playSkillSound(player, 'laser');
           }
           segment.timer = moduleCooldownSeconds('laser') * rate;
@@ -2166,10 +2177,10 @@ export class UltraWorld {
           break;
         case 'gravity':
           if (target) {
-            const point = { col: target.col, row: target.row };
+            const point = { col: target.node.col, row: target.node.row };
             this.hazards.push({ id: this.allocateHazardId(), ownerEntityId: player.entityId, kind: 'gravity', ...point, life: 6, arm: 0, radius: this.pixelsToCells(95), color: MODULE_BY_ID.gravity.color, phase: this.randomBetween(0, TAU) });
             for (const hostile of this.enemies) {
-              if (!hostile.dead && distanceSquared(point, hostile) < this.pixelsToCells(95) ** 2) this.damageTarget(player, hostile, 1, point, MODULE_BY_ID.gravity.color);
+              if (!hostile.dead && this.pointHitsTarget(point, this.pixelsToCells(95), hostile)) this.damageTarget(player, hostile, 1, point, MODULE_BY_ID.gravity.color);
             }
             this.playSkillSound(player, 'gravity');
           }
@@ -2189,8 +2200,8 @@ export class UltraWorld {
           break;
         case 'sniper':
           if (target) {
-            this.damageTarget(player, target, 2, target, MODULE_BY_ID.sniper.color);
-            this.beam('beam', segment, target, MODULE_BY_ID.sniper.color, 0.28, player.entityId);
+            this.damageTarget(player, target.enemy, 2, target.node, MODULE_BY_ID.sniper.color);
+            this.beam('beam', segment, target.node, MODULE_BY_ID.sniper.color, 0.28, player.entityId);
             this.playSkillSound(player, 'sniper');
           }
           segment.timer = moduleCooldownSeconds('sniper') * rate;
@@ -2228,9 +2239,9 @@ export class UltraWorld {
           break;
         case 'execute':
           if (target) {
-            const damage = target.segments.length + 1 <= 3 ? 2 : 1;
-            this.damageTarget(player, target, damage, target, MODULE_BY_ID.execute.color);
-            this.beam('beam', segment, target, MODULE_BY_ID.execute.color, 0.2, player.entityId);
+            const damage = target.enemy.segments.length + 1 <= 3 ? 2 : 1;
+            this.damageTarget(player, target.enemy, damage, target.node, MODULE_BY_ID.execute.color);
+            this.beam('beam', segment, target.node, MODULE_BY_ID.execute.color, 0.2, player.entityId);
             this.playSkillSound(player, 'execute');
           }
           segment.timer = moduleCooldownSeconds('execute') * rate;
@@ -2267,9 +2278,9 @@ export class UltraWorld {
     this.effectSound(sounds[moduleId] ?? 'skill', player.entityId);
   }
 
-  private spawnShot(player: PlayerEntity, origin: GridPoint, target: EnemyEntity | null, options: ShotOptions = {}): boolean {
-    if (!target || !this.isTargetAlive(target)) return false;
-    const angle = Math.atan2(target.row - origin.row, target.col - origin.col) + (options.angleOffset ?? 0);
+  private spawnShot(player: PlayerEntity, origin: GridPoint, target: EnemyTargetSelection | null, options: ShotOptions = {}): boolean {
+    if (!target || !this.isTargetAlive(target.enemy)) return false;
+    const angle = Math.atan2(target.node.row - origin.row, target.node.col - origin.col) + (options.angleOffset ?? 0);
     this.createProjectile(player, origin, angle, options, this.targetRef(target));
     return true;
   }
@@ -2302,24 +2313,23 @@ export class UltraWorld {
     this.pendingProjectileEvents.push({ type: 'spawn', projectile: toProjectileState(projectile) });
   }
 
-  private fireTesla(player: PlayerEntity, origin: GridPoint, first: EnemyEntity): void {
+  private fireTesla(player: PlayerEntity, origin: GridPoint, first: EnemyTargetSelection): void {
     const hit: EnemyEntity[] = [];
-    let current: EnemyEntity | null = first;
+    let current: EnemyTargetSelection | null = first;
     let from = origin;
     for (let jump = 0; jump < 3 && current; jump += 1) {
-      hit.push(current);
-      this.damageTarget(player, current, 1, current, MODULE_BY_ID.tesla.color);
-      this.beam('lightning', from, current, MODULE_BY_ID.tesla.color, 0.24, player.entityId);
-      from = current;
-      let next: EnemyEntity | null = null;
+      hit.push(current.enemy);
+      this.damageTarget(player, current.enemy, 1, current.node, MODULE_BY_ID.tesla.color);
+      this.beam('lightning', from, current.node, MODULE_BY_ID.tesla.color, 0.24, player.entityId);
+      from = current.node;
+      let next: EnemyTargetSelection | null = null;
       let best = this.pixelsToCells(155) ** 2;
       for (const target of this.enemies) {
         if (target.dead || hit.includes(target)) continue;
-        const distance = distanceSquared(from, target);
-        if (distance < best) {
-          best = distance;
-          next = target;
-        }
+        const candidate = this.nearestJointOnTarget(from, target);
+        if (candidate.distanceSquared >= best) continue;
+        best = candidate.distanceSquared;
+        next = candidate;
       }
       current = next;
     }
@@ -2329,12 +2339,12 @@ export class UltraWorld {
     const radius = this.pixelsToCells(105);
     this.ring(origin.col, origin.row, MODULE_BY_ID.pulse.color, 0.55, 16, radius, player.entityId);
     for (const target of this.enemies) {
-      if (!target.dead && distanceSquared(origin, target) < radius * radius) this.damageTarget(player, target, 1, origin, MODULE_BY_ID.pulse.color);
+      if (!target.dead && this.pointHitsTarget(origin, radius, target)) this.damageTarget(player, target, 1, origin, MODULE_BY_ID.pulse.color);
     }
   }
 
-  private fireSweepBeam(player: PlayerEntity, origin: GridPoint, target: EnemyEntity): boolean {
-    const angle = Math.atan2(target.row - origin.row, target.col - origin.col);
+  private fireSweepBeam(player: PlayerEntity, origin: GridPoint, target: EnemyTargetSelection): boolean {
+    const angle = Math.atan2(target.node.row - origin.row, target.node.col - origin.col);
     const directionX = Math.cos(angle);
     const directionY = Math.sin(angle);
     const range = this.arenaSize * 1.15;
@@ -2351,22 +2361,23 @@ export class UltraWorld {
     return hits > 0;
   }
 
-  private fireFlakBurst(player: PlayerEntity, target: EnemyEntity): boolean {
+  private fireFlakBurst(player: PlayerEntity, target: EnemyTargetSelection): boolean {
     const radius = this.pixelsToCells(84);
     let hits = 0;
-    this.ring(target.col, target.row, MODULE_BY_ID.flak.color, 0.5, 8, radius, player.entityId);
-    this.burst(target.col, target.row, MODULE_BY_ID.flak.color, 18, 155, player.entityId);
+    this.ring(target.node.col, target.node.row, MODULE_BY_ID.flak.color, 0.5, 8, radius, player.entityId);
+    this.burst(target.node.col, target.node.row, MODULE_BY_ID.flak.color, 18, 155, player.entityId);
     for (const hostile of this.enemies) {
-      if (hostile.dead || distanceSquared(target, hostile) > radius * radius) continue;
-      this.damageTarget(player, hostile, 1, target, MODULE_BY_ID.flak.color);
+      if (hostile.dead || !this.pointHitsTarget(target.node, radius, hostile)) continue;
+      this.damageTarget(player, hostile, 1, target.node, MODULE_BY_ID.flak.color);
       hits += 1;
     }
     return hits > 0;
   }
 
-  private fireCrossfire(player: PlayerEntity, origin: GridPoint, target: EnemyEntity): void {
-    const baseAngle = Math.atan2(target.row - origin.row, target.col - origin.col);
-    for (let index = 0; index < 4; index += 1) this.createProjectile(player, origin, baseAngle + index * Math.PI / 2, { speed: 285, color: MODULE_BY_ID.crossfire.color, size: 6.2, pierce: 1 });
+  private fireCrossfire(player: PlayerEntity, origin: GridPoint, target: EnemyTargetSelection): void {
+    const baseAngle = Math.atan2(target.node.row - origin.row, target.node.col - origin.col);
+    const targetRef = this.targetRef(target);
+    for (let index = 0; index < 4; index += 1) this.createProjectile(player, origin, baseAngle + index * Math.PI / 2, { speed: 285, color: MODULE_BY_ID.crossfire.color, size: 6.2, pierce: 1 }, targetRef);
     this.ring(origin.col, origin.row, MODULE_BY_ID.crossfire.color, 0.4, 5, 1, player.entityId);
   }
 
@@ -2824,9 +2835,10 @@ export class UltraWorld {
         continue;
       }
       const target = projectile.target ? targetsById.get(projectile.target.id) ?? null : null;
-      if (projectile.homing && target && this.isTargetAlive(target)) {
+      const targetNode = target && projectile.target ? this.resolveTargetNode(target, projectile.target.segmentIndex) : null;
+      if (projectile.homing && target && targetNode && this.isTargetAlive(target)) {
         const currentAngle = Math.atan2(projectile.vy, projectile.vx);
-        const targetAngle = Math.atan2(target.row - projectile.row, target.col - projectile.col);
+        const targetAngle = Math.atan2(targetNode.row - projectile.row, targetNode.col - projectile.col);
         const angle = rotateToward(currentAngle, targetAngle, projectile.homing * delta);
         projectile.vx = Math.cos(angle) * projectile.speed;
         projectile.vy = Math.sin(angle) * projectile.speed;
@@ -2847,7 +2859,6 @@ export class UltraWorld {
           if (hitHorizontal) projectile.vx *= -1;
           if (hitVertical) projectile.vy *= -1;
           projectile.bounces -= 1;
-          projectile.target = null;
           this.pendingProjectileEvents.push({ type: 'update', projectile: toProjectileState(projectile) });
         } else projectile.life = 0;
       }
@@ -3202,16 +3213,30 @@ export class UltraWorld {
     this.playSkillSound(player, 'thorns');
   }
 
-  private nearestTarget(_owner: PlayerEntity, origin: GridPoint, maximumDistance: number): EnemyEntity | null {
-    let nearest: EnemyEntity | null = null;
+  private nearestJointOnTarget(origin: GridPoint, enemy: EnemyEntity): EnemyTargetSelection {
+    let node: GridPoint = enemy;
+    let segmentIndex = -1;
+    let best = distanceSquared(origin, enemy);
+    for (let index = 0; index < enemy.segments.length; index += 1) {
+      const candidate = enemy.segments[index];
+      const distance = distanceSquared(origin, candidate);
+      if (distance >= best) continue;
+      best = distance;
+      node = candidate;
+      segmentIndex = index;
+    }
+    return { enemy, node, segmentIndex, distanceSquared: best };
+  }
+
+  private nearestTarget(_owner: PlayerEntity, origin: GridPoint, maximumDistance: number): EnemyTargetSelection | null {
+    let nearest: EnemyTargetSelection | null = null;
     let best = maximumDistance * maximumDistance;
     for (const target of this.enemies) {
       if (target.dead) continue;
-      const distance = distanceSquared(origin, target);
-      if (distance < best) {
-        best = distance;
-        nearest = target;
-      }
+      const candidate = this.nearestJointOnTarget(origin, target);
+      if (candidate.distanceSquared >= best) continue;
+      best = candidate.distanceSquared;
+      nearest = candidate;
     }
     return nearest;
   }
@@ -3283,8 +3308,12 @@ export class UltraWorld {
     return !target.dead;
   }
 
-  private targetRef(target: EnemyEntity): TargetRef {
-    return { id: target.id };
+  private resolveTargetNode(target: EnemyEntity, segmentIndex: number): GridPoint {
+    return segmentIndex >= 0 ? target.segments[segmentIndex] ?? target : target;
+  }
+
+  private targetRef(target: EnemyTargetSelection): TargetRef {
+    return { id: target.enemy.id, segmentIndex: target.segmentIndex };
   }
 
   private pixelsToCells(value: number): number {
@@ -3730,6 +3759,7 @@ function toProjectileState(projectile: ProjectileEntity): UltraProjectileState {
     ...toProjectileView(projectile),
     homing: projectile.homing,
     targetId: projectile.target?.id ?? null,
+    targetSegmentIndex: projectile.target?.segmentIndex ?? -1,
     bounces: projectile.bounces,
   };
 }

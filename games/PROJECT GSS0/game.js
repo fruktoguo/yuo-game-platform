@@ -3985,18 +3985,41 @@
     }
   }
 
-  function nearestEnemy(origin, maxDistance = Infinity) {
+  function nearestJointOnEnemy(origin, enemy) {
+    let node = enemy;
+    let segmentIndex = -1;
+    let best = distanceSquared(origin, enemy);
+    for (let index = 0; index < enemy.segments.length; index += 1) {
+      const candidate = enemy.segments[index];
+      const distance = distanceSquared(origin, candidate);
+      if (distance >= best) continue;
+      best = distance;
+      node = candidate;
+      segmentIndex = index;
+    }
+    return { enemy, node, segmentIndex, distanceSquared: best };
+  }
+
+  function nearestEnemyJoint(origin, maxDistance = Infinity) {
     let nearest = null;
     let best = maxDistance * maxDistance;
     for (const enemy of enemies) {
       if (enemy.dead) continue;
-      const distance = distanceSquared(origin, enemy);
-      if (distance < best) {
-        best = distance;
-        nearest = enemy;
-      }
+      const candidate = nearestJointOnEnemy(origin, enemy);
+      if (candidate.distanceSquared >= best) continue;
+      best = candidate.distanceSquared;
+      nearest = candidate;
     }
     return nearest;
+  }
+
+  function nearestEnemy(origin, maxDistance = Infinity) {
+    return nearestEnemyJoint(origin, maxDistance)?.enemy || null;
+  }
+
+  function resolveEnemyTargetNode(enemy, segmentIndex) {
+    if (!enemy || enemy.dead) return null;
+    return segmentIndex >= 0 ? enemy.segments[segmentIndex] || enemy : enemy;
   }
 
   function createPlayerProjectile(origin, angle, options = {}) {
@@ -4005,7 +4028,8 @@
     const scale = arenaVisualScale();
     const speed = (options.speed || 300) * guidanceMultiplier * PROJECTILE_SPEED_SCALE * scale;
     const homing = (options.homing || 0) + guidance * MODULE_TUNING.guidance.homingPerStack;
-    const target = options.target && !options.target.dead ? options.target : null;
+    const targetSelection = options.target;
+    const target = targetSelection?.enemy && !targetSelection.enemy.dead ? targetSelection.enemy : null;
     const projectile = {
       kind: "shot",
       x: origin.x,
@@ -4023,6 +4047,7 @@
       poison: options.poison || 0,
       homing,
       target: homing > 0 ? target : null,
+      targetSegmentIndex: homing > 0 && target ? targetSelection.segmentIndex : -1,
       hitIds: []
     };
     projectiles.push(projectile);
@@ -4030,8 +4055,8 @@
   }
 
   function spawnShot(origin, target, options = {}) {
-    if (!target || target.dead) return false;
-    const angle = Math.atan2(target.y - origin.y, target.x - origin.x) + (options.angleOffset || 0);
+    if (!target || target.enemy.dead) return false;
+    const angle = Math.atan2(target.node.y - origin.y, target.node.x - origin.x) + (options.angleOffset || 0);
     createPlayerProjectile(origin, angle, { ...options, target });
     return true;
   }
@@ -4039,7 +4064,7 @@
   function updateHeadWeapon(dt) {
     headFireTimer -= dt;
     if (headFireTimer > 0) return;
-    const target = nearestEnemy(player);
+    const target = nearestEnemyJoint(player);
     if (!target) {
       headFireTimer = 0;
       return;
@@ -4143,7 +4168,7 @@
       }
 
       if (segment.timer > 0) continue;
-      const target = nearestEnemy(segment);
+      const target = nearestEnemyJoint(segment);
       if (TARGET_REQUIRED_MODULES.has(segment.module) && !target) {
         segment.timer = 0;
         continue;
@@ -4183,8 +4208,8 @@
           break;
         case "laser":
           if (target) {
-            damageEnemy(target, 1, target.x, target.y, MODULE_BY_ID.laser.color);
-            effects.push({ type: "beam", x: segment.x, y: segment.y, x2: target.x, y2: target.y, color: MODULE_BY_ID.laser.color, life: 0.2, maxLife: 0.2 });
+            damageEnemy(target.enemy, 1, target.node.x, target.node.y, MODULE_BY_ID.laser.color);
+            effects.push({ type: "beam", x: segment.x, y: segment.y, x2: target.node.x, y2: target.node.y, color: MODULE_BY_ID.laser.color, life: 0.2, maxLife: 0.2 });
             playSkillSound("laser");
           }
           segment.timer = moduleCooldownSeconds("laser") * rate;
@@ -4231,9 +4256,9 @@
         case "gravity":
           if (target) {
             const gravityRadius = 95 * arenaVisualScale();
-            hazards.push({ kind: "gravity", x: target.x, y: target.y, col: target.col, row: target.row, life: 6, arm: 0, radius: gravityRadius, color: MODULE_BY_ID.gravity.color, phase: random(0, TAU) });
+            hazards.push({ kind: "gravity", x: target.node.x, y: target.node.y, col: target.node.col, row: target.node.row, life: 6, arm: 0, radius: gravityRadius, color: MODULE_BY_ID.gravity.color, phase: random(0, TAU) });
             for (const enemy of enemies) {
-              if (!enemy.dead && pointHitsEnemy(target.x, target.y, gravityRadius, enemy)) damageEnemy(enemy, 1, target.x, target.y, MODULE_BY_ID.gravity.color);
+              if (!enemy.dead && pointHitsEnemy(target.node.x, target.node.y, gravityRadius, enemy)) damageEnemy(enemy, 1, target.node.x, target.node.y, MODULE_BY_ID.gravity.color);
             }
             playSkillSound("gravity");
           }
@@ -4253,8 +4278,8 @@
           break;
         case "sniper":
           if (target) {
-            damageEnemy(target, 2, target.x, target.y, MODULE_BY_ID.sniper.color);
-            effects.push({ type: "beam", x: segment.x, y: segment.y, x2: target.x, y2: target.y, color: MODULE_BY_ID.sniper.color, life: 0.28, maxLife: 0.28 });
+            damageEnemy(target.enemy, 2, target.node.x, target.node.y, MODULE_BY_ID.sniper.color);
+            effects.push({ type: "beam", x: segment.x, y: segment.y, x2: target.node.x, y2: target.node.y, color: MODULE_BY_ID.sniper.color, life: 0.28, maxLife: 0.28 });
             playSkillSound("sniper");
           }
           segment.timer = moduleCooldownSeconds("sniper") * rate;
@@ -4294,9 +4319,9 @@
           break;
         case "execute":
           if (target) {
-            const damage = target.segments.length + 1 <= 3 ? 2 : 1;
-            damageEnemy(target, damage, target.x, target.y, MODULE_BY_ID.execute.color);
-            effects.push({ type: "beam", x: segment.x, y: segment.y, x2: target.x, y2: target.y, color: MODULE_BY_ID.execute.color, life: 0.2, maxLife: 0.2 });
+            const damage = target.enemy.segments.length + 1 <= 3 ? 2 : 1;
+            damageEnemy(target.enemy, damage, target.node.x, target.node.y, MODULE_BY_ID.execute.color);
+            effects.push({ type: "beam", x: segment.x, y: segment.y, x2: target.node.x, y2: target.node.y, color: MODULE_BY_ID.execute.color, life: 0.2, maxLife: 0.2 });
             playSkillSound("execute");
           }
           segment.timer = moduleCooldownSeconds("execute") * rate;
@@ -4334,20 +4359,19 @@
     let current = first;
     let from = origin;
     for (let jump = 0; jump < 3 && current; jump += 1) {
-      hit.push(current);
-      damageEnemy(current, 1, current.x, current.y, MODULE_BY_ID.tesla.color);
-      effects.push({ type: "lightning", x: from.x, y: from.y, x2: current.x, y2: current.y, color: MODULE_BY_ID.tesla.color, life: 0.24, maxLife: 0.24 });
-      from = { x: current.x, y: current.y };
+      hit.push(current.enemy);
+      damageEnemy(current.enemy, 1, current.node.x, current.node.y, MODULE_BY_ID.tesla.color);
+      effects.push({ type: "lightning", x: from.x, y: from.y, x2: current.node.x, y2: current.node.y, color: MODULE_BY_ID.tesla.color, life: 0.24, maxLife: 0.24 });
+      from = current.node;
       let next = null;
       const jumpRange = 155 * arenaVisualScale();
       let best = jumpRange * jumpRange;
       for (const enemy of enemies) {
         if (enemy.dead || hit.includes(enemy)) continue;
-        const dist = distanceSquared(from, enemy);
-        if (dist < best) {
-          best = dist;
-          next = enemy;
-        }
+        const candidate = nearestJointOnEnemy(from, enemy);
+        if (candidate.distanceSquared >= best) continue;
+        best = candidate.distanceSquared;
+        next = candidate;
       }
       current = next;
     }
@@ -4383,7 +4407,7 @@
   }
 
   function fireSweepBeam(origin, target) {
-    const angle = Math.atan2(target.y - origin.y, target.x - origin.x);
+    const angle = Math.atan2(target.node.y - origin.y, target.node.x - origin.x);
     const directionX = Math.cos(angle);
     const directionY = Math.sin(angle);
     const range = Math.max(arena.width, arena.height) * 1.15;
@@ -4404,18 +4428,18 @@
   function fireFlakBurst(target) {
     const radius = 84 * arenaVisualScale();
     let hits = 0;
-    effects.push({ type: "ring", x: target.x, y: target.y, color: MODULE_BY_ID.flak.color, life: 0.5, maxLife: 0.5, radius: 8, endRadius: radius });
-    burst(target.x, target.y, MODULE_BY_ID.flak.color, 18, 155);
+    effects.push({ type: "ring", x: target.node.x, y: target.node.y, color: MODULE_BY_ID.flak.color, life: 0.5, maxLife: 0.5, radius: 8, endRadius: radius });
+    burst(target.node.x, target.node.y, MODULE_BY_ID.flak.color, 18, 155);
     for (const enemy of enemies) {
-      if (enemy.dead || !pointHitsEnemy(target.x, target.y, radius, enemy)) continue;
-      damageEnemy(enemy, 1, target.x, target.y, MODULE_BY_ID.flak.color);
+      if (enemy.dead || !pointHitsEnemy(target.node.x, target.node.y, radius, enemy)) continue;
+      damageEnemy(enemy, 1, target.node.x, target.node.y, MODULE_BY_ID.flak.color);
       hits += 1;
     }
     return hits > 0;
   }
 
   function fireCrossfire(origin, target) {
-    const baseAngle = Math.atan2(target.y - origin.y, target.x - origin.x);
+    const baseAngle = Math.atan2(target.node.y - origin.y, target.node.x - origin.x);
     for (let index = 0; index < 4; index += 1) {
       const angle = baseAngle + index * Math.PI / 2;
       createPlayerProjectile(origin, angle, {
@@ -4434,7 +4458,7 @@
     const tuning = MODULE_TUNING.thorns;
     const shotCount = tuning.baseShots + Math.min(tuning.maxBonusShots, Math.max(0, stacks - 1) * tuning.shotsPerExtraStack);
     const startAngle = random(0, TAU);
-    const target = nearestEnemy(collisionPoint);
+    const target = nearestEnemyJoint(collisionPoint);
     for (let index = 0; index < shotCount; index += 1) {
       const angle = startAngle + index * TAU / shotCount;
       createPlayerProjectile(collisionPoint, angle, {
@@ -4951,8 +4975,9 @@
       projectile.life -= dt;
       let endedByImpact = false;
       if (projectile.homing && projectile.target && !projectile.target.dead) {
+        const targetNode = resolveEnemyTargetNode(projectile.target, projectile.targetSegmentIndex);
         const current = Math.atan2(projectile.vy, projectile.vx);
-        const target = Math.atan2(projectile.target.y - projectile.y, projectile.target.x - projectile.x);
+        const target = Math.atan2(targetNode.y - projectile.y, targetNode.x - projectile.x);
         const angle = rotateToward(current, target, projectile.homing * dt);
         projectile.vx = Math.cos(angle) * projectile.speed;
         projectile.vy = Math.sin(angle) * projectile.speed;
@@ -4969,7 +4994,6 @@
           if (hitHorizontalWall) projectile.vx *= -1;
           if (hitVerticalWall) projectile.vy *= -1;
           projectile.bounces -= 1;
-          projectile.target = null;
         } else {
           projectile.life = 0;
         }

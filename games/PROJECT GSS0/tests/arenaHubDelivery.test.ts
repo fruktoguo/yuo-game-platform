@@ -114,7 +114,7 @@ describe('ArenaHub 联机投递', () => {
 
     const projectileEvents: UltraProjectileEvent[] = [{
       type: 'spawn',
-      projectile: { id: 4, col: 2, row: 3, vx: 5, vy: 0, color: '#ff9f43', size: 4, homing: 0, targetId: null, bounces: 0 },
+      projectile: { id: 4, col: 2, row: 3, vx: 5, vy: 0, color: '#ff9f43', size: 4, homing: 0, targetId: null, targetSegmentIndex: -1, bounces: 0 },
     }];
     const publishProjectiles = Reflect.get(hub, 'publishProjectiles') as (events: UltraProjectileEvent[]) => void;
     publishProjectiles.call(hub, projectileEvents);

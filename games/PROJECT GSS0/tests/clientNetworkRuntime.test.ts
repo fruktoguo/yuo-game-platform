@@ -203,7 +203,7 @@ describe('客户端网络模块', () => {
 
   it('本地推进直线、追踪和反弹，并接受可靠生命周期更新', () => {
     const runtime = clientGlobals.GSS0ProjectileRuntime.create(24);
-    const state = { id: 1, col: 2, row: 2, vx: 4, vy: 0, color: '#ff9f43', size: 4, homing: 4, targetId: 9, bounces: 0 };
+    const state = { id: 1, col: 2, row: 2, vx: 4, vy: 0, color: '#ff9f43', size: 4, homing: 4, targetId: 9, targetSegmentIndex: -1, bounces: 0 };
     runtime.reset([state]);
     runtime.update(0.05, () => ({ col: 2, row: 8 }), { left: 10, top: 20, cellSize: 30 });
 

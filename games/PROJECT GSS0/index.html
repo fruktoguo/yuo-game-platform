@@ -156,7 +156,7 @@
 
     <section id="start-screen" class="modal-layer start-screen is-visible" aria-labelledby="game-title">
       <div class="start-glow" aria-hidden="true"></div>
-      <div class="start-version" aria-label="游戏版本 V42"><span>BUILD</span><strong>V42</strong></div>
+      <div class="start-version" aria-label="游戏版本 V43"><span>BUILD</span><strong>V43</strong></div>
       <div class="start-layout">
         <div class="start-content">
           <div id="network-status" class="title-kicker">TACTICAL SURVIVAL / LOCAL</div>
@@ -247,6 +247,20 @@
           <button id="changelog-close-button" class="icon-button codex-close-button" type="button" aria-label="关闭更新日志" title="关闭更新日志">×</button>
         </header>
         <div class="changelog-list">
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V43</strong></div>
+              <time datetime="2026-07-21">2026.07.21</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">索敌改进</span>
+              <h3>火力会瞄准最近关节</h3>
+              <ul>
+                <li>所有弹道与即时火力会从敌蛇头部和每节身体中选择距发射点最近的关节。</li>
+                <li>追踪弹会持续追踪发射时选中的关节，联机客户端也会同步相同目标。</li>
+              </ul>
+            </div>
+          </article>
           <article class="changelog-entry">
             <header>
               <div class="changelog-version"><span>BUILD</span><strong>V42</strong></div>
@@ -687,17 +701,17 @@
     </section>
   </main>
 
-  <script src="designer-config.js?v=42"></script>
-  <script src="spawn-planner.js?v=42"></script>
-  <script src="network-codec.js?v=42"></script>
-  <script src="network-player-prediction.js?v=42"></script>
-  <script src="network-player-state-codec.js?v=42"></script>
-  <script src="network-player-collisions.js?v=42"></script>
-  <script src="network-head-collisions.js?v=42"></script>
-  <script src="network-food-claims.js?v=42"></script>
-  <script src="network-projectiles.js?v=42"></script>
-  <script src="lobby-navigation.js?v=42"></script>
-  <script src="enemy-codex.js?v=42"></script>
-  <script src="game.js?v=42"></script>
+  <script src="designer-config.js?v=43"></script>
+  <script src="spawn-planner.js?v=43"></script>
+  <script src="network-codec.js?v=43"></script>
+  <script src="network-player-prediction.js?v=43"></script>
+  <script src="network-player-state-codec.js?v=43"></script>
+  <script src="network-player-collisions.js?v=43"></script>
+  <script src="network-head-collisions.js?v=43"></script>
+  <script src="network-food-claims.js?v=43"></script>
+  <script src="network-projectiles.js?v=43"></script>
+  <script src="lobby-navigation.js?v=43"></script>
+  <script src="enemy-codex.js?v=43"></script>
+  <script src="game.js?v=43"></script>
 </body>
 </html>

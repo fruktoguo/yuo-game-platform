@@ -53,6 +53,7 @@
       projectile.size = state.size;
       projectile.homing = state.homing || 0;
       projectile.targetId = state.targetId ?? null;
+      projectile.targetSegmentIndex = Number.isInteger(state.targetSegmentIndex) ? state.targetSegmentIndex : -1;
       projectile.bounces = state.bounces || 0;
       return projectile;
     }
@@ -75,7 +76,10 @@
       const minimum = worldMinimum - 0.5;
       const maximum = worldMaximum + 0.5;
       for (const projectile of this.items) {
-        const target = projectile.targetId === null ? null : targetById(projectile.targetId);
+        const targetEntity = projectile.targetId === null ? null : targetById(projectile.targetId);
+        const target = targetEntity && projectile.targetSegmentIndex >= 0
+          ? targetEntity.segments?.[projectile.targetSegmentIndex] || targetEntity
+          : targetEntity;
         if (projectile.homing > 0 && target) {
           const current = Math.atan2(projectile.vyCells, projectile.vxCells);
           const desired = Math.atan2(target.row - projectile.row, target.col - projectile.col);
@@ -94,7 +98,6 @@
           if (hitHorizontal) projectile.vxCells *= -1;
           if (hitVertical) projectile.vyCells *= -1;
           projectile.bounces -= 1;
-          projectile.targetId = null;
         }
 
         projectile.x = arena.left + (projectile.col - worldMinimum + 0.5) * arena.cellSize;

@@ -100,6 +100,7 @@ export interface UltraProjectileView {
 export interface UltraProjectileState extends UltraProjectileView {
   homing: number;
   targetId: number | null;
+  targetSegmentIndex: number;
   bounces: number;
 }
 
