@@ -2929,6 +2929,13 @@
     return grown + growthQueue.length + (activeGrowth ? 1 : 0);
   }
 
+  function materializePendingGrowth() {
+    const pendingCount = growthQueue.length + (activeGrowth ? 1 : 0);
+    activeGrowth = null;
+    growthQueue.length = 0;
+    for (let index = 0; index < pendingCount; index += 1) addNeutralSegment();
+  }
+
   function startNextGrowthAnimation() {
     if (activeGrowth || !growthQueue.length) return;
     activeGrowth = {
@@ -3025,8 +3032,13 @@
     xp += 1;
     score += food.special ? 35 : 20;
     growthQueue.push({ color: food.color, special: food.special });
-    startNextGrowthAnimation();
-    if (xp >= xpNeeded) upgradePending = true;
+    const completesLevel = xp >= xpNeeded;
+    if (completesLevel) {
+      upgradePending = true;
+      materializePendingGrowth();
+    } else {
+      startNextGrowthAnimation();
+    }
     if (moduleCount("feast") > 0) player.foodBoost = MODULE_TUNING.feast.duration;
     const emergency = moduleCount("emergency");
     if (emergency > 0) {
@@ -3043,6 +3055,7 @@
     effects.push({ type: "text", x: collector.x, y: collector.y, text: "+1", color: food.color, life: 0.72, maxLife: 0.72 });
     sound("eat", storedNeutralCount());
     shake = Math.max(shake, food.special ? 4 : 2.8);
+    if (completesLevel) startLevelUpTransition();
     updateHud();
   }
 

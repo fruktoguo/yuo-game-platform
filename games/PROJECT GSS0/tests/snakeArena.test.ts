@@ -3,6 +3,7 @@ import {
   CANONICAL_CELL_SIZE,
   DISCONNECT_GRACE_MS,
   ENEMY_BASE_SPEED,
+  LEVEL_UP_TRANSITION_DURATION,
   PLAYER_BASE_SPEED,
   RESPAWN_DELAY_MS,
   UPGRADE_INVULNERABILITY_DURATION,
@@ -48,6 +49,54 @@ describe('UltraWorld 原版 PvE 与多人共享世界', () => {
     expect(player.xp).toBe(2);
     expect(world.getSnapshot(0).foods.map((food) => food.id)).toEqual([3]);
     expect(world.claimFoods('account-a', [1, 2, 3])).toEqual([]);
+  });
+
+  it('最后一颗升级球立即结算全部待增长身体并锁定后续吃球', () => {
+    const world = new UltraWorld({ random: () => 0.25 });
+    world.connectPlayer('account-a', '升级测试玩家', 0);
+    world.spawn('account-a', 0);
+    Reflect.set(world, 'waveTimer', 999);
+    const player = (Reflect.get(world, 'playersByAccount') as Map<string, TestPlayerEntity & {
+      xp: number;
+      xpNeeded: number;
+      growth: { color: string; special: boolean; elapsed: number; nodeCount: number } | null;
+      growthQueue: Array<{ color: string; special: boolean }>;
+      upgradePending: boolean;
+      upgradeRevealTimer: number;
+      choosingUpgrade: boolean;
+      upgradeOffer: unknown;
+    }>).get('account-a')!;
+    player.xp = 4;
+    player.xpNeeded = 5;
+    player.segments = [testSegment(player.col - 0.58, player.row)];
+    player.growth = { color: '#b8f53f', special: false, elapsed: 0.1, nodeCount: 2 };
+    player.growthQueue = [
+      { color: '#08c7dc', special: false },
+      { color: '#f3c600', special: true },
+    ];
+    Reflect.set(world, 'foods', [testFood(1, player.col, player.row)]);
+
+    expect(world.claimFoods('account-a', [1])).toEqual([1]);
+    expect(player.xp).toBe(5);
+    expect(player.segments.filter((segment) => segment.neutral)).toHaveLength(5);
+    expect(player.growth).toBeNull();
+    expect(player.growthQueue).toEqual([]);
+    expect(player.upgradePending).toBe(true);
+    expect(player.upgradeRevealTimer).toBe(LEVEL_UP_TRANSITION_DURATION);
+
+    Reflect.set(world, 'foods', [testFood(2, player.col, player.row)]);
+    expect(world.claimFoods('account-a', [2])).toEqual([]);
+    expect(world.getSnapshot(0).foods.map((food) => food.id)).toEqual([2]);
+
+    const updatePlayerGrowth = Reflect.get(world, 'updatePlayerGrowth') as (
+      entity: typeof player,
+      delta: number,
+      realDelta: number,
+      now: number,
+    ) => void;
+    updatePlayerGrowth.call(world, player, 0, LEVEL_UP_TRANSITION_DURATION, 100);
+    expect(player.choosingUpgrade).toBe(true);
+    expect(player.upgradeOffer).not.toBeNull();
   });
 
   it('场地面积按最高等级增长，并在最高等级玩家死亡后平滑收缩并产生真实墙壁碰撞', () => {

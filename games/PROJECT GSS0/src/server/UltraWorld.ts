@@ -1152,17 +1152,31 @@ export class UltraWorld {
     if (player.growthQueue.length > 0) {
       player.growth = { ...player.growthQueue.shift()!, elapsed: 0, nodeCount: player.segments.length + 1 };
     } else if (player.upgradePending) {
-      player.upgradeRevealTimer = LEVEL_UP_TRANSITION_DURATION;
-      player.invulnerable = Math.max(player.invulnerable, LEVEL_UP_TRANSITION_DURATION + 0.08);
-      this.burst(player.col, player.row, '#f3c600', 54, 245, player.entityId);
-      this.burst(player.col, player.row, '#08c7dc', 34, 190, player.entityId);
-      this.ring(player.col, player.row, '#f3c600', LEVEL_UP_TRANSITION_DURATION, 8, 3.8, player.entityId);
-      this.ring(player.col, player.row, '#ffffff', 0.68, 5, 2.5, player.entityId);
-      this.textEffect(player.col, player.row - 0.8, 'LEVEL UP', '#f3c600', LEVEL_UP_TRANSITION_DURATION, player.entityId);
-      this.shake(6.5, player.entityId);
-      this.pendingEffects.push({ id: this.effectId(), type: 'flash', color: '#f3c600', strength: 0.18, audienceEntityId: player.entityId });
-      this.effectSound('levelCharge', player.entityId);
+      this.startLevelUpTransition(player);
     }
+  }
+
+  private materializePendingGrowth(player: PlayerEntity): void {
+    const pendingCount = player.growthQueue.length + (player.growth ? 1 : 0);
+    player.growth = null;
+    player.growthQueue.length = 0;
+    for (let index = 0; index < pendingCount; index += 1) {
+      const tail = player.segments.at(-1) ?? player;
+      player.segments.push(makeSegment(tail.col, tail.row, { neutral: true }, this.randomSource));
+    }
+  }
+
+  private startLevelUpTransition(player: PlayerEntity): void {
+    player.upgradeRevealTimer = LEVEL_UP_TRANSITION_DURATION;
+    player.invulnerable = Math.max(player.invulnerable, LEVEL_UP_TRANSITION_DURATION + 0.08);
+    this.burst(player.col, player.row, '#f3c600', 54, 245, player.entityId);
+    this.burst(player.col, player.row, '#08c7dc', 34, 190, player.entityId);
+    this.ring(player.col, player.row, '#f3c600', LEVEL_UP_TRANSITION_DURATION, 8, 3.8, player.entityId);
+    this.ring(player.col, player.row, '#ffffff', 0.68, 5, 2.5, player.entityId);
+    this.textEffect(player.col, player.row - 0.8, 'LEVEL UP', '#f3c600', LEVEL_UP_TRANSITION_DURATION, player.entityId);
+    this.shake(6.5, player.entityId);
+    this.pendingEffects.push({ id: this.effectId(), type: 'flash', color: '#f3c600', strength: 0.18, audienceEntityId: player.entityId });
+    this.effectSound('levelCharge', player.entityId);
   }
 
   private offerUpgrade(player: PlayerEntity, now: number): void {
@@ -1239,8 +1253,13 @@ export class UltraWorld {
     player.xp += 1;
     player.score += food.special ? 35 : 20;
     player.growthQueue.push({ color: food.color, special: food.special });
-    if (!player.growth) player.growth = { ...player.growthQueue.shift()!, elapsed: 0, nodeCount: player.segments.length + 1 };
-    if (player.xp >= player.xpNeeded) player.upgradePending = true;
+    const completesLevel = player.xp >= player.xpNeeded;
+    if (completesLevel) {
+      player.upgradePending = true;
+      this.materializePendingGrowth(player);
+    } else if (!player.growth) {
+      player.growth = { ...player.growthQueue.shift()!, elapsed: 0, nodeCount: player.segments.length + 1 };
+    }
     if (this.moduleCount(player, 'feast') > 0) player.foodBoost = 2.5;
     const emergency = this.moduleCount(player, 'emergency');
     if (emergency > 0) {
@@ -1253,6 +1272,7 @@ export class UltraWorld {
     this.textEffect(collector.col, collector.row, '+1', food.color, 0.72, player.entityId);
     this.effectSound('eat', player.entityId, player.segments.filter((segment) => segment.neutral).length + player.growthQueue.length + (player.growth ? 1 : 0));
     this.shake(food.special ? 4 : 2.8, player.entityId);
+    if (completesLevel) this.startLevelUpTransition(player);
   }
 
   private updateFood(delta: number, activePlayers: PlayerEntity[]): void {
