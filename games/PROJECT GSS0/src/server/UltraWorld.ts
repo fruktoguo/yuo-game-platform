@@ -32,6 +32,7 @@ import {
   GRID_SIZE,
   GROWTH_NODE_DELAY,
   GROWTH_PULSE_DURATION,
+  experienceRequiredForLevel,
   KNOCKBACK_DECAY,
   KNOCKBACK_INITIAL_SPEED,
   LEVEL_UP_TIME_SCALE,
@@ -940,7 +941,7 @@ export class UltraWorld {
       survivalTime: 0,
       level: 0,
       xp: 0,
-      xpNeeded: 5,
+      xpNeeded: experienceRequiredForLevel(0),
       respawnAt: null,
       segments: [],
       recentPicks: [],
@@ -988,7 +989,7 @@ export class UltraWorld {
     player.survivalTime = 0;
     player.level = 0;
     player.xp = 0;
-    player.xpNeeded = 5;
+    player.xpNeeded = experienceRequiredForLevel(0);
     player.respawnAt = null;
     player.segments = [];
     player.recentPicks = [];
@@ -1301,7 +1302,7 @@ export class UltraWorld {
     });
     player.level += 1;
     player.xp = 0;
-    player.xpNeeded = player.level + 5;
+    player.xpNeeded = experienceRequiredForLevel(player.level);
     const tail = player.segments.at(-1) ?? player;
     const definition = MODULE_BY_ID[moduleId];
     const initialTimer = this.randomBetween(0.2, 0.8);

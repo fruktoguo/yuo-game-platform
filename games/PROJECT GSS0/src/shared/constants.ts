@@ -25,6 +25,8 @@ export const PROJECTILE_SIZE_SCALE = DESIGNER_BALANCE.projectileSizeScale;
 export const PLAYER_BASE_SPEED = DESIGNER_BALANCE.playerBaseSpeed;
 export const PLAYER_SPEED_PER_LEVEL = DESIGNER_BALANCE.playerSpeedPerLevel;
 export const PLAYER_TURN_RATE = DESIGNER_BALANCE.playerTurnRate;
+export const XP_REQUIREMENT_BASE = DESIGNER_BALANCE.xpRequirementBase;
+export const XP_REQUIREMENT_PER_LEVEL = DESIGNER_BALANCE.xpRequirementPerLevel;
 export const ENEMY_BASE_SPEED = DESIGNER_BALANCE.enemyBaseSpeed;
 export const ENEMY_SPEED_PER_MINUTE = DESIGNER_BALANCE.enemySpeedPerMinute;
 export const ENEMY_SPEED_MAX_MULTIPLIER = DESIGNER_BALANCE.enemySpeedMaxMultiplier;
@@ -70,3 +72,7 @@ export const MAX_EVENT_HISTORY = 32;
 export const FOOD_COLORS = ['#b8f53f', '#36dcff', '#ff4d96', '#ffd166', '#a98cff', '#54e1a6'] as const;
 export const ENEMY_COLORS = ['#ff5c62', '#ff8a4c', '#d95cff', '#ff477e', '#f4c542'] as const;
 export const PLAYER_COLORS = ['#f3c600', '#08c7dc', '#ef3e4a', '#8be04e', '#b49cff', '#ff8a5b', '#70d6ff', '#ff88c7'] as const;
+
+export function experienceRequiredForLevel(currentLevel: number): number {
+  return XP_REQUIREMENT_BASE + Math.max(0, Math.floor(currentLevel)) * XP_REQUIREMENT_PER_LEVEL;
+}

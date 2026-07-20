@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { DESIGNER_BALANCE, moduleCooldownPercent, moduleCooldownSeconds, moduleDesignState } from '../src/shared/designerConfig';
+import { experienceRequiredForLevel } from '../src/shared/constants';
 import { ACTIVE_SKILL_MODULES, MODULES, UPGRADE_MODULES } from '../src/shared/modules';
 
 const editorHtml = readFileSync(new URL('../balance-editor.html', import.meta.url), 'utf8');
@@ -21,6 +22,8 @@ describe('设计配置', () => {
     expect(DESIGNER_BALANCE).toMatchObject({
       playerBaseSpeed: 5,
       playerSpeedPerLevel: 0,
+      xpRequirementBase: 5,
+      xpRequirementPerLevel: 2,
       playerTurnRate: 4.2,
       enemyBaseSpeed: 4,
       enemySpeedPerMinute: 0.01,
@@ -79,6 +82,12 @@ describe('设计配置', () => {
     });
   });
 
+  it('升级经验需求按基础值与当前等级线性增长', () => {
+    expect(experienceRequiredForLevel(0)).toBe(5);
+    expect(experienceRequiredForLevel(1)).toBe(7);
+    expect(experienceRequiredForLevel(2)).toBe(9);
+  });
+
   it('主动技能使用公共基础冷却与独立百分比', () => {
     const source = (globalThis as typeof globalThis & {
       GSS0_DESIGNER_CONFIG: { moduleCooldownPercentages: Record<string, number> };
@@ -106,7 +115,7 @@ describe('设计配置', () => {
 
     expect(parameterKeys.sort()).toEqual(Object.keys(DESIGNER_BALANCE).sort());
     expect(moduleIds.sort()).toEqual(MODULES.map((module) => module.id).sort());
-    expect(new Set(parameterKeys).size).toBe(125);
+    expect(new Set(parameterKeys).size).toBe(127);
     expect(new Set(moduleIds).size).toBe(58);
   });
 

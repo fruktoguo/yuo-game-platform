@@ -1,8 +1,10 @@
 globalThis.GSS0_DESIGNER_CONFIG = {
-  "schemaVersion": 5,
+  "schemaVersion": 6,
   "balance": {
     "playerBaseSpeed": 5,
     "playerSpeedPerLevel": 0,
+    "xpRequirementBase": 5,
+    "xpRequirementPerLevel": 2,
     "playerTurnRate": 4.2,
     "upgradeInvulnerabilityDuration": 1,
     "respawnLocatorConvergeDuration": 1,

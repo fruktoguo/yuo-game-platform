@@ -89,7 +89,7 @@
 
   const TAU = Math.PI * 2;
   const DESIGNER_CONFIG = globalThis.GSS0_DESIGNER_CONFIG || {};
-  if (DESIGNER_CONFIG.schemaVersion !== 5) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 5");
+  if (DESIGNER_CONFIG.schemaVersion !== 6) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 6");
   const DESIGNER_BALANCE = DESIGNER_CONFIG.balance || {};
   const MODULE_DESIGN_STATES = DESIGNER_CONFIG.moduleStates || {};
   const MODULE_COOLDOWN_PERCENTAGES = DESIGNER_CONFIG.moduleCooldownPercentages || {};
@@ -105,6 +105,12 @@
   const POISON_INITIAL_TICK_DELAY = designerNumber("poisonInitialTickDelay", 1.4, 0.05, 30);
   const POISON_TICK_INTERVAL = designerNumber("poisonTickInterval", 2.3, 0.05, 30);
   const ACTIVE_SKILL_BASE_COOLDOWN = designerNumber("activeSkillBaseCooldown", 3, 0.05, 30);
+  const XP_REQUIREMENT_BASE = designerNumber("xpRequirementBase", 5, 1, 100, true);
+  const XP_REQUIREMENT_PER_LEVEL = designerNumber("xpRequirementPerLevel", 2, 0, 20, true);
+
+  function experienceRequiredForLevel(currentLevel) {
+    return XP_REQUIREMENT_BASE + Math.max(0, Math.floor(currentLevel)) * XP_REQUIREMENT_PER_LEVEL;
+  }
 
   function moduleCooldownPercent(moduleId) {
     const candidate = MODULE_COOLDOWN_PERCENTAGES[moduleId];
@@ -439,7 +445,7 @@
   let kills = 0;
   let level = 0;
   let xp = 0;
-  let xpNeeded = 5;
+  let xpNeeded = experienceRequiredForLevel(0);
   let lastNeeded = -1;
   let waveTimer = 0;
   let waveCount = 0;
@@ -2536,7 +2542,7 @@
     kills = 0;
     level = 0;
     xp = 0;
-    xpNeeded = 5;
+    xpNeeded = experienceRequiredForLevel(0);
     waveTimer = 0;
     waveCount = 0;
     headFireTimer = HEAD_ATTACK_INTERVAL;
@@ -3522,7 +3528,7 @@
 
     level += 1;
     xp = 0;
-    xpNeeded = level + 5;
+    xpNeeded = experienceRequiredForLevel(level);
     const tail = player.segments[player.segments.length - 1] || player;
     const initialTimer = random(0.2, 0.8);
     player.segments.push(makeSegmentAtCell(tail.col, tail.row, { module: module.id, timer: initialTimer }));

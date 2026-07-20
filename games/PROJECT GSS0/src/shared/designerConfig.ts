@@ -10,7 +10,7 @@ interface DesignerConfigSource {
 }
 
 const source = (globalThis as typeof globalThis & { GSS0_DESIGNER_CONFIG?: DesignerConfigSource }).GSS0_DESIGNER_CONFIG;
-if (source?.schemaVersion !== 5) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 5');
+if (source?.schemaVersion !== 6) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 6');
 
 function numberSetting(key: string, fallback: number, minimum: number, maximum: number, integer = false): number {
   const candidate = source?.balance?.[key];
@@ -22,6 +22,8 @@ function numberSetting(key: string, fallback: number, minimum: number, maximum: 
 export const DESIGNER_BALANCE = Object.freeze({
   playerBaseSpeed: numberSetting('playerBaseSpeed', 5, 1, 12),
   playerSpeedPerLevel: numberSetting('playerSpeedPerLevel', 0, 0, 0.5),
+  xpRequirementBase: numberSetting('xpRequirementBase', 5, 1, 100, true),
+  xpRequirementPerLevel: numberSetting('xpRequirementPerLevel', 2, 0, 20, true),
   playerTurnRate: numberSetting('playerTurnRate', 4.2, 0.5, 12),
   enemyBaseSpeed: numberSetting('enemyBaseSpeed', 4, 0.5, 12),
   enemySpeedPerMinute: numberSetting('enemySpeedPerMinute', 0.01, 0, 0.2),
