@@ -84,7 +84,7 @@
 
   const TAU = Math.PI * 2;
   const DESIGNER_CONFIG = globalThis.GSS0_DESIGNER_CONFIG || {};
-  if (DESIGNER_CONFIG.schemaVersion !== 4) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 4");
+  if (DESIGNER_CONFIG.schemaVersion !== 5) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 5");
   const DESIGNER_BALANCE = DESIGNER_CONFIG.balance || {};
   const MODULE_DESIGN_STATES = DESIGNER_CONFIG.moduleStates || {};
   const MODULE_COOLDOWN_PERCENTAGES = DESIGNER_CONFIG.moduleCooldownPercentages || {};
@@ -96,8 +96,9 @@
     return integer ? Math.round(clamped) : clamped;
   }
 
-  const ATTACK_INTERVAL_SCALE = designerNumber("attackIntervalScale", 2, 0.1, 10);
-  const HEAD_ATTACK_INTERVAL = designerNumber("headAttackInterval", 1.9, 0.05, 30);
+  const HEAD_ATTACK_INTERVAL = designerNumber("headAttackInterval", 3, 0.05, 30);
+  const POISON_INITIAL_TICK_DELAY = designerNumber("poisonInitialTickDelay", 1.4, 0.05, 30);
+  const POISON_TICK_INTERVAL = designerNumber("poisonTickInterval", 2.3, 0.05, 30);
   const ACTIVE_SKILL_BASE_COOLDOWN = designerNumber("activeSkillBaseCooldown", 3, 0.05, 30);
 
   function moduleCooldownPercent(moduleId) {
@@ -155,7 +156,7 @@
     { id: "blade", name: "旋刃节", category: "输出", color: "#e8eef7", shape: "diamond", cooldown: activeCooldownLabel("blade", true), activeCooldown: true, desc: "彩刃在约五节身体长度外旋转，接触敌蛇时切除一节身体。" },
     { id: "pulse", name: "脉冲核心", category: "输出", color: "#3eb7ff", shape: "ring", cooldown: activeCooldownLabel("pulse"), activeCooldown: true, desc: "周期释放近距离冲击波，同时命中范围内的所有敌蛇。" },
     { id: "venom", name: "腐蚀囊节", category: "输出", color: "#8be04e", shape: "hex", cooldown: activeCooldownLabel("venom"), activeCooldown: true, desc: "发射腐蚀弹，命中后继续造成两次缓慢侵蚀伤害。" },
-    { id: "echo", name: "回声弹匣", category: "输出", color: "#ff8bd7", shape: "capsule", cooldown: `随头部·${formatCooldownSeconds(HEAD_ATTACK_INTERVAL * ATTACK_INTERVAL_SCALE)}`, desc: "每次头部发射时追加一枚偏转弹，多个回声弹匣可继续叠加。" },
+    { id: "echo", name: "回声弹匣", category: "输出", color: "#ff8bd7", shape: "capsule", cooldown: `随头部·${formatCooldownSeconds(HEAD_ATTACK_INTERVAL)}`, desc: "每次头部发射时追加一枚偏转弹，多个回声弹匣可继续叠加。" },
     { id: "rail", name: "贯穿轨炮节", category: "输出", color: "#7ef9ff", shape: "capsule", cooldown: activeCooldownLabel("rail"), activeCooldown: true, desc: "发射高速贯穿弹，最多连续穿透四个敌人。" },
     { id: "ricochet", name: "弹射晶节", category: "输出", color: "#ffcf5a", shape: "diamond", cooldown: activeCooldownLabel("ricochet"), activeCooldown: true, desc: "发射可反弹两次、最多命中三个敌人的晶体弹。" },
     { id: "cluster", name: "裂变弹舱", category: "输出", color: "#ff6b4a", shape: "hex", cooldown: activeCooldownLabel("cluster"), activeCooldown: true, desc: "发射追踪爆弹，命中时对周围所有敌人造成伤害。" },
@@ -2357,7 +2358,7 @@
     xpNeeded = 5;
     waveTimer = 0;
     waveCount = 0;
-    headFireTimer = HEAD_ATTACK_INTERVAL * ATTACK_INTERVAL_SCALE;
+    headFireTimer = HEAD_ATTACK_INTERVAL;
     nextEnemyId = 1;
     shake = 0;
     flash = 0;
@@ -3053,7 +3054,7 @@
       blade: `刀刃在机体外约 2.9 格处旋转，接触敌蛇造成 1 点伤害；同一敌人的受击间隔为 ${formatCooldownSeconds(moduleCooldownSeconds("blade"))}，多份旋刃共享该间隔。`,
       pulse: "释放约 105px 半径的冲击波；任意身体进入范围的每条敌蛇受到 1 点伤害。",
       venom: "命中先造成 1 点伤害，随后再造成 2 次各 1 点的腐蚀伤害；第一次延迟约 1.4 秒，第二次再延迟约 2.3 秒。",
-      echo: `头部每次向场上最近目标开火时，每节回声弹匣追加 1 枚偏转弹；每枚命中造成 1 点伤害，基础射击间隔为 ${formatCooldownSeconds(HEAD_ATTACK_INTERVAL * ATTACK_INTERVAL_SCALE)}。`,
+      echo: `头部每次向场上最近目标开火时，每节回声弹匣追加 1 枚偏转弹；每枚命中造成 1 点伤害，基础射击间隔为 ${formatCooldownSeconds(HEAD_ATTACK_INTERVAL)}。`,
       rail: "发射 1 枚高速贯穿弹，每个目标受到 1 点伤害，最多连续命中 4 条不同敌蛇。",
       ricochet: "发射 1 枚晶体弹，最多反弹墙壁 2 次、命中 3 条不同敌蛇；每个目标受到 1 点伤害。",
       cluster: "发射追踪爆弹，碰到敌蛇后在 72px 半径内爆炸；范围内每条敌蛇受到 1 点伤害。",
@@ -3789,7 +3790,7 @@
     }
     if (fired) {
       sound("shoot");
-      headFireTimer = HEAD_ATTACK_INTERVAL * outputRateMultiplier() * ATTACK_INTERVAL_SCALE;
+      headFireTimer = HEAD_ATTACK_INTERVAL * outputRateMultiplier();
     }
   }
 
@@ -4052,7 +4053,7 @@
       if (enemy.poisonTicks > 0) {
         enemy.poisonTimer -= dt;
         if (enemy.poisonTimer <= 0) {
-          enemy.poisonTimer = 1.15 * ATTACK_INTERVAL_SCALE;
+          enemy.poisonTimer = POISON_TICK_INTERVAL;
           enemy.poisonTicks -= 1;
           damageEnemy(enemy, 1, enemy.x, enemy.y, enemy.poisonColor || MODULE_BY_ID.venom.color);
         }
@@ -4716,7 +4717,7 @@
           if (projectile.slow) enemy.slow = Math.max(enemy.slow, projectile.slow);
           if (projectile.poison) {
             enemy.poisonTicks += projectile.poison;
-            enemy.poisonTimer = 0.7 * ATTACK_INTERVAL_SCALE;
+            enemy.poisonTimer = POISON_INITIAL_TICK_DELAY;
             enemy.poisonColor = projectile.color;
           }
           if (projectile.pierce > 0) projectile.pierce -= 1;

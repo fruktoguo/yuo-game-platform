@@ -308,7 +308,7 @@
         { key: "upgradeInvulnerabilityDuration", group: "玩家", label: "升级后无敌时间", hint: "选择机体并恢复移动后的全身保护时间", min: 0, max: 10, step: 0.05, unit: "秒" },
         { key: "respawnLocatorConvergeDuration", group: "表现", label: "复活定位收束时长", hint: "双层外框从屏幕外缩小到玩家蛇头所需的时间", min: 0.1, max: 10, step: 0.1, unit: "秒" },
         { key: "respawnLocatorFadeDuration", group: "表现", label: "复活定位淡出时长", hint: "外框到达玩家蛇头后逐渐变淡消失的时间", min: 0.1, max: 20, step: 0.1, unit: "秒" },
-        { key: "headAttackInterval", group: "玩家", label: "蛇头攻击间隔", hint: "受蛇头攻击间隔倍率和超频增幅节影响前的间隔", min: 0.05, max: 30, step: 0.05, unit: "秒" },
+        { key: "headAttackInterval", group: "玩家", label: "蛇头基础攻击间隔", hint: "未受超频增幅节影响时，蛇头自动开火的基础间隔", min: 0.05, max: 30, step: 0.05, unit: "秒" },
         { key: "enemyBaseSpeed", group: "敌人全局", label: "敌人基础速度", hint: "各类型速度倍率和时间成长生效前的每秒移动格数", min: 0.5, max: 12, step: 0.1, unit: "格/秒" },
         { key: "enemySpeedPerMinute", group: "敌人全局", label: "每分钟速度成长", hint: "每经过一分钟附加的敌人速度倍率；0.01 表示提高 1%", min: 0, max: 0.2, step: 0.005, unit: "倍率/分钟" },
         { key: "enemySpeedMaxMultiplier", group: "敌人全局", label: "时间速度倍率上限", hint: "时间成长可将敌人基础速度提高到的最高倍率", min: 1, max: 3, step: 0.01, unit: "倍" },
@@ -403,7 +403,8 @@
         { key: "enemyWardenKnockbackMultiplier", group: "守卫者", label: "头撞击退倍率", hint: "玩家与守卫者蛇头碰撞时受到的额外击退倍率", min: 1, max: 4, step: 0.05, unit: "倍" },
         { key: "projectileSpeedScale", group: "战斗", label: "全局子弹速度倍率", hint: "作用于所有以速度参数发射的投射物", min: 0.1, max: 10, step: 0.05, unit: "倍" },
         { key: "projectileSizeScale", group: "战斗", label: "全局子弹体积倍率", hint: "同时放大所有子弹的绘制尺寸与命中体积；2 表示基础尺寸的两倍", min: 0.1, max: 10, step: 0.05, unit: "倍" },
-        { key: "attackIntervalScale", group: "战斗", label: "蛇头攻击间隔倍率", hint: "只影响蛇头基础攻击和持续伤害节奏，不再影响主动机体冷却", min: 0.1, max: 10, step: 0.05, unit: "倍" },
+        { key: "poisonInitialTickDelay", group: "战斗", label: "毒伤首次生效延迟", hint: "毒弹命中后到第一次持续伤害生效的等待时间", min: 0.05, max: 30, step: 0.05, unit: "秒" },
+        { key: "poisonTickInterval", group: "战斗", label: "毒伤后续间隔", hint: "第一次毒伤生效后，每次持续伤害之间的间隔", min: 0.05, max: 30, step: 0.05, unit: "秒" },
         { key: "activeSkillBaseCooldown", group: "战斗", label: "主动技能基础冷却", hint: "第二页各机体的冷却百分比均以此时间为 100%", min: 0.05, max: 30, step: 0.05, unit: "秒" },
         { key: "arenaAreaPerLevel", group: "场地", label: "每级场地面积成长", hint: "按场上最高玩家等级增加的场地面积倍率", min: 0, max: 0.5, step: 0.005, unit: "倍率/级" },
         { key: "arenaResizeRate", group: "场地", label: "场地缩放速度", hint: "场地面积目标变化后的平滑追随速度", min: 0.1, max: 10, step: 0.1, unit: "速率" },
@@ -548,7 +549,7 @@
       const filePickerSupported = typeof window.showOpenFilePicker === "function";
 
       function normalizeConfig(value) {
-        const config = { schemaVersion: 4, balance: {}, moduleCooldownPercentages: {}, moduleStates: {} };
+        const config = { schemaVersion: 5, balance: {}, moduleCooldownPercentages: {}, moduleStates: {} };
         for (const definition of PARAMETER_DEFINITIONS) {
           const candidate = Number(value?.balance?.[definition.key]);
           config.balance[definition.key] = Number.isFinite(candidate) ? Math.max(definition.min, Math.min(definition.max, candidate)) : definition.min;
@@ -573,7 +574,7 @@
         const end = text.lastIndexOf("}");
         if (start < 0 || end <= start) throw new Error("配置内容不完整");
         const parsed = JSON.parse(text.slice(start, end + 1));
-        if (parsed?.schemaVersion !== 4) throw new Error("配置版本无效，需要 schemaVersion 4");
+        if (parsed?.schemaVersion !== 5) throw new Error("配置版本无效，需要 schemaVersion 5");
         return normalizeConfig(parsed);
       }
 
@@ -740,7 +741,7 @@
 
       function moduleCooldownLabel(module) {
         if (module.id === "echo") {
-          return `随头部·${formatCooldownSeconds(draft.balance.headAttackInterval * draft.balance.attackIntervalScale)}`;
+          return `随头部·${formatCooldownSeconds(draft.balance.headAttackInterval)}`;
         }
         if (!Object.hasOwn(draft.moduleCooldownPercentages, module.id)) return module.cooldown;
         const suffix = module.id === "blade" || module.id === "saw" ? "/目标" : "";
@@ -782,7 +783,7 @@
               draft.balance[definition.key] = next;
               range.value = next;
               number.value = next;
-              if (["activeSkillBaseCooldown", "headAttackInterval", "attackIntervalScale"].includes(definition.key)) renderModules();
+              if (["activeSkillBaseCooldown", "headAttackInterval"].includes(definition.key)) renderModules();
               scheduleAutoSave();
             };
             range.addEventListener("input", () => update(range.value));

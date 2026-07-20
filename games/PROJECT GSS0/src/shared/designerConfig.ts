@@ -10,7 +10,7 @@ interface DesignerConfigSource {
 }
 
 const source = (globalThis as typeof globalThis & { GSS0_DESIGNER_CONFIG?: DesignerConfigSource }).GSS0_DESIGNER_CONFIG;
-if (source?.schemaVersion !== 4) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 4');
+if (source?.schemaVersion !== 5) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 5');
 
 function numberSetting(key: string, fallback: number, minimum: number, maximum: number, integer = false): number {
   const candidate = source?.balance?.[key];
@@ -117,8 +117,9 @@ export const DESIGNER_BALANCE = Object.freeze({
   enemySpawnWarning: numberSetting('enemySpawnWarning', 1.5, 0, 10),
   projectileSpeedScale: numberSetting('projectileSpeedScale', 3, 0.1, 10),
   projectileSizeScale: numberSetting('projectileSizeScale', 2, 0.1, 10),
-  attackIntervalScale: numberSetting('attackIntervalScale', 2, 0.1, 10),
-  headAttackInterval: numberSetting('headAttackInterval', 1.9, 0.05, 30),
+  headAttackInterval: numberSetting('headAttackInterval', 3, 0.05, 30),
+  poisonInitialTickDelay: numberSetting('poisonInitialTickDelay', 1.4, 0.05, 30),
+  poisonTickInterval: numberSetting('poisonTickInterval', 2.3, 0.05, 30),
   activeSkillBaseCooldown: numberSetting('activeSkillBaseCooldown', 3, 0.05, 30),
   arenaAreaPerLevel: numberSetting('arenaAreaPerLevel', 0.05, 0, 0.5),
   arenaResizeRate: numberSetting('arenaResizeRate', 2.4, 0.1, 10),

@@ -26,7 +26,7 @@ export const MODULES = [
   { id: 'blade', name: '旋刃节', category: '输出', color: '#e8eef7', shape: 'diamond', cooldown: `${formatCooldownSeconds(moduleCooldownSeconds('blade'))}/目标`, activeCooldown: true, desc: '彩刃在约五节身体长度外旋转，接触敌蛇时切除一节身体。' },
   { id: 'pulse', name: '脉冲核心', category: '输出', color: '#3eb7ff', shape: 'ring', cooldown: formatCooldownSeconds(moduleCooldownSeconds('pulse')), activeCooldown: true, desc: '周期释放近距离冲击波，同时命中范围内的所有敌蛇。' },
   { id: 'venom', name: '腐蚀囊节', category: '输出', color: '#8be04e', shape: 'hex', cooldown: formatCooldownSeconds(moduleCooldownSeconds('venom')), activeCooldown: true, desc: '发射腐蚀弹，命中后继续造成两次缓慢侵蚀伤害。' },
-  { id: 'echo', name: '回声弹匣', category: '输出', color: '#ff8bd7', shape: 'capsule', cooldown: `随头部·${formatCooldownSeconds(DESIGNER_BALANCE.headAttackInterval * DESIGNER_BALANCE.attackIntervalScale)}`, desc: '每次头部发射时追加一枚偏转弹，多个回声弹匣可继续叠加。' },
+  { id: 'echo', name: '回声弹匣', category: '输出', color: '#ff8bd7', shape: 'capsule', cooldown: `随头部·${formatCooldownSeconds(DESIGNER_BALANCE.headAttackInterval)}`, desc: '每次头部发射时追加一枚偏转弹，多个回声弹匣可继续叠加。' },
   { id: 'rail', name: '贯穿轨炮节', category: '输出', color: '#7ef9ff', shape: 'capsule', cooldown: formatCooldownSeconds(moduleCooldownSeconds('rail')), activeCooldown: true, desc: '发射高速贯穿弹，最多连续穿透四个敌人。' },
   { id: 'ricochet', name: '弹射晶节', category: '输出', color: '#ffcf5a', shape: 'diamond', cooldown: formatCooldownSeconds(moduleCooldownSeconds('ricochet')), activeCooldown: true, desc: '发射可反弹两次、最多命中三个敌人的晶体弹。' },
   { id: 'cluster', name: '裂变弹舱', category: '输出', color: '#ff6b4a', shape: 'hex', cooldown: formatCooldownSeconds(moduleCooldownSeconds('cluster')), activeCooldown: true, desc: '发射追踪爆弹，命中时对周围所有敌人造成伤害。' },

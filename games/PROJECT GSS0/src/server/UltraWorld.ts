@@ -1,7 +1,6 @@
 import {
   ARENA_AREA_PER_LEVEL,
   ARENA_RESIZE_RATE,
-  ATTACK_INTERVAL_SCALE,
   BOUNCE_LOCK_TIME,
   BOUNCE_SLOW_TIME,
   CANONICAL_CELL_SIZE,
@@ -47,6 +46,8 @@ import {
   PLAYER_COLORS,
   PLAYER_SPEED_PER_LEVEL,
   PLAYER_TURN_RATE,
+  POISON_INITIAL_TICK_DELAY,
+  POISON_TICK_INTERVAL,
   PROJECTILE_SIZE_SCALE,
   PROJECTILE_SPEED_SCALE,
   RESPAWN_DELAY_MS,
@@ -910,7 +911,7 @@ export class UltraWorld {
       ramCooldown: 0,
       bloomCooldown: 0,
       cacheKills: 0,
-      headFireTimer: HEAD_ATTACK_INTERVAL * ATTACK_INTERVAL_SCALE,
+      headFireTimer: HEAD_ATTACK_INTERVAL,
       lastInputSequence: -1,
       movementHistory: [],
       score: 0,
@@ -957,7 +958,7 @@ export class UltraWorld {
     player.ramCooldown = 0;
     player.bloomCooldown = 0;
     player.cacheKills = 0;
-    player.headFireTimer = HEAD_ATTACK_INTERVAL * ATTACK_INTERVAL_SCALE;
+    player.headFireTimer = HEAD_ATTACK_INTERVAL;
     player.lastInputSequence = -1;
     player.movementHistory.length = 0;
     this.clearPlayerHeadCollisionRecords(player.entityId);
@@ -2004,7 +2005,7 @@ export class UltraWorld {
     }
     if (fired) {
       this.effectSound('shoot', player.entityId);
-      player.headFireTimer = HEAD_ATTACK_INTERVAL * this.outputRateMultiplier(player) * ATTACK_INTERVAL_SCALE;
+      player.headFireTimer = HEAD_ATTACK_INTERVAL * this.outputRateMultiplier(player);
     }
   }
 
@@ -2369,7 +2370,7 @@ export class UltraWorld {
       if (target.poisonTicks <= 0) continue;
       target.poisonTimer -= delta;
       if (target.poisonTimer > 0) continue;
-      target.poisonTimer = 1.15 * ATTACK_INTERVAL_SCALE;
+      target.poisonTimer = POISON_TICK_INTERVAL;
       target.poisonTicks -= 1;
       const owner = target.poisonOwnerEntityId === null ? null : this.playersByEntity.get(target.poisonOwnerEntityId) ?? null;
       if (owner) this.damageTarget(owner, target, 1, target, target.poisonColor ?? MODULE_BY_ID.venom.color);
@@ -2877,7 +2878,7 @@ export class UltraWorld {
           if (projectile.slow) hostile.slow = Math.max(hostile.slow, projectile.slow);
           if (projectile.poison) {
             hostile.poisonTicks += projectile.poison;
-            hostile.poisonTimer = 0.7 * ATTACK_INTERVAL_SCALE;
+            hostile.poisonTimer = POISON_INITIAL_TICK_DELAY;
             hostile.poisonColor = projectile.color;
             hostile.poisonOwnerEntityId = owner.entityId;
           }

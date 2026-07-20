@@ -1,5 +1,5 @@
 globalThis.GSS0_DESIGNER_CONFIG = {
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "balance": {
     "playerBaseSpeed": 5,
     "playerSpeedPerLevel": 0,
@@ -98,8 +98,9 @@ globalThis.GSS0_DESIGNER_CONFIG = {
     "enemySpawnWarning": 1.5,
     "projectileSpeedScale": 3,
     "projectileSizeScale": 2,
-    "attackIntervalScale": 2,
-    "headAttackInterval": 1.9,
+    "headAttackInterval": 3,
+    "poisonInitialTickDelay": 1.4,
+    "poisonTickInterval": 2.3,
     "activeSkillBaseCooldown": 3,
     "arenaAreaPerLevel": 0.05,
     "arenaResizeRate": 2.4,
