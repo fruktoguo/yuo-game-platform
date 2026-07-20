@@ -352,10 +352,10 @@
     </div>
   </main>
 
-  <script src="enemy-codex.js?v=51"></script>
-  <script src="wave-director.js?v=51"></script>
-  <script src="designer-config.js?v=51"></script>
-  <script src="module-catalog.js?v=51"></script>
+  <script src="enemy-codex.js?v=52"></script>
+  <script src="wave-director.js?v=52"></script>
+  <script src="designer-config.js?v=52"></script>
+  <script src="module-catalog.js?v=52"></script>
   <script>
     (() => {
       "use strict";
@@ -737,12 +737,15 @@
       }
 
       function moduleCooldownLabel(module) {
-        if (module.id === "echo") {
-          return `随头部·${formatCooldownSeconds(draft.balance.headAttackInterval)}`;
-        }
         if (!Object.hasOwn(draft.moduleCooldownPercentages, module.id)) return module.cooldown;
         const suffix = module.id === "blade" || module.id === "saw" ? "/目标" : "";
         return `${formatCooldownSeconds(moduleCooldownSeconds(module.id))}${suffix}`;
+      }
+
+      function moduleUsageLabel(module) {
+        return Object.hasOwn(draft.moduleCooldownPercentages, module.id)
+          ? `冷却 · ${moduleCooldownLabel(module)}`
+          : module.cooldown;
       }
 
       function createParameterRow(definition) {
@@ -1015,7 +1018,7 @@
             description.className = "module-desc";
             description.textContent = module.desc;
             const cooldownSummary = document.createElement("small");
-            cooldownSummary.textContent = `冷却 · ${moduleCooldownLabel(module)}`;
+            cooldownSummary.textContent = moduleUsageLabel(module);
             description.append(cooldownSummary);
             const control = document.createElement("div");
             control.className = "status-control";
@@ -1058,7 +1061,7 @@
                 draft.moduleCooldownPercentages[module.id] = next;
                 title.textContent = `冷却时间 · ${next}%`;
                 actual.textContent = `实际 ${moduleCooldownLabel(module)}`;
-                if (cooldownSummary) cooldownSummary.textContent = `冷却 · ${moduleCooldownLabel(module)}`;
+                if (cooldownSummary) cooldownSummary.textContent = moduleUsageLabel(module);
                 scheduleAutoSave();
               });
               cooldownControl.append(copy, range, actual);

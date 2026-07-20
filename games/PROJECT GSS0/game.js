@@ -158,11 +158,9 @@
   }
   const MODULES = MODULE_CATALOG.map((module) => Object.freeze({
     ...module,
-    cooldown: module.id === "echo"
-      ? `随头部·${formatCooldownSeconds(HEAD_ATTACK_INTERVAL)}`
-      : module.activeCooldown
-        ? activeCooldownLabel(module.id, module.id === "blade" || module.id === "saw")
-        : module.cooldown
+    cooldown: module.activeCooldown
+      ? activeCooldownLabel(module.id, module.id === "blade" || module.id === "saw")
+      : module.cooldown
   }));
 
   const MODULE_BY_ID = Object.fromEntries(MODULES.map((module) => [module.id, module]));
@@ -3123,7 +3121,7 @@
     card.innerHTML = `
       <div class="card-top">
         <span class="module-swatch shape-${module.shape}" aria-hidden="true"><i></i></span>
-        <div class="card-heading"><span>${module.category}型模块</span><h3>${module.name}</h3><small class="card-cooldown">冷却 · ${module.cooldown}</small></div>
+        <div class="card-heading"><span>${module.category}型模块</span><h3>${module.name}</h3><small class="card-cooldown">${module.activeCooldown ? `冷却 · ${module.cooldown}` : module.cooldown}</small></div>
       </div>
       <p>${module.desc}</p>
       <span class="card-action">${options.actionLabel || "机体档案"} <b aria-hidden="true">${options.actionSymbol || "+"}</b></span>

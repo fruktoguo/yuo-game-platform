@@ -1,6 +1,6 @@
 import '../../module-catalog.js';
 import type { GSS0ModuleId } from '../../module-catalog.js';
-import { DESIGNER_BALANCE, formatCooldownSeconds, moduleCooldownSeconds, moduleDesignState, moduleIsUpgradeEnabled, type ModuleDesignState } from './designerConfig';
+import { formatCooldownSeconds, moduleCooldownSeconds, moduleDesignState, moduleIsUpgradeEnabled, type ModuleDesignState } from './designerConfig';
 
 export type ModuleCategory = '输出' | '防御' | '辅助' | '恢复';
 export type ModuleShape = 'triangle' | 'diamond' | 'hex' | 'star' | 'ring' | 'capsule' | 'square' | 'circle';
@@ -24,11 +24,9 @@ if (!Array.isArray(MODULE_CATALOG) || MODULE_CATALOG.length === 0) {
 
 export const MODULES = Object.freeze(MODULE_CATALOG.map((module): ModuleDefinition => ({
   ...module,
-  cooldown: module.id === 'echo'
-    ? `随头部·${formatCooldownSeconds(DESIGNER_BALANCE.headAttackInterval)}`
-    : module.activeCooldown
-      ? `${formatCooldownSeconds(moduleCooldownSeconds(module.id))}${module.id === 'blade' || module.id === 'saw' ? '/目标' : ''}`
-      : module.cooldown,
+  cooldown: module.activeCooldown
+    ? `${formatCooldownSeconds(moduleCooldownSeconds(module.id))}${module.id === 'blade' || module.id === 'saw' ? '/目标' : ''}`
+    : module.cooldown,
 })));
 
 

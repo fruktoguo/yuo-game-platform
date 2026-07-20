@@ -112,6 +112,20 @@ describe('设计配置', () => {
     expect(moduleCooldownSeconds('fan')).toBeCloseTo(22.5);
   });
 
+  it('没有独立冷却的常驻与触发型机体统一归为被动技能', () => {
+    const passiveModules = MODULES.filter((module) => !module.activeCooldown);
+    const feast = MODULES.find((module) => module.id === 'feast');
+
+    expect(passiveModules.length).toBeGreaterThan(0);
+    expect(passiveModules.every((module) => module.cooldown === '被动效果')).toBe(true);
+    expect(ACTIVE_SKILL_MODULES.some((module) => module.id === 'echo')).toBe(false);
+    expect(ACTIVE_SKILL_MODULES.some((module) => module.id === 'emergency')).toBe(false);
+    expect(ACTIVE_SKILL_MODULES.some((module) => module.id === 'feast')).toBe(false);
+    expect(feast?.desc).toContain('每次吃球后2.5秒内');
+    expect(moduleCatalogSource).not.toMatch(/cooldown: "(?:常驻|吃球触发|击破触发|伤害触发|每\d+次击破)/u);
+    expect(editorHtml).toContain('cooldownSummary.textContent = moduleUsageLabel(module);');
+  });
+
   it('全部现有机体都有状态且默认进入升级池', () => {
     const source = (globalThis as typeof globalThis & { GSS0_DESIGNER_CONFIG: { moduleStates: Record<string, string> } }).GSS0_DESIGNER_CONFIG;
     expect(Object.keys(source.moduleStates).sort()).toEqual(MODULES.map((module) => module.id).sort());
@@ -136,7 +150,7 @@ describe('设计配置', () => {
     expect(MODULES.find((module) => module.id === 'spark')?.desc).toBe('发射1枚高速焰弹，造成1伤害。');
     expect(MODULES.find((module) => module.id === 'haste')?.desc).toContain('4.5%移动速度');
     expect(MODULES.find((module) => module.id === 'haste')?.desc).toContain('0.18弧度/秒转向速度');
-    expect(editorHtml).toContain('src="module-catalog.js?v=51"');
+    expect(editorHtml).toContain('src="module-catalog.js?v=52"');
     expect(editorHtml).toContain('const MODULES = moduleCatalog;');
     expect(editorHtml).toContain('description.textContent = module.desc;');
   });

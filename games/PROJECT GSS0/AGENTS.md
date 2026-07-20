@@ -14,7 +14,7 @@
 # Project Version
 
 - The main menu must always display the current game version in its lower-left corner.
-- The current game version is `V51`.
+- The current game version is `V52`.
 - For every future user request that modifies this project, increment the integer version exactly once and update both the main-menu label and the current-version line in this file as part of the same change.
 - Whenever the version changes, update every classic runtime script query in `index.html` and `balance-editor.html` to `?v=<version integer>` so mutable client files cannot be mixed across browser or CDN caches.
 
@@ -52,3 +52,4 @@
 - Structural implementation constants, binary format markers, and hard protocol safety limits may remain in code when they are not designer-adjustable.
 - `module-catalog.js` is the canonical source for every module's identity, visual metadata, and player-facing description. The game, design console, and TypeScript runtime must consume that catalog instead of maintaining parallel descriptions.
 - Keep module descriptions concise: state defining active effects and damage, expose meaningful passive per-stack values and caps, omit generic projectile rules and incidental implementation details.
+- Treat only modules marked `activeCooldown` as active skills. Modules without an independently tracked cooldown, including event-triggered effects, are passive skills and must display the shared label `被动效果` instead of a trigger or pseudo-cooldown label.

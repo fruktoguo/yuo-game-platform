@@ -9,7 +9,7 @@ describe('界面设置', () => {
   it('使用正式游戏名并在左上品牌卡显示当前版本', () => {
     expect(indexHtml).toContain('<title>代号：几何贪吃蛇</title>');
     expect(indexHtml).toContain('<h1 id="game-title"><span>代号：几何贪吃蛇</span></h1>');
-    expect(indexHtml).toContain('<span class="brand-version" aria-label="游戏版本 V51">V51</span>');
+    expect(indexHtml).toContain('<span class="brand-version" aria-label="游戏版本 V52">V52</span>');
     expect(styles).toContain('.brand-version');
     const brandTitleRule = styles.match(/\.brand-lockup strong\s*\{([^}]*)\}/)?.[1];
     const brandVersionRule = styles.match(/\.brand-version\s*\{([^}]*)\}/)?.[1];
@@ -31,6 +31,11 @@ describe('界面设置', () => {
     expect(gameSource).toContain('const textPadding = 14 * labelScale;');
     expect(gameSource).toContain('const maxWidth = clamp(arena.cellSize * 5.2, 112, 172) * labelScale;');
     expect(gameSource).toContain('ctx.lineWidth = (target.isSelf ? 1.4 : 1) * labelScale;');
+  });
+
+  it('机体卡片区分实际冷却与被动效果', () => {
+    expect(gameSource).toContain('module.activeCooldown ? `冷却 · ${module.cooldown}` : module.cooldown');
+    expect(gameSource).not.toContain('`随头部·${formatCooldownSeconds(HEAD_ATTACK_INTERVAL)}`');
   });
 
   it('七个右上角按钮使用零延迟自定义提示', () => {
@@ -57,7 +62,7 @@ describe('界面设置', () => {
     expect(tooltipRule).not.toContain('transition');
     expect(indexHtml).not.toContain('id="description-button"');
     expect(indexHtml).not.toContain('id="description-toggle"');
-    expect(indexHtml).toContain('src="module-catalog.js?v=51"');
+    expect(indexHtml).toContain('src="module-catalog.js?v=52"');
     expect(gameSource).toContain('const MODULE_CATALOG = globalThis.GSS0ModuleCatalog;');
     expect(gameSource).not.toContain('SHORT_MODULE_DESCRIPTIONS');
     expect(gameSource).not.toContain('gss0-detailed-descriptions');
