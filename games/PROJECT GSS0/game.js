@@ -4980,21 +4980,30 @@
     let fontSize = clamp(10 * pieceScale, 8, 11);
     ctx.save();
     ctx.font = `900 ${fontSize}px Bahnschrift, Arial Narrow, sans-serif`;
-    while (fontSize > 7 && ctx.measureText(label).width > maxWidth) {
+    while (fontSize > 7 && ctx.measureText(label).width > maxWidth - 14) {
       fontSize -= 0.5;
       ctx.font = `900 ${fontSize}px Bahnschrift, Arial Narrow, sans-serif`;
     }
-    const y = target.y - 37 * pieceScale;
-    ctx.fillStyle = target.isSelf ? "#f3c600" : "#f6f7f6";
-    ctx.strokeStyle = "rgba(5, 7, 8, 0.94)";
-    ctx.lineWidth = 3.5;
-    ctx.lineJoin = "round";
-    ctx.shadowColor = "rgba(0, 0, 0, 0.9)";
-    ctx.shadowBlur = 7;
+    const textWidth = Math.min(maxWidth - 14, ctx.measureText(label).width);
+    const widthValue = textWidth + 14;
+    const heightValue = fontSize + 10;
+    const x = target.x - widthValue / 2;
+    const y = target.y - 31 * pieceScale - heightValue;
+    ctx.fillStyle = target.isSelf ? "rgba(243,198,0,0.96)" : "rgba(8,11,13,0.9)";
+    ctx.strokeStyle = target.isSelf ? "#ffffff" : target.playerColor;
+    ctx.lineWidth = target.isSelf ? 1.4 : 1;
+    ctx.beginPath();
+    ctx.moveTo(x + 5, y);
+    ctx.lineTo(x + widthValue, y);
+    ctx.lineTo(x + widthValue - 5, y + heightValue);
+    ctx.lineTo(x, y + heightValue);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = target.isSelf ? "#090b0c" : "#f6f7f6";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.strokeText(label, target.x, y, maxWidth);
-    ctx.fillText(label, target.x, y, maxWidth);
+    ctx.fillText(label, target.x, y + heightValue / 2 + 0.5, maxWidth - 14);
     ctx.restore();
   }
 
