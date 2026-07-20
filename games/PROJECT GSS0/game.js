@@ -412,6 +412,7 @@
   const MAX_DECORATIVE_PARTICLES = 720;
   const MAX_DECORATIVE_EFFECTS = 420;
   const ARENA_SHADOW_PADDING = 48;
+  const FRAME_ERROR_LOG_INTERVAL_MS = 1000;
 
   let width = 1;
   let height = 1;
@@ -431,6 +432,8 @@
   let lastMenuFrameState = null;
   let renderDprLimit = loadRenderDprLimit();
   let lowFpsWindows = 0;
+  let consecutiveFrameErrors = 0;
+  let lastFrameErrorLogAt = -Infinity;
   let gameTime = 0;
   let score = 0;
   let kills = 0;
@@ -5692,10 +5695,26 @@
     ctx.restore();
   }
 
-  function drawEnemyBehaviorCue(enemy, pieceScale) {
+  function roundedRectPath(x, y, widthValue, heightValue, radius) {
+    const safeRadius = Math.min(Math.max(0, radius), Math.abs(widthValue) / 2, Math.abs(heightValue) / 2);
+    const right = x + widthValue;
+    const bottom = y + heightValue;
+    ctx.moveTo(x + safeRadius, y);
+    ctx.lineTo(right - safeRadius, y);
+    ctx.quadraticCurveTo(right, y, right, y + safeRadius);
+    ctx.lineTo(right, bottom - safeRadius);
+    ctx.quadraticCurveTo(right, bottom, right - safeRadius, bottom);
+    ctx.lineTo(x + safeRadius, bottom);
+    ctx.quadraticCurveTo(x, bottom, x, bottom - safeRadius);
+    ctx.lineTo(x, y + safeRadius);
+    ctx.quadraticCurveTo(x, y, x + safeRadius, y);
+    ctx.closePath();
+  }
+
+  function drawEnemyBehaviorCue(enemy, pieceScale, time) {
     if (enemy.archetype !== "charger" || (enemy.behaviorState !== "telegraph" && enemy.behaviorState !== "charge")) return;
     const charging = enemy.behaviorState === "charge";
-    const pulse = 0.45 + Math.abs(Math.sin(visualTime * 18)) * 0.55;
+    const pulse = 0.45 + Math.abs(Math.sin(time * 18)) * 0.55;
     const directionX = Math.cos(enemy.angle);
     const directionY = Math.sin(enemy.angle);
     const lineLength = Math.min(arena.worldSize * 0.55, ENEMY_BEHAVIOR_TUNING.chargerDetectionRange) * arena.cellSize;
@@ -5704,7 +5723,7 @@
     ctx.strokeStyle = charging ? "#ffffff" : enemy.color;
     ctx.lineWidth = Math.max(2, 2.5 * pieceScale);
     ctx.setLineDash(charging ? [] : [10 * pieceScale, 8 * pieceScale]);
-    ctx.lineDashOffset = -visualTime * 38;
+    ctx.lineDashOffset = -time * 38;
     ctx.beginPath();
     ctx.moveTo(enemy.x + directionX * 16 * pieceScale, enemy.y + directionY * 16 * pieceScale);
     ctx.lineTo(enemy.x + directionX * lineLength, enemy.y + directionY * lineLength);
@@ -5734,7 +5753,7 @@
         ctx.moveTo(10, 0); ctx.lineTo(0, 6); ctx.lineTo(-9, 0); ctx.lineTo(0, -6); ctx.closePath();
         break;
       case "courier":
-        ctx.roundRect(-11, -7, 22, 14, 3);
+        roundedRectPath(-11, -7, 22, 14, 3);
         break;
       case "charger":
         ctx.moveTo(11, 0); ctx.lineTo(1, 9); ctx.lineTo(-9, 6); ctx.lineTo(-5, 0); ctx.lineTo(-9, -6); ctx.lineTo(1, -9); ctx.closePath();
@@ -5849,9 +5868,9 @@
     ctx.restore();
   }
 
-  function drawEnemy(enemy) {
+  function drawEnemy(enemy, time) {
     const pieceScale = arenaPieceScale();
-    drawEnemyBehaviorCue(enemy, pieceScale);
+    drawEnemyBehaviorCue(enemy, pieceScale, time);
     drawLinkedPath(enemy, enemy.segments, "rgba(4, 6, 7, 0.92)", (enemy.archetype === "warden" ? 14 : 11) * pieceScale);
     drawLinkedPath(enemy, enemy.segments, enemy.color, (enemy.archetype === "cutter" ? 3.4 : 2.2) * pieceScale, 0.72);
     for (let index = enemy.segments.length - 1; index >= 0; index -= 1) drawEnemySegment(enemy, enemy.segments[index], pieceScale);
@@ -5893,7 +5912,7 @@
       ctx.lineTo(0, -size * 0.68);
       ctx.closePath();
     } else if (module.shape === "capsule") {
-      ctx.roundRect(-size * 0.72, -size * 0.38, size * 1.44, size * 0.76, size * 0.35);
+      roundedRectPath(-size * 0.72, -size * 0.38, size * 1.44, size * 0.76, size * 0.35);
     } else if (module.shape === "star") {
       for (let index = 0; index < 10; index += 1) {
         const radius = index % 2 === 0 ? size * 0.72 : size * 0.31;
@@ -6015,8 +6034,9 @@
     }
     let previous = player;
     for (const segment of player.segments) {
-      const color = segment.module ? MODULE_BY_ID[segment.module].color : segment.neutral ? "rgba(222, 226, 226, 0.8)" : "rgba(116, 124, 127, 0.72)";
-      drawLink(previous, segment, "rgba(5, 7, 8, 0.9)", (segment.module ? 10 : 9) * pieceScale, 0.82);
+      const module = segment.module ? MODULE_BY_ID[segment.module] : null;
+      const color = module?.color || (segment.neutral ? "rgba(222, 226, 226, 0.8)" : "rgba(116, 124, 127, 0.72)");
+      drawLink(previous, segment, "rgba(5, 7, 8, 0.9)", (module ? 10 : 9) * pieceScale, 0.82);
       drawLink(previous, segment, color, 2.1 * pieceScale, 0.78);
       previous = segment;
     }
@@ -6034,8 +6054,8 @@
         ctx.shadowBlur = 12 + growthPulse * 10;
       }
 
-      if (segment.module) {
-        const module = MODULE_BY_ID[segment.module];
+      const module = segment.module ? MODULE_BY_ID[segment.module] : null;
+      if (module) {
         ctx.shadowColor = module.color;
         ctx.shadowBlur = 10;
         ctx.fillStyle = "#151a1d";
@@ -6383,7 +6403,7 @@
     drawFood(visualTime);
     drawEnemySpawnWarnings(visualTime);
     drawHazards(visualTime);
-    for (const enemy of enemies) drawEnemy(enemy);
+    for (const enemy of enemies) drawEnemy(enemy, visualTime);
     if (network.enabled) {
       for (const networkPlayer of visiblePlayers) drawPlayer(networkPlayer);
     } else if (player) {
@@ -6419,6 +6439,23 @@
   function enterRunningState(now = performance.now()) {
     state = "running";
     resetFrameTiming(now);
+  }
+
+  function recoverFrameLoop(error, now) {
+    const firstFailure = consecutiveFrameErrors === 0;
+    consecutiveFrameErrors += 1;
+    if (now - lastFrameErrorLogAt >= FRAME_ERROR_LOG_INTERVAL_MS) {
+      lastFrameErrorLogAt = now;
+      console.error(`PROJECT GSS0 帧循环异常（连续 ${consecutiveFrameErrors} 帧），已尝试自动恢复`, error);
+    }
+    if (!firstFailure) return;
+    resetFrameTiming(now);
+    try {
+      resize();
+    } catch (resizeError) {
+      console.error("PROJECT GSS0 Canvas 状态重建失败", resizeError);
+    }
+    if (network.enabled) requestNetworkSnapshotResync(now);
   }
 
   function updateFpsMeter(now, frameInterval) {
@@ -6485,31 +6522,36 @@
   }
 
   function frame(now) {
-    const frameInterval = Math.max(0, now - lastFrame);
-    const dt = Math.min(0.033, frameInterval / 1000);
-    lastFrame = now;
-    pendingUiMotionDt = Math.min(0.1, pendingUiMotionDt + dt);
-    update(dt);
-    const menuFrameState = state === "menu";
-    if (menuFrameState !== lastMenuFrameState) {
-      lastMenuFrameState = menuFrameState;
-      ui.shell.classList.toggle("is-menu", menuFrameState);
-      ui.fpsMeter.setAttribute("aria-hidden", String(menuFrameState));
-      nextCanvasRenderAt = now;
-    }
-    const renderFps = state === "running" ? MAX_RENDER_FPS : Math.min(30, MAX_RENDER_FPS);
-    const renderInterval = 1000 / renderFps;
-    if (now + 0.25 >= nextCanvasRenderAt) {
-      const renderedFrameInterval = lastCanvasRender > 0 ? now - lastCanvasRender : 0;
-      updateUIMotion(pendingUiMotionDt);
-      pendingUiMotionDt = 0;
-      render(now);
-      lastCanvasRender = now;
-      updateFpsMeter(now, renderedFrameInterval);
-      do nextCanvasRenderAt += renderInterval;
-      while (nextCanvasRenderAt <= now - renderInterval);
-    }
     requestAnimationFrame(frame);
+    try {
+      const frameInterval = Math.max(0, now - lastFrame);
+      const dt = Math.min(0.033, frameInterval / 1000);
+      lastFrame = now;
+      pendingUiMotionDt = Math.min(0.1, pendingUiMotionDt + dt);
+      update(dt);
+      const menuFrameState = state === "menu";
+      if (menuFrameState !== lastMenuFrameState) {
+        lastMenuFrameState = menuFrameState;
+        ui.shell.classList.toggle("is-menu", menuFrameState);
+        ui.fpsMeter.setAttribute("aria-hidden", String(menuFrameState));
+        nextCanvasRenderAt = now;
+      }
+      const renderFps = state === "running" ? MAX_RENDER_FPS : Math.min(30, MAX_RENDER_FPS);
+      const renderInterval = 1000 / renderFps;
+      if (now + 0.25 >= nextCanvasRenderAt) {
+        const renderedFrameInterval = lastCanvasRender > 0 ? now - lastCanvasRender : 0;
+        updateUIMotion(pendingUiMotionDt);
+        pendingUiMotionDt = 0;
+        render(now);
+        lastCanvasRender = now;
+        updateFpsMeter(now, renderedFrameInterval);
+        do nextCanvasRenderAt += renderInterval;
+        while (nextCanvasRenderAt <= now - renderInterval);
+      }
+      consecutiveFrameErrors = 0;
+    } catch (error) {
+      recoverFrameLoop(error, now);
+    }
   }
 
   function updatePointer(event) {
