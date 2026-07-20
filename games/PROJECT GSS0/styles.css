@@ -1383,6 +1383,36 @@ input:focus-visible {
   color: var(--white);
 }
 
+.local-mode-button {
+  width: min(500px, 80vw);
+  margin-top: 28px;
+  border-color: var(--ink);
+  background: rgba(8, 11, 13, 0.94);
+  color: var(--white);
+}
+
+.local-mode-button span {
+  display: inline-grid;
+  width: 30px;
+  height: 22px;
+  margin-right: 9px;
+  place-items: center;
+  background: var(--yellow);
+  color: var(--ink);
+  font-size: calc(10px * var(--font-scale));
+  line-height: 1;
+}
+
+.local-mode-button:hover {
+  background: var(--yellow);
+  color: var(--ink);
+}
+
+.local-mode-button:hover span {
+  background: var(--ink);
+  color: var(--yellow);
+}
+
 .best-line {
   margin-top: 22px;
   padding-top: 8px;
@@ -2411,6 +2441,10 @@ input:focus-visible {
   }
 
   .start-actions {
+    width: 100%;
+  }
+
+  .local-mode-button {
     width: 100%;
   }
 

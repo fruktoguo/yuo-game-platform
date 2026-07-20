@@ -10,6 +10,7 @@
   const arenaShadowCanvas = document.createElement("canvas");
   const arenaShadowCtx = arenaShadowCanvas.getContext("2d");
   let testMode = false;
+  let localModeForced = false;
   const PLAYER_COLORS = ["#f3c600", "#08c7dc", "#ef3e4a", "#8be04e", "#b49cff", "#ff8a5b", "#70d6ff", "#ff88c7"];
 
   const ui = {
@@ -39,6 +40,7 @@
     newBest: document.querySelector("#new-best"),
     startButton: document.querySelector("#start-button"),
     autoTestButton: document.querySelector("#auto-test-button"),
+    localModeButton: document.querySelector("#local-mode-button"),
     codexButton: document.querySelector("#codex-button"),
     codex: document.querySelector("#codex-screen"),
     codexList: document.querySelector("#codex-list"),
@@ -1064,7 +1066,7 @@
   }
 
   async function bootstrapNetwork() {
-    if (!/^https?:$/.test(window.location.protocol)) return;
+    if (localModeForced || !/^https?:$/.test(window.location.protocol)) return;
     const url = new URL(window.location.href);
     const launchCode = url.searchParams.get("launch_code");
     if (launchCode) {
@@ -1079,12 +1081,14 @@
         headers: launchCode ? { "content-type": "application/json" } : undefined,
         body: launchCode ? JSON.stringify({ code: launchCode }) : undefined
       });
+      if (localModeForced) return;
       if (!response.ok) {
         if (!launchCode && response.status === 401) return;
         const result = await response.json().catch(() => null);
         throw new Error(result?.error?.message || "无法建立游戏会话");
       }
       const result = await response.json();
+      if (localModeForced) return;
       if (!result?.ok || !result.data) throw new Error(result?.error?.message || "游戏会话无效");
       network.principal = result.data;
       if (launchCode) {
@@ -1092,8 +1096,10 @@
         window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
       }
       await loadSocketClient();
+      if (localModeForced) return;
       connectNetworkSocket();
     } catch (error) {
+      if (localModeForced) return;
       network.connecting = false;
       setNetworkButtonsDisabled(false);
       setNetworkStatus("error", `联机接入失败 / ${error instanceof Error ? error.message : "请刷新重试"}`);
@@ -1101,6 +1107,7 @@
   }
 
   function connectNetworkSocket() {
+    if (localModeForced) return;
     const socket = window.io({
       path: gameEndpoint("socket.io").pathname,
       transports: ["websocket", "polling"],
@@ -1108,9 +1115,17 @@
     });
     network.socket = socket;
     socket.on("connect", () => {
+      if (localModeForced) {
+        socket.disconnect();
+        return;
+      }
       resetNetworkPredictionInput(true);
       setNetworkStatus("connecting", "TACTICAL SURVIVAL / 正在同步");
       socket.emit("ultra:join", (result) => {
+        if (localModeForced) {
+          socket.disconnect();
+          return;
+        }
         if (!result?.ok || !result.data) {
           setNetworkStatus("error", `联机接入失败 / ${result?.error || "会话无效"}`);
           setNetworkButtonsDisabled(false);
@@ -1147,6 +1162,7 @@
       });
     });
     socket.on("ultra:snapshot", (payload) => {
+      if (localModeForced) return;
       const reusableEntry = network.snapshotBuffer.length >= NETWORK_SNAPSHOT_BUFFER_SIZE
         && network.snapshotBuffer[0]?.snapshot !== network.presentationSnapshot
         ? network.snapshotBuffer.shift()
@@ -1158,18 +1174,22 @@
       }
     });
     socket.on("ultra:projectiles", (events) => {
+      if (localModeForced) return;
       networkProjectileRuntime.applyEvents(events);
       projectiles = networkProjectileRuntime.items;
     });
     socket.on("ultra:effects", receiveNetworkEffects);
     socket.on("ultra:player-head-collision", (event) => {
+      if (localModeForced) return;
       networkHeadCollisionRuntime.receive(event, performance.now());
     });
     socket.on("ultra:roster", (roster) => {
+      if (localModeForced) return;
       network.roster = Array.isArray(roster) ? roster : [];
       renderNetworkRoster(network.snapshot?.players);
     });
     socket.on("ultra:upgrade", (offer) => {
+      if (localModeForced) return;
       network.upgradeOffer = offer;
       if (offer) showUpgrade(offer.options.map((id) => MODULE_BY_ID[id]).filter(Boolean));
       else if (state === "upgrade") {
@@ -1182,11 +1202,13 @@
       setNetworkStatus("connecting", "ULTRA LINK / 正在重连");
     });
     socket.on("connect_error", () => {
+      if (localModeForced) return;
       if (network.principal) setNetworkStatus("error", "ULTRA LINK / 连接中断");
     });
   }
 
   function receiveNetworkSnapshot(snapshot, reusableEntry = null) {
+    if (localModeForced) return;
     const receivedAt = performance.now();
     const previousSnapshot = network.snapshot;
     if (previousSnapshot && snapshot.serverTime <= previousSnapshot.serverTime) return;
@@ -1328,6 +1350,7 @@
   }
 
   function receiveNetworkEffects(items) {
+    if (localModeForced) return;
     if (!Array.isArray(items)) return;
     for (const item of items) {
       if (item.audienceEntityId != null && item.audienceEntityId !== network.selfEntityId) continue;
@@ -2378,6 +2401,33 @@
 
   function startRespawnLocator(now = performance.now()) {
     respawnLocatorStartedAt = now;
+  }
+
+  function startPureLocalGame() {
+    localModeForced = true;
+    const socket = network.socket;
+    network.enabled = false;
+    network.connecting = false;
+    network.multiplayer = false;
+    network.socket = null;
+    network.selfEntityId = null;
+    network.principal = null;
+    network.roster = [];
+    network.snapshot = null;
+    network.snapshotBuffer.length = 0;
+    network.receivedAt = 0;
+    network.renderServerTime = NaN;
+    network.lastPresentationAt = 0;
+    network.lastSelfAlive = false;
+    network.upgradeOffer = null;
+    socket?.removeAllListeners?.();
+    socket?.disconnect?.();
+    resetNetworkPredictionInput(true);
+    clearNetworkViews();
+    renderNetworkRoster([]);
+    setNetworkButtonsDisabled(false);
+    setNetworkStatus("", "TACTICAL SURVIVAL / LOCAL");
+    startGame(false);
   }
 
   function startGame(autopilot = false) {
@@ -5651,6 +5701,7 @@
 
   ui.startButton.addEventListener("click", () => startGame(false));
   ui.autoTestButton.addEventListener("click", () => startGame(true));
+  ui.localModeButton.addEventListener("click", startPureLocalGame);
   ui.lobbyButton.addEventListener("click", () => void returnToLobby());
   ui.codexButton.addEventListener("click", openCodex);
   ui.codexCloseButton.addEventListener("click", closeCodex);
