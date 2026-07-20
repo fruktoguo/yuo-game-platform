@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { DESIGNER_BALANCE, moduleCooldownPercent, moduleCooldownSeconds, moduleDesignState } from '../src/shared/designerConfig';
+import { DESIGNER_BALANCE, DESIGNER_WAVE_ENEMY_COUNT_SCHEDULE, moduleCooldownPercent, moduleCooldownSeconds, moduleDesignState } from '../src/shared/designerConfig';
 import { experienceRequiredForLevel } from '../src/shared/constants';
 import { ACTIVE_SKILL_MODULES, MODULES, UPGRADE_MODULES } from '../src/shared/modules';
 
@@ -28,20 +28,21 @@ describe('设计配置', () => {
       enemyBaseSpeed: 4,
       enemySpeedPerMinute: 0.01,
       enemySpeedMaxMultiplier: 1.12,
-      enemyHealthGrowthIntervalSeconds: 180,
-      enemyThreatBudgetBase: 1.5,
-      enemyThreatBudgetPerMinute: 0.36,
-      enemyThreatBudgetLateStartMinute: 5,
-      enemyThreatBudgetLatePerMinute: 0.14,
-      enemyMaxSpawnsPerPlayerPerWave: 6,
-      enemyConcurrentCapPerPlayer: 18,
-      enemySurgeEveryWaves: 5,
-      enemySurgeBudgetMultiplier: 1.55,
-      enemySurgeRecoveryIntervalMultiplier: 1.4,
+      enemyPressureWaveInterval: 5,
+      enemyPressureEnemyCountMultiplier: 2,
+      enemyPressureThreatMultiplier: 2,
+      enemyExpectedDpsInterval: 6,
+      enemyThreatTimeCoefficient: 9,
+      enemyThreatGrowthPerWave: 0.02,
+      enemyHealthWeightVariation: 0.25,
       enemyScoutSpawnWeight: 5,
-      enemyScoutThreatCost: 1,
-      enemyScoutHealthMin: 1,
-      enemyScoutHealthMax: 2,
+      enemyScoutHealthWeight: 1,
+      enemyForagerHealthWeight: 1.65,
+      enemyCourierHealthWeight: 2,
+      enemyChargerHealthWeight: 2.2,
+      enemyCutterHealthWeight: 3.6,
+      enemyCoilerHealthWeight: 4,
+      enemyWardenHealthWeight: 6.2,
       enemyChargerUnlockSeconds: 90,
       enemyChargerTelegraphDuration: 0.7,
       enemyCourierCarryThreshold: 3,
@@ -80,6 +81,14 @@ describe('设计配置', () => {
       enemyBodyReconnectDuration: 0.28,
       profileSaveDelaySeconds: 30,
     });
+    expect(DESIGNER_WAVE_ENEMY_COUNT_SCHEDULE).toEqual([
+      { startWave: 1, enemyCount: 1 },
+      { startWave: 11, enemyCount: 2 },
+      { startWave: 31, enemyCount: 3 },
+      { startWave: 51, enemyCount: 4 },
+      { startWave: 71, enemyCount: 5 },
+      { startWave: 91, enemyCount: 6 },
+    ]);
   });
 
   it('升级经验需求按基础值与当前等级线性增长', () => {
@@ -115,7 +124,7 @@ describe('设计配置', () => {
 
     expect(parameterKeys.sort()).toEqual(Object.keys(DESIGNER_BALANCE).sort());
     expect(moduleIds.sort()).toEqual(MODULES.map((module) => module.id).sort());
-    expect(new Set(parameterKeys).size).toBe(127);
+    expect(new Set(parameterKeys).size).toBe(103);
     expect(new Set(moduleIds).size).toBe(58);
   });
 
@@ -136,6 +145,12 @@ describe('设计配置', () => {
     expect(editorHtml).toContain('data-view="enemies"');
     expect(editorHtml).toContain('id="enemies-view"');
     expect(editorHtml).toContain('id="enemy-config-list"');
+    expect(editorHtml).toContain('data-view="waves"');
+    expect(editorHtml).toContain('id="waves-view"');
+    expect(editorHtml).toContain('id="wave-schedule-list"');
+    expect(editorHtml).toContain('id="wave-preview-body"');
+    expect(editorHtml).toContain('const WAVE_PARAMETER_DEFINITIONS = ALL_PARAMETER_DEFINITIONS.filter');
+    expect(editorHtml).toContain('waveDirectorApi.create({');
     expect(editorHtml).toContain('const ENEMY_PARAMETER_DEFINITIONS = ALL_PARAMETER_DEFINITIONS.filter');
     expect(editorHtml).toContain('const PARAMETER_DEFINITIONS = ALL_PARAMETER_DEFINITIONS.filter');
     expect(editorHtml).toContain('parameters.append(...ENEMY_PARAMETER_DEFINITIONS.filter');
@@ -151,6 +166,7 @@ describe('设计配置', () => {
     expect(launcherServer).toContain('"/api/config"');
     expect(launcherServer).toContain('"designer-config.js"');
     expect(launcherServer).toContain('"/enemy-codex.js"');
+    expect(launcherServer).toContain('"/wave-director.js"');
     expect(launcherServer).toContain('Editor dependency is not served');
     expect(editorHtml).toContain('"X-GSS0-Editor-Token": helperToken');
     expect(editorHtml).toContain('await requestHelper({');

@@ -89,7 +89,7 @@
 
   const TAU = Math.PI * 2;
   const DESIGNER_CONFIG = globalThis.GSS0_DESIGNER_CONFIG || {};
-  if (DESIGNER_CONFIG.schemaVersion !== 6) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 6");
+  if (DESIGNER_CONFIG.schemaVersion !== 7) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 7");
   const DESIGNER_BALANCE = DESIGNER_CONFIG.balance || {};
   const MODULE_DESIGN_STATES = DESIGNER_CONFIG.moduleStates || {};
   const MODULE_COOLDOWN_PERCENTAGES = DESIGNER_CONFIG.moduleCooldownPercentages || {};
@@ -305,15 +305,13 @@
   const CAMERA_ZOOM = 1;
   const WAVE_BASE_INTERVAL = designerNumber("waveInterval", 6, 0.5, 120);
   const FOODS_PER_PLAYER_PER_WAVE = designerNumber("foodsPerPlayerPerWave", 2, 0, 20, true);
-  const ENEMY_THREAT_BUDGET_BASE = designerNumber("enemyThreatBudgetBase", 1.5, 0.1, 50);
-  const ENEMY_THREAT_BUDGET_PER_MINUTE = designerNumber("enemyThreatBudgetPerMinute", 0.36, 0, 10);
-  const ENEMY_THREAT_BUDGET_LATE_START_MINUTE = designerNumber("enemyThreatBudgetLateStartMinute", 5, 0, 60);
-  const ENEMY_THREAT_BUDGET_LATE_PER_MINUTE = designerNumber("enemyThreatBudgetLatePerMinute", 0.14, 0, 10);
-  const ENEMY_MAX_SPAWNS_PER_PLAYER_PER_WAVE = designerNumber("enemyMaxSpawnsPerPlayerPerWave", 6, 1, 30, true);
-  const ENEMY_CONCURRENT_CAP_PER_PLAYER = designerNumber("enemyConcurrentCapPerPlayer", 18, 1, 100, true);
-  const ENEMY_SURGE_EVERY_WAVES = designerNumber("enemySurgeEveryWaves", 5, 0, 50, true);
-  const ENEMY_SURGE_BUDGET_MULTIPLIER = designerNumber("enemySurgeBudgetMultiplier", 1.55, 1, 5);
-  const ENEMY_SURGE_RECOVERY_INTERVAL_MULTIPLIER = designerNumber("enemySurgeRecoveryIntervalMultiplier", 1.4, 1, 5);
+  const ENEMY_PRESSURE_WAVE_INTERVAL = designerNumber("enemyPressureWaveInterval", 5, 0, 50, true);
+  const ENEMY_PRESSURE_COUNT_MULTIPLIER = designerNumber("enemyPressureEnemyCountMultiplier", 2, 1, 10, true);
+  const ENEMY_PRESSURE_THREAT_MULTIPLIER = designerNumber("enemyPressureThreatMultiplier", 2, 1, 10);
+  const ENEMY_EXPECTED_DPS_INTERVAL = designerNumber("enemyExpectedDpsInterval", 6, 0.1, 60);
+  const ENEMY_THREAT_TIME_COEFFICIENT = designerNumber("enemyThreatTimeCoefficient", 9, 0, 120);
+  const ENEMY_THREAT_GROWTH_PER_WAVE = designerNumber("enemyThreatGrowthPerWave", 0.02, 0, 1);
+  const ENEMY_HEALTH_WEIGHT_VARIATION = designerNumber("enemyHealthWeightVariation", 0.25, 0, 1);
   const PROJECTILE_SPEED_SCALE = designerNumber("projectileSpeedScale", 3, 0.1, 10);
   const PROJECTILE_SIZE_SCALE = designerNumber("projectileSizeScale", 2, 0.1, 10);
   const PLAYER_BASE_SPEED = designerNumber("playerBaseSpeed", 5, 1, 12);
@@ -324,33 +322,42 @@
   const ENEMY_SPEED_MAX_MULTIPLIER = designerNumber("enemySpeedMaxMultiplier", 1.12, 1, 3);
   const ENEMY_TURN_RATE_MIN = designerNumber("enemyTurnRateMin", 2.05, 0.1, 10);
   const ENEMY_TURN_RATE_MAX = designerNumber("enemyTurnRateMax", 2.75, 0.1, 12);
-  const ENEMY_HEALTH_GROWTH_INTERVAL_SECONDS = designerNumber("enemyHealthGrowthIntervalSeconds", 180, 15, 1800);
   const ENEMY_THINK_INTERVAL_MIN = designerNumber("enemyThinkIntervalMin", 0.22, 0.05, 5);
   const ENEMY_THINK_INTERVAL_MAX = designerNumber("enemyThinkIntervalMax", 0.55, 0.05, 5);
   const ENEMY_FOOD_SEARCH_LIMIT = designerNumber("enemyFoodSearchLimit", 8, 1, 32, true);
+  const waveDirectorApi = globalThis.GSS0WaveDirector;
+  if (!waveDirectorApi) throw new Error("PROJECT GSS0 波次导演未加载");
+  const enemyWaveDirector = waveDirectorApi.create({
+    schedule: DESIGNER_CONFIG.waveEnemyCountSchedule,
+    pressureWaveInterval: ENEMY_PRESSURE_WAVE_INTERVAL,
+    pressureEnemyCountMultiplier: ENEMY_PRESSURE_COUNT_MULTIPLIER,
+    pressureThreatMultiplier: ENEMY_PRESSURE_THREAT_MULTIPLIER,
+    expectedDpsInterval: ENEMY_EXPECTED_DPS_INTERVAL,
+    threatTimeCoefficient: ENEMY_THREAT_TIME_COEFFICIENT,
+    threatGrowthPerWave: ENEMY_THREAT_GROWTH_PER_WAVE,
+    foodExperiencePerWave: FOODS_PER_PLAYER_PER_WAVE,
+    xpRequirementBase: XP_REQUIREMENT_BASE,
+    xpRequirementPerLevel: XP_REQUIREMENT_PER_LEVEL,
+    healthWeightVariation: ENEMY_HEALTH_WEIGHT_VARIATION
+  });
   function enemyArchetype(id, prefix, defaults) {
-    const healthMin = designerNumber(`enemy${prefix}HealthMin`, defaults.healthMin, 1, 30, true);
-    const healthMax = designerNumber(`enemy${prefix}HealthMax`, defaults.healthMax, 1, 30, true);
     return Object.freeze({
       id,
       unlockSeconds: designerNumber(`enemy${prefix}UnlockSeconds`, defaults.unlockSeconds, 0, 3600),
       spawnWeight: designerNumber(`enemy${prefix}SpawnWeight`, defaults.spawnWeight, 0, 20),
-      threatCost: designerNumber(`enemy${prefix}ThreatCost`, defaults.threatCost, 0.1, 20),
-      healthMin: Math.min(healthMin, healthMax),
-      healthMax: Math.max(healthMin, healthMax),
-      healthGrowthMax: designerNumber(`enemy${prefix}HealthGrowthMax`, defaults.healthGrowthMax, 0, 20, true),
+      healthWeight: designerNumber(`enemy${prefix}HealthWeight`, defaults.healthWeight, 0.01, 20),
       speedMultiplier: designerNumber(`enemy${prefix}SpeedMultiplier`, defaults.speedMultiplier, 0.1, 3),
       turnMultiplier: designerNumber(`enemy${prefix}TurnMultiplier`, defaults.turnMultiplier, 0.1, 3)
     });
   }
   const ENEMY_ARCHETYPES = Object.freeze([
-    enemyArchetype("scout", "Scout", { unlockSeconds: 0, spawnWeight: 5, threatCost: 1, healthMin: 1, healthMax: 2, healthGrowthMax: 0, speedMultiplier: 1.08, turnMultiplier: 1.15 }),
-    enemyArchetype("forager", "Forager", { unlockSeconds: 0, spawnWeight: 4, threatCost: 1.3, healthMin: 2, healthMax: 3, healthGrowthMax: 0, speedMultiplier: 0.92, turnMultiplier: 1 }),
-    enemyArchetype("courier", "Courier", { unlockSeconds: 120, spawnWeight: 2, threatCost: 1.7, healthMin: 2, healthMax: 3, healthGrowthMax: 1, speedMultiplier: 1.12, turnMultiplier: 1.08 }),
-    enemyArchetype("charger", "Charger", { unlockSeconds: 90, spawnWeight: 1.8, threatCost: 1.6, healthMin: 2, healthMax: 3, healthGrowthMax: 1, speedMultiplier: 0.78, turnMultiplier: 0.72 }),
-    enemyArchetype("cutter", "Cutter", { unlockSeconds: 180, spawnWeight: 1.4, threatCost: 2.4, healthMin: 4, healthMax: 5, healthGrowthMax: 1, speedMultiplier: 1, turnMultiplier: 0.72 }),
-    enemyArchetype("coiler", "Coiler", { unlockSeconds: 300, spawnWeight: 1.05, threatCost: 2.8, healthMin: 4, healthMax: 6, healthGrowthMax: 1, speedMultiplier: 0.78, turnMultiplier: 1.18 }),
-    enemyArchetype("warden", "Warden", { unlockSeconds: 420, spawnWeight: 0.45, threatCost: 4.2, healthMin: 7, healthMax: 8, healthGrowthMax: 2, speedMultiplier: 0.72, turnMultiplier: 0.68 })
+    enemyArchetype("scout", "Scout", { unlockSeconds: 0, spawnWeight: 5, healthWeight: 1, speedMultiplier: 1.08, turnMultiplier: 1.15 }),
+    enemyArchetype("forager", "Forager", { unlockSeconds: 0, spawnWeight: 4, healthWeight: 1.65, speedMultiplier: 0.92, turnMultiplier: 1 }),
+    enemyArchetype("courier", "Courier", { unlockSeconds: 120, spawnWeight: 2, healthWeight: 2, speedMultiplier: 1.12, turnMultiplier: 1.08 }),
+    enemyArchetype("charger", "Charger", { unlockSeconds: 90, spawnWeight: 1.8, healthWeight: 2.2, speedMultiplier: 0.78, turnMultiplier: 0.72 }),
+    enemyArchetype("cutter", "Cutter", { unlockSeconds: 180, spawnWeight: 1.4, healthWeight: 3.6, speedMultiplier: 1, turnMultiplier: 0.72 }),
+    enemyArchetype("coiler", "Coiler", { unlockSeconds: 300, spawnWeight: 1.05, healthWeight: 4, speedMultiplier: 0.78, turnMultiplier: 1.18 }),
+    enemyArchetype("warden", "Warden", { unlockSeconds: 420, spawnWeight: 0.45, healthWeight: 6.2, speedMultiplier: 0.72, turnMultiplier: 0.68 })
   ]);
   const ENEMY_ARCHETYPE_BY_ID = Object.freeze(Object.fromEntries(ENEMY_ARCHETYPES.map((entry) => [entry.id, entry])));
   const ENEMY_ARCHETYPE_GLYPHS = Object.freeze({ scout: "·", forager: "F", courier: "◆", charger: "!", cutter: "×", coiler: "◎", warden: "▣" });
@@ -2745,11 +2752,9 @@
     });
   }
 
-  function queueEnemySpawn(archetype, occupied = occupiedCellCodes()) {
+  function queueEnemySpawn(archetype, assignedHealth, occupied = occupiedCellCodes()) {
     if (!player) return;
-    const baseHealth = Math.floor(random(archetype.healthMin, archetype.healthMax + 1));
-    const growthSteps = Math.floor(gameTime / ENEMY_HEALTH_GROWTH_INTERVAL_SECONDS);
-    const totalLength = Math.max(1, baseHealth + Math.min(growthSteps, archetype.healthGrowthMax));
+    const totalLength = Math.max(1, Math.round(assignedHealth));
     const bodySegmentCount = totalLength - 1;
     const placement = chooseEnemySpawn(bodySegmentCount, playerBaseSpeed() * 2, occupied);
     if (!placement) return false;
@@ -2843,23 +2848,10 @@
     return foods.length + enemies.reduce((total, enemy) => total + Number(!enemy.dead), 0);
   }
 
-  function enemyThreatBudgetPerPlayer() {
-    const minute = gameTime / 60;
-    const lateMinutes = Math.max(0, minute - ENEMY_THREAT_BUDGET_LATE_START_MINUTE);
-    return ENEMY_THREAT_BUDGET_BASE
-      + minute * ENEMY_THREAT_BUDGET_PER_MINUTE
-      + lateMinutes * ENEMY_THREAT_BUDGET_LATE_PER_MINUTE;
-  }
-
-  function isSurgeWave(waveNumber = waveCount + 1) {
-    return ENEMY_SURGE_EVERY_WAVES > 0 && waveNumber % ENEMY_SURGE_EVERY_WAVES === 0;
-  }
-
-  function chooseEnemyArchetype(budget) {
+  function chooseEnemyArchetype() {
     const available = ENEMY_ARCHETYPES.filter((entry) => (
       entry.unlockSeconds <= gameTime
       && entry.spawnWeight > 0
-      && entry.threatCost <= budget + 1e-6
     ));
     if (!available.length) return null;
     let roll = Math.random() * available.reduce((sum, entry) => sum + entry.spawnWeight, 0);
@@ -2871,16 +2863,20 @@
   }
 
   function queueWaveEnemies(occupied) {
-    const currentCount = enemies.reduce((total, enemy) => total + Number(!enemy.dead), 0) + pendingEnemySpawns.length;
-    const spawnLimit = Math.min(
-      Math.max(0, ENEMY_CONCURRENT_CAP_PER_PLAYER - currentCount),
-      ENEMY_MAX_SPAWNS_PER_PLAYER_PER_WAVE
+    const plan = enemyWaveDirector.plan(waveCount + 1);
+    const archetypes = [];
+    for (let index = 0; index < plan.enemyCount; index += 1) {
+      const archetype = chooseEnemyArchetype();
+      if (!archetype) break;
+      archetypes.push(archetype);
+    }
+    const allocation = enemyWaveDirector.allocateHealth(
+      archetypes.map((archetype) => archetype.healthWeight),
+      plan.totalThreat,
+      Math.random
     );
-    let budget = enemyThreatBudgetPerPlayer() * (isSurgeWave() ? ENEMY_SURGE_BUDGET_MULTIPLIER : 1);
-    for (let spawned = 0; spawned < spawnLimit; spawned += 1) {
-      const archetype = chooseEnemyArchetype(budget);
-      if (!archetype || !queueEnemySpawn(archetype, occupied)) break;
-      budget -= archetype.threatCost;
+    for (let index = 0; index < archetypes.length; index += 1) {
+      if (!queueEnemySpawn(archetypes[index], allocation.health[index], occupied)) break;
     }
   }
 
@@ -2890,9 +2886,8 @@
       spawnWaveFoods(FOODS_PER_PLAYER_PER_WAVE);
       const occupied = occupiedCellCodes();
       queueWaveEnemies(occupied);
-      const surgeWave = isSurgeWave();
       waveCount += 1;
-      waveTimer = WAVE_BASE_INTERVAL * (surgeWave ? ENEMY_SURGE_RECOVERY_INTERVAL_MULTIPLIER : 1);
+      waveTimer = WAVE_BASE_INTERVAL;
     }
   }
 

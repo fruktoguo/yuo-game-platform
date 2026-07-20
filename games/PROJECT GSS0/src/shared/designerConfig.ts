@@ -5,12 +5,13 @@ export type ModuleDesignState = 'normal' | 'tune' | 'rework' | 'disabled';
 interface DesignerConfigSource {
   schemaVersion?: unknown;
   balance?: Record<string, unknown>;
+  waveEnemyCountSchedule?: unknown;
   moduleCooldownPercentages?: Record<string, unknown>;
   moduleStates?: Record<string, unknown>;
 }
 
 const source = (globalThis as typeof globalThis & { GSS0_DESIGNER_CONFIG?: DesignerConfigSource }).GSS0_DESIGNER_CONFIG;
-if (source?.schemaVersion !== 6) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 6');
+if (source?.schemaVersion !== 7) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 7');
 
 function numberSetting(key: string, fallback: number, minimum: number, maximum: number, integer = false): number {
   const candidate = source?.balance?.[key];
@@ -18,6 +19,31 @@ function numberSetting(key: string, fallback: number, minimum: number, maximum: 
   const clamped = Math.max(minimum, Math.min(maximum, candidate));
   return integer ? Math.round(clamped) : clamped;
 }
+
+export interface WaveEnemyCountTier {
+  startWave: number;
+  enemyCount: number;
+}
+
+function waveEnemyCountScheduleSetting(): readonly WaveEnemyCountTier[] {
+  if (!Array.isArray(source?.waveEnemyCountSchedule) || source.waveEnemyCountSchedule.length === 0) {
+    throw new Error('PROJECT GSS0 缺少波次敌人数计划');
+  }
+  const schedule = source.waveEnemyCountSchedule.map((entry, index) => {
+    const candidate = entry as { startWave?: unknown; enemyCount?: unknown };
+    const startWave = Math.max(1, Math.round(Number(candidate?.startWave)));
+    const enemyCount = Math.max(1, Math.min(100, Math.round(Number(candidate?.enemyCount))));
+    if (!Number.isFinite(startWave) || !Number.isFinite(enemyCount)) throw new Error(`PROJECT GSS0 第 ${index + 1} 段波次计划无效`);
+    return Object.freeze({ startWave, enemyCount });
+  });
+  if (schedule[0].startWave !== 1) throw new Error('PROJECT GSS0 波次敌人数计划必须从第 1 波开始');
+  for (let index = 1; index < schedule.length; index += 1) {
+    if (schedule[index].startWave <= schedule[index - 1].startWave) throw new Error('PROJECT GSS0 波次敌人数计划必须严格递增');
+  }
+  return Object.freeze(schedule);
+}
+
+export const DESIGNER_WAVE_ENEMY_COUNT_SCHEDULE = waveEnemyCountScheduleSetting();
 
 export const DESIGNER_BALANCE = Object.freeze({
   playerBaseSpeed: numberSetting('playerBaseSpeed', 5, 1, 12),
@@ -30,42 +56,30 @@ export const DESIGNER_BALANCE = Object.freeze({
   enemySpeedMaxMultiplier: numberSetting('enemySpeedMaxMultiplier', 1.12, 1, 3),
   enemyTurnRateMin: numberSetting('enemyTurnRateMin', 2.05, 0.1, 10),
   enemyTurnRateMax: numberSetting('enemyTurnRateMax', 2.75, 0.1, 12),
-  enemyHealthGrowthIntervalSeconds: numberSetting('enemyHealthGrowthIntervalSeconds', 180, 15, 1_800),
-  enemyThreatBudgetBase: numberSetting('enemyThreatBudgetBase', 1.5, 0.1, 50),
-  enemyThreatBudgetPerMinute: numberSetting('enemyThreatBudgetPerMinute', 0.36, 0, 10),
-  enemyThreatBudgetLateStartMinute: numberSetting('enemyThreatBudgetLateStartMinute', 5, 0, 60),
-  enemyThreatBudgetLatePerMinute: numberSetting('enemyThreatBudgetLatePerMinute', 0.14, 0, 10),
-  enemyMaxSpawnsPerPlayerPerWave: numberSetting('enemyMaxSpawnsPerPlayerPerWave', 6, 1, 30, true),
-  enemyConcurrentCapPerPlayer: numberSetting('enemyConcurrentCapPerPlayer', 18, 1, 100, true),
-  enemySurgeEveryWaves: numberSetting('enemySurgeEveryWaves', 5, 0, 50, true),
-  enemySurgeBudgetMultiplier: numberSetting('enemySurgeBudgetMultiplier', 1.55, 1, 5),
-  enemySurgeRecoveryIntervalMultiplier: numberSetting('enemySurgeRecoveryIntervalMultiplier', 1.4, 1, 5),
+  enemyPressureWaveInterval: numberSetting('enemyPressureWaveInterval', 5, 0, 50, true),
+  enemyPressureEnemyCountMultiplier: numberSetting('enemyPressureEnemyCountMultiplier', 2, 1, 10, true),
+  enemyPressureThreatMultiplier: numberSetting('enemyPressureThreatMultiplier', 2, 1, 10),
+  enemyExpectedDpsInterval: numberSetting('enemyExpectedDpsInterval', 6, 0.1, 60),
+  enemyThreatTimeCoefficient: numberSetting('enemyThreatTimeCoefficient', 9, 0, 120),
+  enemyThreatGrowthPerWave: numberSetting('enemyThreatGrowthPerWave', 0.02, 0, 1),
+  enemyHealthWeightVariation: numberSetting('enemyHealthWeightVariation', 0.25, 0, 1),
   enemyThinkIntervalMin: numberSetting('enemyThinkIntervalMin', 0.22, 0.05, 5),
   enemyThinkIntervalMax: numberSetting('enemyThinkIntervalMax', 0.55, 0.05, 5),
   enemyFoodSearchLimit: numberSetting('enemyFoodSearchLimit', 8, 1, 32, true),
   enemyScoutUnlockSeconds: numberSetting('enemyScoutUnlockSeconds', 0, 0, 3_600),
   enemyScoutSpawnWeight: numberSetting('enemyScoutSpawnWeight', 5, 0, 20),
-  enemyScoutThreatCost: numberSetting('enemyScoutThreatCost', 1, 0.1, 20),
-  enemyScoutHealthMin: numberSetting('enemyScoutHealthMin', 1, 1, 30, true),
-  enemyScoutHealthMax: numberSetting('enemyScoutHealthMax', 2, 1, 30, true),
-  enemyScoutHealthGrowthMax: numberSetting('enemyScoutHealthGrowthMax', 0, 0, 20, true),
+  enemyScoutHealthWeight: numberSetting('enemyScoutHealthWeight', 1, 0.01, 20),
   enemyScoutSpeedMultiplier: numberSetting('enemyScoutSpeedMultiplier', 1.08, 0.1, 3),
   enemyScoutTurnMultiplier: numberSetting('enemyScoutTurnMultiplier', 1.15, 0.1, 3),
   enemyScoutFoodInterest: numberSetting('enemyScoutFoodInterest', 0.3, 0, 1),
   enemyForagerUnlockSeconds: numberSetting('enemyForagerUnlockSeconds', 0, 0, 3_600),
   enemyForagerSpawnWeight: numberSetting('enemyForagerSpawnWeight', 4, 0, 20),
-  enemyForagerThreatCost: numberSetting('enemyForagerThreatCost', 1.3, 0.1, 20),
-  enemyForagerHealthMin: numberSetting('enemyForagerHealthMin', 2, 1, 30, true),
-  enemyForagerHealthMax: numberSetting('enemyForagerHealthMax', 3, 1, 30, true),
-  enemyForagerHealthGrowthMax: numberSetting('enemyForagerHealthGrowthMax', 0, 0, 20, true),
+  enemyForagerHealthWeight: numberSetting('enemyForagerHealthWeight', 1.65, 0.01, 20),
   enemyForagerSpeedMultiplier: numberSetting('enemyForagerSpeedMultiplier', 0.92, 0.1, 3),
   enemyForagerTurnMultiplier: numberSetting('enemyForagerTurnMultiplier', 1, 0.1, 3),
   enemyCourierUnlockSeconds: numberSetting('enemyCourierUnlockSeconds', 120, 0, 3_600),
   enemyCourierSpawnWeight: numberSetting('enemyCourierSpawnWeight', 2, 0, 20),
-  enemyCourierThreatCost: numberSetting('enemyCourierThreatCost', 1.7, 0.1, 20),
-  enemyCourierHealthMin: numberSetting('enemyCourierHealthMin', 2, 1, 30, true),
-  enemyCourierHealthMax: numberSetting('enemyCourierHealthMax', 3, 1, 30, true),
-  enemyCourierHealthGrowthMax: numberSetting('enemyCourierHealthGrowthMax', 1, 0, 20, true),
+  enemyCourierHealthWeight: numberSetting('enemyCourierHealthWeight', 2, 0.01, 20),
   enemyCourierSpeedMultiplier: numberSetting('enemyCourierSpeedMultiplier', 1.12, 0.1, 3),
   enemyCourierTurnMultiplier: numberSetting('enemyCourierTurnMultiplier', 1.08, 0.1, 3),
   enemyCourierCarryThreshold: numberSetting('enemyCourierCarryThreshold', 3, 1, 100, true),
@@ -73,10 +87,7 @@ export const DESIGNER_BALANCE = Object.freeze({
   enemyCourierFoodClusterRadius: numberSetting('enemyCourierFoodClusterRadius', 2.5, 0.5, 10),
   enemyChargerUnlockSeconds: numberSetting('enemyChargerUnlockSeconds', 90, 0, 3_600),
   enemyChargerSpawnWeight: numberSetting('enemyChargerSpawnWeight', 1.8, 0, 20),
-  enemyChargerThreatCost: numberSetting('enemyChargerThreatCost', 1.6, 0.1, 20),
-  enemyChargerHealthMin: numberSetting('enemyChargerHealthMin', 2, 1, 30, true),
-  enemyChargerHealthMax: numberSetting('enemyChargerHealthMax', 3, 1, 30, true),
-  enemyChargerHealthGrowthMax: numberSetting('enemyChargerHealthGrowthMax', 1, 0, 20, true),
+  enemyChargerHealthWeight: numberSetting('enemyChargerHealthWeight', 2.2, 0.01, 20),
   enemyChargerSpeedMultiplier: numberSetting('enemyChargerSpeedMultiplier', 0.78, 0.1, 3),
   enemyChargerTurnMultiplier: numberSetting('enemyChargerTurnMultiplier', 0.72, 0.1, 3),
   enemyChargerCooldown: numberSetting('enemyChargerCooldown', 2.8, 0.1, 20),
@@ -86,30 +97,21 @@ export const DESIGNER_BALANCE = Object.freeze({
   enemyChargerChargeSpeedMultiplier: numberSetting('enemyChargerChargeSpeedMultiplier', 1.85, 1, 5),
   enemyCutterUnlockSeconds: numberSetting('enemyCutterUnlockSeconds', 180, 0, 3_600),
   enemyCutterSpawnWeight: numberSetting('enemyCutterSpawnWeight', 1.4, 0, 20),
-  enemyCutterThreatCost: numberSetting('enemyCutterThreatCost', 2.4, 0.1, 20),
-  enemyCutterHealthMin: numberSetting('enemyCutterHealthMin', 4, 1, 30, true),
-  enemyCutterHealthMax: numberSetting('enemyCutterHealthMax', 5, 1, 30, true),
-  enemyCutterHealthGrowthMax: numberSetting('enemyCutterHealthGrowthMax', 1, 0, 20, true),
+  enemyCutterHealthWeight: numberSetting('enemyCutterHealthWeight', 3.6, 0.01, 20),
   enemyCutterSpeedMultiplier: numberSetting('enemyCutterSpeedMultiplier', 1, 0.1, 3),
   enemyCutterTurnMultiplier: numberSetting('enemyCutterTurnMultiplier', 0.72, 0.1, 3),
   enemyCutterLeadDistance: numberSetting('enemyCutterLeadDistance', 3.2, 0.5, 12),
   enemyCutterLateralDistance: numberSetting('enemyCutterLateralDistance', 2.4, 0.5, 12),
   enemyCoilerUnlockSeconds: numberSetting('enemyCoilerUnlockSeconds', 300, 0, 3_600),
   enemyCoilerSpawnWeight: numberSetting('enemyCoilerSpawnWeight', 1.05, 0, 20),
-  enemyCoilerThreatCost: numberSetting('enemyCoilerThreatCost', 2.8, 0.1, 20),
-  enemyCoilerHealthMin: numberSetting('enemyCoilerHealthMin', 4, 1, 30, true),
-  enemyCoilerHealthMax: numberSetting('enemyCoilerHealthMax', 6, 1, 30, true),
-  enemyCoilerHealthGrowthMax: numberSetting('enemyCoilerHealthGrowthMax', 1, 0, 20, true),
+  enemyCoilerHealthWeight: numberSetting('enemyCoilerHealthWeight', 4, 0.01, 20),
   enemyCoilerSpeedMultiplier: numberSetting('enemyCoilerSpeedMultiplier', 0.78, 0.1, 3),
   enemyCoilerTurnMultiplier: numberSetting('enemyCoilerTurnMultiplier', 1.18, 0.1, 3),
   enemyCoilerOrbitRadius: numberSetting('enemyCoilerOrbitRadius', 2.7, 0.5, 10),
   enemyCoilerRadialCorrection: numberSetting('enemyCoilerRadialCorrection', 0.9, 0, 2),
   enemyWardenUnlockSeconds: numberSetting('enemyWardenUnlockSeconds', 420, 0, 3_600),
   enemyWardenSpawnWeight: numberSetting('enemyWardenSpawnWeight', 0.45, 0, 20),
-  enemyWardenThreatCost: numberSetting('enemyWardenThreatCost', 4.2, 0.1, 20),
-  enemyWardenHealthMin: numberSetting('enemyWardenHealthMin', 7, 1, 30, true),
-  enemyWardenHealthMax: numberSetting('enemyWardenHealthMax', 8, 1, 30, true),
-  enemyWardenHealthGrowthMax: numberSetting('enemyWardenHealthGrowthMax', 2, 0, 20, true),
+  enemyWardenHealthWeight: numberSetting('enemyWardenHealthWeight', 6.2, 0.01, 20),
   enemyWardenSpeedMultiplier: numberSetting('enemyWardenSpeedMultiplier', 0.72, 0.1, 3),
   enemyWardenTurnMultiplier: numberSetting('enemyWardenTurnMultiplier', 0.68, 0.1, 3),
   enemyWardenEscortDistance: numberSetting('enemyWardenEscortDistance', 2, 0.5, 10),

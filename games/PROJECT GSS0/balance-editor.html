@@ -174,6 +174,39 @@
     .number-input { width: 100%; padding: 0 10px; text-align: right; font-variant-numeric: tabular-nums; }
     .unit { color: var(--muted); font-size: 11px; font-weight: 800; }
 
+    .wave-overview { display: grid; grid-template-columns: minmax(330px, 0.78fr) minmax(460px, 1.22fr); gap: 24px; margin-bottom: 30px; }
+    .wave-panel { border-top: 4px solid var(--yellow); background: #12171a; }
+    .wave-panel.is-cyan { border-top-color: var(--cyan); }
+    .wave-panel > header { padding: 18px 20px 14px; border-bottom: 1px solid var(--line); }
+    .wave-panel > header span { color: var(--muted); font-size: 9px; font-weight: 900; }
+    .wave-panel > header h3 { margin: 5px 0 0; font-size: 16px; }
+    .wave-schedule-list { padding: 0 20px 10px; }
+    .wave-schedule-row { display: grid; grid-template-columns: 34px minmax(120px, 1fr) minmax(120px, 1fr); gap: 12px; align-items: end; min-height: 68px; border-bottom: 1px solid #293237; }
+    .wave-schedule-row:last-child { border-bottom: 0; }
+    .wave-tier-index { display: grid; width: 28px; height: 28px; margin-bottom: 5px; place-items: center; background: var(--yellow); color: #0b0e10; font-size: 10px; font-weight: 1000; }
+    .wave-schedule-field { display: grid; gap: 5px; padding-bottom: 9px; color: var(--muted); font-size: 9px; font-weight: 900; }
+    .wave-schedule-field input { width: 100%; min-height: 34px; padding: 0 9px; border: 1px solid var(--line); background: #0b0f11; color: #fff; text-align: right; font-variant-numeric: tabular-nums; }
+    .wave-schedule-field input:disabled { color: #778187; opacity: 0.72; }
+    .wave-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .wave-metric { min-height: 108px; padding: 18px 20px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+    .wave-metric:nth-child(2n) { border-right: 0; }
+    .wave-metric:nth-last-child(-n + 2) { border-bottom: 0; }
+    .wave-metric span { display: block; color: var(--muted); font-size: 9px; font-weight: 900; }
+    .wave-metric strong { display: block; margin-top: 9px; color: var(--cyan); font-size: 24px; font-variant-numeric: tabular-nums; }
+    .wave-metric small { display: block; margin-top: 5px; color: #bdc6c9; font-size: 9px; line-height: 1.4; }
+    .wave-parameter-list { margin-bottom: 30px; }
+    .wave-preview { border-top: 4px solid var(--cyan); }
+    .wave-preview > header { display: flex; align-items: end; justify-content: space-between; gap: 20px; padding: 16px 0 13px; }
+    .wave-preview > header span { color: var(--cyan); font-size: 9px; font-weight: 900; }
+    .wave-preview > header h3 { margin: 5px 0 0; font-size: 17px; }
+    .wave-table-wrap { overflow-x: auto; border: 1px solid var(--line); }
+    .wave-table { width: 100%; border-collapse: collapse; min-width: 900px; font-size: 10px; font-variant-numeric: tabular-nums; }
+    .wave-table th { padding: 11px 12px; background: #0b0f11; color: var(--muted); text-align: right; font-size: 9px; }
+    .wave-table th:first-child, .wave-table th:nth-child(2), .wave-table td:first-child, .wave-table td:nth-child(2) { text-align: left; }
+    .wave-table td { padding: 12px; border-top: 1px solid #293237; text-align: right; }
+    .wave-table tr.is-pressure td { background: rgba(243, 198, 0, 0.075); color: #fff2b8; }
+    .wave-table tr.is-pressure td:nth-child(2) { color: var(--yellow); font-weight: 900; }
+
     .module-toolbar { display: grid; grid-template-columns: minmax(220px, 1fr) 170px 170px; gap: 10px; margin-bottom: 18px; }
     .filter-input, select { width: 100%; padding: 0 12px; }
     .module-list { border-top: 3px solid var(--line); }
@@ -313,6 +346,7 @@
       <button class="tab is-active" type="button" data-view="balance"><b>01</b><span>参数列表</span></button>
       <button class="tab" type="button" data-view="modules"><b>02</b><span>机体图鉴</span></button>
       <button class="tab" type="button" data-view="enemies"><b>03</b><span>敌人图鉴</span></button>
+      <button class="tab" type="button" data-view="waves"><b>04</b><span>波次曲线</span></button>
     </nav>
 
     <div class="content">
@@ -335,21 +369,47 @@
         <header class="view-head"><div><span>HOSTILE ARCHIVE</span><h2>敌人图鉴与参数</h2></div><output id="enemy-count" class="view-count"></output></header>
         <div id="enemy-config-list" class="enemy-config-list"></div>
       </section>
+
+      <section id="waves-view" class="view" hidden>
+        <header class="view-head"><div><span>WAVE DIRECTOR</span><h2>敌人数与生命曲线</h2></div><output id="wave-summary" class="view-count"></output></header>
+        <div class="wave-overview">
+          <section class="wave-panel" aria-labelledby="wave-schedule-title">
+            <header><span>ENEMY COUNT SCHEDULE</span><h3 id="wave-schedule-title">基础敌人数计划</h3></header>
+            <div id="wave-schedule-list" class="wave-schedule-list"></div>
+          </section>
+          <section class="wave-panel is-cyan" aria-labelledby="wave-metrics-title">
+            <header><span>100 WAVE CHECKPOINT</span><h3 id="wave-metrics-title">十分钟曲线摘要</h3></header>
+            <div id="wave-metrics" class="wave-metrics"></div>
+          </section>
+        </div>
+        <section id="wave-parameter-list" class="parameter-group wave-parameter-list" aria-label="波次曲线参数"></section>
+        <section class="wave-preview" aria-labelledby="wave-preview-title">
+          <header><div><span>CURVE VERIFICATION</span><h3 id="wave-preview-title">关键波次预览</h3></div><output id="wave-preview-note" class="view-count"></output></header>
+          <div class="wave-table-wrap">
+            <table class="wave-table">
+              <thead><tr><th>波次</th><th>类型</th><th>基础敌人数</th><th>实际敌人数</th><th>前置经验</th><th>预期等级</th><th>预期 DPS</th><th>时间倍率</th><th>总威胁</th></tr></thead>
+              <tbody id="wave-preview-body"></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
     </div>
   </main>
 
-  <script src="enemy-codex.js?v=47"></script>
-  <script src="designer-config.js?v=47"></script>
+  <script src="enemy-codex.js?v=48"></script>
+  <script src="wave-director.js?v=48"></script>
+  <script src="designer-config.js?v=48"></script>
   <script>
     (() => {
       "use strict";
 
       const enemyCodex = globalThis.GSS0EnemyCodex;
-      if (!enemyCodex) {
+      const waveDirectorApi = globalThis.GSS0WaveDirector;
+      if (!enemyCodex || !waveDirectorApi) {
         const fileState = document.querySelector("#file-state");
-        fileState.textContent = "enemy-codex.js 加载失败 · 请关闭并重启本地启动器";
+        fileState.textContent = "设计控制台依赖加载失败 · 请关闭并重启本地启动器";
         fileState.className = "file-state is-dirty";
-        throw new Error("PROJECT GSS0 敌人图鉴依赖加载失败，请重启本地启动器");
+        throw new Error("PROJECT GSS0 设计控制台依赖加载失败，请重启本地启动器");
       }
 
       const ALL_PARAMETER_DEFINITIONS = [
@@ -367,45 +427,33 @@
         { key: "enemySpeedMaxMultiplier", group: "敌人全局", label: "时间速度倍率上限", hint: "时间成长可将敌人基础速度提高到的最高倍率", min: 1, max: 3, step: 0.01, unit: "倍" },
         { key: "enemyTurnRateMin", group: "敌人全局", label: "敌人最低转向", hint: "各类型转向倍率生效前的随机转向速度下界", min: 0.1, max: 10, step: 0.05, unit: "弧度/秒" },
         { key: "enemyTurnRateMax", group: "敌人全局", label: "敌人最高转向", hint: "各类型转向倍率生效前的随机转向速度上界", min: 0.1, max: 12, step: 0.05, unit: "弧度/秒" },
-        { key: "enemyHealthGrowthIntervalSeconds", group: "敌人全局", label: "生命成长间隔", hint: "每经过该时长，各类型可按自身上限增加一点出生生命", min: 15, max: 1800, step: 5, unit: "秒" },
         { key: "enemyThinkIntervalMin", group: "敌人全局", label: "AI 思考间隔下界", hint: "敌人重新选择目标和路线的最短间隔", min: 0.05, max: 5, step: 0.01, unit: "秒" },
         { key: "enemyThinkIntervalMax", group: "敌人全局", label: "AI 思考间隔上界", hint: "敌人重新选择目标和路线的最长间隔", min: 0.05, max: 5, step: 0.01, unit: "秒" },
         { key: "enemyFoodSearchLimit", group: "敌人全局", label: "AI 候选球数量", hint: "敌人每次决策最多评估的附近球数量", min: 1, max: 32, step: 1, unit: "枚" },
-        { key: "waveInterval", group: "波次", label: "基础波次间隔", hint: "除增压信标和加压波恢复期外，倒计时始终按此间隔运行", min: 0.5, max: 120, step: 0.1, unit: "秒" },
-        { key: "enemyThreatBudgetBase", group: "波次", label: "每人基础威胁预算", hint: "每名存活玩家在开局时为每波提供的敌人生成预算", min: 0.1, max: 50, step: 0.05, unit: "点/人" },
-        { key: "enemyThreatBudgetPerMinute", group: "波次", label: "每分钟预算成长", hint: "每名玩家的每波威胁预算随游戏时间线性增加的数值", min: 0, max: 10, step: 0.01, unit: "点/分钟" },
-        { key: "enemyThreatBudgetLateStartMinute", group: "波次", label: "后期成长起始", hint: "到达该分钟后启用额外的预算成长", min: 0, max: 60, step: 0.5, unit: "分钟" },
-        { key: "enemyThreatBudgetLatePerMinute", group: "波次", label: "后期额外预算成长", hint: "进入后期后，每分钟叠加的额外威胁预算", min: 0, max: 10, step: 0.01, unit: "点/分钟" },
-        { key: "enemyMaxSpawnsPerPlayerPerWave", group: "波次", label: "每人每波敌人数上限", hint: "预算再高时，每名玩家在单波最多生成的敌人数量", min: 1, max: 30, step: 1, unit: "条/人" },
-        { key: "enemyConcurrentCapPerPlayer", group: "波次", label: "每人并发敌人上限", hint: "场上实体和出生预警合计的敌人上限随存活玩家数增长", min: 1, max: 100, step: 1, unit: "条/人" },
-        { key: "enemySurgeEveryWaves", group: "波次", label: "加压波周期", hint: "每隔多少波触发一次高威胁波；0 表示关闭", min: 0, max: 50, step: 1, unit: "波" },
-        { key: "enemySurgeBudgetMultiplier", group: "波次", label: "加压波预算倍率", hint: "高威胁波使用的敌人预算倍率", min: 1, max: 5, step: 0.05, unit: "倍" },
-        { key: "enemySurgeRecoveryIntervalMultiplier", group: "波次", label: "加压波后间隔倍率", hint: "高威胁波结束后，下一波倒计时的延长倍率", min: 1, max: 5, step: 0.05, unit: "倍" },
-        { key: "foodsPerPlayerPerWave", group: "波次", label: "每人每波球数", hint: "每名存活玩家在新波次贡献的普通球数量", min: 0, max: 20, step: 1, unit: "枚" },
-        { key: "enemySpawnWarning", group: "波次", label: "敌人出生预警", hint: "预警轮廓出现到敌人实体生成的时间", min: 0, max: 10, step: 0.05, unit: "秒" },
+        { key: "waveInterval", group: "波次曲线", label: "基础波次间隔", hint: "不含增压信标时，相邻两波之间的固定倒计时", min: 0.5, max: 120, step: 0.1, unit: "秒" },
+        { key: "enemyPressureWaveInterval", group: "波次曲线", label: "高压波周期", hint: "每隔多少波触发高压波；0 表示关闭", min: 0, max: 50, step: 1, unit: "波" },
+        { key: "enemyPressureEnemyCountMultiplier", group: "波次曲线", label: "高压波敌人数倍率", hint: "高压波相对当前区间基础敌人数的整数倍率", min: 1, max: 10, step: 1, unit: "倍" },
+        { key: "enemyPressureThreatMultiplier", group: "波次曲线", label: "高压波总威胁倍率", hint: "高压波在常规总威胁基础上额外乘算的倍率", min: 1, max: 10, step: 0.05, unit: "倍" },
+        { key: "enemyExpectedDpsInterval", group: "波次曲线", label: "预期 DPS 间隔", hint: "预期 DPS 公式中攻击档位的除数，缺省为 6 秒", min: 0.1, max: 60, step: 0.1, unit: "秒" },
+        { key: "enemyThreatTimeCoefficient", group: "波次曲线", label: "威胁时间系数", hint: "将预期 DPS 换算为每波基础总生命预算的时间系数", min: 0, max: 120, step: 0.1, unit: "秒" },
+        { key: "enemyThreatGrowthPerWave", group: "波次曲线", label: "每波威胁线性成长", hint: "每波增加的倍率百分点；0.02 表示每波增加 2 个百分点", min: 0, max: 1, step: 0.005, unit: "倍率/波" },
+        { key: "enemyHealthWeightVariation", group: "波次曲线", label: "生命权重浮动", hint: "每只敌人独立抽取的生命权重上下浮动比例", min: 0, max: 1, step: 0.01, unit: "比例" },
+        { key: "foodsPerPlayerPerWave", group: "波次曲线", label: "每人每波球数", hint: "固定经验投放模型中，每名玩家每波贡献的普通球数量", min: 0, max: 20, step: 1, unit: "枚" },
+        { key: "enemySpawnWarning", group: "波次曲线", label: "敌人出生预警", hint: "预警轮廓出现到敌人实体生成的时间", min: 0, max: 10, step: 0.05, unit: "秒" },
         { key: "enemyScoutUnlockSeconds", group: "浮游体", label: "解锁时间", hint: "浮游体加入刷新池的游戏时间", min: 0, max: 3600, step: 5, unit: "秒" },
         { key: "enemyScoutSpawnWeight", group: "浮游体", label: "刷新权重", hint: "浮游体在可用敌人中的相对抽取权重", min: 0, max: 20, step: 0.05, unit: "权重" },
-        { key: "enemyScoutThreatCost", group: "浮游体", label: "威胁成本", hint: "每条浮游体消耗的波次威胁预算", min: 0.1, max: 20, step: 0.05, unit: "点" },
-        { key: "enemyScoutHealthMin", group: "浮游体", label: "基础生命下界", hint: "包含蛇头的随机出生生命下界", min: 1, max: 30, step: 1, unit: "点" },
-        { key: "enemyScoutHealthMax", group: "浮游体", label: "基础生命上界", hint: "包含蛇头的随机出生生命上界", min: 1, max: 30, step: 1, unit: "点" },
-        { key: "enemyScoutHealthGrowthMax", group: "浮游体", label: "时间生命成长上限", hint: "浮游体最多能从时间曲线获得的额外生命", min: 0, max: 20, step: 1, unit: "点" },
+        { key: "enemyScoutHealthWeight", group: "浮游体", label: "生命权重", hint: "浮游体在同波总威胁分配中的相对生命份额", min: 0.01, max: 20, step: 0.05, unit: "权重" },
         { key: "enemyScoutSpeedMultiplier", group: "浮游体", label: "速度倍率", hint: "浮游体相对全局敌人速度的倍率", min: 0.1, max: 3, step: 0.01, unit: "倍" },
         { key: "enemyScoutTurnMultiplier", group: "浮游体", label: "转向倍率", hint: "浮游体相对全局敌人转向速度的倍率", min: 0.1, max: 3, step: 0.01, unit: "倍" },
         { key: "enemyScoutFoodInterest", group: "浮游体", label: "抢球意愿", hint: "每次思考时主动追逐附近球的概率", min: 0, max: 1, step: 0.01, unit: "概率" },
         { key: "enemyForagerUnlockSeconds", group: "觅食者", label: "解锁时间", hint: "觅食者加入刷新池的游戏时间", min: 0, max: 3600, step: 5, unit: "秒" },
         { key: "enemyForagerSpawnWeight", group: "觅食者", label: "刷新权重", hint: "觅食者在可用敌人中的相对抽取权重", min: 0, max: 20, step: 0.05, unit: "权重" },
-        { key: "enemyForagerThreatCost", group: "觅食者", label: "威胁成本", hint: "每条觅食者消耗的波次威胁预算", min: 0.1, max: 20, step: 0.05, unit: "点" },
-        { key: "enemyForagerHealthMin", group: "觅食者", label: "基础生命下界", hint: "包含蛇头的随机出生生命下界", min: 1, max: 30, step: 1, unit: "点" },
-        { key: "enemyForagerHealthMax", group: "觅食者", label: "基础生命上界", hint: "包含蛇头的随机出生生命上界", min: 1, max: 30, step: 1, unit: "点" },
-        { key: "enemyForagerHealthGrowthMax", group: "觅食者", label: "时间生命成长上限", hint: "觅食者最多能从时间曲线获得的额外生命", min: 0, max: 20, step: 1, unit: "点" },
+        { key: "enemyForagerHealthWeight", group: "觅食者", label: "生命权重", hint: "觅食者在同波总威胁分配中的相对生命份额", min: 0.01, max: 20, step: 0.05, unit: "权重" },
         { key: "enemyForagerSpeedMultiplier", group: "觅食者", label: "速度倍率", hint: "觅食者相对全局敌人速度的倍率", min: 0.1, max: 3, step: 0.01, unit: "倍" },
         { key: "enemyForagerTurnMultiplier", group: "觅食者", label: "转向倍率", hint: "觅食者相对全局敌人转向速度的倍率", min: 0.1, max: 3, step: 0.01, unit: "倍" },
         { key: "enemyCourierUnlockSeconds", group: "搬运者", label: "解锁时间", hint: "搬运者加入刷新池的游戏时间", min: 0, max: 3600, step: 5, unit: "秒" },
         { key: "enemyCourierSpawnWeight", group: "搬运者", label: "刷新权重", hint: "搬运者在可用敌人中的相对抽取权重", min: 0, max: 20, step: 0.05, unit: "权重" },
-        { key: "enemyCourierThreatCost", group: "搬运者", label: "威胁成本", hint: "每条搬运者消耗的波次威胁预算", min: 0.1, max: 20, step: 0.05, unit: "点" },
-        { key: "enemyCourierHealthMin", group: "搬运者", label: "基础生命下界", hint: "包含蛇头的随机出生生命下界", min: 1, max: 30, step: 1, unit: "点" },
-        { key: "enemyCourierHealthMax", group: "搬运者", label: "基础生命上界", hint: "包含蛇头的随机出生生命上界", min: 1, max: 30, step: 1, unit: "点" },
-        { key: "enemyCourierHealthGrowthMax", group: "搬运者", label: "时间生命成长上限", hint: "搬运者最多能从时间曲线获得的额外生命", min: 0, max: 20, step: 1, unit: "点" },
+        { key: "enemyCourierHealthWeight", group: "搬运者", label: "生命权重", hint: "搬运者在同波总威胁分配中的相对生命份额", min: 0.01, max: 20, step: 0.05, unit: "权重" },
         { key: "enemyCourierSpeedMultiplier", group: "搬运者", label: "速度倍率", hint: "搬运者相对全局敌人速度的倍率", min: 0.1, max: 3, step: 0.01, unit: "倍" },
         { key: "enemyCourierTurnMultiplier", group: "搬运者", label: "转向倍率", hint: "搬运者相对全局敌人转向速度的倍率", min: 0.1, max: 3, step: 0.01, unit: "倍" },
         { key: "enemyCourierCarryThreshold", group: "搬运者", label: "撤离持球阈值", hint: "持有球达到该数量后，搬运者转为躲避玩家", min: 1, max: 100, step: 1, unit: "枚" },
@@ -413,10 +461,7 @@
         { key: "enemyCourierFoodClusterRadius", group: "搬运者", label: "球团识别半径", hint: "评估球密集程度时使用的半径", min: 0.5, max: 10, step: 0.1, unit: "格" },
         { key: "enemyChargerUnlockSeconds", group: "冲角者", label: "解锁时间", hint: "冲角者加入刷新池的游戏时间", min: 0, max: 3600, step: 5, unit: "秒" },
         { key: "enemyChargerSpawnWeight", group: "冲角者", label: "刷新权重", hint: "冲角者在可用敌人中的相对抽取权重", min: 0, max: 20, step: 0.05, unit: "权重" },
-        { key: "enemyChargerThreatCost", group: "冲角者", label: "威胁成本", hint: "每条冲角者消耗的波次威胁预算", min: 0.1, max: 20, step: 0.05, unit: "点" },
-        { key: "enemyChargerHealthMin", group: "冲角者", label: "基础生命下界", hint: "包含蛇头的随机出生生命下界", min: 1, max: 30, step: 1, unit: "点" },
-        { key: "enemyChargerHealthMax", group: "冲角者", label: "基础生命上界", hint: "包含蛇头的随机出生生命上界", min: 1, max: 30, step: 1, unit: "点" },
-        { key: "enemyChargerHealthGrowthMax", group: "冲角者", label: "时间生命成长上限", hint: "冲角者最多能从时间曲线获得的额外生命", min: 0, max: 20, step: 1, unit: "点" },
+        { key: "enemyChargerHealthWeight", group: "冲角者", label: "生命权重", hint: "冲角者在同波总威胁分配中的相对生命份额", min: 0.01, max: 20, step: 0.05, unit: "权重" },
         { key: "enemyChargerSpeedMultiplier", group: "冲角者", label: "巡航速度倍率", hint: "冲锋前相对全局敌人速度的倍率", min: 0.1, max: 3, step: 0.01, unit: "倍" },
         { key: "enemyChargerTurnMultiplier", group: "冲角者", label: "转向倍率", hint: "冲角者相对全局敌人转向速度的倍率", min: 0.1, max: 3, step: 0.01, unit: "倍" },
         { key: "enemyChargerCooldown", group: "冲角者", label: "冲锋冷却", hint: "一次冲锋结束后再次尝试锁定玩家的等待时间", min: 0.1, max: 20, step: 0.05, unit: "秒" },
@@ -426,30 +471,21 @@
         { key: "enemyChargerChargeSpeedMultiplier", group: "冲角者", label: "冲锋速度倍率", hint: "冲锋期间相对巡航速度的倍率", min: 1, max: 5, step: 0.05, unit: "倍" },
         { key: "enemyCutterUnlockSeconds", group: "截断者", label: "解锁时间", hint: "截断者加入刷新池的游戏时间", min: 0, max: 3600, step: 5, unit: "秒" },
         { key: "enemyCutterSpawnWeight", group: "截断者", label: "刷新权重", hint: "截断者在可用敌人中的相对抽取权重", min: 0, max: 20, step: 0.05, unit: "权重" },
-        { key: "enemyCutterThreatCost", group: "截断者", label: "威胁成本", hint: "每条截断者消耗的波次威胁预算", min: 0.1, max: 20, step: 0.05, unit: "点" },
-        { key: "enemyCutterHealthMin", group: "截断者", label: "基础生命下界", hint: "包含蛇头的随机出生生命下界", min: 1, max: 30, step: 1, unit: "点" },
-        { key: "enemyCutterHealthMax", group: "截断者", label: "基础生命上界", hint: "包含蛇头的随机出生生命上界", min: 1, max: 30, step: 1, unit: "点" },
-        { key: "enemyCutterHealthGrowthMax", group: "截断者", label: "时间生命成长上限", hint: "截断者最多能从时间曲线获得的额外生命", min: 0, max: 20, step: 1, unit: "点" },
+        { key: "enemyCutterHealthWeight", group: "截断者", label: "生命权重", hint: "截断者在同波总威胁分配中的相对生命份额", min: 0.01, max: 20, step: 0.05, unit: "权重" },
         { key: "enemyCutterSpeedMultiplier", group: "截断者", label: "速度倍率", hint: "截断者相对全局敌人速度的倍率", min: 0.1, max: 3, step: 0.01, unit: "倍" },
         { key: "enemyCutterTurnMultiplier", group: "截断者", label: "转向倍率", hint: "截断者相对全局敌人转向速度的倍率", min: 0.1, max: 3, step: 0.01, unit: "倍" },
         { key: "enemyCutterLeadDistance", group: "截断者", label: "前方预测距离", hint: "截断者瞄准玩家移动方向前方的距离", min: 0.5, max: 12, step: 0.1, unit: "格" },
         { key: "enemyCutterLateralDistance", group: "截断者", label: "横切偏移距离", hint: "在预测点侧方追加的横向封路距离", min: 0.5, max: 12, step: 0.1, unit: "格" },
         { key: "enemyCoilerUnlockSeconds", group: "盘踞者", label: "解锁时间", hint: "盘踞者加入刷新池的游戏时间", min: 0, max: 3600, step: 5, unit: "秒" },
         { key: "enemyCoilerSpawnWeight", group: "盘踞者", label: "刷新权重", hint: "盘踞者在可用敌人中的相对抽取权重", min: 0, max: 20, step: 0.05, unit: "权重" },
-        { key: "enemyCoilerThreatCost", group: "盘踞者", label: "威胁成本", hint: "每条盘踞者消耗的波次威胁预算", min: 0.1, max: 20, step: 0.05, unit: "点" },
-        { key: "enemyCoilerHealthMin", group: "盘踞者", label: "基础生命下界", hint: "包含蛇头的随机出生生命下界", min: 1, max: 30, step: 1, unit: "点" },
-        { key: "enemyCoilerHealthMax", group: "盘踞者", label: "基础生命上界", hint: "包含蛇头的随机出生生命上界", min: 1, max: 30, step: 1, unit: "点" },
-        { key: "enemyCoilerHealthGrowthMax", group: "盘踞者", label: "时间生命成长上限", hint: "盘踞者最多能从时间曲线获得的额外生命", min: 0, max: 20, step: 1, unit: "点" },
+        { key: "enemyCoilerHealthWeight", group: "盘踞者", label: "生命权重", hint: "盘踞者在同波总威胁分配中的相对生命份额", min: 0.01, max: 20, step: 0.05, unit: "权重" },
         { key: "enemyCoilerSpeedMultiplier", group: "盘踞者", label: "速度倍率", hint: "盘踞者相对全局敌人速度的倍率", min: 0.1, max: 3, step: 0.01, unit: "倍" },
         { key: "enemyCoilerTurnMultiplier", group: "盘踞者", label: "转向倍率", hint: "盘踞者相对全局敌人转向速度的倍率", min: 0.1, max: 3, step: 0.01, unit: "倍" },
         { key: "enemyCoilerOrbitRadius", group: "盘踞者", label: "盘旋半径", hint: "围绕选中球团持续巡航的目标半径", min: 0.5, max: 10, step: 0.1, unit: "格" },
         { key: "enemyCoilerRadialCorrection", group: "盘踞者", label: "半径修正强度", hint: "偏离盘旋半径时向内或向外修正的强度", min: 0, max: 2, step: 0.01, unit: "强度" },
         { key: "enemyWardenUnlockSeconds", group: "守卫者", label: "解锁时间", hint: "守卫者加入刷新池的游戏时间", min: 0, max: 3600, step: 5, unit: "秒" },
         { key: "enemyWardenSpawnWeight", group: "守卫者", label: "刷新权重", hint: "守卫者在可用敌人中的相对抽取权重", min: 0, max: 20, step: 0.05, unit: "权重" },
-        { key: "enemyWardenThreatCost", group: "守卫者", label: "威胁成本", hint: "每条守卫者消耗的波次威胁预算", min: 0.1, max: 20, step: 0.05, unit: "点" },
-        { key: "enemyWardenHealthMin", group: "守卫者", label: "基础生命下界", hint: "包含蛇头的随机出生生命下界", min: 1, max: 30, step: 1, unit: "点" },
-        { key: "enemyWardenHealthMax", group: "守卫者", label: "基础生命上界", hint: "包含蛇头的随机出生生命上界", min: 1, max: 30, step: 1, unit: "点" },
-        { key: "enemyWardenHealthGrowthMax", group: "守卫者", label: "时间生命成长上限", hint: "守卫者最多能从时间曲线获得的额外生命", min: 0, max: 20, step: 1, unit: "点" },
+        { key: "enemyWardenHealthWeight", group: "守卫者", label: "生命权重", hint: "守卫者在同波总威胁分配中的相对生命份额", min: 0.01, max: 20, step: 0.05, unit: "权重" },
         { key: "enemyWardenSpeedMultiplier", group: "守卫者", label: "速度倍率", hint: "守卫者相对全局敌人速度的倍率", min: 0.1, max: 3, step: 0.01, unit: "倍" },
         { key: "enemyWardenTurnMultiplier", group: "守卫者", label: "转向倍率", hint: "守卫者相对全局敌人转向速度的倍率", min: 0.1, max: 3, step: 0.01, unit: "倍" },
         { key: "enemyWardenEscortDistance", group: "守卫者", label: "护卫距离", hint: "守卫者围绕持球最多敌人保持的目标距离", min: 0.5, max: 10, step: 0.1, unit: "格" },
@@ -483,8 +519,16 @@
       ];
 
       const ENEMY_PARAMETER_GROUPS = new Set(enemyCodex.entries.map((entry) => entry.name));
+      const WAVE_PARAMETER_GROUP = "波次曲线";
       const ENEMY_PARAMETER_DEFINITIONS = ALL_PARAMETER_DEFINITIONS.filter((definition) => ENEMY_PARAMETER_GROUPS.has(definition.group));
-      const PARAMETER_DEFINITIONS = ALL_PARAMETER_DEFINITIONS.filter((definition) => !ENEMY_PARAMETER_GROUPS.has(definition.group));
+      const WAVE_PARAMETER_DEFINITIONS = ALL_PARAMETER_DEFINITIONS.filter((definition) => definition.group === WAVE_PARAMETER_GROUP);
+      const PARAMETER_DEFINITIONS = ALL_PARAMETER_DEFINITIONS.filter((definition) => !ENEMY_PARAMETER_GROUPS.has(definition.group) && definition.group !== WAVE_PARAMETER_GROUP);
+      const WAVE_PREVIEW_PARAMETER_KEYS = new Set([
+        ...WAVE_PARAMETER_DEFINITIONS.map((definition) => definition.key),
+        "xpRequirementBase",
+        "xpRequirementPerLevel"
+      ]);
+      const WAVE_PREVIEW_WAVES = Object.freeze([1, 5, 10, 11, 30, 31, 90, 91, 95, 100]);
 
       const MODULES = [
         { id: "spark", name: "赤焰炮节", category: "输出", color: "#ff9f43", cooldown: "", desc: "周期锁定最近敌蛇，发射一枚高速焰弹。稳定、直接的单体火力。" },
@@ -572,6 +616,9 @@
       const DEFAULT_MODULE_COOLDOWN_PERCENTAGES = Object.freeze({
         ...(globalThis.GSS0_DESIGNER_CONFIG?.moduleCooldownPercentages || {})
       });
+      const DEFAULT_WAVE_ENEMY_COUNT_SCHEDULE = Object.freeze(
+        (globalThis.GSS0_DESIGNER_CONFIG?.waveEnemyCountSchedule || []).map((tier) => Object.freeze({ ...tier }))
+      );
       const STATUS_LABELS = { normal: "正常", tune: "需调数值", rework: "需大改", disabled: "禁用" };
       const CONFIG_FILE_NAME = "designer-config.js";
       const HANDLE_DATABASE = "gss0-balance-editor";
@@ -587,9 +634,10 @@
       const helperMode = location.protocol === "http:" && location.hostname === "127.0.0.1" && /^[a-f0-9]{64}$/.test(helperToken);
       const ui = {
         fileState: document.querySelector("#file-state"), open: document.querySelector("#open-config"), reload: document.querySelector("#reload-config"),
-        tabs: [...document.querySelectorAll(".tab")], balanceView: document.querySelector("#balance-view"), modulesView: document.querySelector("#modules-view"), enemiesView: document.querySelector("#enemies-view"),
+        tabs: [...document.querySelectorAll(".tab")], balanceView: document.querySelector("#balance-view"), modulesView: document.querySelector("#modules-view"), enemiesView: document.querySelector("#enemies-view"), wavesView: document.querySelector("#waves-view"),
         parameterGroups: document.querySelector("#parameter-groups"), parameterCount: document.querySelector("#parameter-count"), moduleList: document.querySelector("#module-list"), moduleCount: document.querySelector("#module-count"),
         enemyConfigList: document.querySelector("#enemy-config-list"), enemyCount: document.querySelector("#enemy-count"),
+        waveSummary: document.querySelector("#wave-summary"), waveScheduleList: document.querySelector("#wave-schedule-list"), waveMetrics: document.querySelector("#wave-metrics"), waveParameterList: document.querySelector("#wave-parameter-list"), wavePreviewBody: document.querySelector("#wave-preview-body"), wavePreviewNote: document.querySelector("#wave-preview-note"),
         search: document.querySelector("#module-search"), category: document.querySelector("#category-filter"), status: document.querySelector("#status-filter"), descriptionDetail: document.querySelector("#description-detail"),
         interfaceScale: document.querySelector("#interface-scale"), interfaceScaleOutput: document.querySelector("#interface-scale-output")
       };
@@ -608,10 +656,21 @@
       const filePickerSupported = typeof window.showOpenFilePicker === "function";
 
       function normalizeConfig(value) {
-        const config = { schemaVersion: 6, balance: {}, moduleCooldownPercentages: {}, moduleStates: {} };
+        const config = { schemaVersion: 7, balance: {}, waveEnemyCountSchedule: [], moduleCooldownPercentages: {}, moduleStates: {} };
         for (const definition of ALL_PARAMETER_DEFINITIONS) {
           const candidate = Number(value?.balance?.[definition.key]);
           config.balance[definition.key] = Number.isFinite(candidate) ? Math.max(definition.min, Math.min(definition.max, candidate)) : definition.min;
+        }
+        let previousStartWave = 0;
+        for (let index = 0; index < DEFAULT_WAVE_ENEMY_COUNT_SCHEDULE.length; index += 1) {
+          const fallback = DEFAULT_WAVE_ENEMY_COUNT_SCHEDULE[index];
+          const candidate = value?.waveEnemyCountSchedule?.[index];
+          const proposedStart = index === 0 ? 1 : Math.round(Number(candidate?.startWave));
+          const startWave = index === 0 ? 1 : Math.max(previousStartWave + 1, Math.min(100000, Number.isFinite(proposedStart) ? proposedStart : fallback.startWave));
+          const proposedCount = Math.round(Number(candidate?.enemyCount));
+          const enemyCount = Math.max(1, Math.min(100, Number.isFinite(proposedCount) ? proposedCount : fallback.enemyCount));
+          config.waveEnemyCountSchedule.push({ startWave, enemyCount });
+          previousStartWave = startWave;
         }
         for (const moduleId of Object.keys(DEFAULT_MODULE_COOLDOWN_PERCENTAGES)) {
           const candidate = Number(value?.moduleCooldownPercentages?.[moduleId]);
@@ -633,7 +692,7 @@
         const end = text.lastIndexOf("}");
         if (start < 0 || end <= start) throw new Error("配置内容不完整");
         const parsed = JSON.parse(text.slice(start, end + 1));
-        if (parsed?.schemaVersion !== 6) throw new Error("配置版本无效，需要 schemaVersion 6");
+        if (parsed?.schemaVersion !== 7) throw new Error("配置版本无效，需要 schemaVersion 7");
         return normalizeConfig(parsed);
       }
 
@@ -710,6 +769,7 @@
         renderParameters();
         renderModules();
         renderEnemies();
+        renderWaves();
         refreshDirtyState();
       }
 
@@ -733,6 +793,7 @@
         renderParameters();
         renderModules();
         renderEnemies();
+        renderWaves();
         refreshDirtyState();
       }
 
@@ -842,6 +903,7 @@
           range.value = next;
           number.value = next;
           if (["activeSkillBaseCooldown", "headAttackInterval"].includes(definition.key)) renderModules();
+          if (WAVE_PREVIEW_PARAMETER_KEYS.has(definition.key)) renderWavePreview();
           scheduleAutoSave();
         };
         range.addEventListener("input", () => update(range.value));
@@ -851,6 +913,142 @@
         unit.textContent = definition.unit;
         row.append(copy, range, number, unit);
         return row;
+      }
+
+      function currentWaveDirector() {
+        return waveDirectorApi.create({
+          schedule: draft.waveEnemyCountSchedule,
+          pressureWaveInterval: draft.balance.enemyPressureWaveInterval,
+          pressureEnemyCountMultiplier: draft.balance.enemyPressureEnemyCountMultiplier,
+          pressureThreatMultiplier: draft.balance.enemyPressureThreatMultiplier,
+          expectedDpsInterval: draft.balance.enemyExpectedDpsInterval,
+          threatTimeCoefficient: draft.balance.enemyThreatTimeCoefficient,
+          threatGrowthPerWave: draft.balance.enemyThreatGrowthPerWave,
+          foodExperiencePerWave: draft.balance.foodsPerPlayerPerWave,
+          xpRequirementBase: draft.balance.xpRequirementBase,
+          xpRequirementPerLevel: draft.balance.xpRequirementPerLevel,
+          healthWeightVariation: draft.balance.enemyHealthWeightVariation
+        });
+      }
+
+      function formatWaveNumber(value, digits = 2) {
+        return Number(value.toFixed(digits)).toLocaleString("zh-CN", { maximumFractionDigits: digits });
+      }
+
+      function formatWaveDuration(seconds) {
+        const rounded = Math.max(0, Math.round(seconds));
+        return `${String(Math.floor(rounded / 60)).padStart(2, "0")}:${String(rounded % 60).padStart(2, "0")}`;
+      }
+
+      function renderWaveSchedule() {
+        ui.waveScheduleList.replaceChildren(...draft.waveEnemyCountSchedule.map((tier, index, schedule) => {
+          const row = document.createElement("div");
+          row.className = "wave-schedule-row";
+          const badge = document.createElement("span");
+          badge.className = "wave-tier-index";
+          badge.textContent = String(index + 1).padStart(2, "0");
+
+          const startField = document.createElement("label");
+          startField.className = "wave-schedule-field";
+          const startLabel = document.createElement("span");
+          startLabel.textContent = "起始波次";
+          const startInput = document.createElement("input");
+          startInput.type = "number";
+          startInput.min = String(index === 0 ? 1 : schedule[index - 1].startWave + 1);
+          startInput.max = String(index + 1 < schedule.length ? schedule[index + 1].startWave - 1 : 100000);
+          startInput.step = "1";
+          startInput.value = String(tier.startWave);
+          startInput.disabled = index === 0;
+          startInput.setAttribute("aria-label", `第 ${index + 1} 段起始波次`);
+          startInput.addEventListener("change", () => {
+            const minimum = schedule[index - 1].startWave + 1;
+            const maximum = index + 1 < schedule.length ? schedule[index + 1].startWave - 1 : 100000;
+            tier.startWave = Math.max(minimum, Math.min(maximum, Math.round(Number(startInput.value)) || minimum));
+            renderWaveSchedule();
+            renderWavePreview();
+            scheduleAutoSave();
+          });
+          startField.append(startLabel, startInput);
+
+          const countField = document.createElement("label");
+          countField.className = "wave-schedule-field";
+          const countLabel = document.createElement("span");
+          countLabel.textContent = "每人基础敌人数";
+          const countInput = document.createElement("input");
+          countInput.type = "number";
+          countInput.min = "1";
+          countInput.max = "100";
+          countInput.step = "1";
+          countInput.value = String(tier.enemyCount);
+          countInput.setAttribute("aria-label", `第 ${index + 1} 段基础敌人数`);
+          countInput.addEventListener("change", () => {
+            tier.enemyCount = Math.max(1, Math.min(100, Math.round(Number(countInput.value)) || 1));
+            countInput.value = String(tier.enemyCount);
+            renderWavePreview();
+            scheduleAutoSave();
+          });
+          countField.append(countLabel, countInput);
+          row.append(badge, startField, countField);
+          return row;
+        }));
+      }
+
+      function renderWavePreview() {
+        const director = currentWaveDirector();
+        const wave100 = director.plan(100);
+        const completionExperience = director.experienceBeforeWave(101);
+        const metrics = [
+          ["100 波总投放经验", completionExperience, "包含敌人击破球与每波固定球"],
+          ["第 100 波前置等级", `LV.${wave100.expectedLevel}`, `${wave100.expectedExperience} 经验对应内部等级`],
+          ["第 100 波总威胁", formatWaveNumber(wave100.totalThreat), `${wave100.enemyCount} 条敌人共享生命预算`],
+          ["100 波理论周期", formatWaveDuration(draft.balance.waveInterval * 100), `基础间隔 ${formatWaveNumber(draft.balance.waveInterval, 1)} 秒`]
+        ];
+        ui.waveMetrics.replaceChildren(...metrics.map(([labelText, valueText, detailText]) => {
+          const metric = document.createElement("div");
+          metric.className = "wave-metric";
+          const label = document.createElement("span");
+          label.textContent = labelText;
+          const value = document.createElement("strong");
+          value.textContent = valueText;
+          const detail = document.createElement("small");
+          detail.textContent = detailText;
+          metric.append(label, value, detail);
+          return metric;
+        }));
+
+        ui.wavePreviewBody.replaceChildren(...WAVE_PREVIEW_WAVES.map((wave) => {
+          const plan = director.plan(wave);
+          const row = document.createElement("tr");
+          row.classList.toggle("is-pressure", plan.pressure);
+          const values = [
+            wave,
+            plan.pressure ? "高压波" : "常规波",
+            plan.baseEnemyCount,
+            plan.enemyCount,
+            plan.expectedExperience,
+            plan.expectedLevel,
+            formatWaveNumber(plan.expectedDps, 3),
+            `${formatWaveNumber(plan.growthMultiplier * 100, 1)}%`,
+            formatWaveNumber(plan.totalThreat)
+          ];
+          row.append(...values.map((value) => {
+            const cell = document.createElement("td");
+            cell.textContent = value;
+            return cell;
+          }));
+          return row;
+        }));
+        const pressureInterval = Math.round(draft.balance.enemyPressureWaveInterval);
+        ui.waveSummary.textContent = `${draft.waveEnemyCountSchedule.length} 段计划 · ${pressureInterval > 0 ? `每 ${pressureInterval} 波高压` : "高压波关闭"}`;
+        ui.wavePreviewNote.textContent = `前置经验只按固定投放计划计算 · 权重浮动 ±${formatWaveNumber(draft.balance.enemyHealthWeightVariation * 100, 0)}%`;
+      }
+
+      function renderWaves() {
+        renderWaveSchedule();
+        const title = document.createElement("h3");
+        title.textContent = "威胁与投放参数";
+        ui.waveParameterList.replaceChildren(title, ...WAVE_PARAMETER_DEFINITIONS.map(createParameterRow));
+        renderWavePreview();
       }
 
       function renderParameters() {
@@ -1012,6 +1210,7 @@
               renderParameters();
               renderModules();
               renderEnemies();
+              renderWaves();
               scheduleAutoSave();
             }
             return;
@@ -1026,6 +1225,7 @@
             renderParameters();
             renderModules();
             renderEnemies();
+            renderWaves();
             scheduleAutoSave();
           }
         } catch (error) {
@@ -1045,6 +1245,7 @@
             renderParameters();
             renderModules();
             renderEnemies();
+            renderWaves();
           }
           refreshDirtyState();
         } catch (error) {
@@ -1073,6 +1274,7 @@
         ui.balanceView.hidden = tab.dataset.view !== "balance";
         ui.modulesView.hidden = tab.dataset.view !== "modules";
         ui.enemiesView.hidden = tab.dataset.view !== "enemies";
+        ui.wavesView.hidden = tab.dataset.view !== "waves";
       }));
       ui.search.addEventListener("input", renderModules);
       ui.category.addEventListener("change", renderModules);
@@ -1115,6 +1317,7 @@
       renderParameters();
       renderModules();
       renderEnemies();
+      renderWaves();
       refreshDirtyState();
       if (helperMode) void readHelperConfig().catch((error) => setFileState(error instanceof Error ? error.message : "无法连接本地启动器", "dirty"));
       else if (filePickerSupported) void restoreConfigBinding();

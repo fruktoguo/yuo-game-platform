@@ -8,22 +8,12 @@ import {
   ENEMY_BASE_SPEED,
   ENEMY_BODY_RECONNECT_DURATION,
   ENEMY_COLORS,
-  ENEMY_CONCURRENT_CAP_PER_PLAYER,
   ENEMY_FOOD_SEARCH_LIMIT,
-  ENEMY_HEALTH_GROWTH_INTERVAL_SECONDS,
-  ENEMY_MAX_SPAWNS_PER_PLAYER_PER_WAVE,
   ENEMY_SPAWN_WARNING_TIME,
   ENEMY_SPEED_MAX_MULTIPLIER,
   ENEMY_SPEED_PER_MINUTE,
-  ENEMY_SURGE_BUDGET_MULTIPLIER,
-  ENEMY_SURGE_EVERY_WAVES,
-  ENEMY_SURGE_RECOVERY_INTERVAL_MULTIPLIER,
   ENEMY_THINK_INTERVAL_MAX,
   ENEMY_THINK_INTERVAL_MIN,
-  ENEMY_THREAT_BUDGET_BASE,
-  ENEMY_THREAT_BUDGET_LATE_PER_MINUTE,
-  ENEMY_THREAT_BUDGET_LATE_START_MINUTE,
-  ENEMY_THREAT_BUDGET_PER_MINUTE,
   ENEMY_TURN_RATE_MAX,
   ENEMY_TURN_RATE_MIN,
   FOOD_COLORS,
@@ -61,6 +51,7 @@ import { ENEMY_ARCHETYPES, ENEMY_ARCHETYPE_BY_ID, type EnemyArchetypeDefinition 
 import { isModuleId, MODULE_BY_ID, UPGRADE_MODULES, type ModuleId } from '../shared/modules';
 import type { PlayerMovementState } from '../shared/playerStateCodec';
 import { chooseSerpentineSpawn } from '../shared/spawnPlanner';
+import { enemyWaveDirector } from '../shared/waveDirector';
 import type {
   ArenaEvent,
   EnemyArchetypeId,
@@ -1459,23 +1450,10 @@ export class UltraWorld {
     return best;
   }
 
-  private enemyThreatBudgetPerPlayer(): number {
-    const minute = this.gameTime / 60;
-    const lateMinutes = Math.max(0, minute - ENEMY_THREAT_BUDGET_LATE_START_MINUTE);
-    return ENEMY_THREAT_BUDGET_BASE
-      + minute * ENEMY_THREAT_BUDGET_PER_MINUTE
-      + lateMinutes * ENEMY_THREAT_BUDGET_LATE_PER_MINUTE;
-  }
-
-  private isSurgeWave(waveNumber = this.waveCount + 1): boolean {
-    return ENEMY_SURGE_EVERY_WAVES > 0 && waveNumber % ENEMY_SURGE_EVERY_WAVES === 0;
-  }
-
-  private chooseEnemyArchetype(budget: number): EnemyArchetypeDefinition | null {
+  private chooseEnemyArchetype(): EnemyArchetypeDefinition | null {
     const available = ENEMY_ARCHETYPES.filter((entry) => (
       entry.unlockSeconds <= this.gameTime
       && entry.spawnWeight > 0
-      && entry.threatCost <= budget + 1e-6
     ));
     if (available.length === 0) return null;
     const totalWeight = available.reduce((sum, entry) => sum + entry.spawnWeight, 0);
@@ -1488,17 +1466,20 @@ export class UltraWorld {
   }
 
   private queueWaveEnemies(playerCount: number, occupied: Set<number>): void {
-    const currentCount = this.enemies.reduce((total, enemy) => total + Number(!enemy.dead), 0) + this.pendingSpawns.length;
-    const capacity = Math.max(0, playerCount * ENEMY_CONCURRENT_CAP_PER_PLAYER - currentCount);
-    const spawnLimit = Math.min(capacity, playerCount * ENEMY_MAX_SPAWNS_PER_PLAYER_PER_WAVE);
-    const surgeMultiplier = this.isSurgeWave() ? ENEMY_SURGE_BUDGET_MULTIPLIER : 1;
-    let budget = this.enemyThreatBudgetPerPlayer() * playerCount * surgeMultiplier;
-    let spawned = 0;
-    while (spawned < spawnLimit) {
-      const archetype = this.chooseEnemyArchetype(budget);
-      if (!archetype || !this.queueEnemySpawn(archetype, playerCount, occupied)) break;
-      budget -= archetype.threatCost;
-      spawned += 1;
+    const plan = enemyWaveDirector.plan(this.waveCount + 1);
+    const archetypes: EnemyArchetypeDefinition[] = [];
+    for (let index = 0; index < plan.enemyCount * playerCount; index += 1) {
+      const archetype = this.chooseEnemyArchetype();
+      if (!archetype) break;
+      archetypes.push(archetype);
+    }
+    const allocation = enemyWaveDirector.allocateHealth(
+      archetypes.map((archetype) => archetype.healthWeight),
+      plan.totalThreat * playerCount,
+      () => this.random(),
+    );
+    for (let index = 0; index < archetypes.length; index += 1) {
+      if (!this.queueEnemySpawn(archetypes[index], allocation.health[index], playerCount, occupied)) break;
     }
   }
 
@@ -1512,9 +1493,8 @@ export class UltraWorld {
       this.spawnWaveFoods(FOODS_PER_PLAYER_PER_WAVE, foodCells, occupied);
     }
     this.queueWaveEnemies(playerCount, occupied);
-    const surgeWave = this.isSurgeWave();
     this.waveCount += 1;
-    this.waveTimer = WAVE_BASE_INTERVAL * (surgeWave ? ENEMY_SURGE_RECOVERY_INTERVAL_MULTIPLIER : 1);
+    this.waveTimer = WAVE_BASE_INTERVAL;
   }
 
   private spawnFood(preferred?: GridPoint, special = false, occupied?: Set<string>): boolean {
@@ -1750,10 +1730,8 @@ export class UltraWorld {
     }
   }
 
-  private queueEnemySpawn(archetype: EnemyArchetypeDefinition, playerCount = this.activePlayers().length, occupied = this.occupiedCellCodes()): boolean {
-    const baseHealth = Math.floor(this.randomBetween(archetype.healthMin, archetype.healthMax + 1));
-    const growthSteps = Math.floor(this.gameTime / ENEMY_HEALTH_GROWTH_INTERVAL_SECONDS);
-    const totalLength = Math.max(1, baseHealth + Math.min(growthSteps, archetype.healthGrowthMax));
+  private queueEnemySpawn(archetype: EnemyArchetypeDefinition, assignedHealth: number, playerCount = this.activePlayers().length, occupied = this.occupiedCellCodes()): boolean {
+    const totalLength = Math.max(1, Math.round(assignedHealth));
     const multiplayerScale = playerCount <= 1 ? 1 : Math.max(0.35, 1 / Math.sqrt(playerCount));
     const fastestPlayer = this.presentPlayers().reduce((maximum, player) => Math.max(maximum, this.playerBaseSpeed(player)), PLAYER_BASE_SPEED);
     const placement = this.chooseEnemySpawn(totalLength - 1, fastestPlayer * 2 * multiplayerScale, occupied);
