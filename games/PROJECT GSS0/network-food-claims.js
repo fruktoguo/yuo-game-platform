@@ -12,6 +12,8 @@
     const foodBucketPool = [];
     const bucketCodesById = new Map();
     const trackedFoodsById = new Map();
+    const detectionScratch = [];
+    const emptyDetection = Object.freeze([]);
 
     function bucketCode(col, row) {
       return (Math.floor(col) + 32768) * 65536 + Math.floor(row) + 32768;
@@ -164,15 +166,16 @@
     }
 
     function detect(player, headRange, bodyRange, now) {
-      if (!player || foodBuckets.size === 0) return [];
+      if (!player || foodBuckets.size === 0) return emptyDetection;
       for (const [id, sentAt] of pending) if (now - sentAt >= retryAfterMs) pending.delete(id);
-      const claims = [];
+      const claims = detectionScratch;
+      claims.length = 0;
       const segments = Array.isArray(player.segments) ? player.segments : [];
       const safeHeadRange = Math.max(0, Number(headRange) || 0);
       const safeBodyRange = Math.max(0, Number(bodyRange) || 0);
-      if (collectContacts(player, safeHeadRange, claims, now)) return claims;
+      if (collectContacts(player, safeHeadRange, claims, now)) return claims.slice();
       for (const segment of segments) if (collectContacts(segment, safeBodyRange, claims, now)) break;
-      return claims;
+      return claims.length > 0 ? claims.slice() : emptyDetection;
     }
 
     function resolve(requestedFoodIds, claimedFoodIds) {

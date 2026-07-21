@@ -132,6 +132,15 @@ export interface PendingSpawnView {
   maxTimer: number;
 }
 
+export interface UltraWorldObjectDelta {
+  revision: number;
+  reset: boolean;
+  hazardUpserts: UltraHazardView[];
+  hazardRemovedIds: number[];
+  spawnUpserts: PendingSpawnView[];
+  spawnRemovedIds: number[];
+}
+
 export interface UltraSnapshot {
   tick: number;
   serverTime: number;
@@ -140,6 +149,8 @@ export interface UltraSnapshot {
   waveTimer: number;
   threatLevel: number;
   arenaSize: number;
+  worldObjectRevision: number;
+  worldObjectsComplete: boolean;
   players: UltraPlayerView[];
   enemies: UltraEnemyView[];
   foods: UltraFoodView[];
@@ -287,6 +298,7 @@ export interface ActionResult<T = undefined> {
 export interface ServerToClientEvents {
   'ultra:snapshot': (snapshot: Uint8Array) => void;
   'ultra:foods': (delta: UltraFoodDelta) => void;
+  'ultra:world-objects': (delta: UltraWorldObjectDelta) => void;
   'ultra:projectiles': (events: UltraProjectileEvent[]) => void;
   'ultra:effects': (effects: UltraEffect[]) => void;
   'ultra:player-head-collision': (event: PlayerHeadCollisionEvent) => void;

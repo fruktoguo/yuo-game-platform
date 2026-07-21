@@ -392,7 +392,13 @@
     foodIndexes: new Map(),
     foodMotions: new Map(),
     foodRevision: 0,
+    foodDeltaUpserts: [],
+    foodDeltaSpawns: [],
     hazardViews: new Map(),
+    hazardIndexes: new Map(),
+    spawnViews: new Map(),
+    spawnIndexes: new Map(),
+    worldObjectRevision: 0,
     upgradeOffer: null,
     moduleIds: []
   };
@@ -872,6 +878,8 @@
         food.row = clamp(food.row, arena.worldMin, arena.worldMax);
         if (!network.enabled && (food.col !== previousCol || food.row !== previousRow)) localFoodSpatialRuntime.trackFood(food);
       }
+    }
+    if (constrainContents || network.enabled) {
       for (const hazard of hazards) {
         if (!Number.isFinite(hazard.col) || !Number.isFinite(hazard.row)) continue;
         hazard.col = clamp(hazard.col, arena.worldMin, arena.worldMax);
@@ -1154,7 +1162,15 @@
         network.roster = result.data.roster || [];
         clearNetworkViews();
         resetNetworkFoodViews(result.data.snapshot.foods, result.data.foodRevision);
+        resetNetworkWorldObjects(
+          result.data.snapshot.hazards,
+          result.data.snapshot.pendingSpawns,
+          result.data.snapshot.worldObjectRevision
+        );
         result.data.snapshot.foods.length = 0;
+        result.data.snapshot.hazards.length = 0;
+        result.data.snapshot.pendingSpawns.length = 0;
+        result.data.snapshot.worldObjectsComplete = false;
         network.snapshot = result.data.snapshot;
         network.snapshotBuffer = [networkSnapshotEntry(result.data.snapshot)];
         network.receivedAt = performance.now();
@@ -1197,6 +1213,7 @@
       try {
         const snapshot = networkSnapshotCodec.decode(payload, MODULES, reusableEntry?.snapshot);
         receiveNetworkFoodMotions(snapshot.foods);
+        receiveNetworkWorldObjectSnapshot(snapshot);
         snapshot.foods.length = 0;
         receiveNetworkSnapshot(snapshot, reusableEntry);
       } catch (error) {
@@ -1205,6 +1222,7 @@
       }
     });
     socket.on("ultra:foods", receiveNetworkFoodDelta);
+    socket.on("ultra:world-objects", receiveNetworkWorldObjectDelta);
     socket.on("ultra:projectiles", (events) => {
       if (localModeForced) return;
       networkProjectileRuntime.applyEvents(events);
@@ -1565,10 +1583,9 @@
   }
 
   function indexNetworkSnapshot(snapshot, indexes = null) {
-    const target = indexes || { players: new Map(), enemies: new Map(), hazards: new Map() };
+    const target = indexes || { players: new Map(), enemies: new Map() };
     previousById(snapshot?.players, "entityId", target.players);
     previousById(snapshot?.enemies, "id", target.enemies);
-    previousById(snapshot?.hazards, "id", target.hazards);
     return target;
   }
 
@@ -1635,7 +1652,13 @@
     network.foodMotions.clear();
     network.foodRevision = 0;
     network.hazardViews.clear();
+    network.hazardIndexes.clear();
+    network.spawnViews.clear();
+    network.spawnIndexes.clear();
+    network.worldObjectRevision = 0;
     foods.length = 0;
+    hazards.length = 0;
+    pendingEnemySpawns.length = 0;
     locallyPulledFoods.clear();
     localFoodContacts.clear();
     localFoodSpatialRuntime.clear();
@@ -1723,8 +1746,10 @@
       network.foodMotions.delete(id);
       removeNetworkFoodView(id);
     }
-    const spawnedFoods = [];
-    const upsertedFoods = [];
+    const spawnedFoods = network.foodDeltaSpawns;
+    const upsertedFoods = network.foodDeltaUpserts;
+    spawnedFoods.length = 0;
+    upsertedFoods.length = 0;
     for (const item of Array.isArray(delta.upserts) ? delta.upserts : []) {
       if (!Number.isSafeInteger(item?.id)) continue;
       let food = network.foodViews.get(item.id);
@@ -1744,10 +1769,134 @@
     }
     network.foodRevision = revision;
     networkFoodClaimRuntime.applyDelta(upsertedFoods, removedIds, Boolean(delta.reset), performance.now());
-    syncNetworkFoodVisibility(upsertedFoods.map((food) => food.id));
+    for (const food of upsertedFoods) food.networkHidden = networkFoodClaimRuntime.shouldHide(food.id);
     const firstAnimatedFood = Math.max(0, spawnedFoods.length - MAX_DECORATIVE_EFFECTS);
     for (let index = firstAnimatedFood; index < spawnedFoods.length; index += 1) playNetworkFoodSpawn(spawnedFoods[index]);
     if (spawnedFoods.length > 0) sound("foodSpawn");
+    spawnedFoods.length = 0;
+    upsertedFoods.length = 0;
+  }
+
+  function isNewerNetworkRevision(candidate, current) {
+    const difference = (candidate - current) >>> 0;
+    return difference > 0 && difference < 0x80000000;
+  }
+
+  function addNetworkHazardView(hazard) {
+    network.hazardIndexes.set(hazard.id, hazards.length);
+    hazards.push(hazard);
+  }
+
+  function removeNetworkHazardView(id) {
+    const index = network.hazardIndexes.get(id);
+    if (index === undefined) return;
+    const last = hazards.pop();
+    if (index < hazards.length) {
+      hazards[index] = last;
+      network.hazardIndexes.set(last.id, index);
+    }
+    network.hazardIndexes.delete(id);
+    network.hazardViews.delete(id);
+  }
+
+  function upsertNetworkHazardView(item) {
+    if (!Number.isSafeInteger(item?.id)) return;
+    let hazard = network.hazardViews.get(item.id);
+    const isNew = !hazard;
+    if (!hazard) {
+      hazard = {};
+      network.hazardViews.set(item.id, hazard);
+    }
+    const phase = hazard.phase;
+    Object.assign(hazard, item);
+    if (!isNew && Number.isFinite(phase)) hazard.phase = phase;
+    syncNodePosition(hazard);
+    hazard.radius = Math.max(0, Number(item.radius) || 0) * arena.cellSize;
+    if (isNew) addNetworkHazardView(hazard);
+  }
+
+  function addNetworkSpawnView(spawn) {
+    network.spawnIndexes.set(spawn.id, pendingEnemySpawns.length);
+    pendingEnemySpawns.push(spawn);
+  }
+
+  function removeNetworkSpawnView(id) {
+    const index = network.spawnIndexes.get(id);
+    if (index === undefined) return;
+    const last = pendingEnemySpawns.pop();
+    if (index < pendingEnemySpawns.length) {
+      pendingEnemySpawns[index] = last;
+      network.spawnIndexes.set(last.id, index);
+    }
+    network.spawnIndexes.delete(id);
+    network.spawnViews.delete(id);
+  }
+
+  function upsertNetworkSpawnView(item) {
+    if (!Number.isSafeInteger(item?.id)) return;
+    let spawn = network.spawnViews.get(item.id);
+    const isNew = !spawn;
+    if (!spawn) {
+      spawn = { headCell: {}, bodyCells: [] };
+      network.spawnViews.set(item.id, spawn);
+    }
+    spawn.id = item.id;
+    spawn.archetype = item.archetype;
+    spawn.color = item.color;
+    spawn.timer = Number(item.timer) || 0;
+    spawn.maxTimer = Number(item.maxTimer) || 0;
+    spawn.headCell.col = Number(item.headCell?.col) || 0;
+    spawn.headCell.row = Number(item.headCell?.row) || 0;
+    const bodyItems = Array.isArray(item.bodyCells) ? item.bodyCells : [];
+    for (let index = 0; index < bodyItems.length; index += 1) {
+      const body = spawn.bodyCells[index] || (spawn.bodyCells[index] = {});
+      body.col = Number(bodyItems[index]?.col) || 0;
+      body.row = Number(bodyItems[index]?.row) || 0;
+    }
+    spawn.bodyCells.length = bodyItems.length;
+    if (isNew) addNetworkSpawnView(spawn);
+  }
+
+  function resetNetworkWorldObjects(hazardItems, spawnItems, revision = 0) {
+    network.hazardViews.clear();
+    network.hazardIndexes.clear();
+    network.spawnViews.clear();
+    network.spawnIndexes.clear();
+    hazards.length = 0;
+    pendingEnemySpawns.length = 0;
+    for (const item of hazardItems || []) upsertNetworkHazardView(item);
+    for (const item of spawnItems || []) upsertNetworkSpawnView(item);
+    network.worldObjectRevision = Number.isSafeInteger(revision) ? revision : 0;
+  }
+
+  function receiveNetworkWorldObjectDelta(delta) {
+    if (localModeForced || !delta || typeof delta !== "object") return;
+    const revision = Number(delta.revision);
+    if (!Number.isSafeInteger(revision) || revision === network.worldObjectRevision) return;
+    if (!isNewerNetworkRevision(revision, network.worldObjectRevision)) return;
+    const expectedRevision = network.worldObjectRevision >= 0xffffffff ? 1 : network.worldObjectRevision + 1;
+    if (!delta.reset && revision !== expectedRevision) {
+      requestNetworkSnapshotResync();
+      return;
+    }
+    if (delta.reset) resetNetworkWorldObjects([], [], network.worldObjectRevision);
+    for (const id of Array.isArray(delta.hazardRemovedIds) ? delta.hazardRemovedIds : []) removeNetworkHazardView(id);
+    for (const id of Array.isArray(delta.spawnRemovedIds) ? delta.spawnRemovedIds : []) removeNetworkSpawnView(id);
+    for (const item of Array.isArray(delta.hazardUpserts) ? delta.hazardUpserts : []) upsertNetworkHazardView(item);
+    for (const item of Array.isArray(delta.spawnUpserts) ? delta.spawnUpserts : []) upsertNetworkSpawnView(item);
+    network.worldObjectRevision = revision;
+  }
+
+  function receiveNetworkWorldObjectSnapshot(snapshot) {
+    const revision = Number(snapshot?.worldObjectRevision);
+    if (snapshot?.worldObjectsComplete) {
+      resetNetworkWorldObjects(snapshot.hazards, snapshot.pendingSpawns, revision);
+    } else if (Number.isSafeInteger(revision) && isNewerNetworkRevision(revision, network.worldObjectRevision)) {
+      requestNetworkSnapshotResync();
+    }
+    if (Array.isArray(snapshot?.hazards)) snapshot.hazards.length = 0;
+    if (Array.isArray(snapshot?.pendingSpawns)) snapshot.pendingSpawns.length = 0;
+    if (snapshot) snapshot.worldObjectsComplete = false;
   }
 
   function receiveNetworkFoodMotions(items) {
@@ -1994,26 +2143,6 @@
     }
     pruneNetworkViews(network.enemyViews, activeTick, (enemyId) => network.enemyBodyDamageOps.delete(enemyId));
 
-    if (snapshotChanged) {
-      hazards.length = 0;
-      for (const item of current.hazards) {
-        let hazard = network.hazardViews.get(item.id);
-        if (!hazard) {
-          hazard = {};
-          network.hazardViews.set(item.id, hazard);
-        }
-        syncNetworkNode(hazard, item, previousIndexes.hazards.get(item.id), amount);
-        hazard.radius = item.radius * arena.cellSize;
-        hazard.seenAtTick = activeTick;
-        hazards.push(hazard);
-      }
-      pruneNetworkViews(network.hazardViews, activeTick);
-      pendingEnemySpawns = current.pendingSpawns.map((spawn) => ({
-        ...spawn,
-        headCell: { ...spawn.headCell },
-        bodyCells: spawn.bodyCells.map((cell) => ({ ...cell }))
-      }));
-    }
     network.presentationSnapshot = current;
   }
 

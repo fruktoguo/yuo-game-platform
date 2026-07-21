@@ -27,6 +27,7 @@ import type {
   SocketData,
   UltraEffect,
   UltraFoodDelta,
+  UltraWorldObjectDelta,
   UltraProjectileEvent,
   UpgradeOffer,
 } from '../shared/protocol';
@@ -70,6 +71,7 @@ export class ArenaHub {
     let publishEvent: (event: ArenaEvent) => void = () => undefined;
     let publishEffects: (effects: UltraEffect[]) => void = () => undefined;
     let publishFoods: (delta: UltraFoodDelta) => void = () => undefined;
+    let publishWorldObjects: (delta: UltraWorldObjectDelta) => void = () => undefined;
     let publishProjectiles: (events: UltraProjectileEvent[]) => void = () => undefined;
     let publishPlayerHeadCollision: (event: PlayerHeadCollisionEvent) => void = () => undefined;
     let finishRun: (result: RunResult) => void = () => undefined;
@@ -78,6 +80,7 @@ export class ArenaHub {
       callbacks: {
         onEffects: (effects) => publishEffects(effects),
         onFoods: (delta) => publishFoods(delta),
+        onWorldObjects: (delta) => publishWorldObjects(delta),
         onProjectiles: (events) => publishProjectiles(events),
         onPlayerHeadCollision: (event) => publishPlayerHeadCollision(event),
         onEvent: (event) => publishEvent(event),
@@ -89,6 +92,7 @@ export class ArenaHub {
     publishEvent = (event) => hub.publishEvent(event);
     publishEffects = (effects) => hub.publishEffects(effects);
     publishFoods = (delta) => hub.publishFoods(delta);
+    publishWorldObjects = (delta) => hub.publishWorldObjects(delta);
     publishProjectiles = (events) => hub.publishProjectiles(events);
     publishPlayerHeadCollision = (event) => hub.publishPlayerHeadCollision(event);
     finishRun = (result) => hub.finishRun(result);
@@ -343,6 +347,10 @@ export class ArenaHub {
 
   private publishFoods(delta: UltraFoodDelta): void {
     if (this.socketsByAccount.size > 0) this.io.emit('ultra:foods', delta);
+  }
+
+  private publishWorldObjects(delta: UltraWorldObjectDelta): void {
+    if (this.socketsByAccount.size > 0) this.io.emit('ultra:world-objects', delta);
   }
 
   private publishPlayerHeadCollision(event: PlayerHeadCollisionEvent): void {

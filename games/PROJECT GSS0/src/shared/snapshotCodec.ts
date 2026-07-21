@@ -14,7 +14,7 @@ import type {
 } from './protocol';
 
 const MAGIC = 0x5553_4e50;
-export const SNAPSHOT_PROTOCOL_VERSION = 7;
+export const SNAPSHOT_PROTOCOL_VERSION = 8;
 const COORDINATE_SCALE = 65_535;
 const COORDINATE_PADDING = 2;
 const VELOCITY_SCALE = 64;
@@ -47,6 +47,8 @@ export function encodeUltraSnapshot(snapshot: UltraSnapshot): Uint8Array {
   writer.f32(snapshot.waveTimer);
   writer.u16(snapshot.threatLevel);
   writer.f32(snapshot.arenaSize);
+  writer.u32(snapshot.worldObjectRevision);
+  writer.u8(snapshot.worldObjectsComplete ? 1 : 0);
   writer.u8(snapshot.players.length);
   writer.u16(snapshot.enemies.length);
   writer.u16(snapshot.foods.length);
@@ -76,6 +78,8 @@ export function decodeUltraSnapshot(payload: ArrayBuffer | ArrayBufferView): Ult
     waveTimer: reader.f32(),
     threatLevel: reader.u16(),
     arenaSize: reader.f32(),
+    worldObjectRevision: reader.u32(),
+    worldObjectsComplete: Boolean(reader.u8() & 1),
     players: [],
     enemies: [],
     foods: [],

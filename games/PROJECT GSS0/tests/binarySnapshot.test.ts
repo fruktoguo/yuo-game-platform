@@ -122,6 +122,8 @@ function snapshotAt(tick: number, col: number): UltraSnapshot {
     waveTimer: 5,
     threatLevel: 0,
     arenaSize: 24,
+    worldObjectRevision: 0,
+    worldObjectsComplete: true,
     players: [{
       entityId: 1, name: '玩家甲', colorIndex: 0, connected: true, alive: true, paused: false, choosingUpgrade: false,
       col, row: 5, angle: 0, desiredAngle: 0, lastInputSequence: 3, speed: 5, slow: 0, foodBoost: 0, knockbackX: 0, knockbackY: 0, invulnerable: 0, collisionCooldown: 0,

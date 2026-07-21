@@ -2,7 +2,7 @@
   "use strict";
 
   const MAGIC = 0x55534e50;
-  const VERSION = 7;
+  const VERSION = 8;
   const GRID_SIZE = 24;
   const COORDINATE_PADDING = 2;
   const TAU = Math.PI * 2;
@@ -217,6 +217,8 @@
     snapshot.waveTimer = reader.f32();
     snapshot.threatLevel = reader.u16();
     snapshot.arenaSize = reader.f32();
+    snapshot.worldObjectRevision = reader.u32();
+    snapshot.worldObjectsComplete = Boolean(reader.u8() & 1);
     reader.arenaSize = snapshot.arenaSize;
     const playerCount = reader.u8();
     const enemyCount = reader.u16();

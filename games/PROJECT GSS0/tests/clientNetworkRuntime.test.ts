@@ -78,9 +78,9 @@ interface ClientProjectileRuntime {
 }
 
 describe('客户端网络模块', () => {
-  it('独立解码器与服务端 V7 机体等级快照格式一致', () => {
+  it('独立解码器与服务端 V8 机体等级快照格式一致', () => {
     const snapshot: UltraSnapshot = {
-      tick: 7, serverTime: 700, gameTime: 3, waveCount: 2, waveTimer: 4, threatLevel: 1, arenaSize: 24,
+      tick: 7, serverTime: 700, gameTime: 3, waveCount: 2, waveTimer: 4, threatLevel: 1, arenaSize: 24, worldObjectRevision: 0, worldObjectsComplete: true,
       players: [{
         entityId: 1, name: '玩家甲', colorIndex: 0, connected: true, alive: true, paused: false, choosingUpgrade: false,
         col: 4.25, row: 5.5, angle: 0.4, desiredAngle: 0.5, lastInputSequence: 7, speed: 5, slow: 0, foodBoost: 0, knockbackX: 0.5, knockbackY: -0.25, invulnerable: 0, collisionCooldown: 0,
@@ -294,6 +294,8 @@ function snapshotAt(tick: number, col: number): UltraSnapshot {
     waveTimer: 5,
     threatLevel: 0,
     arenaSize: 24,
+    worldObjectRevision: 0,
+    worldObjectsComplete: true,
     players: [{
       entityId: 1, name: '玩家甲', colorIndex: 0, connected: true, alive: true, paused: false, choosingUpgrade: false,
       col, row: 5, angle: 0.4, desiredAngle: 0.5, lastInputSequence: tick, speed: 5, slow: 0, foodBoost: 0, knockbackX: 0, knockbackY: 0, invulnerable: 0, collisionCooldown: 0,
