@@ -87,7 +87,7 @@
 
   const TAU = Math.PI * 2;
   const DESIGNER_CONFIG = globalThis.GSS0_DESIGNER_CONFIG || {};
-  if (DESIGNER_CONFIG.schemaVersion !== 9) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 9");
+  if (DESIGNER_CONFIG.schemaVersion !== 10) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 10");
   const DESIGNER_BALANCE = DESIGNER_CONFIG.balance || {};
   const MODULE_DESIGN_STATES = DESIGNER_CONFIG.moduleStates || {};
 
@@ -150,7 +150,7 @@
   const FOOD_COLORS = ["#b8f53f", "#36dcff", "#ff4d96", "#ffd166", "#a98cff", "#54e1a6"];
   const ENEMY_COLORS = ["#ff5c62", "#ff8a4c", "#d95cff", "#ff477e", "#f4c542"];
   const GRID_SIZE = 24;
-  const ARENA_AREA_PER_LEVEL = designerNumber("arenaAreaPerLevel", 0.05, 0, 0.5);
+  const ARENA_AREA_PER_LEVEL = designerNumber("arenaAreaPerLevel", 0.03, 0, 0.5);
   const ARENA_RESIZE_RATE = designerNumber("arenaResizeRate", 2.4, 0.1, 10);
   const FOOD_WALL_MARGIN = 2;
   const ENEMY_SPAWN_WARNING_TIME = designerNumber("enemySpawnWarning", 1.5, 0, 10);
@@ -165,13 +165,12 @@
   const ENEMY_PRESSURE_COUNT_MULTIPLIER = designerNumber("enemyPressureEnemyCountMultiplier", 2, 1, 10, true);
   const ENEMY_PRESSURE_THREAT_MULTIPLIER = designerNumber("enemyPressureThreatMultiplier", 2, 1, 10);
   const ENEMY_EXPECTED_DPS_INTERVAL = designerNumber("enemyExpectedDpsInterval", 6, 0.1, 60);
-  const ENEMY_THREAT_TIME_COEFFICIENT = designerNumber("enemyThreatTimeCoefficient", 9, 0, 120);
+  const ENEMY_THREAT_TIME_COEFFICIENT = designerNumber("enemyThreatTimeCoefficient", 6, 0, 120);
   const ENEMY_THREAT_GROWTH_PER_WAVE = designerNumber("enemyThreatGrowthPerWave", 0.02, 0, 1);
   const ENEMY_HEALTH_WEIGHT_VARIATION = designerNumber("enemyHealthWeightVariation", 0.25, 0, 1);
   const PROJECTILE_SPEED_SCALE = designerNumber("projectileSpeedScale", 3, 0.1, 10);
   const PROJECTILE_SIZE_SCALE = designerNumber("projectileSizeScale", 2, 0.1, 10);
   const PLAYER_BASE_SPEED = designerNumber("playerBaseSpeed", 5, 1, 12);
-  const PLAYER_SPEED_PER_LEVEL = designerNumber("playerSpeedPerLevel", 0, 0, 0.5);
   const PLAYER_TURN_RATE = designerNumber("playerTurnRate", 4.2, 0.5, 12);
   const ENEMY_BASE_SPEED = designerNumber("enemyBaseSpeed", 4, 0.5, 12);
   const ENEMY_SPEED_PER_MINUTE = designerNumber("enemySpeedPerMinute", 0.01, 0, 0.2);
@@ -207,13 +206,13 @@
     });
   }
   const ENEMY_ARCHETYPES = Object.freeze([
-    enemyArchetype("scout", "Scout", { unlockSeconds: 0, spawnWeight: 5, healthWeight: 1, speedMultiplier: 1.08, turnMultiplier: 1.15 }),
-    enemyArchetype("forager", "Forager", { unlockSeconds: 0, spawnWeight: 4, healthWeight: 1.65, speedMultiplier: 0.92, turnMultiplier: 1 }),
-    enemyArchetype("courier", "Courier", { unlockSeconds: 120, spawnWeight: 2, healthWeight: 2, speedMultiplier: 1.12, turnMultiplier: 1.08 }),
-    enemyArchetype("charger", "Charger", { unlockSeconds: 90, spawnWeight: 1.8, healthWeight: 2.2, speedMultiplier: 0.78, turnMultiplier: 0.72 }),
-    enemyArchetype("cutter", "Cutter", { unlockSeconds: 180, spawnWeight: 1.4, healthWeight: 3.6, speedMultiplier: 1, turnMultiplier: 0.72 }),
-    enemyArchetype("coiler", "Coiler", { unlockSeconds: 300, spawnWeight: 1.05, healthWeight: 4, speedMultiplier: 0.78, turnMultiplier: 1.18 }),
-    enemyArchetype("warden", "Warden", { unlockSeconds: 420, spawnWeight: 0.45, healthWeight: 6.2, speedMultiplier: 0.72, turnMultiplier: 0.68 })
+    enemyArchetype("scout", "Scout", { unlockSeconds: 0, spawnWeight: 10, healthWeight: 1, speedMultiplier: 1, turnMultiplier: 1 }),
+    enemyArchetype("forager", "Forager", { unlockSeconds: 0, spawnWeight: 5, healthWeight: 2, speedMultiplier: 0.75, turnMultiplier: 1 }),
+    enemyArchetype("courier", "Courier", { unlockSeconds: 120, spawnWeight: 2.5, healthWeight: 4, speedMultiplier: 0.6, turnMultiplier: 1 }),
+    enemyArchetype("charger", "Charger", { unlockSeconds: 90, spawnWeight: 2.5, healthWeight: 2, speedMultiplier: 1.5, turnMultiplier: 1.5 }),
+    enemyArchetype("cutter", "Cutter", { unlockSeconds: 180, spawnWeight: 1.25, healthWeight: 2, speedMultiplier: 2, turnMultiplier: 2 }),
+    enemyArchetype("coiler", "Coiler", { unlockSeconds: 300, spawnWeight: 1.25, healthWeight: 6, speedMultiplier: 0.75, turnMultiplier: 1.5 }),
+    enemyArchetype("warden", "Warden", { unlockSeconds: 420, spawnWeight: 1.25, healthWeight: 8, speedMultiplier: 0.6, turnMultiplier: 0.6 })
   ]);
   const ENEMY_ARCHETYPE_BY_ID = Object.freeze(Object.fromEntries(ENEMY_ARCHETYPES.map((entry) => [entry.id, entry])));
   const ENEMY_PLAYER_BODY_AVOIDANCE = new Set(["courier", "charger", "cutter", "coiler", "warden"]);
@@ -227,7 +226,7 @@
     coilerOrbitRadius: designerNumber("enemyCoilerOrbitRadius", 2.7, 0.5, 10),
     coilerRadialCorrection: designerNumber("enemyCoilerRadialCorrection", 0.9, 0, 2),
     wardenEscortDistance: designerNumber("enemyWardenEscortDistance", 2, 0.5, 10),
-    wardenKnockbackMultiplier: designerNumber("enemyWardenKnockbackMultiplier", 1.5, 1, 4)
+    wardenKnockbackMultiplier: designerNumber("enemyWardenKnockbackMultiplier", 2, 1, 4)
   });
   const UPGRADE_INVULNERABILITY_DURATION = designerNumber("upgradeInvulnerabilityDuration", 0.5, 0, 10);
   const RESPAWN_LOCATOR_CONVERGE_DURATION = designerNumber("respawnLocatorConvergeDuration", 1, 0.1, 10);
@@ -1017,7 +1016,7 @@
     const hasteMultiplier = 1 + MODULE_EFFECTS.hasteSpeedBonus(moduleCount("haste"));
     const progress = xpNeeded > 0 ? clamp(xp / xpNeeded, 0, 1) : 0;
     const progressMultiplier = 1 + MODULE_EFFECTS.progressorMaxSpeedBonus(moduleCount("progressor")) * progress;
-    return PLAYER_BASE_SPEED * (1 + level * PLAYER_SPEED_PER_LEVEL) * hasteMultiplier * progressMultiplier;
+    return PLAYER_BASE_SPEED * hasteMultiplier * progressMultiplier;
   }
 
   function isInsideGrid(col, row) {

@@ -21,7 +21,6 @@ export const ENEMY_HEALTH_WEIGHT_VARIATION = DESIGNER_BALANCE.enemyHealthWeightV
 export const PROJECTILE_SPEED_SCALE = DESIGNER_BALANCE.projectileSpeedScale;
 export const PROJECTILE_SIZE_SCALE = DESIGNER_BALANCE.projectileSizeScale;
 export const PLAYER_BASE_SPEED = DESIGNER_BALANCE.playerBaseSpeed;
-export const PLAYER_SPEED_PER_LEVEL = DESIGNER_BALANCE.playerSpeedPerLevel;
 export const PLAYER_TURN_RATE = DESIGNER_BALANCE.playerTurnRate;
 export const XP_REQUIREMENT_BASE = DESIGNER_BALANCE.xpRequirementBase;
 export const XP_REQUIREMENT_PER_LEVEL = DESIGNER_BALANCE.xpRequirementPerLevel;

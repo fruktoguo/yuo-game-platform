@@ -3,7 +3,7 @@
 
   const config = globalThis.GSS0_DESIGNER_CONFIG;
   const modules = globalThis.GSS0ModuleCatalog;
-  if (config?.schemaVersion !== 9 || !Array.isArray(modules) || modules.length === 0) {
+  if (config?.schemaVersion !== 10 || !Array.isArray(modules) || modules.length === 0) {
     throw new Error("PROJECT GSS0 机体成长规则依赖加载失败");
   }
 
@@ -95,7 +95,7 @@
     return Math.floor(safeAmount) + (random() < safeAmount % 1 ? 1 : 0);
   }
 
-  function reduction(level, perLevel, maximum = balance.moduleEffectReductionMaximum) {
+  function reduction(level, perLevel, maximum = 1) {
     return Math.min(maximum, Math.max(0, perLevel) * effectLevel(level));
   }
 

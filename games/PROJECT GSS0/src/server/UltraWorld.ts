@@ -35,7 +35,6 @@ import {
   HEAD_ATTACK_INTERVAL,
   PLAYER_BASE_SPEED,
   PLAYER_COLORS,
-  PLAYER_SPEED_PER_LEVEL,
   PLAYER_TURN_RATE,
   POISON_INITIAL_TICK_DELAY,
   POISON_TICK_INTERVAL,
@@ -1157,7 +1156,7 @@ export class UltraWorld {
     const hasteMultiplier = 1 + MODULE_PROGRESSION.effects.hasteSpeedBonus(this.moduleCount(player, 'haste'));
     const progress = player.xpNeeded > 0 ? clamp(player.xp / player.xpNeeded, 0, 1) : 0;
     const progressMultiplier = 1 + MODULE_PROGRESSION.effects.progressorMaxSpeedBonus(this.moduleCount(player, 'progressor')) * progress;
-    return PLAYER_BASE_SPEED * (1 + player.level * PLAYER_SPEED_PER_LEVEL) * hasteMultiplier * progressMultiplier;
+    return PLAYER_BASE_SPEED * hasteMultiplier * progressMultiplier;
   }
 
   private moduleCount(player: PlayerEntity, id: ModuleId): number {

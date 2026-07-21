@@ -382,11 +382,11 @@
     </div>
   </main>
 
-  <script src="enemy-codex.js?v=59"></script>
-  <script src="wave-director.js?v=59"></script>
-  <script src="designer-config.js?v=59"></script>
-  <script src="module-catalog.js?v=59"></script>
-  <script src="module-progression.js?v=59"></script>
+  <script src="enemy-codex.js?v=60"></script>
+  <script src="wave-director.js?v=60"></script>
+  <script src="designer-config.js?v=60"></script>
+  <script src="module-catalog.js?v=60"></script>
+  <script src="module-progression.js?v=60"></script>
   <script>
     (() => {
       "use strict";
@@ -405,7 +405,6 @@
 
       const ALL_PARAMETER_DEFINITIONS = [
         { key: "playerBaseSpeed", group: "玩家", label: "玩家基础速度", hint: "升级与机体加速前的每秒移动格数", min: 1, max: 12, step: 0.1, unit: "格/秒" },
-        { key: "playerSpeedPerLevel", group: "玩家", label: "玩家每级速度成长", hint: "每级附加的基础速度倍率；0.1 表示每级提高 10%", min: 0, max: 0.5, step: 0.005, unit: "倍率/级" },
         { key: "xpRequirementBase", group: "玩家", label: "升级基础经验需求", hint: "0 级升到 1 级所需的经验球数量", min: 1, max: 100, step: 1, unit: "球" },
         { key: "xpRequirementPerLevel", group: "玩家", label: "升级每级经验增长", hint: "需求公式为：基础需求 + 当前等级 × 此数值", min: 0, max: 20, step: 1, unit: "球/级" },
         { key: "experienceCompressionBase", group: "成长系统", label: "经验压缩进位数", hint: "达到该数量的同级经验机体后，自动压缩成一节高一级经验机体", min: 2, max: 10, step: 1, unit: "节" },
@@ -488,7 +487,6 @@
         { key: "poisonInitialTickDelay", group: "战斗", label: "毒伤首次生效延迟", hint: "毒弹命中后到第一次持续伤害生效的等待时间", min: 0.05, max: 30, step: 0.05, unit: "秒" },
         { key: "poisonTickInterval", group: "战斗", label: "毒伤后续间隔", hint: "第一次毒伤生效后，每次持续伤害之间的间隔", min: 0.05, max: 30, step: 0.05, unit: "秒" },
         { key: "activeSkillBaseCooldown", group: "战斗", label: "主动技能基础冷却", hint: "第二页各机体的冷却百分比均以此时间为 100%", min: 0.05, max: 30, step: 0.05, unit: "秒" },
-        { key: "moduleEffectReductionMaximum", group: "成长系统", label: "被动减免效果上限", hint: "平衡陀螺、时缓晶节和动能缓冲节等减免类被动的共同安全上限", min: 0, max: 0.99, step: 0.01, unit: "比例" },
         { key: "moduleRepulseRangePerLevelPixels", moduleId: "repulse", group: "斥力环节", label: "每级作用半径", hint: "每一级提供的蛇头斥力作用半径", min: 1, max: 1000, step: 5, unit: "px/级" },
         { key: "moduleArmorCooldownRatePerLevel", moduleId: "armor", group: "黑曜装甲", label: "每级冷却速度", hint: "每一级为护盾与相位提供的额外冷却速度", min: 0, max: 5, step: 0.01, unit: "倍率/级" },
         { key: "moduleStabilizerSlowReductionPerLevel", moduleId: "stabilizer", group: "平衡陀螺", label: "每级减速时间减免", hint: "每一级减少的反弹减速持续时间", min: 0, max: 1, step: 0.01, unit: "比例/级" },
@@ -602,7 +600,7 @@
       const filePickerSupported = typeof window.showOpenFilePicker === "function";
 
       function normalizeConfig(value) {
-        const config = { schemaVersion: 9, balance: {}, waveEnemyCountSchedule: [], moduleCooldownPercentages: {}, moduleStates: {} };
+        const config = { schemaVersion: 10, balance: {}, waveEnemyCountSchedule: [], moduleCooldownPercentages: {}, moduleStates: {} };
         for (const definition of ALL_PARAMETER_DEFINITIONS) {
           const candidate = Number(value?.balance?.[definition.key]);
           config.balance[definition.key] = Number.isFinite(candidate) ? Math.max(definition.min, Math.min(definition.max, candidate)) : definition.min;
@@ -638,7 +636,7 @@
         const end = text.lastIndexOf("}");
         if (start < 0 || end <= start) throw new Error("配置内容不完整");
         const parsed = JSON.parse(text.slice(start, end + 1));
-        if (parsed?.schemaVersion !== 9) throw new Error("配置版本无效，需要 schemaVersion 9");
+        if (parsed?.schemaVersion !== 10) throw new Error("配置版本无效，需要 schemaVersion 10");
         return normalizeConfig(parsed);
       }
 
@@ -856,7 +854,7 @@
           draft.balance[definition.key] = next;
           range.value = next;
           number.value = next;
-          if (["activeSkillBaseCooldown", "headAttackInterval", "moduleEffectReductionMaximum"].includes(definition.key)) renderModules();
+          if (["activeSkillBaseCooldown", "headAttackInterval"].includes(definition.key)) renderModules();
           if (definition.moduleId) refreshModuleDescription(definition.moduleId);
           if (WAVE_PREVIEW_PARAMETER_KEYS.has(definition.key)) renderWavePreview();
           scheduleAutoSave();

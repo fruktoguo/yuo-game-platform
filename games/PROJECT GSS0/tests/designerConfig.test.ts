@@ -22,7 +22,6 @@ describe('设计配置', () => {
   it('默认参数保持现有玩法数值', () => {
     expect(DESIGNER_BALANCE).toMatchObject({
       playerBaseSpeed: 5,
-      playerSpeedPerLevel: 0,
       xpRequirementBase: 5,
       xpRequirementPerLevel: 2,
       experienceCompressionBase: 5,
@@ -40,19 +39,19 @@ describe('设计配置', () => {
       enemyPressureEnemyCountMultiplier: 2,
       enemyPressureThreatMultiplier: 2,
       enemyExpectedDpsInterval: 6,
-      enemyThreatTimeCoefficient: 9,
+      enemyThreatTimeCoefficient: 6,
       enemyThreatGrowthPerWave: 0.02,
       enemyHealthWeightVariation: 0.25,
-      enemyScoutSpawnWeight: 5,
+      enemyScoutSpawnWeight: 10,
       enemyScoutHealthWeight: 1,
       enemyScoutFoodRange: 6,
-      enemyForagerHealthWeight: 1.65,
-      enemyCourierHealthWeight: 2,
-      enemyChargerHealthWeight: 2.2,
+      enemyForagerHealthWeight: 2,
+      enemyCourierHealthWeight: 4,
+      enemyChargerHealthWeight: 2,
       enemyChargerTrackingWobble: 0.16,
-      enemyCutterHealthWeight: 3.6,
-      enemyCoilerHealthWeight: 4,
-      enemyWardenHealthWeight: 6.2,
+      enemyCutterHealthWeight: 2,
+      enemyCoilerHealthWeight: 6,
+      enemyWardenHealthWeight: 8,
       enemyChargerUnlockSeconds: 90,
       enemyCutterUnlockSeconds: 180,
       enemyCoilerUnlockSeconds: 300,
@@ -68,7 +67,7 @@ describe('设计配置', () => {
       moduleRepulseRangePerLevelPixels: 110,
       moduleHasteSpeedPerLevel: 0.045,
       moduleCacheKillsPerTrigger: 5,
-      arenaAreaPerLevel: 0.05,
+      arenaAreaPerLevel: 0.03,
       upgradeInvulnerabilityDuration: 1,
       respawnLocatorConvergeDuration: 1,
       respawnLocatorFadeDuration: 3,
@@ -141,10 +140,10 @@ describe('设计配置', () => {
   it('全部现有机体都有审查状态且禁用项不会进入升级池', () => {
     const source = (globalThis as typeof globalThis & { GSS0_DESIGNER_CONFIG: { moduleStates: Record<string, string> } }).GSS0_DESIGNER_CONFIG;
     expect(Object.keys(source.moduleStates).sort()).toEqual(MODULES.map((module) => module.id).sort());
-    expect(Object.values(source.moduleStates).filter((state) => state === 'normal')).toHaveLength(33);
-    expect(Object.values(source.moduleStates).filter((state) => state === 'tune')).toHaveLength(12);
-    expect(Object.values(source.moduleStates).filter((state) => state === 'rework')).toHaveLength(6);
-    expect(Object.values(source.moduleStates).filter((state) => state === 'disabled')).toHaveLength(7);
+    expect(Object.values(source.moduleStates).filter((state) => state === 'normal')).toHaveLength(58);
+    expect(Object.values(source.moduleStates).filter((state) => state === 'tune')).toHaveLength(0);
+    expect(Object.values(source.moduleStates).filter((state) => state === 'rework')).toHaveLength(0);
+    expect(Object.values(source.moduleStates).filter((state) => state === 'disabled')).toHaveLength(0);
     expect(UPGRADE_MODULES.map((module) => module.id)).toEqual(MODULES.filter((module) => moduleDesignState(module.id) !== 'disabled').map((module) => module.id));
   });
 
@@ -154,7 +153,9 @@ describe('设计配置', () => {
 
     expect(parameterKeys.sort()).toEqual(Object.keys(DESIGNER_BALANCE).sort());
     expect(moduleIds.sort()).toEqual(MODULES.map((module) => module.id).sort());
-    expect(new Set(parameterKeys).size).toBe(140);
+    expect(new Set(parameterKeys).size).toBe(138);
+    expect(parameterKeys).not.toContain('playerSpeedPerLevel');
+    expect(parameterKeys).not.toContain('moduleEffectReductionMaximum');
     expect(new Set(moduleIds).size).toBe(58);
   });
 
@@ -167,8 +168,8 @@ describe('设计配置', () => {
     expect(MODULES.find((module) => module.id === 'haste')?.desc).toContain('0.18弧度/秒转向速度');
     expect(MODULES.some((module) => (module.category as string) === '恢复')).toBe(false);
     expect(MODULES.filter((module) => module.category === '发育')).toHaveLength(5);
-    expect(editorHtml).toContain('src="module-catalog.js?v=59"');
-    expect(editorHtml).toContain('src="module-progression.js?v=59"');
+    expect(editorHtml).toContain('src="module-catalog.js?v=60"');
+    expect(editorHtml).toContain('src="module-progression.js?v=60"');
     expect(editorHtml).toContain('const MODULES = moduleCatalog;');
     expect(editorHtml).toContain('descriptionText.textContent = describeModule(module.id, draft.balance);');
     expect(editorHtml).toContain('ID: ${module.id}');

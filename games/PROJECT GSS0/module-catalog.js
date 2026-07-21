@@ -39,10 +39,10 @@
     { id: "repulse", name: "斥力环节", category: "防御", color: "#75dfff", shape: "ring", cooldown: "被动效果", desc: "持续将靠近蛇头的敌蛇航向推向外侧，每级提供110px作用半径。" },
     { id: "armor", name: "黑曜装甲", category: "防御", color: "#b7c0ce", shape: "square", cooldown: "被动效果", desc: "每级使护盾与相位的冷却速度+18%。" },
     { id: "thorns", name: "截击反应节", category: "防御", color: "#9ee55f", shape: "star", cooldown: "", activeCooldown: true, desc: "敌蛇撞上身体并被摧毁时，生成1枚球并发射6枚环形弹。" },
-    { id: "stabilizer", name: "平衡陀螺", category: "防御", color: "#67d5c8", shape: "ring", cooldown: "被动效果", desc: "每级使反弹减速时间-25%、转向锁定时间-20%，最多-90%。" },
+    { id: "stabilizer", name: "平衡陀螺", category: "防御", color: "#67d5c8", shape: "ring", cooldown: "被动效果", desc: "每级使反弹减速时间-25%、转向锁定时间-20%。" },
     { id: "magnet", name: "磁吸环节", category: "辅助", color: "#f5cb4c", shape: "ring", cooldown: "被动效果", desc: "每级使蛇头吃球范围+0.55格。" },
     { id: "haste", name: "涡轮节", category: "辅助", color: "#ff8457", shape: "triangle", cooldown: "被动效果", desc: "每级提高4.5%移动速度，并增加0.18弧度/秒转向速度。" },
-    { id: "chronos", name: "时缓晶节", category: "辅助", color: "#91a7ff", shape: "diamond", cooldown: "被动效果", desc: "每级使所有敌蛇移动速度-8%，最多-90%。" },
+    { id: "chronos", name: "时缓晶节", category: "辅助", color: "#91a7ff", shape: "diamond", cooldown: "被动效果", desc: "每级使所有敌蛇移动速度-8%。" },
     { id: "tractor", name: "引力环节", category: "辅助", color: "#3ed8b5", shape: "ring", cooldown: "被动效果", desc: "吸引附近的球；每级提供3.5格范围与1.8格/秒牵引速度。" },
     { id: "fortune", name: "幸运星节", category: "辅助", color: "#ffd166", shape: "star", cooldown: "被动效果", desc: "击破敌蛇时，每级使额外掉落球的期望+0.18枚。" },
     { id: "guidance", name: "弹道校准节", category: "辅助", color: "#78a9ff", shape: "capsule", cooldown: "被动效果", desc: "每级使所有子弹飞行速度+12%，并增加0.35弧度/秒追踪速度。" },
@@ -66,7 +66,7 @@
     { id: "crossfire", name: "十字火控", category: "输出", color: "#ffb347", shape: "square", cooldown: "", activeCooldown: true, desc: "向目标方向、反方向和两侧各发射1枚重弹；每枚对最多2条敌蛇造成1伤害。" },
     { id: "phasebolt", name: "相位回旋节", category: "输出", color: "#b49cff", shape: "circle", cooldown: "", activeCooldown: true, desc: "发射轻度追踪的相位弹，最多反弹墙壁4次，命中造成1伤害。" },
     { id: "ram", name: "破障冲角", category: "防御", color: "#f3c600", shape: "triangle", cooldown: "", activeCooldown: true, desc: "头部与敌蛇头部相撞时额外造成1伤害。" },
-    { id: "buffer", name: "动能缓冲节", category: "防御", color: "#8fa6ad", shape: "square", cooldown: "被动效果", desc: "每级使玩家受到的物理击退-18%，最多-90%。" },
+    { id: "buffer", name: "动能缓冲节", category: "防御", color: "#8fa6ad", shape: "square", cooldown: "被动效果", desc: "每级使玩家受到的物理击退-18%。" },
     { id: "decoy", name: "诱导涂层", category: "防御", color: "#ff7a90", shape: "diamond", cooldown: "被动效果", desc: "每级使敌蛇对玩家身体的避让强度-12%，最多-55%。" },
     { id: "emergency", name: "应急屏障节", category: "防御", color: "#62e6bf", shape: "hex", cooldown: "被动效果", desc: "身体吃球后全身无敌；每级持续0.37秒，最多0.9秒。" },
     { id: "collector", name: "全身采集节", category: "辅助", color: "#d4f05c", shape: "ring", cooldown: "被动效果", desc: "每级使自身所有身体节的吃球半径+0.09格。" },
@@ -79,7 +79,6 @@
 
   function describeModule(moduleId, balance = defaultBalance) {
     const fallback = moduleBlueprints.find((module) => module.id === moduleId)?.desc || "";
-    const reductionMaximum = formatPercent(setting(balance, "moduleEffectReductionMaximum", 0.9));
     switch (moduleId) {
       case "echo":
         return "蛇头每次开火时，每级追加1枚偏转弹，造成1伤害。";
@@ -90,13 +89,13 @@
       case "thorns":
         return `敌蛇撞上身体并被摧毁时，生成1枚球并发射${formatNumber(setting(balance, "moduleThornsProjectileCount", 6))}枚环形弹。`;
       case "stabilizer":
-        return `每级使反弹减速时间-${formatPercent(setting(balance, "moduleStabilizerSlowReductionPerLevel", 0.25))}、转向锁定时间-${formatPercent(setting(balance, "moduleStabilizerLockReductionPerLevel", 0.2))}，最多-${reductionMaximum}。`;
+        return `每级使反弹减速时间-${formatPercent(setting(balance, "moduleStabilizerSlowReductionPerLevel", 0.25))}、转向锁定时间-${formatPercent(setting(balance, "moduleStabilizerLockReductionPerLevel", 0.2))}。`;
       case "magnet":
         return `每级使蛇头吃球范围+${formatNumber(setting(balance, "moduleMagnetPickupRangePerLevel", 0.55))}格。`;
       case "haste":
         return `每级提高${formatPercent(setting(balance, "moduleHasteSpeedPerLevel", 0.045))}移动速度，并增加${formatNumber(setting(balance, "moduleHasteTurnRatePerLevel", 0.18))}弧度/秒转向速度。`;
       case "chronos":
-        return `每级使所有敌蛇移动速度-${formatPercent(setting(balance, "moduleChronosSlowPerLevel", 0.08))}，最多-${reductionMaximum}。`;
+        return `每级使所有敌蛇移动速度-${formatPercent(setting(balance, "moduleChronosSlowPerLevel", 0.08))}。`;
       case "tractor":
         return `吸引附近的球；每级提供${formatNumber(setting(balance, "moduleTractorRangePerLevel", 3.5))}格范围与${formatNumber(setting(balance, "moduleTractorPullSpeedPerLevel", 1.8))}格/秒牵引速度。`;
       case "fortune":
@@ -110,7 +109,7 @@
       case "amplifier":
         return `每级使蛇头与所有主动技能的冷却速度+${formatPercent(setting(balance, "moduleAmplifierCooldownRatePerLevel", 0.14))}。`;
       case "buffer":
-        return `每级使玩家受到的物理击退-${formatPercent(setting(balance, "moduleBufferKnockbackReductionPerLevel", 0.18))}，最多-${reductionMaximum}。`;
+        return `每级使玩家受到的物理击退-${formatPercent(setting(balance, "moduleBufferKnockbackReductionPerLevel", 0.18))}。`;
       case "decoy":
         return `每级使敌蛇对玩家身体的避让强度-${formatPercent(setting(balance, "moduleDecoyAvoidanceReductionPerLevel", 0.12))}，最多-${formatPercent(setting(balance, "moduleDecoyMaxAvoidanceReduction", 0.55))}。`;
       case "emergency":
