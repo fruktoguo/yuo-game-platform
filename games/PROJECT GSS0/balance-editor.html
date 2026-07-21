@@ -385,11 +385,11 @@
     </div>
   </main>
 
-  <script src="enemy-codex.js?v=75"></script>
-  <script src="wave-director.js?v=75"></script>
-  <script src="designer-config.js?v=75"></script>
-  <script src="module-catalog.js?v=75"></script>
-  <script src="module-progression.js?v=75"></script>
+  <script src="enemy-codex.js?v=76"></script>
+  <script src="wave-director.js?v=76"></script>
+  <script src="designer-config.js?v=76"></script>
+  <script src="module-catalog.js?v=76"></script>
+  <script src="module-progression.js?v=76"></script>
   <script>
     (() => {
       "use strict";
@@ -513,6 +513,7 @@
         { key: "moduleFrostSlowPerHit", moduleId: "frost", group: "冰棱节", label: "每次永久减速", hint: "每次命中永久降低敌蛇的移动速度；多次命中加法叠加", min: 0, max: 1, step: 0.01, unit: "比例/次" },
         { key: "moduleFrostMinimumSpeedMultiplier", moduleId: "frost", group: "冰棱节", label: "最低速度倍率", hint: "永久减速叠加后敌蛇仍保留的最低移动速度比例", min: 0.01, max: 1, step: 0.01, unit: "比例" },
         { key: "moduleBladeBaseSizePixels", moduleId: "blade", group: "旋刃节", label: "旋刃基础体积", hint: "应用全局子弹体积倍率前的旋刃绘制与命中半径", min: 1, max: 100, step: 1, unit: "px" },
+        { key: "moduleBladeOrbitSpeed", moduleId: "blade", group: "旋刃节", label: "旋刃旋转速度", hint: "旋刃围绕所属机体旋转的角速度", min: 0, max: 20, step: 0.01, unit: "弧度/秒" },
         { key: "modulePulseRadiusCells", moduleId: "pulse", group: "脉冲核心", label: "冲击波半径", hint: "冲击波对范围内每个敌方部位分别结算命中的半径", min: 0.1, max: 30, step: 0.1, unit: "格" },
         { key: "moduleClusterBlastRadiusCells", moduleId: "cluster", group: "裂变弹舱", label: "爆炸半径", hint: "裂变爆弹对范围内每个敌方部位分别结算命中的半径", min: 0.1, max: 30, step: 0.1, unit: "格" },
         { key: "moduleShieldMaxCharges", moduleId: "shield", group: "碧玉护盾", label: "护盾储存上限", hint: "可同时储存并显示在生命条上的护盾层数", min: 1, max: 20, step: 1, unit: "层" },
@@ -649,7 +650,7 @@
       const filePickerSupported = typeof window.showOpenFilePicker === "function";
 
       function normalizeConfig(value) {
-        const config = { schemaVersion: 17, balance: {}, waveEnemyCountSchedule: [], moduleCooldownPercentages: {}, moduleStates: {} };
+        const config = { schemaVersion: 18, balance: {}, waveEnemyCountSchedule: [], moduleCooldownPercentages: {}, moduleStates: {} };
         for (const definition of ALL_PARAMETER_DEFINITIONS) {
           const candidate = Number(value?.balance?.[definition.key]);
           config.balance[definition.key] = Number.isFinite(candidate) ? Math.max(definition.min, Math.min(definition.max, candidate)) : definition.min;
@@ -685,7 +686,7 @@
         const end = text.lastIndexOf("}");
         if (start < 0 || end <= start) throw new Error("配置内容不完整");
         const parsed = JSON.parse(text.slice(start, end + 1));
-        if (parsed?.schemaVersion !== 17) throw new Error("配置版本无效，需要 schemaVersion 17");
+        if (parsed?.schemaVersion !== 18) throw new Error("配置版本无效，需要 schemaVersion 18");
         return normalizeConfig(parsed);
       }
 

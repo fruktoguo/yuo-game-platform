@@ -36,7 +36,7 @@ describe('设计配置', () => {
       moduleSlotUnlockLevel2: 12,
       moduleSlotUnlockLevel3: 18,
       moduleSlotUnlockLevel4: 25,
-      playerTurnRate: 4.2,
+      playerTurnRate: 3.6,
       enemyBaseSpeed: 2.4,
       enemySpeedPerMinute: 0.01,
       enemySpeedMaxMultiplier: 1.12,
@@ -44,8 +44,8 @@ describe('设计配置', () => {
       enemyPressureEnemyCountMultiplier: 2,
       enemyPressureThreatMultiplier: 2,
       enemyExpectedDpsInterval: 6,
-      enemyThreatTimeCoefficient: 12,
-      enemyThreatGrowthPerWave: 0.02,
+      enemyThreatTimeCoefficient: 4.5,
+      enemyThreatGrowthPerWave: 0.03,
       enemyHealthWeightVariation: 0.25,
       enemyWallAvoidanceDistance: 1.35,
       enemyScoutSpawnWeight: 10,
@@ -62,7 +62,7 @@ describe('设计配置', () => {
       enemyCutterUnlockSeconds: 180,
       enemyCoilerUnlockSeconds: 300,
       enemyWardenUnlockSeconds: 420,
-      waveInterval: 9,
+      waveInterval: 6,
       foodsPerPlayerPerWave: 2,
       projectileSpeedScale: 3,
       projectileSizeScale: 2,
@@ -77,6 +77,7 @@ describe('设计配置', () => {
       moduleBufferCollisionReductionPerLevel: 0.2,
       moduleBeaconEnemyCountPerLevel: 0.15,
       moduleProgressorSpeedPerLevel: 0.2,
+      moduleBladeOrbitSpeed: 2.28,
       modulePulseRadiusCells: 6,
       moduleClusterBlastRadiusCells: 5,
       moduleShieldMaxCharges: 5,
@@ -133,12 +134,12 @@ describe('设计配置', () => {
       profileSaveDelaySeconds: 30,
     });
     expect(DESIGNER_WAVE_ENEMY_COUNT_SCHEDULE).toEqual([
-      { startWave: 1, enemyCount: 1 },
-      { startWave: 11, enemyCount: 2 },
-      { startWave: 31, enemyCount: 3 },
-      { startWave: 51, enemyCount: 4 },
-      { startWave: 71, enemyCount: 5 },
-      { startWave: 91, enemyCount: 6 },
+      { startWave: 1, enemyCount: 2 },
+      { startWave: 11, enemyCount: 3 },
+      { startWave: 31, enemyCount: 4 },
+      { startWave: 51, enemyCount: 5 },
+      { startWave: 71, enemyCount: 6 },
+      { startWave: 91, enemyCount: 7 },
     ]);
   });
 
@@ -213,8 +214,8 @@ describe('设计配置', () => {
     expect(MODULES.some((module) => ['输出', '防御', '恢复'].includes(module.category as string))).toBe(false);
     expect(MODULES.every((module) => ['进攻', '生存', '辅助', '发育'].includes(module.category))).toBe(true);
     expect(MODULES.filter((module) => module.category === '发育')).toHaveLength(9);
-    expect(editorHtml).toContain('src="module-catalog.js?v=75"');
-    expect(editorHtml).toContain('src="module-progression.js?v=75"');
+    expect(editorHtml).toContain('src="module-catalog.js?v=76"');
+    expect(editorHtml).toContain('src="module-progression.js?v=76"');
     expect(editorHtml).toContain('const MODULES = moduleCatalog;');
     expect(editorHtml).toContain('descriptionText.textContent = describeModule(module.id, draft.balance);');
     expect(editorHtml).toContain('ID: ${module.id}');

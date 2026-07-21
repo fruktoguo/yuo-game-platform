@@ -25,7 +25,7 @@
     { id: "laser", name: "霓虹线圈", category: "进攻", color: "#39f5a6", shape: "capsule", cooldown: "", activeCooldown: true, desc: "瞬间命中最近的敌蛇，造成1伤害。" },
     { id: "missile", name: "追迹弹舱", category: "进攻", color: "#ef476f", shape: "triangle", cooldown: "", activeCooldown: true, desc: "发射1枚能够自动追踪敌蛇的追迹弹，造成1伤害。" },
     { id: "mine", name: "磁暴雷节", category: "进攻", color: "#9a7cff", shape: "square", cooldown: "", activeCooldown: true, desc: "布置永久存在的磁雷；引爆时对范围内每个敌方部位分别造成1伤害，玩家触发时自身只被击退。" },
-    { id: "blade", name: "旋刃节", category: "进攻", color: "#e8eef7", shape: "diamond", cooldown: "被动效果", desc: "每级生成1枚环绕机体的旋刃；接触敌蛇时直接摧毁命中的部位，命中蛇头会触发断首与新头接替。" },
+    { id: "blade", name: "旋刃节", category: "进攻", color: "#e8eef7", shape: "diamond", cooldown: "被动效果", desc: "每级生成1枚环绕机体的旋刃，对命中的部位造成1伤害。" },
     { id: "pulse", name: "脉冲核心", category: "进攻", color: "#3eb7ff", shape: "ring", cooldown: "", activeCooldown: true, desc: "释放半径6格的冲击波，对范围内每个敌方部位分别造成1伤害。" },
     { id: "venom", name: "腐蚀囊节", category: "进攻", color: "#8be04e", shape: "hex", cooldown: "", activeCooldown: true, desc: "发射腐蚀弹，命中造成1伤害并施加可无限叠加的永久中毒；中毒间隔3秒，每层中毒随机摧毁1节身体。" },
     { id: "echo", name: "回声弹匣", category: "进攻", color: "#ff8bd7", shape: "capsule", cooldown: "被动效果", desc: "蛇头撞击敌蛇或墙壁时，每级向随机方向发射1枚子弹。" },
@@ -33,7 +33,7 @@
     { id: "ricochet", name: "弹射晶节", category: "进攻", color: "#ffcf5a", shape: "diamond", cooldown: "", activeCooldown: true, desc: "发射最多反弹墙壁2次的晶体弹；只能命中1次并造成1伤害。" },
     { id: "cluster", name: "裂变弹舱", category: "进攻", color: "#ff6b4a", shape: "hex", cooldown: "", activeCooldown: true, desc: "发射追踪爆弹，对半径5格内每个敌方部位分别造成1伤害。" },
     { id: "fan", name: "烈焰扇节", category: "进攻", color: "#ff3f68", shape: "triangle", cooldown: "", activeCooldown: true, desc: "扇形发射5枚焰弹，每枚造成1伤害。" },
-    { id: "gravity", name: "引力井节", category: "进攻", color: "#a56cff", shape: "ring", cooldown: "", activeCooldown: true, desc: "在目标处生成引力井，生成时对范围内每个敌方部位分别造成1伤害，并持续拉扯、减速敌蛇。" },
+    { id: "gravity", name: "引力井节", category: "进攻", color: "#a56cff", shape: "ring", cooldown: "", activeCooldown: true, desc: "在此机体的位置生成引力井，持续拉扯并减速敌蛇。" },
     { id: "shield", name: "碧玉护盾", category: "生存", color: "#48e0bf", shape: "hex", cooldown: "", activeCooldown: true, desc: "周期性获得1层可抵御任意一次伤害的护盾，最多储存5层。" },
     { id: "phase", name: "幻相节", category: "生存", color: "#bb8cff", shape: "diamond", cooldown: "", activeCooldown: true, desc: "抵消1次头部撞上敌蛇身体时受到的伤害，短暂无敌并保持航向。" },
     { id: "repulse", name: "斥力环节", category: "生存", color: "#75dfff", shape: "ring", cooldown: "被动效果", desc: "持续将靠近蛇头的敌蛇航向推向外侧，每级提供110px作用半径。" },
@@ -97,7 +97,7 @@
       case "frost":
         return `发射冰晶弹，造成1伤害并永久降低敌蛇${formatPercent(setting(balance, "moduleFrostSlowPerHit", 0.2))}移动速度；可叠加至仅剩${formatPercent(setting(balance, "moduleFrostMinimumSpeedMultiplier", 0.05))}。`;
       case "blade":
-        return "每级生成1枚环绕机体的旋刃；接触敌蛇时直接摧毁命中的部位，命中蛇头会触发断首与新头接替。";
+        return "每级生成1枚环绕机体的旋刃，对命中的部位造成1伤害。";
       case "pulse":
         return `释放半径${formatNumber(setting(balance, "modulePulseRadiusCells", 6))}格的冲击波，对范围内每个敌方部位分别造成1伤害。`;
       case "venom":

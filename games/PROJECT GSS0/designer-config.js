@@ -1,5 +1,5 @@
 globalThis.GSS0_DESIGNER_CONFIG = {
-  "schemaVersion": 17,
+  "schemaVersion": 18,
   "balance": {
     "playerBaseSpeed": 3,
     "playerMaxHealth": 20,
@@ -15,7 +15,7 @@ globalThis.GSS0_DESIGNER_CONFIG = {
     "moduleSlotUnlockLevel2": 12,
     "moduleSlotUnlockLevel3": 18,
     "moduleSlotUnlockLevel4": 25,
-    "playerTurnRate": 4.2,
+    "playerTurnRate": 3.6,
     "upgradeInvulnerabilityDuration": 1,
     "respawnLocatorConvergeDuration": 1,
     "respawnLocatorFadeDuration": 3,
@@ -38,20 +38,20 @@ globalThis.GSS0_DESIGNER_CONFIG = {
     "enemyBaseSpeed": 2.4,
     "enemySpeedPerMinute": 0.01,
     "enemySpeedMaxMultiplier": 1.12,
-    "enemyTurnRateMin": 2.05,
-    "enemyTurnRateMax": 2.75,
+    "enemyTurnRateMin": 1.8,
+    "enemyTurnRateMax": 2.4,
     "enemyThinkIntervalMin": 0.22,
     "enemyThinkIntervalMax": 0.55,
     "enemyFoodSearchLimit": 8,
     "enemyWallAvoidanceDistance": 1.35,
     "enemyCollisionDamage": 1,
-    "waveInterval": 9,
+    "waveInterval": 6,
     "enemyPressureWaveInterval": 5,
     "enemyPressureEnemyCountMultiplier": 2,
     "enemyPressureThreatMultiplier": 2,
     "enemyExpectedDpsInterval": 6,
-    "enemyThreatTimeCoefficient": 12,
-    "enemyThreatGrowthPerWave": 0.02,
+    "enemyThreatTimeCoefficient": 4.5,
+    "enemyThreatGrowthPerWave": 0.03,
     "enemyHealthWeightVariation": 0.25,
     "foodsPerPlayerPerWave": 2,
     "enemySpawnWarning": 1.5,
@@ -107,6 +107,7 @@ globalThis.GSS0_DESIGNER_CONFIG = {
     "moduleFrostSlowPerHit": 0.2,
     "moduleFrostMinimumSpeedMultiplier": 0.05,
     "moduleBladeBaseSizePixels": 10,
+    "moduleBladeOrbitSpeed": 2.28,
     "modulePulseRadiusCells": 6,
     "moduleClusterBlastRadiusCells": 5,
     "moduleShieldMaxCharges": 5,
@@ -188,27 +189,27 @@ globalThis.GSS0_DESIGNER_CONFIG = {
   "waveEnemyCountSchedule": [
     {
       "startWave": 1,
-      "enemyCount": 1
-    },
-    {
-      "startWave": 11,
       "enemyCount": 2
     },
     {
-      "startWave": 31,
+      "startWave": 11,
       "enemyCount": 3
     },
     {
-      "startWave": 51,
+      "startWave": 31,
       "enemyCount": 4
     },
     {
-      "startWave": 71,
+      "startWave": 51,
       "enemyCount": 5
     },
     {
-      "startWave": 91,
+      "startWave": 71,
       "enemyCount": 6
+    },
+    {
+      "startWave": 91,
+      "enemyCount": 7
     }
   ],
   "moduleCooldownPercentages": {

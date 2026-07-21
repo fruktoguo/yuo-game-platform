@@ -31,6 +31,7 @@ import {
   KNOCKBACK_INITIAL_SPEED,
   LEVEL_UP_TRANSITION_DURATION,
   MAX_PLAYERS,
+  MODULE_BLADE_ORBIT_SPEED,
   MULTIPLAYER_GHOST_SPEED,
   MULTIPLAYER_REVIVE_CONTACT_RANGE,
   MULTIPLAYER_REVIVE_HEALTH_RATIO,
@@ -2332,7 +2333,7 @@ export class UltraWorld {
     for (const segment of player.segments) {
       if (!segment.module) continue;
       segment.timer -= delta;
-      segment.orbit += delta * 3.8;
+      segment.orbit += delta * (segment.module === 'blade' ? MODULE_BLADE_ORBIT_SPEED : 3.8);
 
       if (segment.module === 'shield') {
         const maximumCharges = MODULE_PROGRESSION.effects.shieldMaximumCharges();
@@ -2502,13 +2503,8 @@ export class UltraWorld {
           break;
         case 'gravity':
           if (target) {
-            const point = { col: target.node.col, row: target.node.row };
+            const point = { col: segment.col, row: segment.row };
             this.addHazard({ id: this.allocateHazardId(), ownerEntityId: player.entityId, kind: 'gravity', ...point, life: 6, arm: 0, radius: this.pixelsToCells(95), color: MODULE_BY_ID.gravity.color, phase: this.randomBetween(0, TAU) });
-            for (const hostile of this.enemies) {
-              if (hostile.dead) continue;
-              const hitIndexes = this.circularTargetHitIndexes(point, this.pixelsToCells(95), hostile);
-              if (hitIndexes.length > 0) this.damageTargetParts(player, hostile, hitIndexes, point, MODULE_BY_ID.gravity.color);
-            }
             this.playSkillSound(player, 'gravity');
           }
           segment.timer = this.activeModuleCooldown(player, 'gravity', segment.moduleLevel);

@@ -19,7 +19,7 @@
           <strong>代号：几何贪吃蛇</strong>
         </div>
         <span class="signature">by 四季鸽</span>
-        <span class="brand-version" aria-label="游戏版本 V75">V75</span>
+        <span class="brand-version" aria-label="游戏版本 V76">V76</span>
       </div>
 
       <div class="run-stats">
@@ -56,14 +56,14 @@
             <input id="font-slider" type="range" min="50" max="200" step="10" value="150" aria-label="字体大小百分比">
           </div>
         </div>
-        <div class="setting-control" data-tooltip="声音大小 50%">
-          <button id="sound-button" class="icon-button" type="button" aria-label="调节声音大小，当前 50%" aria-expanded="false" aria-controls="sound-popover">
+        <div class="setting-control" data-tooltip="声音大小 100%">
+          <button id="sound-button" class="icon-button" type="button" aria-label="调节声音大小，当前 100%" aria-expanded="false" aria-controls="sound-popover">
             <span class="sound-on" aria-hidden="true">♪</span>
             <span class="sound-off" aria-hidden="true">×</span>
           </button>
           <div id="sound-popover" class="setting-popover" role="group" aria-label="声音大小" aria-hidden="true">
-            <div class="setting-heading"><span>声音大小</span><output id="sound-output" for="sound-slider">50%</output></div>
-            <input id="sound-slider" type="range" min="0" max="100" step="5" value="50" aria-label="声音大小百分比">
+            <div class="setting-heading"><span>声音大小</span><output id="sound-output" for="sound-slider">100%</output></div>
+            <input id="sound-slider" type="range" min="0" max="300" step="5" value="100" aria-label="声音大小百分比">
           </div>
         </div>
         <div class="setting-control" data-tooltip="动态透视强度 100%">
@@ -157,7 +157,7 @@
 
     <section id="start-screen" class="modal-layer start-screen is-visible" aria-labelledby="game-title">
       <div class="start-glow" aria-hidden="true"></div>
-      <div class="start-version" aria-label="游戏版本 V75"><span>BUILD</span><strong>V75</strong></div>
+      <div class="start-version" aria-label="游戏版本 V76"><span>BUILD</span><strong>V76</strong></div>
       <div class="start-layout">
         <div class="start-content">
           <div id="network-status" class="title-kicker">TACTICAL SURVIVAL / LOCAL</div>
@@ -258,6 +258,22 @@
           <button id="changelog-close-button" class="icon-button codex-close-button" type="button" aria-label="关闭更新日志" title="关闭更新日志">×</button>
         </header>
         <div class="changelog-list">
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V76</strong></div>
+              <time datetime="2026-07-22">2026.07.22</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">机体与设置</span>
+              <h3>引力井归位，旋刃减速，音量范围扩展</h3>
+              <ul>
+                <li>引力井节改为在自身机体位置生成，不再造成初始范围伤害，仅持续拉扯并减速敌蛇。</li>
+                <li>旋刃旋转速度降低40%并加入设计控制台；命中蛇头时继续使用统一的断首与新头接替动画。</li>
+                <li>声音默认值改为100%，可调上限提高至300%；音效制作仍统一以50%档位作为设计基准。</li>
+                <li>玩家基础转向改为3.6；敌蛇转向区间改为1.8至2.4，波次间隔改为6秒，威胁时间系数改为4.5、每波成长改为3%，各阶段敌人数增加1。</li>
+              </ul>
+            </div>
+          </article>
           <article class="changelog-entry">
             <header>
               <div class="changelog-version"><span>BUILD</span><strong>V75</strong></div>
@@ -1168,20 +1184,20 @@
     </section>
   </main>
 
-  <script src="designer-config.js?v=75"></script>
-  <script src="module-catalog.js?v=75"></script>
-  <script src="module-progression.js?v=75"></script>
-  <script src="wave-director.js?v=75"></script>
-  <script src="spawn-planner.js?v=75"></script>
-  <script src="network-codec.js?v=75"></script>
-  <script src="network-player-prediction.js?v=75"></script>
-  <script src="network-player-state-codec.js?v=75"></script>
-  <script src="network-player-collisions.js?v=75"></script>
-  <script src="network-head-collisions.js?v=75"></script>
-  <script src="network-food-claims.js?v=75"></script>
-  <script src="network-projectiles.js?v=75"></script>
-  <script src="lobby-navigation.js?v=75"></script>
-  <script src="enemy-codex.js?v=75"></script>
-  <script src="game.js?v=75"></script>
+  <script src="designer-config.js?v=76"></script>
+  <script src="module-catalog.js?v=76"></script>
+  <script src="module-progression.js?v=76"></script>
+  <script src="wave-director.js?v=76"></script>
+  <script src="spawn-planner.js?v=76"></script>
+  <script src="network-codec.js?v=76"></script>
+  <script src="network-player-prediction.js?v=76"></script>
+  <script src="network-player-state-codec.js?v=76"></script>
+  <script src="network-player-collisions.js?v=76"></script>
+  <script src="network-head-collisions.js?v=76"></script>
+  <script src="network-food-claims.js?v=76"></script>
+  <script src="network-projectiles.js?v=76"></script>
+  <script src="lobby-navigation.js?v=76"></script>
+  <script src="enemy-codex.js?v=76"></script>
+  <script src="game.js?v=76"></script>
 </body>
 </html>

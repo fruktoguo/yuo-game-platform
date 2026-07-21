@@ -11,7 +11,7 @@ interface DesignerConfigSource {
 }
 
 const source = (globalThis as typeof globalThis & { GSS0_DESIGNER_CONFIG?: DesignerConfigSource }).GSS0_DESIGNER_CONFIG;
-if (source?.schemaVersion !== 17) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 17');
+if (source?.schemaVersion !== 18) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 18');
 
 function numberSetting(key: string, fallback: number, minimum: number, maximum: number, integer = false): number {
   const candidate = source?.balance?.[key];
@@ -160,6 +160,7 @@ export const DESIGNER_BALANCE = Object.freeze({
   moduleFrostSlowPerHit: numberSetting('moduleFrostSlowPerHit', 0.2, 0, 1),
   moduleFrostMinimumSpeedMultiplier: numberSetting('moduleFrostMinimumSpeedMultiplier', 0.05, 0.01, 1),
   moduleBladeBaseSizePixels: numberSetting('moduleBladeBaseSizePixels', 10, 1, 100),
+  moduleBladeOrbitSpeed: numberSetting('moduleBladeOrbitSpeed', 2.28, 0, 20),
   modulePulseRadiusCells: numberSetting('modulePulseRadiusCells', 6, 0.1, 30),
   moduleClusterBlastRadiusCells: numberSetting('moduleClusterBlastRadiusCells', 5, 0.1, 30),
   moduleShieldMaxCharges: numberSetting('moduleShieldMaxCharges', 5, 1, 20, true),

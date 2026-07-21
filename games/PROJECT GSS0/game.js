@@ -94,7 +94,7 @@
 
   const TAU = Math.PI * 2;
   const DESIGNER_CONFIG = globalThis.GSS0_DESIGNER_CONFIG || {};
-  if (DESIGNER_CONFIG.schemaVersion !== 17) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 17");
+  if (DESIGNER_CONFIG.schemaVersion !== 18) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 18");
   const DESIGNER_BALANCE = DESIGNER_CONFIG.balance || {};
   const MODULE_DESIGN_STATES = DESIGNER_CONFIG.moduleStates || {};
 
@@ -260,6 +260,7 @@
   const PLAYER_DAMAGE_PARTICLE_SPEED = designerNumber("playerDamageParticleSpeed", 190, 0, 1000);
   const ENEMY_DAMAGE_NUMBER_DURATION = designerNumber("enemyDamageNumberDuration", 0.82, 0.1, 3);
   const FOOD_BIRTH_DURATION = designerNumber("foodBirthDuration", 0.36, 0.05, 2);
+  const MODULE_BLADE_ORBIT_SPEED = designerNumber("moduleBladeOrbitSpeed", 2.28, 0, 20);
   const GROWTH_NODE_DELAY = 0.045;
   const GROWTH_PULSE_DURATION = 0.3;
   const SEGMENT_BIRTH_DURATION = 0.34;
@@ -349,7 +350,9 @@
   let flash = 0;
   let audioContext = null;
   let nextEatToneAt = 0;
-  let soundVolume = loadSetting("ultra-snake-volume", 0.5, 0, 1);
+  const SOUND_DESIGN_REFERENCE_VOLUME = 0.5;
+  const SOUND_MAX_VOLUME = 3;
+  let soundVolume = loadSetting("ultra-snake-volume", 1, 0, SOUND_MAX_VOLUME);
   let fontScale = loadSetting("ultra-snake-font-scale", 1.5, 0.5, 2);
   let uiMotionStrength = loadSetting("gss0-ui-motion-strength", 1, 1, 3);
   let backgroundPauseEnabled = loadSetting("gss0-background-pause", 1, 0, 1) >= 0.5;
@@ -656,7 +659,7 @@
   }
 
   function applySoundVolume(value, persist = true) {
-    soundVolume = clamp(value, 0, 1);
+    soundVolume = clamp(value, 0, SOUND_MAX_VOLUME);
     const percent = Math.round(soundVolume * 100);
     ui.soundSlider.value = String(percent);
     ui.soundOutput.textContent = `${percent}%`;
@@ -3365,7 +3368,7 @@
     const frequency = 523.25 * Math.pow(2, scaleSemitones[scaleIndex] / 12);
     const now = Math.max(audioContext.currentTime, nextEatToneAt);
     const duration = 0.24;
-    const volume = 0.052 * (soundVolume / 0.5);
+    const volume = 0.052 * (soundVolume / SOUND_DESIGN_REFERENCE_VOLUME);
     nextEatToneAt = now + 0.055;
 
     const oscillator = audioContext.createOscillator();
@@ -3393,7 +3396,7 @@
 
   function playLevelUpFanfare() {
     const now = audioContext.currentTime;
-    const volume = 0.046 * (soundVolume / 0.5);
+    const volume = 0.046 * (soundVolume / SOUND_DESIGN_REFERENCE_VOLUME);
     const notes = [
       { frequency: 523.25, delay: 0, duration: 0.26, gain: 0.8 },
       { frequency: 659.25, delay: 0.11, duration: 0.28, gain: 0.88 },
@@ -3483,7 +3486,7 @@
 
     const [from, to, duration, type, baseVolume, accent] = settings;
     const now = audioContext.currentTime;
-    const volume = baseVolume * (soundVolume / 0.5);
+    const volume = baseVolume * (soundVolume / SOUND_DESIGN_REFERENCE_VOLUME);
     const oscillator = audioContext.createOscillator();
     const gain = audioContext.createGain();
     oscillator.type = type;
@@ -4586,7 +4589,7 @@
     for (const segment of player.segments) {
       if (!segment.module) continue;
       segment.timer -= dt;
-      segment.orbit += dt * 3.8;
+      segment.orbit += dt * (segment.module === "blade" ? MODULE_BLADE_ORBIT_SPEED : 3.8);
 
       if (segment.module === "shield") {
         const maximumCharges = MODULE_EFFECTS.shieldMaximumCharges();
@@ -4755,12 +4758,7 @@
         case "gravity":
           if (target) {
             const gravityRadius = 95 * arenaVisualScale();
-            hazards.push({ kind: "gravity", x: target.node.x, y: target.node.y, col: target.node.col, row: target.node.row, life: 6, arm: 0, radius: gravityRadius, color: MODULE_BY_ID.gravity.color, phase: random(0, TAU) });
-            for (const enemy of enemies) {
-              if (enemy.dead) continue;
-              const hitIndexes = circularEnemyHitIndexes(target.node.x, target.node.y, gravityRadius, enemy);
-              if (hitIndexes.length) damageEnemyParts(enemy, hitIndexes, target.node.x, target.node.y, MODULE_BY_ID.gravity.color);
-            }
+            hazards.push({ kind: "gravity", x: segment.x, y: segment.y, col: segment.col, row: segment.row, life: 6, arm: 0, radius: gravityRadius, color: MODULE_BY_ID.gravity.color, phase: random(0, TAU) });
             playSkillSound("gravity");
           }
           segment.timer = activeModuleCooldown("gravity", segment.moduleLevel);
