@@ -2607,7 +2607,7 @@ input:focus-visible {
   }
 
   .upgrade-screen {
-    padding-right: calc(clamp(340px, 22vw, 428px) + 38px);
+    padding-inline: calc(clamp(340px, 22vw, 428px) + 38px);
   }
 }
 

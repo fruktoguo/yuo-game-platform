@@ -9,7 +9,7 @@ describe('界面设置', () => {
   it('使用正式游戏名并在左上品牌卡显示当前版本', () => {
     expect(indexHtml).toContain('<title>代号：几何贪吃蛇</title>');
     expect(indexHtml).toContain('<h1 id="game-title"><span>代号：几何贪吃蛇</span></h1>');
-    expect(indexHtml).toContain('<span class="brand-version" aria-label="游戏版本 V70">V70</span>');
+    expect(indexHtml).toContain('<span class="brand-version" aria-label="游戏版本 V71">V71</span>');
     expect(styles).toContain('.brand-version');
     const brandTitleRule = styles.match(/\.brand-lockup strong\s*\{([^}]*)\}/)?.[1];
     const brandVersionRule = styles.match(/\.brand-version\s*\{([^}]*)\}/)?.[1];
@@ -39,7 +39,7 @@ describe('界面设置', () => {
   });
 
   it('升级卡展示机体等级变化且机体架显示槽位占用', () => {
-    expect(indexHtml).toContain('src="module-progression.js?v=70"');
+    expect(indexHtml).toContain('src="module-progression.js?v=71"');
     expect(gameSource).toContain('MODULE_PROGRESSION.moduleUpgradePreview');
     expect(gameSource).toContain('progression.levelLabel');
     expect(gameSource).toContain('ui.rack.dataset.capacity');
@@ -51,6 +51,9 @@ describe('界面设置', () => {
     expect(styles).toContain('flex-flow: row nowrap;');
     expect(styles).toContain('.rack-module:hover::after');
     expect(styles).toMatch(/\.upgrade-screen\s*\{\s*z-index: 8;/u);
+    const desktopUpgradeRule = styles.match(/@media \(min-width: 1200px\)\s*\{[\s\S]*?\.upgrade-screen\s*\{([^}]*)\}/u)?.[1];
+    expect(desktopUpgradeRule).toContain('padding-inline: calc(clamp(340px, 22vw, 428px) + 38px);');
+    expect(desktopUpgradeRule).not.toContain('padding-right');
     expect(styles.match(/\.module-rack\s*\{([^}]*)\}/u)?.[1]).toContain('pointer-events: auto;');
   });
 
@@ -97,7 +100,7 @@ describe('界面设置', () => {
     expect(tooltipRule).not.toContain('transition');
     expect(indexHtml).not.toContain('id="description-button"');
     expect(indexHtml).not.toContain('id="description-toggle"');
-    expect(indexHtml).toContain('src="module-catalog.js?v=70"');
+    expect(indexHtml).toContain('src="module-catalog.js?v=71"');
     expect(gameSource).toContain('const MODULE_CATALOG = globalThis.GSS0ModuleCatalog;');
     expect(gameSource).not.toContain('SHORT_MODULE_DESCRIPTIONS');
     expect(gameSource).not.toContain('gss0-detailed-descriptions');
