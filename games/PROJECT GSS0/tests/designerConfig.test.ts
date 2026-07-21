@@ -154,7 +154,7 @@ describe('设计配置', () => {
 
     expect(parameterKeys.sort()).toEqual(Object.keys(DESIGNER_BALANCE).sort());
     expect(moduleIds.sort()).toEqual(MODULES.map((module) => module.id).sort());
-    expect(new Set(parameterKeys).size).toBe(145);
+    expect(new Set(parameterKeys).size).toBe(146);
     expect(new Set(moduleIds).size).toBe(58);
   });
 
@@ -165,10 +165,15 @@ describe('设计配置', () => {
     expect(MODULES.find((module) => module.id === 'spark')?.desc).toBe('发射1枚高速焰弹，造成1伤害。');
     expect(MODULES.find((module) => module.id === 'haste')?.desc).toContain('4.5%移动速度');
     expect(MODULES.find((module) => module.id === 'haste')?.desc).toContain('0.18弧度/秒转向速度');
-    expect(editorHtml).toContain('src="module-catalog.js?v=56"');
-    expect(editorHtml).toContain('src="module-progression.js?v=56"');
+    expect(MODULES.some((module) => (module.category as string) === '恢复')).toBe(false);
+    expect(MODULES.filter((module) => module.category === '发育')).toHaveLength(5);
+    expect(editorHtml).toContain('src="module-catalog.js?v=57"');
+    expect(editorHtml).toContain('src="module-progression.js?v=57"');
     expect(editorHtml).toContain('const MODULES = moduleCatalog;');
     expect(editorHtml).toContain('descriptionText.textContent = describeModule(module.id, draft.balance);');
+    expect(editorHtml).toContain('ID: ${module.id}');
+    expect(editorHtml).toContain('function bulkSetModuleStatus(state)');
+    expect(editorHtml).toContain('window.confirm(`确认将当前筛选条件下的');
   });
 
   it('本地编辑器默认加载配置、自动保存且不存在缺失控件', () => {

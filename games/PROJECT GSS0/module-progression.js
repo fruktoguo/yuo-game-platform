@@ -10,6 +10,7 @@
   const balance = config.balance;
   const cooldownPercentages = config.moduleCooldownPercentages;
   const moduleById = Object.fromEntries(modules.map((module) => [module.id, module]));
+  const maxModuleLevel = Math.max(1, Math.round(Number(balance.maxModuleLevel) || 5));
   const compressionBase = Math.max(2, Math.round(balance.experienceCompressionBase));
   const slotUnlockLevels = Object.freeze([
     balance.moduleSlotUnlockLevel1,
@@ -28,11 +29,11 @@
   }
 
   function safeLevel(level) {
-    return Math.max(1, Math.floor(Number(level) || 1));
+    return clamp(Math.floor(Number(level) || 1), 1, maxModuleLevel);
   }
 
   function effectLevel(level) {
-    return Math.max(0, Math.floor(Number(level) || 0));
+    return clamp(Math.floor(Number(level) || 0), 0, maxModuleLevel);
   }
 
   function moduleLevel(segment) {
@@ -43,7 +44,7 @@
     const levels = Object.create(null);
     for (const segment of segments || []) {
       if (!segment?.module) continue;
-      levels[segment.module] = (levels[segment.module] || 0) + moduleLevel(segment);
+      levels[segment.module] = Math.min(maxModuleLevel, (levels[segment.module] || 0) + moduleLevel(segment));
     }
     return levels;
   }
@@ -182,8 +183,8 @@
   function moduleUpgradePreview(moduleId, currentLevel = 0) {
     const module = moduleById[moduleId];
     if (!module) throw new Error(`PROJECT GSS0 未知机体 ${moduleId}`);
-    const fromLevel = Math.max(0, Math.floor(Number(currentLevel) || 0));
-    const toLevel = fromLevel + 1;
+    const fromLevel = clamp(Math.floor(Number(currentLevel) || 0), 0, maxModuleLevel);
+    const toLevel = Math.min(maxModuleLevel, fromLevel + 1);
     const stats = module.activeCooldown
       ? [{ label: "冷却时间", before: fromLevel > 0 ? activeCooldownSeconds(moduleId, fromLevel) : null, after: activeCooldownSeconds(moduleId, toLevel), format: formatSeconds }]
       : passiveStats(moduleId, toLevel).map((stat, index) => ({
@@ -195,7 +196,9 @@
       kind: fromLevel > 0 ? "upgrade" : "new",
       fromLevel,
       toLevel,
-      levelLabel: fromLevel > 0 ? `等级 ${fromLevel} → 等级 ${toLevel}` : "等级 1",
+      levelLabel: fromLevel >= maxModuleLevel
+        ? `等级 ${maxModuleLevel}（已满级）`
+        : fromLevel > 0 ? `等级 ${fromLevel} → 等级 ${toLevel}` : "等级 1",
       lines: Object.freeze(stats.map((stat) => Object.freeze({
         label: stat.label,
         text: stat.before == null
@@ -210,10 +213,10 @@
     const ownedIds = new Set(Object.keys(levels));
     const capacity = moduleSlotCapacity(playerLevel);
     const canAddNew = ownedIds.size < capacity;
-    const newPool = availableModules.filter((module) => !ownedIds.has(module.id));
-    const upgradePool = availableModules.filter((module) => ownedIds.has(module.id));
+    const newPool = canAddNew ? availableModules.filter((module) => !ownedIds.has(module.id)) : [];
+    const upgradePool = availableModules.filter((module) => ownedIds.has(module.id) && levels[module.id] < maxModuleLevel);
     const choices = [];
-    const targetCount = Math.min(Math.max(0, Math.floor(count)), availableModules.length);
+    const targetCount = Math.min(Math.max(0, Math.floor(count)), newPool.length + upgradePool.length);
 
     while (choices.length < targetCount) {
       const preferNew = canAddNew && random() < clamp(balance.newModuleOfferChance, 0, 1);
@@ -231,6 +234,7 @@
   }
 
   globalThis.GSS0ModuleProgression = Object.freeze({
+    maxModuleLevel,
     compressionBase,
     slotUnlockLevels,
     experienceTiers,

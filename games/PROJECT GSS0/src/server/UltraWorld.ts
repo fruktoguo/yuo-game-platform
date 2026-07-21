@@ -139,8 +139,8 @@ interface EnemyEntity extends UltraEnemyView {
   poisonTimer: number;
   poisonColor: string | null;
   poisonOwnerEntityId: number | null;
-  bladeCooldown: number;
-  sawCooldown: number;
+  bladeCooldownsByPlayer: Map<number, number>;
+  sawCooldownsByPlayer: Map<number, number>;
   collisionCooldown: number;
   behaviorTimer: number;
   chargeCooldown: number;
@@ -1165,7 +1165,7 @@ export class UltraWorld {
     for (const segment of player.segments) {
       if (segment.module === id) count += Math.max(1, segment.moduleLevel || 1);
     }
-    return count;
+    return Math.min(MODULE_PROGRESSION.maxModuleLevel, count);
   }
 
   private autopilotAngle(player: PlayerEntity, presentPlayers = this.presentPlayers()): number {
@@ -1345,6 +1345,10 @@ export class UltraWorld {
       expiresAt: 0,
       options: this.chooseUpgradeOptions(player),
     };
+    if (offer.options.length === 0) {
+      this.completeLevelWithoutModule(player);
+      return;
+    }
     player.choosingUpgrade = true;
     player.upgradeOffer = offer;
     player.upgradeRevealTimer = 0;
@@ -1360,6 +1364,41 @@ export class UltraWorld {
     return MODULE_PROGRESSION.chooseUpgradeIds(UPGRADE_MODULES, player.segments, player.level + 1, () => this.random(), 3);
   }
 
+  private completeLevelWithoutModule(player: PlayerEntity): void {
+    player.segments = player.segments.filter((segment) => !segment.neutral);
+    player.level += 1;
+    player.xp = 0;
+    player.xpNeeded = experienceRequiredForLevel(player.level);
+    player.score += 250 * player.level;
+    player.choosingUpgrade = false;
+    player.upgradePending = false;
+    player.upgradeOffer = null;
+    player.upgradeRevealTimer = 0;
+    this.callbacks.onUpgrade?.(player.entityId, null);
+    player.invulnerable = Math.max(player.invulnerable, UPGRADE_INVULNERABILITY_DURATION);
+    this.effectSound('select', player.entityId);
+  }
+
+  private refreshActiveModuleCooldown(player: PlayerEntity, moduleId: ModuleId, segment: UltraSegment): void {
+    const definition = MODULE_BY_ID[moduleId];
+    if (!definition?.activeCooldown) return;
+    segment.timer = 0;
+    if (moduleId === 'shield' || moduleId === 'phase') {
+      segment.ready = true;
+      segment.cooldown = 0;
+    } else if (moduleId === 'thorns') {
+      player.thornsCooldown = 0;
+    } else if (moduleId === 'ram') {
+      player.ramCooldown = 0;
+    } else if (moduleId === 'bloom') {
+      player.bloomCooldown = 0;
+    } else if (moduleId === 'blade') {
+      for (const enemy of this.enemies) enemy.bladeCooldownsByPlayer.delete(player.entityId);
+    } else if (moduleId === 'saw') {
+      for (const enemy of this.enemies) enemy.sawCooldownsByPlayer.delete(player.entityId);
+    }
+  }
+
   private applyUpgrade(player: PlayerEntity, moduleId: ModuleId, _now: number): void {
     const existing = player.segments.find((segment) => segment.module === moduleId) ?? null;
     const consumedExperience = player.segments.filter((segment) => segment.neutral);
@@ -1370,13 +1409,17 @@ export class UltraWorld {
     const definition = MODULE_BY_ID[moduleId];
     let upgradedSegment = existing;
     if (upgradedSegment) {
-      upgradedSegment.moduleLevel = Math.max(1, upgradedSegment.moduleLevel || 1) + 1;
+      upgradedSegment.moduleLevel = Math.min(
+        MODULE_PROGRESSION.maxModuleLevel,
+        Math.max(1, upgradedSegment.moduleLevel || 1) + 1,
+      );
     } else {
       const tail = player.segments.at(-1) ?? player;
-      const initialTimer = this.randomBetween(0.2, 0.8);
+      const initialTimer = definition.activeCooldown ? 0 : this.randomBetween(0.2, 0.8);
       upgradedSegment = makeSegment(tail.col, tail.row, { module: moduleId, moduleLevel: 1, timer: initialTimer }, this.randomSource);
       player.segments.push(upgradedSegment);
     }
+    this.refreshActiveModuleCooldown(player, moduleId, upgradedSegment);
     player.recentPicks.push(moduleId);
     if (player.recentPicks.length > 6) player.recentPicks.shift();
     player.score += 250 * player.level;
@@ -1938,8 +1981,8 @@ export class UltraWorld {
       poisonTimer: 0,
       poisonColor: null,
       poisonOwnerEntityId: null,
-      bladeCooldown: 0,
-      sawCooldown: 0,
+      bladeCooldownsByPlayer: new Map(),
+      sawCooldownsByPlayer: new Map(),
       collisionCooldown: 0,
       behaviorTimer: 0,
       chargeCooldown: spawn.archetype === 'charger' ? DESIGNER_BALANCE.enemyChargerCooldown * this.randomBetween(0.35, 0.8) : 0,
@@ -2184,8 +2227,12 @@ export class UltraWorld {
           row: segment.row + Math.sin(segment.orbit) * 2.9,
         };
         for (const target of this.enemies) {
-          if (target.dead || target.bladeCooldown > 0 || !this.pointHitsTarget(blade, this.pixelsToCells(10), target)) continue;
-          target.bladeCooldown = this.activeModuleCooldown(player, 'blade', segment.moduleLevel);
+          if (
+            target.dead
+            || (target.bladeCooldownsByPlayer.get(player.entityId) ?? 0) > 0
+            || !this.pointHitsTarget(blade, this.pixelsToCells(10), target)
+          ) continue;
+          target.bladeCooldownsByPlayer.set(player.entityId, this.activeModuleCooldown(player, 'blade', segment.moduleLevel));
           this.damageTarget(player, target, 1, blade, MODULE_BY_ID.blade.color);
         }
         continue;
@@ -2193,8 +2240,12 @@ export class UltraWorld {
 
       if (segment.module === 'saw') {
         for (const target of this.enemies) {
-          if (target.dead || target.sawCooldown > 0 || !this.pointHitsTarget(segment, 0.82, target)) continue;
-          target.sawCooldown = this.activeModuleCooldown(player, 'saw', segment.moduleLevel);
+          if (
+            target.dead
+            || (target.sawCooldownsByPlayer.get(player.entityId) ?? 0) > 0
+            || !this.pointHitsTarget(segment, 0.82, target)
+          ) continue;
+          target.sawCooldownsByPlayer.set(player.entityId, this.activeModuleCooldown(player, 'saw', segment.moduleLevel));
           this.damageTarget(player, target, 1, segment, MODULE_BY_ID.saw.color);
           this.ring(segment.col, segment.row, MODULE_BY_ID.saw.color, 0.3, 5, 0.82, player.entityId);
           this.playSkillSound(player, 'saw');
@@ -2515,8 +2566,16 @@ export class UltraWorld {
 
   private updateTargetStatuses(delta: number): void {
     for (const target of this.enemies) {
-      target.bladeCooldown = Math.max(0, target.bladeCooldown - delta);
-      target.sawCooldown = Math.max(0, target.sawCooldown - delta);
+      for (const [playerId, cooldown] of target.bladeCooldownsByPlayer) {
+        const next = cooldown - delta;
+        if (next > 0) target.bladeCooldownsByPlayer.set(playerId, next);
+        else target.bladeCooldownsByPlayer.delete(playerId);
+      }
+      for (const [playerId, cooldown] of target.sawCooldownsByPlayer) {
+        const next = cooldown - delta;
+        if (next > 0) target.sawCooldownsByPlayer.set(playerId, next);
+        else target.sawCooldownsByPlayer.delete(playerId);
+      }
       if (target.slow > 0) target.slow -= delta;
       if (target.poisonTicks <= 0) continue;
       target.poisonTimer -= delta;

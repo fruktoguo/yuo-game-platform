@@ -33,16 +33,19 @@ describe('机体成长规则', () => {
     expect(MODULE_PROGRESSION.chooseUpgradeIds([MODULES[0]], owned, 0, () => 0.1, 3)).toEqual([MODULES[0].id]);
   });
 
-  it('主动冷却按等级反比成长且不设全局等级上限', () => {
+  it('主动冷却按等级反比成长并在五级封顶', () => {
     expect(MODULE_PROGRESSION.activeCooldownSeconds('spark', 1)).toBe(6);
     expect(MODULE_PROGRESSION.activeCooldownSeconds('spark', 2)).toBe(3);
     expect(MODULE_PROGRESSION.activeCooldownSeconds('spark', 3)).toBe(2);
-    expect(MODULE_PROGRESSION.activeCooldownSeconds('spark', 100)).toBeCloseTo(0.06);
+    expect(MODULE_PROGRESSION.maxModuleLevel).toBe(5);
+    expect(MODULE_PROGRESSION.activeCooldownSeconds('spark', 5)).toBeCloseTo(1.2);
+    expect(MODULE_PROGRESSION.activeCooldownSeconds('spark', 100)).toBeCloseTo(1.2);
   });
 
   it('被动效果从零级开始，并在升级卡展示前后实际变化', () => {
     expect(MODULE_PROGRESSION.effects.hasteSpeedBonus(0)).toBe(0);
     expect(MODULE_PROGRESSION.effects.hasteSpeedBonus(3)).toBeCloseTo(0.135);
+    expect(MODULE_PROGRESSION.effects.hasteSpeedBonus(100)).toBeCloseTo(0.225);
     const active = MODULE_PROGRESSION.moduleUpgradePreview('spark', 2);
     expect(active.levelLabel).toBe('等级 2 → 等级 3');
     expect(active.lines[0].text).toBe('冷却时间 3秒 → 2秒');
@@ -51,6 +54,11 @@ describe('机体成长规则', () => {
       '移动速度 +9% → +13.5%',
       '转向速度 +0.36弧度/秒 → +0.54弧度/秒',
     ]);
+  });
+
+  it('满级机体不会再次进入升级候选', () => {
+    const maxed = [{ module: MODULES[0].id, moduleLevel: 5 }];
+    expect(MODULE_PROGRESSION.chooseUpgradeIds([MODULES[0]], maxed, 0, () => 0.1, 3)).toEqual([]);
   });
 
   it('概率型奖励以线性期望生成整数结果', () => {

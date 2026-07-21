@@ -2006,7 +2006,7 @@
       const id = segments[index].module;
       const segmentLevel = id ? Math.max(1, segments[index].moduleLevel || 1) : 0;
       moduleIds[index] = id ? `${id}:${segmentLevel}` : null;
-      if (id) counts[id] = (counts[id] || 0) + segmentLevel;
+      if (id) counts[id] = Math.min(MODULE_PROGRESSION.maxModuleLevel, (counts[id] || 0) + segmentLevel);
     }
     view.networkModuleCounts = counts;
     return true;
@@ -3182,12 +3182,13 @@
   }
 
   function moduleCount(id) {
-    if (network.enabled && player?.networkModuleCounts) return player.networkModuleCounts[id] || 0;
+    const maximum = MODULE_PROGRESSION.maxModuleLevel;
+    if (network.enabled && player?.networkModuleCounts) return Math.min(maximum, player.networkModuleCounts[id] || 0);
     let count = 0;
     for (const segment of player.segments) {
       if (segment.module === id) count += Math.max(1, segment.moduleLevel || 1);
     }
-    return count;
+    return Math.min(maximum, count);
   }
 
   function outputRateMultiplier() {
@@ -3200,6 +3201,26 @@
       Math.max(1, moduleLevel || 1),
       MODULE_EFFECTS.amplifierCooldownRateBonus(moduleCount("amplifier")) + extraCooldownRateBonus
     );
+  }
+
+  function refreshActiveModuleCooldown(moduleId, segment) {
+    const module = MODULE_BY_ID[moduleId];
+    if (!module?.activeCooldown || !segment) return;
+    segment.timer = 0;
+    if (moduleId === "shield" || moduleId === "phase") {
+      segment.ready = true;
+      segment.cooldown = 0;
+    } else if (moduleId === "thorns") {
+      player.thornsCooldown = 0;
+    } else if (moduleId === "ram") {
+      player.ramCooldown = 0;
+    } else if (moduleId === "bloom") {
+      player.bloomCooldown = 0;
+    } else if (moduleId === "blade") {
+      for (const enemy of enemies) enemy.bladeCooldown = 0;
+    } else if (moduleId === "saw") {
+      for (const enemy of enemies) enemy.sawCooldown = 0;
+    }
   }
 
   function bladeOrbitRadius() {
@@ -3368,6 +3389,26 @@
       .filter(Boolean);
   }
 
+  function completeLocalLevelWithoutModule() {
+    const consumedExperience = player.segments.filter((segment) => segment.neutral);
+    player.segments = player.segments.filter((segment) => !segment.neutral);
+    level += 1;
+    xp = 0;
+    xpNeeded = experienceRequiredForLevel(level);
+    score += 250 * level;
+    upgradePending = false;
+    upgradeRevealTimer = 0;
+    ui.upgrade.classList.remove("is-visible");
+    enterRunningState();
+    player.invulnerable = Math.max(player.invulnerable, UPGRADE_INVULNERABILITY_DURATION);
+    sound("select");
+    for (const segment of consumedExperience) {
+      burst(segment.x, segment.y, "#f3c600", 4, 80);
+    }
+    renderModuleRack();
+    updateHud(true);
+  }
+
   function scheduleAutomaticUpgrade() {
     if (!automaticModeEnabled || state !== "upgrade") return;
     const choices = Array.from(ui.options.querySelectorAll("button.upgrade-card"));
@@ -3387,6 +3428,11 @@
     ui.options.replaceChildren();
 
     const choices = networkChoices || chooseUpgradeOptions();
+    if (choices.length === 0) {
+      if (network.enabled) enterRunningState();
+      else completeLocalLevelWithoutModule();
+      return;
+    }
     const moduleLevels = MODULE_PROGRESSION.moduleLevelsFromSegments(player?.segments || []);
     ui.options.append(...choices.map((module) => {
       const progression = MODULE_PROGRESSION.moduleUpgradePreview(module.id, moduleLevels[module.id] || 0);
@@ -3422,13 +3468,17 @@
     xpNeeded = experienceRequiredForLevel(level);
     let upgradedSegment = existing;
     if (upgradedSegment) {
-      upgradedSegment.moduleLevel = Math.max(1, upgradedSegment.moduleLevel || 1) + 1;
+      upgradedSegment.moduleLevel = Math.min(
+        MODULE_PROGRESSION.maxModuleLevel,
+        Math.max(1, upgradedSegment.moduleLevel || 1) + 1
+      );
     } else {
       const tail = player.segments[player.segments.length - 1] || player;
-      const initialTimer = random(0.2, 0.8);
+      const initialTimer = module.activeCooldown ? 0 : random(0.2, 0.8);
       upgradedSegment = makeSegmentAtCell(tail.col, tail.row, { module: module.id, moduleLevel: 1, timer: initialTimer });
       player.segments.push(upgradedSegment);
     }
+    refreshActiveModuleCooldown(module.id, upgradedSegment);
     recentPicks.push(module.id);
     if (recentPicks.length > 6) recentPicks.shift();
     score += 250 * level;

@@ -47,9 +47,9 @@
     { id: "fortune", name: "幸运星节", category: "辅助", color: "#ffd166", shape: "star", cooldown: "被动效果", desc: "击破敌蛇时，每级使额外掉落球的期望+0.18枚。" },
     { id: "guidance", name: "弹道校准节", category: "辅助", color: "#78a9ff", shape: "capsule", cooldown: "被动效果", desc: "每级使所有子弹飞行速度+12%，并增加0.35弧度/秒追踪速度。" },
     { id: "feast", name: "吞噬涡轮", category: "辅助", color: "#ffb23f", shape: "triangle", cooldown: "被动效果", desc: "吃球后2.5秒内，每级提高12%移动速度；再次吃球刷新持续时间。" },
-    { id: "salvage", name: "回收炉节", category: "恢复", color: "#c7f464", shape: "hex", cooldown: "被动效果", desc: "技能削去敌蛇身体时，每级使每节受损机体回收球的期望+0.14枚。" },
-    { id: "regen", name: "再生芽节", category: "恢复", color: "#ff6f91", shape: "circle", cooldown: "", activeCooldown: true, desc: "定期在蛇头前方生成1枚球。" },
-    { id: "bloom", name: "战利花房", category: "恢复", color: "#ff88c7", shape: "circle", cooldown: "", activeCooldown: true, desc: "击破敌蛇时额外生成1枚球，触发后进入冷却。" },
+    { id: "salvage", name: "回收炉节", category: "发育", color: "#c7f464", shape: "hex", cooldown: "被动效果", desc: "技能削去敌蛇身体时，每级使每节受损机体回收球的期望+0.14枚。" },
+    { id: "regen", name: "再生芽节", category: "发育", color: "#ff6f91", shape: "circle", cooldown: "", activeCooldown: true, desc: "定期在蛇头前方生成1枚球。" },
+    { id: "bloom", name: "战利花房", category: "发育", color: "#ff88c7", shape: "circle", cooldown: "", activeCooldown: true, desc: "击破敌蛇时额外生成1枚球，触发后进入冷却。" },
     { id: "amplifier", name: "超频增幅节", category: "辅助", color: "#f2f5fa", shape: "capsule", cooldown: "被动效果", desc: "每级使蛇头与所有主动技能的冷却速度+14%。" },
     { id: "needle", name: "钨针贯节", category: "输出", color: "#d8f3ff", shape: "capsule", cooldown: "", activeCooldown: true, desc: "发射1枚钨针，对最多2条敌蛇各造成1伤害。" },
     { id: "mortar", name: "震荡榴巢", category: "输出", color: "#ff8a5b", shape: "hex", cooldown: "", activeCooldown: true, desc: "发射追踪榴弹，使爆炸范围内每条敌蛇受到1伤害。" },
@@ -73,8 +73,8 @@
     { id: "beacon", name: "增压信标", category: "辅助", color: "#ffc857", shape: "star", cooldown: "被动效果", desc: "每级使波次倒计时速度+7%。" },
     { id: "momentum", name: "冲量增幅器", category: "辅助", color: "#ff965c", shape: "triangle", cooldown: "被动效果", desc: "每级使敌蛇受到的物理击退+18%。" },
     { id: "progressor", name: "临界推进节", category: "辅助", color: "#38d6c5", shape: "capsule", cooldown: "被动效果", desc: "升级进度越高移动越快；经验满时，每级最多提高8%移动速度。" },
-    { id: "nursery", name: "尾部育成舱", category: "恢复", color: "#ff8ec7", shape: "circle", cooldown: "", activeCooldown: true, desc: "定期在蛇尾附近生成1枚球。" },
-    { id: "cache", name: "战果缓存节", category: "恢复", color: "#b7e36b", shape: "hex", cooldown: "被动效果", desc: "每击破5名敌人，按机体等级生成等量的球。" }
+    { id: "nursery", name: "尾部育成舱", category: "发育", color: "#ff8ec7", shape: "circle", cooldown: "", activeCooldown: true, desc: "定期在蛇尾附近生成1枚球。" },
+    { id: "cache", name: "战果缓存节", category: "发育", color: "#b7e36b", shape: "hex", cooldown: "被动效果", desc: "每击破5名敌人，按机体等级生成等量的球。" }
   ];
 
   function describeModule(moduleId, balance = defaultBalance) {

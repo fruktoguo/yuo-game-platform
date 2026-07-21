@@ -6,6 +6,7 @@ globalThis.GSS0_DESIGNER_CONFIG = {
     "xpRequirementBase": 5,
     "xpRequirementPerLevel": 2,
     "experienceCompressionBase": 5,
+    "maxModuleLevel": 5,
     "initialModuleSlots": 5,
     "moduleSlotUnlockLevel1": 8,
     "moduleSlotUnlockLevel2": 12,

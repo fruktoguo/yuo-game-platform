@@ -170,6 +170,15 @@
 
     .module-toolbar { display: grid; grid-template-columns: minmax(220px, 1fr) 170px 170px; gap: 10px; margin-bottom: 18px; }
     .filter-input, select { width: 100%; padding: 0 12px; }
+    .module-bulk-actions { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 18px; padding: 12px 14px; border-left: 3px solid var(--cyan); background: #101518; }
+    .module-bulk-copy strong { display: block; color: #fff; font-size: 11px; }
+    .module-bulk-copy span { display: block; margin-top: 4px; color: var(--muted); font-size: 9px; }
+    .module-bulk-buttons { display: grid; grid-template-columns: repeat(4, minmax(84px, 1fr)); gap: 6px; min-width: 390px; }
+    .module-bulk-buttons button { min-height: 32px; padding: 0 9px; border: 1px solid var(--line); background: #0b0f11; color: #d8e0e1; font-size: 10px; font-weight: 900; }
+    .module-bulk-buttons button[data-state="normal"] { border-color: var(--green); }
+    .module-bulk-buttons button[data-state="tune"] { border-color: var(--yellow); }
+    .module-bulk-buttons button[data-state="rework"] { border-color: var(--orange); }
+    .module-bulk-buttons button[data-state="disabled"] { border-color: var(--red); }
     .module-list { border-top: 3px solid var(--line); }
     .module-row {
       display: grid;
@@ -184,6 +193,7 @@
     .swatch::after { width: 13px; height: 13px; background: currentColor; content: ""; transform: rotate(45deg); }
     .module-name strong { display: block; font-size: 14px; }
     .module-name span { display: block; margin-top: 5px; color: var(--module-color); font-size: 10px; font-weight: 900; }
+    .module-name code { display: block; margin-top: 4px; color: var(--muted); font-size: 9px; font-family: Consolas, monospace; }
     .module-desc { color: #bdc6c9; font-size: 11px; line-height: 1.58; }
     .module-desc small { display: block; margin-top: 5px; color: var(--muted); font-weight: 800; }
     .cooldown-control {
@@ -256,6 +266,8 @@
       .tab { width: auto; min-width: 132px; margin: 0; }
       .module-row { grid-template-columns: 38px minmax(140px, 0.5fr) 1fr; }
       .status-control, .cooldown-control { grid-column: 2 / -1; }
+      .module-bulk-actions { align-items: stretch; flex-direction: column; }
+      .module-bulk-buttons { min-width: 0; }
       .enemy-config-overview { grid-template-columns: minmax(230px, 0.72fr) minmax(300px, 1fr); }
     }
 
@@ -272,6 +284,7 @@
       .parameter-row input[type="range"] { grid-column: 1 / 2; }
       .module-toolbar { grid-template-columns: 1fr 1fr; }
       .filter-input { grid-column: 1 / -1; }
+      .module-bulk-buttons { grid-template-columns: repeat(2, 1fr); }
       .module-row { grid-template-columns: 34px 1fr; }
       .module-desc, .status-control, .cooldown-control, .module-parameter-list { grid-column: 1 / -1; }
       .cooldown-control { grid-template-columns: 1fr; gap: 8px; }
@@ -323,8 +336,17 @@
         <header class="view-head"><div><span>MODULE ARCHIVE</span><h2>机体状态图鉴</h2></div><output id="module-count" class="view-count"></output></header>
         <div class="module-toolbar">
           <input id="module-search" class="filter-input" type="search" placeholder="搜索名称或 ID" aria-label="搜索机体">
-          <select id="category-filter" aria-label="筛选分类"><option value="all">全部分类</option><option>输出</option><option>防御</option><option>辅助</option><option>恢复</option></select>
+          <select id="category-filter" aria-label="筛选分类"><option value="all">全部分类</option><option>输出</option><option>防御</option><option>辅助</option><option>发育</option></select>
           <select id="status-filter" aria-label="筛选状态"><option value="all">全部状态</option><option value="normal">正常</option><option value="tune">需调数值</option><option value="rework">需大改</option><option value="disabled">禁用</option></select>
+        </div>
+        <div class="module-bulk-actions" aria-label="批量设置机体状态">
+          <div class="module-bulk-copy"><strong>批量设置当前筛选</strong><span id="module-bulk-count">当前筛选 0 个机体</span></div>
+          <div id="module-bulk-buttons" class="module-bulk-buttons" role="group" aria-label="批量状态操作">
+            <button type="button" data-state="normal">全部设为正常</button>
+            <button type="button" data-state="tune">全部设为需调数值</button>
+            <button type="button" data-state="rework">全部设为需大改</button>
+            <button type="button" data-state="disabled">全部设为禁用</button>
+          </div>
         </div>
         <div id="module-list" class="module-list"></div>
       </section>
@@ -360,11 +382,11 @@
     </div>
   </main>
 
-  <script src="enemy-codex.js?v=56"></script>
-  <script src="wave-director.js?v=56"></script>
-  <script src="designer-config.js?v=56"></script>
-  <script src="module-catalog.js?v=56"></script>
-  <script src="module-progression.js?v=56"></script>
+  <script src="enemy-codex.js?v=57"></script>
+  <script src="wave-director.js?v=57"></script>
+  <script src="designer-config.js?v=57"></script>
+  <script src="module-catalog.js?v=57"></script>
+  <script src="module-progression.js?v=57"></script>
   <script>
     (() => {
       "use strict";
@@ -387,6 +409,7 @@
         { key: "xpRequirementBase", group: "玩家", label: "升级基础经验需求", hint: "0 级升到 1 级所需的经验球数量", min: 1, max: 100, step: 1, unit: "球" },
         { key: "xpRequirementPerLevel", group: "玩家", label: "升级每级经验增长", hint: "需求公式为：基础需求 + 当前等级 × 此数值", min: 0, max: 20, step: 1, unit: "球/级" },
         { key: "experienceCompressionBase", group: "成长系统", label: "经验压缩进位数", hint: "达到该数量的同级经验机体后，自动压缩成一节高一级经验机体", min: 2, max: 10, step: 1, unit: "节" },
+        { key: "maxModuleLevel", group: "成长系统", label: "机体最高等级", hint: "所有主动与被动机体共用的等级上限", min: 1, max: 20, step: 1, unit: "级" },
         { key: "initialModuleSlots", group: "成长系统", label: "初始机体槽位", hint: "不含蛇头与经验机体的初始功能机体容量", min: 1, max: 20, step: 1, unit: "槽" },
         { key: "moduleSlotUnlockLevel1", group: "成长系统", label: "第 1 次扩容等级", hint: "到达该等级后增加 1 个机体槽位，并在扩容后生成升级选项", min: 1, max: 100, step: 1, unit: "级" },
         { key: "moduleSlotUnlockLevel2", group: "成长系统", label: "第 2 次扩容等级", hint: "到达该等级后增加 1 个机体槽位", min: 1, max: 100, step: 1, unit: "级" },
@@ -569,7 +592,7 @@
         parameterGroups: document.querySelector("#parameter-groups"), parameterCount: document.querySelector("#parameter-count"), moduleList: document.querySelector("#module-list"), moduleCount: document.querySelector("#module-count"),
         enemyConfigList: document.querySelector("#enemy-config-list"), enemyCount: document.querySelector("#enemy-count"),
         waveSummary: document.querySelector("#wave-summary"), waveScheduleList: document.querySelector("#wave-schedule-list"), waveMetrics: document.querySelector("#wave-metrics"), waveParameterList: document.querySelector("#wave-parameter-list"), wavePreviewBody: document.querySelector("#wave-preview-body"), wavePreviewNote: document.querySelector("#wave-preview-note"),
-        search: document.querySelector("#module-search"), category: document.querySelector("#category-filter"), status: document.querySelector("#status-filter"),
+        search: document.querySelector("#module-search"), category: document.querySelector("#category-filter"), status: document.querySelector("#status-filter"), bulkCount: document.querySelector("#module-bulk-count"), bulkButtons: [...document.querySelectorAll("#module-bulk-buttons button")],
         interfaceScale: document.querySelector("#interface-scale"), interfaceScaleOutput: document.querySelector("#interface-scale-output")
       };
 
@@ -1050,14 +1073,20 @@
         ui.enemyCount.textContent = `${enemyCodex.entries.length} 类敌人 · ${ENEMY_PARAMETER_DEFINITIONS.length} 项参数`;
       }
 
-      function renderModules() {
+      function filteredModules() {
         const query = ui.search.value.trim().toLocaleLowerCase("zh-CN");
-        const modules = MODULES.filter((module) => {
+        return MODULES.filter((module) => {
           const state = draft.moduleStates[module.id];
           return (ui.category.value === "all" || module.category === ui.category.value)
             && (ui.status.value === "all" || state === ui.status.value)
             && (!query || `${module.name} ${module.id} ${module.desc}`.toLocaleLowerCase("zh-CN").includes(query));
         });
+      }
+
+      function renderModules() {
+        const modules = filteredModules();
+        ui.bulkCount.textContent = `当前筛选 ${modules.length} 个机体`;
+        for (const button of ui.bulkButtons) button.disabled = modules.length === 0;
         if (modules.length === 0) {
           const empty = document.createElement("div");
           empty.className = "empty";
@@ -1074,7 +1103,7 @@
             swatch.setAttribute("aria-hidden", "true");
             const name = document.createElement("div");
             name.className = "module-name";
-            name.innerHTML = `<strong>${module.name}</strong><span>${module.category} / ${module.id}</span>`;
+            name.innerHTML = `<strong>${module.name}</strong><span>${module.category}</span><code>ID: ${module.id}</code>`;
             const description = document.createElement("div");
             description.className = "module-desc";
             const descriptionText = document.createElement("span");
@@ -1143,6 +1172,16 @@
         }
         const disabledCount = MODULES.filter((module) => draft.moduleStates[module.id] === "disabled").length;
         ui.moduleCount.textContent = `${modules.length}/${MODULES.length} · 禁用 ${disabledCount}`;
+      }
+
+      function bulkSetModuleStatus(state) {
+        const modules = filteredModules();
+        if (modules.length === 0 || !Object.hasOwn(STATUS_LABELS, state)) return;
+        const label = STATUS_LABELS[state];
+        if (!window.confirm(`确认将当前筛选条件下的 ${modules.length} 个机体全部设置为“${label}”吗？`)) return;
+        for (const module of modules) draft.moduleStates[module.id] = state;
+        renderModules();
+        scheduleAutoSave();
       }
 
       async function openConfig() {
@@ -1225,6 +1264,7 @@
       ui.search.addEventListener("input", renderModules);
       ui.category.addEventListener("change", renderModules);
       ui.status.addEventListener("change", renderModules);
+      ui.bulkButtons.forEach((button) => button.addEventListener("click", () => bulkSetModuleStatus(button.dataset.state)));
       ui.interfaceScale.addEventListener("input", () => {
         const value = Math.max(80, Math.min(160, Number(ui.interfaceScale.value) || 100));
         document.documentElement.style.zoom = String(value / 100);

@@ -16,6 +16,7 @@ export interface GSS0UpgradePreview {
 }
 
 export interface GSS0ModuleProgressionApi {
+  readonly maxModuleLevel: number;
   readonly compressionBase: number;
   readonly slotUnlockLevels: readonly number[];
   readonly experienceTiers: readonly { readonly tier: number; readonly value: number; readonly color: string; readonly accent: string; readonly name: string }[];

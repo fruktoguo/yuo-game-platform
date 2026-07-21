@@ -51,6 +51,7 @@ export const DESIGNER_BALANCE = Object.freeze({
   xpRequirementBase: numberSetting('xpRequirementBase', 5, 1, 100, true),
   xpRequirementPerLevel: numberSetting('xpRequirementPerLevel', 2, 0, 20, true),
   experienceCompressionBase: numberSetting('experienceCompressionBase', 5, 2, 10, true),
+  maxModuleLevel: numberSetting('maxModuleLevel', 5, 1, 20, true),
   initialModuleSlots: numberSetting('initialModuleSlots', 5, 1, 20, true),
   moduleSlotUnlockLevel1: numberSetting('moduleSlotUnlockLevel1', 8, 1, 100, true),
   moduleSlotUnlockLevel2: numberSetting('moduleSlotUnlockLevel2', 12, 1, 100, true),
