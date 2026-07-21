@@ -1090,8 +1090,8 @@ export class UltraWorld {
   }
 
   private updateArenaSize(delta: number, presentPlayers = this.presentPlayers()): void {
-    const highestLevel = presentPlayers.reduce((maximum, player) => Math.max(maximum, player.level), 0);
-    const target = GRID_SIZE * Math.sqrt(1 + highestLevel * ARENA_AREA_PER_LEVEL);
+    const totalLevel = presentPlayers.reduce((total, player) => total + Math.max(0, player.level), 0);
+    const target = GRID_SIZE * Math.sqrt(1 + totalLevel * ARENA_AREA_PER_LEVEL);
     const amount = 1 - Math.exp(-ARENA_RESIZE_RATE * delta);
     const previousSize = this.arenaSize;
     this.arenaSize += (target - this.arenaSize) * amount;

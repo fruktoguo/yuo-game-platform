@@ -385,11 +385,11 @@
     </div>
   </main>
 
-  <script src="enemy-codex.js?v=68"></script>
-  <script src="wave-director.js?v=68"></script>
-  <script src="designer-config.js?v=68"></script>
-  <script src="module-catalog.js?v=68"></script>
-  <script src="module-progression.js?v=68"></script>
+  <script src="enemy-codex.js?v=69"></script>
+  <script src="wave-director.js?v=69"></script>
+  <script src="designer-config.js?v=69"></script>
+  <script src="module-catalog.js?v=69"></script>
+  <script src="module-progression.js?v=69"></script>
   <script>
     (() => {
       "use strict";
@@ -553,7 +553,7 @@
         { key: "moduleDeathBurstProjectilesPerLevel", moduleId: "deathburst", group: "猎杀齐射节", label: "每级死亡齐射弹数", hint: "任意敌蛇死亡时向随机方向发射的子弹数量", min: 0, max: 20, step: 1, unit: "枚/级" },
         { key: "moduleCrisisHealthThreshold", moduleId: "crisis", group: "危态代偿节", label: "生命阈值", hint: "低于该最大生命比例时获得正恢复，否则产生等量负恢复", min: 0, max: 1, step: 0.01, unit: "比例" },
         { key: "moduleCrisisRegenPerLevel", moduleId: "crisis", group: "危态代偿节", label: "每级代偿恢复", hint: "阈值两侧分别增加或减少的每秒生命恢复", min: 0, max: 20, step: 0.1, unit: "点/秒/级" },
-        { key: "arenaAreaPerLevel", group: "场地", label: "每级场地面积成长", hint: "按场上最高玩家等级增加的场地面积倍率", min: 0, max: 0.5, step: 0.005, unit: "倍率/级" },
+        { key: "arenaAreaPerLevel", group: "场地", label: "每级场地面积成长", hint: "单人按当前等级、多人按所有在场玩家总等级增加的场地面积倍率", min: 0, max: 0.5, step: 0.005, unit: "倍率/级" },
         { key: "arenaResizeRate", group: "场地", label: "场地缩放速度", hint: "场地面积目标变化后的平滑追随速度", min: 0.1, max: 10, step: 0.1, unit: "速率" },
         { key: "maxRenderFps", group: "性能", label: "最高绘制帧率", hint: "只限制 Canvas 和界面动效绘制，不降低逻辑与网络输入频率", min: 30, max: 240, step: 1, unit: "FPS" },
         { key: "maxRenderDpr", group: "性能", label: "最高渲染像素倍率", hint: "限制 Canvas 内部像素密度；界面文字仍由浏览器原生清晰绘制", min: 1, max: 2, step: 0.05, unit: "DPR" },
