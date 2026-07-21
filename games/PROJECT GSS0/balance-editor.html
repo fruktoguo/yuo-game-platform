@@ -385,11 +385,11 @@
     </div>
   </main>
 
-  <script src="enemy-codex.js?v=77"></script>
-  <script src="wave-director.js?v=77"></script>
-  <script src="designer-config.js?v=77"></script>
-  <script src="module-catalog.js?v=77"></script>
-  <script src="module-progression.js?v=77"></script>
+  <script src="enemy-codex.js?v=78"></script>
+  <script src="wave-director.js?v=78"></script>
+  <script src="designer-config.js?v=78"></script>
+  <script src="module-catalog.js?v=78"></script>
+  <script src="module-progression.js?v=78"></script>
   <script>
     (() => {
       "use strict";
@@ -408,6 +408,9 @@
 
       const ALL_PARAMETER_DEFINITIONS = [
         { key: "playerBaseSpeed", group: "玩家", label: "玩家基础速度", hint: "升级与机体加速前的每秒移动格数", min: 1, max: 12, step: 0.1, unit: "格/秒" },
+        { key: "snakeVisualScale", group: "表现", label: "蛇体视觉倍率", hint: "统一缩放玩家与敌蛇的蛇头、身体、连接线和内部图形；不改变碰撞体积", min: 0.25, max: 2, step: 0.025, unit: "倍" },
+        { key: "playerSegmentSpacing", group: "玩家", label: "玩家身体节间距", hint: "玩家相邻机体中心之间保持的最大距离；单机与多人共用", min: 0.1, max: 1.5, step: 0.01, unit: "格" },
+        { key: "enemySegmentSpacing", group: "敌人全局", label: "敌蛇身体节间距", hint: "所有敌蛇相邻身体节点中心之间保持的最大距离", min: 0.1, max: 1.5, step: 0.01, unit: "格" },
         { key: "playerMaxHealth", group: "玩家", label: "玩家生命上限", hint: "每次出生时拥有的生命值与生命上限", min: 0, max: 100, step: 1, unit: "点" },
         { key: "playerHealthRegenPerSecond", group: "玩家", label: "玩家生命恢复", hint: "存活并正常行动时每秒恢复的生命值", min: 0, max: 1, step: 0.1, unit: "点/秒" },
         { key: "playerEnemyBodyCollisionDamage", group: "玩家", label: "撞敌蛇身体受伤", hint: "玩家蛇头撞上敌蛇身体时受到的伤害", min: 0, max: 10000, step: 1, unit: "点" },
@@ -650,7 +653,7 @@
       const filePickerSupported = typeof window.showOpenFilePicker === "function";
 
       function normalizeConfig(value) {
-        const config = { schemaVersion: 18, balance: {}, waveEnemyCountSchedule: [], moduleCooldownPercentages: {}, moduleStates: {} };
+        const config = { schemaVersion: 19, balance: {}, waveEnemyCountSchedule: [], moduleCooldownPercentages: {}, moduleStates: {} };
         for (const definition of ALL_PARAMETER_DEFINITIONS) {
           const candidate = Number(value?.balance?.[definition.key]);
           config.balance[definition.key] = Number.isFinite(candidate) ? Math.max(definition.min, Math.min(definition.max, candidate)) : definition.min;
@@ -686,7 +689,7 @@
         const end = text.lastIndexOf("}");
         if (start < 0 || end <= start) throw new Error("配置内容不完整");
         const parsed = JSON.parse(text.slice(start, end + 1));
-        if (parsed?.schemaVersion !== 18) throw new Error("配置版本无效，需要 schemaVersion 18");
+        if (parsed?.schemaVersion !== 19) throw new Error("配置版本无效，需要 schemaVersion 19");
         return normalizeConfig(parsed);
       }
 

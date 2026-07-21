@@ -8,6 +8,7 @@ import {
   DISCONNECT_GRACE_MS,
   ENEMY_BASE_SPEED,
   ENEMY_BODY_RECONNECT_DURATION,
+  ENEMY_SEGMENT_SPACING,
   ENEMY_HEAD_REFORM_DURATION,
   ENEMY_COLORS,
   ENEMY_DAMAGE_NUMBER_DURATION,
@@ -47,6 +48,7 @@ import {
   PLAYER_ENEMY_BODY_COLLISION_DAMAGE,
   PLAYER_HEALTH_REGEN_PER_SECOND,
   PLAYER_MAX_HEALTH,
+  PLAYER_SEGMENT_SPACING,
   PLAYER_TURN_RATE,
   PLAYER_WALL_COLLISION_DAMAGE,
   ENEMY_COLLISION_DAMAGE,
@@ -555,7 +557,7 @@ export class UltraWorld {
       if (claim.kind === 'enemy-head') {
         this.applyPlayerCollisionAttack(player, enemy, enemy, -1, true);
       }
-      if (!enemy.dead) this.bounceEntity(enemy, -claim.normalCol, -claim.normalRow, enemy.color, 0.54, 1 + MODULE_PROGRESSION.effects.momentumKnockbackBonus(this.moduleCount(player, 'momentum')));
+      if (!enemy.dead) this.bounceEntity(enemy, -claim.normalCol, -claim.normalRow, enemy.color, ENEMY_SEGMENT_SPACING, 1 + MODULE_PROGRESSION.effects.momentumKnockbackBonus(this.moduleCount(player, 'momentum')));
       return true;
     }
     if (claim.kind === 'enemy-body') {
@@ -624,7 +626,7 @@ export class UltraWorld {
     this.recentPlayerHeadCollisionPairs.set(pairKey, { eventId, at: now });
     this.recentPlayerHeadCollisionEvents.set(eventId, now);
     if (target.autopilot) {
-      this.bounceEntity(target, -event.normalCol, -event.normalRow, PLAYER_COLORS[target.colorIndex], 0.58, 1, true);
+      this.bounceEntity(target, -event.normalCol, -event.normalRow, PLAYER_COLORS[target.colorIndex], PLAYER_SEGMENT_SPACING, 1, true);
     }
     this.callbacks.onPlayerHeadCollision?.(event);
     return true;
@@ -1310,7 +1312,7 @@ export class UltraWorld {
       player.knockbackY = 0;
       player.col = clamp(player.col + Math.cos(player.angle) * player.speed * delta, this.arenaMinimum(), this.arenaMaximum());
       player.row = clamp(player.row + Math.sin(player.angle) * player.speed * delta, this.arenaMinimum(), this.arenaMaximum());
-      followContinuousSegments(player.col, player.row, player.segments, 0.58);
+      followContinuousSegments(player.col, player.row, player.segments, PLAYER_SEGMENT_SPACING);
       return;
     }
     if (player.collisionCooldown > 0) player.desiredAngle = player.angle;
@@ -1320,7 +1322,7 @@ export class UltraWorld {
     player.col += (Math.cos(player.angle) * player.speed + player.knockbackX) * delta;
     player.row += (Math.sin(player.angle) * player.speed + player.knockbackY) * delta;
     this.applyKnockbackDecay(player, delta);
-    followContinuousSegments(player.col, player.row, player.segments, 0.58);
+    followContinuousSegments(player.col, player.row, player.segments, PLAYER_SEGMENT_SPACING);
   }
 
   private updatePlayerTimers(player: PlayerEntity, delta: number): void {
@@ -2973,7 +2975,7 @@ export class UltraWorld {
             enemy.col - playerCollision.point.col,
             enemy.row - playerCollision.point.row,
             PLAYER_COLORS[playerCollision.player.colorIndex],
-            0.54,
+            ENEMY_SEGMENT_SPACING,
           );
         } else if (playerCollision.kind === 'body') {
           const thorns = this.moduleCount(playerCollision.player, 'thorns');
@@ -2987,8 +2989,8 @@ export class UltraWorld {
           const normal = collisionNormal(playerCollision.player, enemy);
           this.applyPlayerCollisionAttack(playerCollision.player, enemy, enemy, -1, true);
           const knockbackMultiplier = enemy.archetype === 'warden' ? DESIGNER_BALANCE.enemyWardenKnockbackMultiplier : 1;
-          this.bounceEntity(playerCollision.player, normal.col, normal.row, '#dffcff', 0.58, knockbackMultiplier, true);
-          if (!enemy.dead) this.bounceEntity(enemy, -normal.col, -normal.row, enemy.color, 0.54, 1 + MODULE_PROGRESSION.effects.momentumKnockbackBonus(this.moduleCount(playerCollision.player, 'momentum')));
+          this.bounceEntity(playerCollision.player, normal.col, normal.row, '#dffcff', PLAYER_SEGMENT_SPACING, knockbackMultiplier, true);
+          if (!enemy.dead) this.bounceEntity(enemy, -normal.col, -normal.row, enemy.color, ENEMY_SEGMENT_SPACING, 1 + MODULE_PROGRESSION.effects.momentumKnockbackBonus(this.moduleCount(playerCollision.player, 'momentum')));
         }
         continue;
       }
@@ -2997,17 +2999,17 @@ export class UltraWorld {
         enemy.col = clamp(nextCol, this.arenaMinimum(), this.arenaMaximum());
         enemy.row = clamp(nextRow, this.arenaMinimum(), this.arenaMaximum());
         this.damageTarget(null, enemy, ENEMY_COLLISION_DAMAGE * this.enemyWallDamageMultiplier, enemy, '#f3c600', -1);
-        if (!enemy.dead) this.bounceEntity(enemy, wallNormal.col, wallNormal.row, enemy.color, 0.54, this.enemyWallKnockbackMultiplier);
+        if (!enemy.dead) this.bounceEntity(enemy, wallNormal.col, wallNormal.row, enemy.color, ENEMY_SEGMENT_SPACING, this.enemyWallKnockbackMultiplier);
         continue;
       }
       enemy.col = nextCol;
       enemy.row = nextRow;
       this.applyKnockbackDecay(enemy, delta);
-      followEnemySegments(enemy, delta, 0.54);
+      followEnemySegments(enemy, delta, ENEMY_SEGMENT_SPACING);
       if (enemy.collisionCooldown <= 0) {
         const ownBodyHit = findSelfCollision(enemy, 0.48);
         if (ownBodyHit) {
-          this.bounceEntity(enemy, enemy.col - ownBodyHit.col, enemy.row - ownBodyHit.row, enemy.color, 0.54);
+          this.bounceEntity(enemy, enemy.col - ownBodyHit.col, enemy.row - ownBodyHit.row, enemy.color, ENEMY_SEGMENT_SPACING);
           continue;
         }
       }
@@ -3067,8 +3069,8 @@ export class UltraWorld {
         const normal = collisionNormal(first, second);
         this.damageTarget(null, first, ENEMY_COLLISION_DAMAGE, first, second.color, -1);
         this.damageTarget(null, second, ENEMY_COLLISION_DAMAGE, second, first.color, -1);
-        if (!first.dead) this.bounceEntity(first, normal.col, normal.row, first.color, 0.54);
-        if (!second.dead) this.bounceEntity(second, -normal.col, -normal.row, second.color, 0.54);
+        if (!first.dead) this.bounceEntity(first, normal.col, normal.row, first.color, ENEMY_SEGMENT_SPACING);
+        if (!second.dead) this.bounceEntity(second, -normal.col, -normal.row, second.color, ENEMY_SEGMENT_SPACING);
         break;
       }
     }
@@ -3132,7 +3134,7 @@ export class UltraWorld {
       const normalRow = enemy.row - bodyHit.segment.row;
       this.damageTarget(null, bodyHit.owner, ENEMY_COLLISION_DAMAGE, bodyHit.segment, enemy.color, ownerSegmentIndex);
       this.damageTarget(null, enemy, ENEMY_COLLISION_DAMAGE, enemy, bodyHit.owner.color, -1);
-      if (!enemy.dead) this.bounceEntity(enemy, normalCol, normalRow, enemy.color, 0.54);
+      if (!enemy.dead) this.bounceEntity(enemy, normalCol, normalRow, enemy.color, ENEMY_SEGMENT_SPACING);
     }
   }
 
@@ -3309,7 +3311,7 @@ export class UltraWorld {
           hostile.col += dx / distance * pull;
           hostile.row += dy / distance * pull;
           hostile.slow = Math.max(hostile.slow, 0.2);
-          followEnemySegments(hostile, 0, 0.54);
+          followEnemySegments(hostile, 0, ENEMY_SEGMENT_SPACING);
         }
         continue;
       }
@@ -3337,7 +3339,7 @@ export class UltraWorld {
       const hitIndexes = this.circularTargetHitIndexes(hazard, hazard.radius, hostile);
       if (hitIndexes.length > 0) this.damageTargetParts(owner, hostile, hitIndexes, hazard, hazard.color);
     }
-    if (bounceOwner) this.bounceEntity(owner, owner.col - hazard.col, owner.row - hazard.row, hazard.color, 0.58);
+    if (bounceOwner) this.bounceEntity(owner, owner.col - hazard.col, owner.row - hazard.row, hazard.color, PLAYER_SEGMENT_SPACING);
     hazard.life = 0;
     this.effectSound('mine', owner.entityId);
   }
@@ -3387,13 +3389,13 @@ export class UltraWorld {
         player.row = clamp(player.row, this.arenaMinimum(), this.arenaMaximum());
         this.triggerCollisionEcho(player);
         this.damagePlayer(player, PLAYER_WALL_COLLISION_DAMAGE, now, '撞上墙壁');
-        if (player.alive) this.bounceEntity(player, wall.col, wall.row, '#b8f53f', 0.58);
+        if (player.alive) this.bounceEntity(player, wall.col, wall.row, '#b8f53f', PLAYER_SEGMENT_SPACING);
         continue;
       }
       if (player.collisionCooldown <= 0) {
         const ownBody = findSelfCollision(player, 0.5);
         if (ownBody) {
-          this.bounceEntity(player, player.col - ownBody.col, player.row - ownBody.row, '#f4ffdc', 0.58, 1, true);
+          this.bounceEntity(player, player.col - ownBody.col, player.row - ownBody.row, '#f4ffdc', PLAYER_SEGMENT_SPACING, 1, true);
           continue;
         }
       }
@@ -3406,7 +3408,7 @@ export class UltraWorld {
           const defended = this.consumeDefense(player);
           this.applyPlayerCollisionAttack(player, enemy, body, segmentIndex, false);
           if (!defended) this.damagePlayer(player, PLAYER_ENEMY_BODY_COLLISION_DAMAGE, now, '被敌蛇重创');
-          if (player.alive) this.bounceEntity(player, player.col - body.col, player.row - body.row, enemy.color, 0.58, 1, true);
+          if (player.alive) this.bounceEntity(player, player.col - body.col, player.row - body.row, enemy.color, PLAYER_SEGMENT_SPACING, 1, true);
           break;
         }
       }
@@ -3416,8 +3418,8 @@ export class UltraWorld {
         const normal = collisionNormal(player, enemy);
         this.applyPlayerCollisionAttack(player, enemy, enemy, -1, true);
         const knockbackMultiplier = enemy.archetype === 'warden' ? DESIGNER_BALANCE.enemyWardenKnockbackMultiplier : 1;
-        this.bounceEntity(player, normal.col, normal.row, '#dffcff', 0.58, knockbackMultiplier, true);
-        if (!enemy.dead) this.bounceEntity(enemy, -normal.col, -normal.row, enemy.color, 0.54, 1 + MODULE_PROGRESSION.effects.momentumKnockbackBonus(this.moduleCount(player, 'momentum')));
+        this.bounceEntity(player, normal.col, normal.row, '#dffcff', PLAYER_SEGMENT_SPACING, knockbackMultiplier, true);
+        if (!enemy.dead) this.bounceEntity(enemy, -normal.col, -normal.row, enemy.color, ENEMY_SEGMENT_SPACING, 1 + MODULE_PROGRESSION.effects.momentumKnockbackBonus(this.moduleCount(player, 'momentum')));
       }
     }
 
@@ -3432,7 +3434,7 @@ export class UltraWorld {
           attacker.col - contact.col,
           attacker.row - contact.row,
           PLAYER_COLORS[defender.colorIndex],
-          0.58,
+          PLAYER_SEGMENT_SPACING,
           1,
           true,
         );
@@ -3450,8 +3452,8 @@ export class UltraWorld {
         if (left.alive && right.alive) this.checkPlayerBodyHit(right, left);
         if (!left.alive || !right.alive || left.collisionCooldown > 0 || right.collisionCooldown > 0 || Math.hypot(left.col - right.col, left.row - right.row) >= this.playerHeadRadiusCells() * 2) continue;
         const normal = collisionNormal(left, right);
-        this.bounceEntity(left, normal.col, normal.row, PLAYER_COLORS[left.colorIndex], 0.58, 1, true);
-        if (right.alive) this.bounceEntity(right, -normal.col, -normal.row, PLAYER_COLORS[right.colorIndex], 0.58, 1, true);
+        this.bounceEntity(left, normal.col, normal.row, PLAYER_COLORS[left.colorIndex], PLAYER_SEGMENT_SPACING, 1, true);
+        if (right.alive) this.bounceEntity(right, -normal.col, -normal.row, PLAYER_COLORS[right.colorIndex], PLAYER_SEGMENT_SPACING, 1, true);
         this.publishAuthoritativePlayerHeadCollision(left, right, normal, now);
       }
     }
@@ -3463,7 +3465,7 @@ export class UltraWorld {
         this.checkPlayerBodyHit(attacker, defender);
         if (!attacker.alive || Math.hypot(attacker.col - defender.col, attacker.row - defender.row) >= this.playerHeadRadiusCells() * 2) continue;
         const normal = collisionNormal(attacker, defender);
-        this.bounceEntity(attacker, normal.col, normal.row, PLAYER_COLORS[attacker.colorIndex], 0.58, 1, true);
+        this.bounceEntity(attacker, normal.col, normal.row, PLAYER_COLORS[attacker.colorIndex], PLAYER_SEGMENT_SPACING, 1, true);
         this.publishAuthoritativePlayerHeadCollision(attacker, defender, normal, now);
         break;
       }
@@ -3496,7 +3498,7 @@ export class UltraWorld {
     ) return;
     const body = defender.segments.find((segment) => Math.hypot(attacker.col - segment.col, attacker.row - segment.row) < 0.42);
     if (!body) return;
-    this.bounceEntity(attacker, attacker.col - body.col, attacker.row - body.row, PLAYER_COLORS[defender.colorIndex], 0.58, 1, true);
+    this.bounceEntity(attacker, attacker.col - body.col, attacker.row - body.row, PLAYER_COLORS[defender.colorIndex], PLAYER_SEGMENT_SPACING, 1, true);
   }
 
   private consumeDefense(player: PlayerEntity): boolean {
@@ -3618,7 +3620,7 @@ export class UltraWorld {
         duration: ENEMY_HEAD_REFORM_DURATION,
       });
     } else if (removed.length > 0 && !destroysHead) {
-      beginEnemyReconnect(target, reconnectIndex, 0.54);
+      beginEnemyReconnect(target, reconnectIndex, ENEMY_SEGMENT_SPACING);
       this.pendingEffects.push({
         id: this.effectId(),
         type: 'enemyBodyHit',

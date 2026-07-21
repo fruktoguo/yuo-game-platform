@@ -94,7 +94,7 @@
 
   const TAU = Math.PI * 2;
   const DESIGNER_CONFIG = globalThis.GSS0_DESIGNER_CONFIG || {};
-  if (DESIGNER_CONFIG.schemaVersion !== 18) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 18");
+  if (DESIGNER_CONFIG.schemaVersion !== 19) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 19");
   const DESIGNER_BALANCE = DESIGNER_CONFIG.balance || {};
   const MODULE_DESIGN_STATES = DESIGNER_CONFIG.moduleStates || {};
 
@@ -158,6 +158,9 @@
   const FOOD_COLORS = ["#b8f53f", "#36dcff", "#ff4d96", "#ffd166", "#a98cff", "#54e1a6"];
   const ENEMY_COLORS = ["#ff5c62", "#ff8a4c", "#d95cff", "#ff477e", "#f4c542"];
   const GRID_SIZE = 24;
+  const SNAKE_VISUAL_SCALE = designerNumber("snakeVisualScale", 0.775, 0.25, 2);
+  const PLAYER_SEGMENT_SPACING = designerNumber("playerSegmentSpacing", 0.45, 0.1, 1.5);
+  const ENEMY_SEGMENT_SPACING = designerNumber("enemySegmentSpacing", 0.42, 0.1, 1.5);
   const ARENA_BASE_SIZE = Math.sqrt(designerNumber("arenaBaseArea", 345.6, 64, 4096));
   const ARENA_AREA_PER_LEVEL = designerNumber("arenaAreaPerLevel", 0.03, 0, 0.5);
   const ARENA_RESIZE_RATE = designerNumber("arenaResizeRate", 2.4, 0.1, 10);
@@ -440,7 +443,7 @@
   if (!networkProjectileRuntime) throw new Error("PROJECT GSS0 投射物运行时未加载");
   const networkPlayerPredictionRuntime = globalThis.GSS0PlayerPrediction?.create({
     knockbackDecay: KNOCKBACK_DECAY,
-    segmentSpacing: 0.58
+    segmentSpacing: PLAYER_SEGMENT_SPACING
   });
   if (!networkPlayerPredictionRuntime) throw new Error("PROJECT GSS0 玩家预测运行时未加载");
   const networkPlayerStateCodec = globalThis.GSS0PlayerStateCodec;
@@ -1046,6 +1049,10 @@
 
   function arenaPieceScale() {
     return arena.baseCellSize / 34 * arenaVisualScale();
+  }
+
+  function snakePieceScale() {
+    return arenaPieceScale() * SNAKE_VISUAL_SCALE;
   }
 
   function missingHealthFraction(target = player) {
@@ -2639,7 +2646,7 @@
   }
 
   function bounceNetworkSelf(normalCol, normalRow, color, impulseMultiplier = 1, mitigateCollision = false) {
-    bounceEntity(player, normalCol, normalRow, color, 0.58, impulseMultiplier, mitigateCollision);
+    bounceEntity(player, normalCol, normalRow, color, PLAYER_SEGMENT_SPACING, impulseMultiplier, mitigateCollision);
     networkPlayerPredictionRuntime.adoptLocal(player);
     applyNetworkSelfPrediction(player);
     sendNetworkInput(true, true);
@@ -4237,7 +4244,7 @@
     const previous = index === 0 ? enemy : enemy.segments[index - 1];
     const segment = enemy.segments[index];
     const gap = Math.hypot(previous.col - segment.col, previous.row - segment.row);
-    if (gap <= 0.54) return;
+    if (gap <= ENEMY_SEGMENT_SPACING) return;
     segment.reconnectElapsed = 0;
     segment.reconnectGap = gap;
     segment.reconnectStartedAt = Number.isFinite(startedAt) ? startedAt : null;
@@ -4248,14 +4255,14 @@
     let previous = enemy;
     let reconnectActive = false;
     for (const segment of enemy.segments) {
-      let allowedDistance = 0.54;
-      if (segment.reconnectGap > 0.54) {
+      let allowedDistance = ENEMY_SEGMENT_SPACING;
+      if (segment.reconnectGap > ENEMY_SEGMENT_SPACING) {
         segment.reconnectElapsed = Number.isFinite(segment.reconnectStartedAt) && Number.isFinite(now)
           ? Math.max(0, (now - segment.reconnectStartedAt) / 1000)
           : (segment.reconnectElapsed || 0) + dt;
         const progress = clamp(segment.reconnectElapsed / ENEMY_BODY_RECONNECT_DURATION, 0, 1);
         const eased = 1 - (1 - progress) ** 3;
-        allowedDistance += (segment.reconnectGap - 0.54) * (1 - eased);
+        allowedDistance += (segment.reconnectGap - ENEMY_SEGMENT_SPACING) * (1 - eased);
         if (progress >= 1) {
           segment.reconnectElapsed = 0;
           segment.reconnectGap = 0;
@@ -4364,7 +4371,7 @@
     player.row += (Math.sin(player.angle) * player.speed + player.knockbackY) * dt;
     applyKnockbackDecay(player, dt);
     syncNodePosition(player);
-    followContinuousSegments(player.col, player.row, player.segments, 0.58);
+    followContinuousSegments(player.col, player.row, player.segments, PLAYER_SEGMENT_SPACING);
   }
 
   function cellDistanceSquared(first, second) {
@@ -5078,8 +5085,8 @@
 
         damageEnemy(first, ENEMY_COLLISION_DAMAGE, first.x, first.y, second.color, { rewardSelf: false, hitSegmentIndex: -1 });
         damageEnemy(second, ENEMY_COLLISION_DAMAGE, second.x, second.y, first.color, { rewardSelf: false, hitSegmentIndex: -1 });
-        if (!first.dead) bounceEntity(first, normalX, normalY, first.color, 0.54);
-        if (!second.dead) bounceEntity(second, -normalX, -normalY, second.color, 0.54);
+        if (!first.dead) bounceEntity(first, normalX, normalY, first.color, ENEMY_SEGMENT_SPACING);
+        if (!second.dead) bounceEntity(second, -normalX, -normalY, second.color, ENEMY_SEGMENT_SPACING);
         break;
       }
     }
@@ -5130,7 +5137,7 @@
           hitSegmentIndex: ownerSegmentIndex
         });
         damageEnemy(enemy, ENEMY_COLLISION_DAMAGE, enemy.x, enemy.y, bodyHit.owner.color, { rewardSelf: false, hitSegmentIndex: -1 });
-        if (!enemy.dead) bounceEntity(enemy, normalX, normalY, enemy.color, 0.54);
+        if (!enemy.dead) bounceEntity(enemy, normalX, normalY, enemy.color, ENEMY_SEGMENT_SPACING);
       }
     }
   }
@@ -5358,7 +5365,7 @@
             enemy.col - playerCollision.point.col,
             enemy.row - playerCollision.point.row,
             player.playerColor || "#f3c600",
-            0.54
+            ENEMY_SEGMENT_SPACING
           );
         } else if (playerCollision.kind === "body") {
           const thorns = moduleCount("thorns");
@@ -5381,8 +5388,8 @@
           }
           applyPlayerCollisionAttack(enemy, enemy, true);
           const impulseMultiplier = enemy.archetype === "warden" ? ENEMY_BEHAVIOR_TUNING.wardenKnockbackMultiplier : 1;
-          bounceEntity(player, normalX, normalY, "#dffcff", 0.58, impulseMultiplier, true);
-          if (!enemy.dead) bounceEntity(enemy, -normalX, -normalY, enemy.color, 0.54, 1 + MODULE_EFFECTS.momentumKnockbackBonus(moduleCount("momentum")));
+          bounceEntity(player, normalX, normalY, "#dffcff", PLAYER_SEGMENT_SPACING, impulseMultiplier, true);
+          if (!enemy.dead) bounceEntity(enemy, -normalX, -normalY, enemy.color, ENEMY_SEGMENT_SPACING, 1 + MODULE_EFFECTS.momentumKnockbackBonus(moduleCount("momentum")));
         }
         continue;
       }
@@ -5392,7 +5399,7 @@
         enemy.row = clamp(nextRow, arena.worldMin, arena.worldMax);
         syncNodePosition(enemy);
         damageEnemy(enemy, ENEMY_COLLISION_DAMAGE * (1 + MODULE_EFFECTS.enemyWallDamageBonus(moduleCount("wallbreaker"))), enemy.x, enemy.y, "#f3c600", { rewardSelf: false, hitSegmentIndex: -1 });
-        if (!enemy.dead) bounceEntity(enemy, wallNormal.x, wallNormal.y, enemy.color, 0.54, 1 + MODULE_EFFECTS.enemyWallKnockbackBonus(moduleCount("wallbreaker")));
+        if (!enemy.dead) bounceEntity(enemy, wallNormal.x, wallNormal.y, enemy.color, ENEMY_SEGMENT_SPACING, 1 + MODULE_EFFECTS.enemyWallKnockbackBonus(moduleCount("wallbreaker")));
         continue;
       }
       enemy.col = nextCol;
@@ -5405,7 +5412,7 @@
       if (enemy.collisionCooldown <= 0) {
         const ownBodyHit = findSelfCollision(enemy, 0.48);
         if (ownBodyHit) {
-          bounceEntity(enemy, enemy.col - ownBodyHit.col, enemy.row - ownBodyHit.row, enemy.color, 0.54);
+          bounceEntity(enemy, enemy.col - ownBodyHit.col, enemy.row - ownBodyHit.row, enemy.color, ENEMY_SEGMENT_SPACING);
           continue;
         }
       }
@@ -5615,7 +5622,7 @@
         const hitIndexes = circularEnemyHitIndexes(hazard.x, hazard.y, hazard.radius, enemy);
         if (hitIndexes.length) damageEnemyParts(enemy, hitIndexes, hazard.x, hazard.y, hazard.color);
       }
-      if (playerTrigger) bounceEntity(player, player.x - hazard.x, player.y - hazard.y, hazard.color, 0.58);
+      if (playerTrigger) bounceEntity(player, player.x - hazard.x, player.y - hazard.y, hazard.color, PLAYER_SEGMENT_SPACING);
       hazard.life = 0;
       sound("mine");
       shake = Math.max(shake, 5);
@@ -5874,14 +5881,14 @@
       player.row = clamp(player.row, arena.worldMin, arena.worldMax);
       triggerCollisionEcho();
       damagePlayer(PLAYER_WALL_COLLISION_DAMAGE);
-      if (state === "running") bounceEntity(player, wallNormal.x, wallNormal.y, "#b8f53f", 0.58);
+      if (state === "running") bounceEntity(player, wallNormal.x, wallNormal.y, "#b8f53f", PLAYER_SEGMENT_SPACING);
       return;
     }
 
     if (player.collisionCooldown <= 0) {
       const ownBodyHit = findSelfCollision(player, 0.5);
       if (ownBodyHit) {
-        bounceEntity(player, player.col - ownBodyHit.col, player.row - ownBodyHit.row, "#f4ffdc", 0.58, 1, true);
+        bounceEntity(player, player.col - ownBodyHit.col, player.row - ownBodyHit.row, "#f4ffdc", PLAYER_SEGMENT_SPACING, 1, true);
         return;
       }
     }
@@ -5895,7 +5902,7 @@
             const defended = consumeDefense();
             applyPlayerCollisionAttack(enemy, segment, false);
             if (!defended) damagePlayer(PLAYER_ENEMY_BODY_COLLISION_DAMAGE);
-            if (state === "running") bounceEntity(player, player.col - segment.col, player.row - segment.row, enemy.color, 0.58, 1, true);
+            if (state === "running") bounceEntity(player, player.col - segment.col, player.row - segment.row, enemy.color, PLAYER_SEGMENT_SPACING, 1, true);
             return;
           }
         }
@@ -5922,8 +5929,8 @@
       applyPlayerCollisionAttack(enemy, enemy, true);
 
       const impulseMultiplier = enemy.archetype === "warden" ? ENEMY_BEHAVIOR_TUNING.wardenKnockbackMultiplier : 1;
-      bounceEntity(player, normalX, normalY, "#dffcff", 0.58, impulseMultiplier, true);
-      if (!enemy.dead) bounceEntity(enemy, -normalX, -normalY, enemy.color, 0.54, 1 + MODULE_EFFECTS.momentumKnockbackBonus(moduleCount("momentum")));
+      bounceEntity(player, normalX, normalY, "#dffcff", PLAYER_SEGMENT_SPACING, impulseMultiplier, true);
+      if (!enemy.dead) bounceEntity(enemy, -normalX, -normalY, enemy.color, ENEMY_SEGMENT_SPACING, 1 + MODULE_EFFECTS.momentumKnockbackBonus(moduleCount("momentum")));
       return;
     }
   }
@@ -6669,7 +6676,7 @@
   }
 
   function drawEnemy(enemy) {
-    const pieceScale = arenaPieceScale();
+    const pieceScale = snakePieceScale();
     drawLinkedPath(enemy, enemy.segments, "rgba(4, 6, 7, 0.92)", (enemy.archetype === "warden" ? 14 : 11) * pieceScale);
     drawLinkedPath(enemy, enemy.segments, enemy.color, (enemy.archetype === "cutter" ? 3.4 : 2.2) * pieceScale, 0.72);
     for (let index = enemy.segments.length - 1; index >= 0; index -= 1) drawEnemySegment(enemy, enemy.segments[index], pieceScale);
@@ -6778,7 +6785,7 @@
     if (elapsed >= totalDuration) return;
 
     const center = worldToScreen(player.x, player.y);
-    const pieceScale = arenaPieceScale();
+    const pieceScale = snakePieceScale();
     const finalRadius = 25 * pieceScale;
     const startRadius = Math.max(
       Math.hypot(center.x, center.y),
@@ -6837,7 +6844,7 @@
     player = target;
     activeGrowth = target.growth || (target === previousPlayer ? previousGrowth : null);
     ctx.save();
-    const pieceScale = arenaPieceScale();
+    const pieceScale = snakePieceScale();
     const ghostVisual = Boolean(player.ghost);
     const protectedVisual = player.protectedState || player.invulnerable > 0;
     const damageVisual = Number.isFinite(player.damageFlashUntil) && performance.now() < player.damageFlashUntil;

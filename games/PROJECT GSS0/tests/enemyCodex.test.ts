@@ -31,7 +31,7 @@ describe('敌人图鉴', () => {
     expect(indexHtml).toContain('id="enemy-codex-button"');
     expect(indexHtml).toContain('id="enemy-codex-screen"');
     expect(indexHtml).toContain('id="enemy-codex-list"');
-    expect(indexHtml).toContain('src="enemy-codex.js?v=77"');
+    expect(indexHtml).toContain('src="enemy-codex.js?v=78"');
     expect(gameSource).toContain('function renderEnemyCodex()');
     expect(gameSource).toContain('ui.enemyCodexButton.addEventListener("click", openEnemyCodex);');
     expect(gameSource).toContain('ui.enemyCodexCloseButton.addEventListener("click", closeEnemyCodex);');
@@ -40,7 +40,7 @@ describe('敌人图鉴', () => {
   });
 
   it('设计控制台复用敌人资料与身体预览，并把专属参数放入第三页', () => {
-    expect(editorHtml).toContain('src="enemy-codex.js?v=77"');
+    expect(editorHtml).toContain('src="enemy-codex.js?v=78"');
     expect(editorHtml).toContain('enemyCodex.entries.map((entry) =>');
     expect(editorHtml).toContain('enemyCodex.drawPreview(canvas, entry.id);');
     expect(editorHtml).toContain('ui.enemiesView.hidden = tab.dataset.view !== "enemies";');

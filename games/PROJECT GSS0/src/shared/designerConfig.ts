@@ -11,7 +11,7 @@ interface DesignerConfigSource {
 }
 
 const source = (globalThis as typeof globalThis & { GSS0_DESIGNER_CONFIG?: DesignerConfigSource }).GSS0_DESIGNER_CONFIG;
-if (source?.schemaVersion !== 18) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 18');
+if (source?.schemaVersion !== 19) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 19');
 
 function numberSetting(key: string, fallback: number, minimum: number, maximum: number, integer = false): number {
   const candidate = source?.balance?.[key];
@@ -47,6 +47,9 @@ export const DESIGNER_WAVE_ENEMY_COUNT_SCHEDULE = waveEnemyCountScheduleSetting(
 
 export const DESIGNER_BALANCE = Object.freeze({
   playerBaseSpeed: numberSetting('playerBaseSpeed', 5, 1, 12),
+  snakeVisualScale: numberSetting('snakeVisualScale', 0.775, 0.25, 2),
+  playerSegmentSpacing: numberSetting('playerSegmentSpacing', 0.45, 0.1, 1.5),
+  enemySegmentSpacing: numberSetting('enemySegmentSpacing', 0.42, 0.1, 1.5),
   playerMaxHealth: numberSetting('playerMaxHealth', 30, 0, 100),
   playerHealthRegenPerSecond: numberSetting('playerHealthRegenPerSecond', 1, 0, 1),
   playerEnemyBodyCollisionDamage: numberSetting('playerEnemyBodyCollisionDamage', 10, 0, 10_000),
