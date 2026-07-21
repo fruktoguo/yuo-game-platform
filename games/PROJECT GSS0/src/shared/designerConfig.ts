@@ -11,7 +11,7 @@ interface DesignerConfigSource {
 }
 
 const source = (globalThis as typeof globalThis & { GSS0_DESIGNER_CONFIG?: DesignerConfigSource }).GSS0_DESIGNER_CONFIG;
-if (source?.schemaVersion !== 16) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 16');
+if (source?.schemaVersion !== 17) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 17');
 
 function numberSetting(key: string, fallback: number, minimum: number, maximum: number, integer = false): number {
   const candidate = source?.balance?.[key];
@@ -187,6 +187,15 @@ export const DESIGNER_BALANCE = Object.freeze({
   upgradeInvulnerabilityDuration: numberSetting('upgradeInvulnerabilityDuration', 0.5, 0, 10),
   respawnLocatorConvergeDuration: numberSetting('respawnLocatorConvergeDuration', 1, 0.1, 10),
   respawnLocatorFadeDuration: numberSetting('respawnLocatorFadeDuration', 3, 0.1, 20),
+  multiplayerGhostSpeed: numberSetting('multiplayerGhostSpeed', 0.3, 0.05, 3),
+  multiplayerGhostPleaInterval: numberSetting('multiplayerGhostPleaInterval', 0.65, 0.1, 5),
+  multiplayerGhostPleaDuration: numberSetting('multiplayerGhostPleaDuration', 0.9, 0.1, 3),
+  multiplayerGhostOpacity: numberSetting('multiplayerGhostOpacity', 0.36, 0.05, 0.9),
+  multiplayerGhostPulseStrength: numberSetting('multiplayerGhostPulseStrength', 0.12, 0, 0.4),
+  multiplayerGhostPulseRate: numberSetting('multiplayerGhostPulseRate', 1.1, 0.1, 5),
+  multiplayerReviveContactRange: numberSetting('multiplayerReviveContactRange', 0.46, 0.1, 1.5),
+  multiplayerReviveHealthRatio: numberSetting('multiplayerReviveHealthRatio', 0.5, 0.01, 1),
+  multiplayerReviveInvulnerabilityDuration: numberSetting('multiplayerReviveInvulnerabilityDuration', 2, 0, 10),
   playerDamageEffectDuration: numberSetting('playerDamageEffectDuration', 0.65, 0.1, 5),
   playerDamageFlashStrength: numberSetting('playerDamageFlashStrength', 0.55, 0, 2),
   playerDamageShakeStrength: numberSetting('playerDamageShakeStrength', 9, 0, 30),

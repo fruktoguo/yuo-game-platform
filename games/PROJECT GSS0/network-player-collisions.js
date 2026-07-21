@@ -69,7 +69,7 @@
     }
 
     for (const other of players || []) {
-      if (other === player || other.isSelf || !other.protectedState || player.collisionCooldown > 0) continue;
+      if (other === player || other.isSelf || other.ghost || !other.protectedState || player.collisionCooldown > 0) continue;
       const contact = contactWithSnake(player, other, playerHeadRangeSquared, bodyRangeSquared);
       if (contact) return { kind: "protected-player", targetId: other.entityId, point: contact.point };
     }
@@ -84,7 +84,7 @@
         }
       }
       for (const other of players || []) {
-        if (other === player || other.isSelf || other.protectedState) continue;
+        if (other === player || other.isSelf || other.ghost || other.protectedState) continue;
         for (let index = 0; index < other.segments.length; index += 1) {
           if (distanceSquared(player, other.segments[index]) < bodyRangeSquared) {
             return { kind: "player-body", targetId: other.entityId, segmentIndex: index, point: other.segments[index] };
@@ -99,7 +99,7 @@
         return { kind: "enemy-head", targetId: enemy.id, ...normalBetween(player, enemy) };
       }
       for (const other of players || []) {
-        if (other === player || other.isSelf || other.collisionCooldown > 0 || distanceSquared(player, other) >= playerHeadRangeSquared) continue;
+        if (other === player || other.isSelf || other.ghost || other.collisionCooldown > 0 || distanceSquared(player, other) >= playerHeadRangeSquared) continue;
         return { kind: "player-head", targetId: other.entityId, ...normalBetween(player, other) };
       }
     }

@@ -14,7 +14,7 @@ import type {
 } from './protocol';
 
 const MAGIC = 0x5553_4e50;
-export const SNAPSHOT_PROTOCOL_VERSION = 11;
+export const SNAPSHOT_PROTOCOL_VERSION = 12;
 const COORDINATE_SCALE = 65_535;
 const COORDINATE_PADDING = 2;
 const VELOCITY_SCALE = 64;
@@ -107,7 +107,7 @@ function writePlayer(writer: BinaryWriter, player: UltraPlayerView, arenaSize: n
   writer.u16(player.entityId);
   writer.string(player.name);
   writer.u8(player.colorIndex);
-  writer.u8(Number(player.connected) | Number(player.alive) << 1 | Number(player.paused) << 2 | Number(player.choosingUpgrade) << 3);
+  writer.u8(Number(player.connected) | Number(player.alive) << 1 | Number(player.paused) << 2 | Number(player.choosingUpgrade) << 3 | Number(player.ghost) << 4);
   writeCoordinate(writer, player.col, arenaSize); writeCoordinate(writer, player.row, arenaSize); writeAngle(writer, player.angle); writeAngle(writer, player.desiredAngle);
   writer.u32(player.lastInputSequence + 1); writer.f32(player.speed); writer.f32(player.slow); writer.f32(player.foodBoost); writer.f32(player.knockbackX); writer.f32(player.knockbackY);
   writer.f32(player.invulnerable); writer.f32(player.collisionCooldown); writer.f32(player.health); writer.f32(player.maxHealth); writer.u8(player.shieldCharges);
@@ -131,6 +131,7 @@ function readPlayer(reader: BinaryReader, arenaSize: number): UltraPlayerView {
     colorIndex,
     connected: Boolean(flags & 1),
     alive: Boolean(flags & 2),
+    ghost: Boolean(flags & 16),
     paused: Boolean(flags & 4),
     choosingUpgrade: Boolean(flags & 8),
     col: readCoordinate(reader, arenaSize), row: readCoordinate(reader, arenaSize), angle: readAngle(reader), desiredAngle: readAngle(reader),

@@ -385,11 +385,11 @@
     </div>
   </main>
 
-  <script src="enemy-codex.js?v=74"></script>
-  <script src="wave-director.js?v=74"></script>
-  <script src="designer-config.js?v=74"></script>
-  <script src="module-catalog.js?v=74"></script>
-  <script src="module-progression.js?v=74"></script>
+  <script src="enemy-codex.js?v=75"></script>
+  <script src="wave-director.js?v=75"></script>
+  <script src="designer-config.js?v=75"></script>
+  <script src="module-catalog.js?v=75"></script>
+  <script src="module-progression.js?v=75"></script>
   <script>
     (() => {
       "use strict";
@@ -425,6 +425,15 @@
         { key: "upgradeInvulnerabilityDuration", group: "玩家", label: "升级后无敌时间", hint: "选择机体并恢复移动后的全身保护时间", min: 0, max: 10, step: 0.05, unit: "秒" },
         { key: "respawnLocatorConvergeDuration", group: "表现", label: "复活定位收束时长", hint: "双层外框从屏幕外缩小到玩家蛇头所需的时间", min: 0.1, max: 10, step: 0.1, unit: "秒" },
         { key: "respawnLocatorFadeDuration", group: "表现", label: "复活定位淡出时长", hint: "外框到达玩家蛇头后逐渐变淡消失的时间", min: 0.1, max: 20, step: 0.1, unit: "秒" },
+        { key: "multiplayerGhostSpeed", group: "多人幽灵", label: "幽灵移动速度", hint: "多人模式生命归零后，幽灵状态每秒固定移动的格数", min: 0.05, max: 3, step: 0.05, unit: "格/秒" },
+        { key: "multiplayerGhostPleaInterval", group: "多人幽灵", label: "呼救浮字间隔", hint: "幽灵玩家连续弹出“救救我”浮动信息的间隔", min: 0.1, max: 5, step: 0.05, unit: "秒" },
+        { key: "multiplayerGhostPleaDuration", group: "多人幽灵", label: "呼救浮字时长", hint: "单条“救救我”浮动信息持续显示的时间", min: 0.1, max: 3, step: 0.05, unit: "秒" },
+        { key: "multiplayerGhostOpacity", group: "多人幽灵", label: "幽灵基础透明度", hint: "幽灵整条机体虚化后的基础可见强度", min: 0.05, max: 0.9, step: 0.01, unit: "比例" },
+        { key: "multiplayerGhostPulseStrength", group: "多人幽灵", label: "幽灵呼吸强度", hint: "幽灵透明度围绕基础值缓慢呼吸变化的幅度", min: 0, max: 0.4, step: 0.01, unit: "比例" },
+        { key: "multiplayerGhostPulseRate", group: "多人幽灵", label: "幽灵呼吸频率", hint: "幽灵虚化与头部求救信标每秒完成的动画循环数", min: 0.1, max: 5, step: 0.05, unit: "次/秒" },
+        { key: "multiplayerReviveContactRange", group: "多人幽灵", label: "复活接触距离", hint: "队友与幽灵任意两个部位之间触发复活的中心距离", min: 0.1, max: 1.5, step: 0.01, unit: "格" },
+        { key: "multiplayerReviveHealthRatio", group: "多人幽灵", label: "复活生命比例", hint: "复活后立即恢复的最大生命值比例", min: 0.01, max: 1, step: 0.01, unit: "比例" },
+        { key: "multiplayerReviveInvulnerabilityDuration", group: "多人幽灵", label: "复活无敌时间", hint: "幽灵被队友接触复活后获得的全身无敌时间", min: 0, max: 10, step: 0.05, unit: "秒" },
         { key: "playerDamageEffectDuration", group: "表现", label: "玩家受伤演出时长", hint: "受伤闪烁、红色浮字与冲击环的持续时间", min: 0.1, max: 5, step: 0.05, unit: "秒" },
         { key: "playerDamageFlashStrength", group: "表现", label: "玩家受伤闪屏强度", hint: "本地玩家受伤时红色全屏闪光的强度", min: 0, max: 2, step: 0.05, unit: "强度" },
         { key: "playerDamageShakeStrength", group: "表现", label: "玩家受伤震屏强度", hint: "本地玩家受伤时镜头震动的强度", min: 0, max: 30, step: 0.5, unit: "强度" },
@@ -640,7 +649,7 @@
       const filePickerSupported = typeof window.showOpenFilePicker === "function";
 
       function normalizeConfig(value) {
-        const config = { schemaVersion: 16, balance: {}, waveEnemyCountSchedule: [], moduleCooldownPercentages: {}, moduleStates: {} };
+        const config = { schemaVersion: 17, balance: {}, waveEnemyCountSchedule: [], moduleCooldownPercentages: {}, moduleStates: {} };
         for (const definition of ALL_PARAMETER_DEFINITIONS) {
           const candidate = Number(value?.balance?.[definition.key]);
           config.balance[definition.key] = Number.isFinite(candidate) ? Math.max(definition.min, Math.min(definition.max, candidate)) : definition.min;
@@ -676,7 +685,7 @@
         const end = text.lastIndexOf("}");
         if (start < 0 || end <= start) throw new Error("配置内容不完整");
         const parsed = JSON.parse(text.slice(start, end + 1));
-        if (parsed?.schemaVersion !== 16) throw new Error("配置版本无效，需要 schemaVersion 16");
+        if (parsed?.schemaVersion !== 17) throw new Error("配置版本无效，需要 schemaVersion 17");
         return normalizeConfig(parsed);
       }
 

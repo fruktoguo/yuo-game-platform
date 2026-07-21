@@ -831,6 +831,14 @@ input:focus-visible {
   opacity: 0.48;
 }
 
+.multiplayer-scoreboard li.is-ghost {
+  background: rgba(116, 232, 255, 0.1);
+}
+
+.multiplayer-scoreboard li.is-ghost span {
+  color: #bcefff;
+}
+
 .multiplayer-scoreboard li strong {
   overflow: hidden;
   font-size: calc(10px * var(--font-scale));

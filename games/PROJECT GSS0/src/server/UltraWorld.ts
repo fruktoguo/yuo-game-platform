@@ -31,6 +31,10 @@ import {
   KNOCKBACK_INITIAL_SPEED,
   LEVEL_UP_TRANSITION_DURATION,
   MAX_PLAYERS,
+  MULTIPLAYER_GHOST_SPEED,
+  MULTIPLAYER_REVIVE_CONTACT_RANGE,
+  MULTIPLAYER_REVIVE_HEALTH_RATIO,
+  MULTIPLAYER_REVIVE_INVULNERABILITY_DURATION,
   NETWORK_COLLISION_CLAIM_COOLDOWN_MS,
   NETWORK_COLLISION_HISTORY_MS,
   NETWORK_HEAD_COLLISION_CONTACT_ALLOWANCE,
@@ -315,6 +319,8 @@ export class UltraWorld {
   private readonly recentPlayerHeadCollisionEvents = new Map<string, number>();
   private readonly stepAlivePlayers: PlayerEntity[] = [];
   private readonly stepPresentPlayers: PlayerEntity[] = [];
+  private readonly stepLivingPlayers: PlayerEntity[] = [];
+  private readonly stepMovingPlayers: PlayerEntity[] = [];
   private readonly stepActivePlayers: PlayerEntity[] = [];
   private readonly stepCollisionPlayers: PlayerEntity[] = [];
   private readonly networkPlayers: PlayerEntity[] = [];
@@ -421,6 +427,7 @@ export class UltraWorld {
     if (!player?.connected || !player.alive) return false;
     const result = this.createRunResult(player);
     player.alive = false;
+    player.ghost = false;
     player.paused = false;
     player.choosingUpgrade = false;
     player.upgradeOffer = null;
@@ -499,11 +506,11 @@ export class UltraWorld {
     player.row = payload.row;
     player.angle = normalizeAngle(payload.angle);
     player.desiredAngle = normalizeAngle(payload.desiredAngle);
-    player.speed = payload.speed;
-    player.knockbackX = payload.knockbackX;
-    player.knockbackY = payload.knockbackY;
-    player.collisionCooldown = payload.collisionCooldown;
-    player.slow = payload.slow;
+    player.speed = player.ghost ? MULTIPLAYER_GHOST_SPEED : payload.speed;
+    player.knockbackX = player.ghost ? 0 : payload.knockbackX;
+    player.knockbackY = player.ghost ? 0 : payload.knockbackY;
+    player.collisionCooldown = player.ghost ? 0 : payload.collisionCooldown;
+    player.slow = player.ghost ? 0 : payload.slow;
     for (let index = 0; index < player.segments.length; index += 1) {
       const source = payload.segments[index];
       const segment = player.segments[index];
@@ -517,7 +524,7 @@ export class UltraWorld {
 
   applyCollisionClaim(accountId: string, claim: PlayerCollisionClaim, now = Date.now()): boolean {
     const player = this.playersByAccount.get(accountId);
-    if (!player?.alive || player.autopilot || !claim || typeof claim !== 'object') return false;
+    if (!player?.alive || player.ghost || player.autopilot || !claim || typeof claim !== 'object') return false;
     if (claim.kind === 'wall') {
       if (!Number.isFinite(claim.normalCol) || !Number.isFinite(claim.normalRow)) return false;
       const nearWall = (
@@ -579,6 +586,7 @@ export class UltraWorld {
     const target = this.playersByEntity.get(claim.targetId);
     if (
       !target?.alive
+      || target.ghost
       || target === source
       || this.isPlayerProtected(source)
       || this.isPlayerProtected(target)
@@ -729,7 +737,7 @@ export class UltraWorld {
 
   claimFoods(accountId: string, foodIds: readonly number[]): number[] {
     const player = this.playersByAccount.get(accountId);
-    if (!player?.connected || !player.alive || player.paused || player.choosingUpgrade || player.upgradePending) return [];
+    if (!player?.connected || !player.alive || player.ghost || player.paused || player.choosingUpgrade || player.upgradePending) return [];
     const claimedFoodIds: number[] = [];
     const latencyAllowance = Math.min(1.25, Math.max(0.35, player.speed * 0.12));
     this.ensureFoodIndexes();
@@ -749,7 +757,7 @@ export class UltraWorld {
   chooseUpgrade(accountId: string, moduleId: ModuleId, now = Date.now()): boolean {
     const player = this.playersByAccount.get(accountId);
     const offer = player?.upgradeOffer;
-    if (!player?.alive || !player.choosingUpgrade || !offer || !isModuleId(moduleId) || !offer.options.includes(moduleId)) return false;
+    if (!player?.alive || player.ghost || !player.choosingUpgrade || !offer || !isModuleId(moduleId) || !offer.options.includes(moduleId)) return false;
     this.applyUpgrade(player, moduleId, now);
     return true;
   }
@@ -763,16 +771,24 @@ export class UltraWorld {
     this.respawnAutopilotPlayers(now);
     const alive = this.stepAlivePlayers;
     const present = this.stepPresentPlayers;
+    const living = this.stepLivingPlayers;
+    const moving = this.stepMovingPlayers;
     const active = this.stepActivePlayers;
     alive.length = 0;
     present.length = 0;
+    living.length = 0;
+    moving.length = 0;
     active.length = 0;
     for (const player of this.playersByEntity.values()) {
       if (!player.alive) continue;
       alive.push(player);
       if (!player.connected) continue;
       present.push(player);
-      if (!player.paused && !player.choosingUpgrade) active.push(player);
+      if (!player.ghost) living.push(player);
+      if (!player.paused && !player.choosingUpgrade) {
+        moving.push(player);
+        if (!player.ghost) active.push(player);
+      }
     }
     this.updateArenaSize(delta, present);
     if (alive.length === 0) {
@@ -780,45 +796,63 @@ export class UltraWorld {
       return;
     }
 
-    if (active.length === 0) {
+    if (moving.length === 0) {
       this.flushOutputs();
       return;
     }
 
     const worldDelta = delta;
     this.gameTime += worldDelta;
+    for (const player of moving) player.survivalTime += worldDelta;
     for (const player of active) {
-      player.survivalTime += worldDelta;
       player.score += worldDelta * (3 + player.level * 0.35);
       this.updatePlayerGrowth(player, worldDelta, delta, now);
       this.updatePlayerTimers(player, worldDelta);
     }
     active.length = 0;
-    for (const player of present) if (!player.paused && !player.choosingUpgrade) active.push(player);
+    living.length = 0;
+    for (const player of present) {
+      if (player.ghost) continue;
+      living.push(player);
+      if (!player.paused && !player.choosingUpgrade) active.push(player);
+    }
+
+    for (const player of moving) {
+      if (!player.autopilot || player.collisionCooldown > 0) continue;
+      player.desiredAngle = player.ghost ? this.ghostAutopilotAngle(player, living) : this.autopilotAngle(player, living);
+    }
+    for (const player of moving) this.movePlayer(player, worldDelta);
+    for (const player of moving) this.recordPlayerMovement(player, now);
+    if (this.reviveGhostPlayers(now, present)) {
+      living.length = 0;
+      active.length = 0;
+      for (const player of present) {
+        if (player.ghost) continue;
+        living.push(player);
+        if (!player.paused && !player.choosingUpgrade) active.push(player);
+      }
+    }
     if (active.length === 0) {
       this.flushOutputs();
       return;
     }
 
     this.updateEnemySpawnWarnings(worldDelta);
-    this.updateSpawns(worldDelta, present, active);
-    const wallbreaker = this.maximumModuleCount('wallbreaker', present);
+    this.updateSpawns(worldDelta, living, active);
+    const wallbreaker = this.maximumModuleCount('wallbreaker', living);
     this.enemyWallDamageMultiplier = 1 + MODULE_PROGRESSION.effects.enemyWallDamageBonus(wallbreaker);
     this.enemyWallKnockbackMultiplier = 1 + MODULE_PROGRESSION.effects.enemyWallKnockbackBonus(wallbreaker);
-    for (const player of active) if (player.autopilot && player.collisionCooldown <= 0) player.desiredAngle = this.autopilotAngle(player, present);
-    for (const player of active) this.movePlayer(player, worldDelta);
-    for (const player of active) this.recordPlayerMovement(player, now);
     this.updateFood(worldDelta, active);
     for (const player of active) {
       this.updateModules(player, worldDelta);
     }
     this.updateTargetStatuses(worldDelta);
     this.ensureFoodSpatialBuckets();
-    this.updateEnemies(worldDelta, active, present);
+    this.updateEnemies(worldDelta, active, living);
     this.spawnOccupiedCells = null;
     this.updateProjectiles(worldDelta);
     this.updateHazards(worldDelta);
-    this.checkCollisions(now, active, present);
+    this.checkCollisions(now, active, living);
     retainInPlace(this.enemies, (enemy) => !enemy.dead);
     retainInPlace(this.projectiles, (projectile) => {
       const alive = projectile.life > 0 && this.isProjectileInside(projectile);
@@ -935,7 +969,7 @@ export class UltraWorld {
 
   get aliveCount(): number {
     let count = 0;
-    for (const player of this.playersByEntity.values()) if (player.alive && player.connected) count += 1;
+    for (const player of this.playersByEntity.values()) if (player.alive && !player.ghost && player.connected) count += 1;
     return count;
   }
 
@@ -963,6 +997,7 @@ export class UltraWorld {
       connected: true,
       disconnectedAt: null,
       alive: false,
+      ghost: false,
       paused: false,
       choosingUpgrade: false,
       col: GRID_SIZE / 2,
@@ -1007,6 +1042,7 @@ export class UltraWorld {
 
   private resetPlayerRun(player: PlayerEntity, spawn: GridPoint): void {
     player.alive = true;
+    player.ghost = false;
     player.paused = false;
     player.choosingUpgrade = false;
     player.col = spawn.col;
@@ -1086,8 +1122,12 @@ export class UltraWorld {
     return this.alivePlayers().filter((player) => player.connected);
   }
 
+  private livingPlayers(): PlayerEntity[] {
+    return this.presentPlayers().filter((player) => !player.ghost);
+  }
+
   private activePlayers(): PlayerEntity[] {
-    return this.presentPlayers().filter((player) => !player.paused && !player.choosingUpgrade);
+    return this.livingPlayers().filter((player) => !player.paused && !player.choosingUpgrade);
   }
 
   private updateArenaSize(delta: number, presentPlayers = this.presentPlayers()): void {
@@ -1246,6 +1286,11 @@ export class UltraWorld {
     return Math.hypot(vectorCol, vectorRow) > 0.001 ? Math.atan2(vectorRow, vectorCol) : player.angle;
   }
 
+  private ghostAutopilotAngle(player: PlayerEntity, livingPlayers: readonly PlayerEntity[]): number {
+    const rescuer = this.nearestPlayer(player, livingPlayers);
+    return rescuer ? Math.atan2(rescuer.row - player.row, rescuer.col - player.col) : player.angle;
+  }
+
   private activeModuleCooldown(player: PlayerEntity, moduleId: ModuleId, moduleLevel = this.moduleCount(player, moduleId), extraCooldownRateBonus = 0): number {
     return MODULE_PROGRESSION.activeCooldownSeconds(
       moduleId,
@@ -1255,6 +1300,18 @@ export class UltraWorld {
   }
 
   private movePlayer(player: PlayerEntity, delta: number): void {
+    if (player.ghost) {
+      player.angle = rotateToward(player.angle, player.desiredAngle, PLAYER_TURN_RATE * delta);
+      player.speed = MULTIPLAYER_GHOST_SPEED;
+      player.slow = 0;
+      player.collisionCooldown = 0;
+      player.knockbackX = 0;
+      player.knockbackY = 0;
+      player.col = clamp(player.col + Math.cos(player.angle) * player.speed * delta, this.arenaMinimum(), this.arenaMaximum());
+      player.row = clamp(player.row + Math.sin(player.angle) * player.speed * delta, this.arenaMinimum(), this.arenaMaximum());
+      followContinuousSegments(player.col, player.row, player.segments, 0.58);
+      return;
+    }
     if (player.collisionCooldown > 0) player.desiredAngle = player.angle;
     else player.angle = rotateToward(player.angle, player.desiredAngle, PLAYER_TURN_RATE * (1 + MODULE_PROGRESSION.effects.hasteTurnRateBonus(this.moduleCount(player, 'haste'))) * delta);
     const slowMultiplier = player.slow > 0 ? 0.48 : 1;
@@ -1273,7 +1330,7 @@ export class UltraWorld {
       this.healPlayer(player, regenRate * delta);
     } else {
       player.regenDamageBuffer += -regenRate * delta;
-      while (player.regenDamageBuffer >= 1 && player.alive) {
+      while (player.regenDamageBuffer >= 1 && player.alive && !player.ghost) {
         player.regenDamageBuffer -= 1;
         this.damagePlayer(player, 1, this.now, '生命代偿失衡');
       }
@@ -1701,7 +1758,7 @@ export class UltraWorld {
     }
   }
 
-  private updateSpawns(delta: number, players = this.presentPlayers(), activePlayers = this.activePlayers()): void {
+  private updateSpawns(delta: number, players = this.livingPlayers(), activePlayers = this.activePlayers()): void {
     this.waveTimer -= delta * this.waveCountdownRate(activePlayers);
     if (this.waveTimer > 0) return;
     const playerCount = players.length;
@@ -1984,7 +2041,7 @@ export class UltraWorld {
   private queueEnemySpawn(archetype: EnemyArchetypeDefinition, assignedHealth: number, playerCount = this.activePlayers().length, occupied = this.occupiedCellCodes()): boolean {
     const totalLength = Math.max(1, Math.round(assignedHealth));
     const multiplayerScale = playerCount <= 1 ? 1 : Math.max(0.35, 1 / Math.sqrt(playerCount));
-    const fastestPlayer = this.presentPlayers().reduce((maximum, player) => Math.max(maximum, this.playerBaseSpeed(player)), PLAYER_BASE_SPEED);
+    const fastestPlayer = this.livingPlayers().reduce((maximum, player) => Math.max(maximum, this.playerBaseSpeed(player)), PLAYER_BASE_SPEED);
     const placement = this.chooseEnemySpawn(totalLength - 1, fastestPlayer * 2 * multiplayerScale, occupied);
     if (!placement) return false;
     const color = ENEMY_COLORS[(this.nextEnemyId - 1) % ENEMY_COLORS.length];
@@ -2051,7 +2108,7 @@ export class UltraWorld {
 
   private chooseEnemySpawn(bodySegmentCount: number, minimumHeadDistance: number, occupied = this.occupiedCellCodes()): { head: GridPoint; body: GridPoint[]; next: GridPoint } | null {
     const bounds = this.arenaIntegerBounds();
-    const players = this.alivePlayers();
+    const players = this.livingPlayers();
     return chooseSerpentineSpawn({
       minimum: bounds.minimum,
       maximum: bounds.maximum,
@@ -2066,7 +2123,7 @@ export class UltraWorld {
 
   private occupiedCellKeys(): Set<string> {
     const occupied = new Set<string>();
-    for (const player of this.alivePlayers()) {
+    for (const player of this.livingPlayers()) {
       occupied.add(cellKey(player));
       for (const segment of player.segments) occupied.add(cellKey(segment));
     }
@@ -2088,7 +2145,7 @@ export class UltraWorld {
 
   private occupiedCellCodes(): Set<number> {
     const occupied = new Set<number>();
-    for (const player of this.alivePlayers()) {
+    for (const player of this.livingPlayers()) {
       occupied.add(cellCode(player));
       for (const segment of player.segments) occupied.add(cellCode(segment));
     }
@@ -2205,7 +2262,7 @@ export class UltraWorld {
 
   private findPlayerSpawn(): GridPoint {
     const center = { col: Math.floor(GRID_SIZE / 2), row: Math.floor(GRID_SIZE / 2) };
-    const alive = this.alivePlayers();
+    const alive = this.livingPlayers();
     if (alive.length === 0) return this.findFreeCell(center, 2) ?? center;
 
     const occupied = this.occupiedCellKeys();
@@ -3133,7 +3190,7 @@ export class UltraWorld {
       projectile.life -= delta;
       let endedByImpact = false;
       const owner = this.playersByEntity.get(projectile.ownerEntityId);
-      if (!owner) {
+      if (!owner || owner.ghost) {
         projectile.life = 0;
         continue;
       }
@@ -3241,7 +3298,7 @@ export class UltraWorld {
     for (const hazard of this.hazards) {
       hazard.life -= delta;
       const owner = this.playersByEntity.get(hazard.ownerEntityId);
-      if (!owner) {
+      if (!owner || owner.ghost) {
         hazard.life = 0;
         continue;
       }
@@ -3269,7 +3326,7 @@ export class UltraWorld {
           break;
         }
       }
-      const ownerTriggered = owner.autopilot && owner.alive && Math.hypot(owner.col - hazard.col, owner.row - hazard.row) < this.playerHeadRadiusCells() + this.pixelsToCells(6);
+      const ownerTriggered = owner.autopilot && owner.alive && !owner.ghost && Math.hypot(owner.col - hazard.col, owner.row - hazard.row) < this.playerHeadRadiusCells() + this.pixelsToCells(6);
       if (!trigger && !ownerTriggered) continue;
       this.triggerMine(hazard, owner, ownerTriggered);
     }
@@ -3289,7 +3346,42 @@ export class UltraWorld {
     this.effectSound('mine', owner.entityId);
   }
 
-  private checkCollisions(now: number, players = this.activePlayers(), presentPlayers = this.presentPlayers()): void {
+  private reviveGhostPlayers(now: number, presentPlayers: readonly PlayerEntity[]): boolean {
+    let revived = false;
+    for (const ghost of presentPlayers) {
+      if (!ghost.ghost) continue;
+      for (const rescuer of presentPlayers) {
+        if (rescuer === ghost || rescuer.ghost || !this.playersTouch(rescuer, ghost)) continue;
+        ghost.ghost = false;
+        ghost.health = ghost.maxHealth * MULTIPLAYER_REVIVE_HEALTH_RATIO;
+        ghost.invulnerable = MULTIPLAYER_REVIVE_INVULNERABILITY_DURATION;
+        ghost.speed = this.playerBaseSpeed(ghost);
+        ghost.slow = 0;
+        ghost.collisionCooldown = 0;
+        ghost.knockbackX = 0;
+        ghost.knockbackY = 0;
+        ghost.regenDamageBuffer = 0;
+        this.emitEvent('record', `${rescuer.name} 复活了 ${ghost.name}`, now, rescuer.entityId);
+        revived = true;
+        break;
+      }
+    }
+    return revived;
+  }
+
+  private playersTouch(first: PlayerEntity, second: PlayerEntity): boolean {
+    const rangeSquared = MULTIPLAYER_REVIVE_CONTACT_RANGE * MULTIPLAYER_REVIVE_CONTACT_RANGE;
+    for (let firstIndex = -1; firstIndex < first.segments.length; firstIndex += 1) {
+      const firstNode: GridPoint = firstIndex < 0 ? first : first.segments[firstIndex];
+      for (let secondIndex = -1; secondIndex < second.segments.length; secondIndex += 1) {
+        const secondNode: GridPoint = secondIndex < 0 ? second : second.segments[secondIndex];
+        if (distanceSquared(firstNode, secondNode) < rangeSquared) return true;
+      }
+    }
+    return false;
+  }
+
+  private checkCollisions(now: number, players = this.activePlayers(), presentPlayers = this.livingPlayers()): void {
     players = players.filter((player) => player.autopilot);
     for (const player of players) {
       if (!player.alive) continue;
@@ -3438,7 +3530,7 @@ export class UltraWorld {
   }
 
   private healPlayer(player: PlayerEntity, amount: number, color = MODULE_BY_ID.recovery.color, present = false): number {
-    if (!player.alive || amount <= 0 || player.health >= player.maxHealth) return 0;
+    if (!player.alive || player.ghost || amount <= 0 || player.health >= player.maxHealth) return 0;
     const amplified = amount * (1 + MODULE_PROGRESSION.effects.healingReceivedBonus(this.moduleCount(player, 'recovery')));
     const applied = Math.min(amplified, player.maxHealth - player.health);
     player.health += applied;
@@ -3459,7 +3551,7 @@ export class UltraWorld {
   }
 
   private damagePlayer(player: PlayerEntity, amount: number, now: number, reason: string): boolean {
-    if (!player.alive || player.invulnerable > 0) return false;
+    if (!player.alive || player.ghost || player.invulnerable > 0) return false;
     if (this.consumeShieldCharge(player)) return false;
     const damage = Math.max(0, amount) * (1 - MODULE_PROGRESSION.effects.damageReduction(this.moduleCount(player, 'plating')));
     if (damage <= 0) return false;
@@ -3475,8 +3567,25 @@ export class UltraWorld {
       health,
       maxHealth: player.maxHealth,
     });
-    if (health <= 0) this.eliminatePlayer(player, null, now, reason);
+    if (health <= 0) this.enterGhostState(player, now, reason);
     return true;
+  }
+
+  private enterGhostState(player: PlayerEntity, now: number, reason: string): void {
+    if (!player.alive || player.ghost) return;
+    player.health = 0;
+    player.ghost = true;
+    player.invulnerable = 0;
+    player.speed = MULTIPLAYER_GHOST_SPEED;
+    player.slow = 0;
+    player.collisionCooldown = 0;
+    player.knockbackX = 0;
+    player.knockbackY = 0;
+    player.foodBoost = 0;
+    player.regenDamageBuffer = 0;
+    player.desiredAngle = player.angle;
+    this.clearPlayerHeadCollisionRecords(player.entityId);
+    this.emitEvent('record', `${player.name} ${reason}，正在等待救援`, now, player.entityId);
   }
 
   private damageTarget(owner: PlayerEntity | null, target: EnemyEntity, amount: number, point: GridPoint, color: string, hitSegmentIndex?: number): void {
@@ -3553,7 +3662,7 @@ export class UltraWorld {
     if (enemy.dead) return;
     enemy.dead = true;
     for (const player of this.playersByEntity.values()) {
-      if (!player.alive) continue;
+      if (!player.alive || player.ghost) continue;
       const deathBurstLevel = this.moduleCount(player, 'deathburst');
       if (deathBurstLevel <= 0) continue;
       const origin = player.segments.find((segment) => segment.module === 'deathburst') ?? player;
@@ -3801,6 +3910,7 @@ export class UltraWorld {
       this.spawnFood({ col: victim.col + Math.cos(angle) * distance, row: victim.row + Math.sin(angle) * distance }, true, dropOccupied);
     }
     victim.alive = false;
+    victim.ghost = false;
     victim.paused = false;
     victim.choosingUpgrade = false;
     victim.upgradeOffer = null;
@@ -4136,6 +4246,7 @@ function toRosterPlayer(player: PlayerEntity): RosterPlayer {
     colorIndex: player.colorIndex,
     connected: player.connected,
     alive: player.alive,
+    ghost: player.ghost,
     paused: player.paused,
     choosingUpgrade: player.choosingUpgrade,
     score: Math.floor(player.score),
@@ -4153,6 +4264,7 @@ function toPlayerView(player: PlayerEntity): UltraPlayerView {
     colorIndex: player.colorIndex,
     connected: player.connected,
     alive: player.alive,
+    ghost: player.ghost,
     paused: player.paused,
     choosingUpgrade: player.choosingUpgrade,
     col: player.col,

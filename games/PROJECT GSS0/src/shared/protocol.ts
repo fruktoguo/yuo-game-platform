@@ -40,6 +40,7 @@ export interface UltraPlayerView extends GridPoint {
   colorIndex: number;
   connected: boolean;
   alive: boolean;
+  ghost: boolean;
   paused: boolean;
   choosingUpgrade: boolean;
   angle: number;
@@ -221,6 +222,7 @@ export interface RosterPlayer {
   colorIndex: number;
   connected: boolean;
   alive: boolean;
+  ghost: boolean;
   paused: boolean;
   choosingUpgrade: boolean;
   score: number;

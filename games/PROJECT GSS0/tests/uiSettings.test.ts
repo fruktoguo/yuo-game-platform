@@ -9,7 +9,7 @@ describe('界面设置', () => {
   it('使用正式游戏名并在左上品牌卡显示当前版本', () => {
     expect(indexHtml).toContain('<title>代号：几何贪吃蛇</title>');
     expect(indexHtml).toContain('<h1 id="game-title"><span>代号：几何贪吃蛇</span></h1>');
-    expect(indexHtml).toContain('<span class="brand-version" aria-label="游戏版本 V74">V74</span>');
+    expect(indexHtml).toContain('<span class="brand-version" aria-label="游戏版本 V75">V75</span>');
     expect(styles).toContain('.brand-version');
     const brandTitleRule = styles.match(/\.brand-lockup strong\s*\{([^}]*)\}/)?.[1];
     const brandVersionRule = styles.match(/\.brand-version\s*\{([^}]*)\}/)?.[1];
@@ -39,7 +39,7 @@ describe('界面设置', () => {
   });
 
   it('升级卡展示机体等级变化且机体架显示槽位占用', () => {
-    expect(indexHtml).toContain('src="module-progression.js?v=74"');
+    expect(indexHtml).toContain('src="module-progression.js?v=75"');
     expect(gameSource).toContain('MODULE_PROGRESSION.moduleUpgradePreview');
     expect(gameSource).toContain('progression.levelLabel');
     expect(gameSource).toContain('ui.rack.dataset.capacity');
@@ -78,6 +78,16 @@ describe('界面设置', () => {
     expect(indexHtml).toContain('进入多人模式即加入联机共享世界');
   });
 
+  it('多人幽灵使用独立呼吸动画、呼救浮字和记分板状态', () => {
+    expect(gameSource).toContain('function drawGhostBeacon(target, pieceScale)');
+    expect(gameSource).toContain('text: "救救我"');
+    expect(gameSource).toContain('text: "复活"');
+    expect(gameSource).toContain('cells.row.classList.toggle("is-ghost", Boolean(stateItem.ghost));');
+    expect(gameSource).toContain('player.ghost ? MULTIPLAYER_GHOST_SPEED');
+    expect(styles).toContain('.multiplayer-scoreboard li.is-ghost');
+    expect(indexHtml).toContain('生命归零化身幽灵，等待队友接触复活');
+  });
+
   it('七个右上角按钮使用零延迟自定义提示', () => {
     const settingButtonIds = [
       'lobby-button',
@@ -102,7 +112,7 @@ describe('界面设置', () => {
     expect(tooltipRule).not.toContain('transition');
     expect(indexHtml).not.toContain('id="description-button"');
     expect(indexHtml).not.toContain('id="description-toggle"');
-    expect(indexHtml).toContain('src="module-catalog.js?v=74"');
+    expect(indexHtml).toContain('src="module-catalog.js?v=75"');
     expect(gameSource).toContain('const MODULE_CATALOG = globalThis.GSS0ModuleCatalog;');
     expect(gameSource).not.toContain('SHORT_MODULE_DESCRIPTIONS');
     expect(gameSource).not.toContain('gss0-detailed-descriptions');

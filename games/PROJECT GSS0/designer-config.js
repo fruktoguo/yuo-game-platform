@@ -1,5 +1,5 @@
 globalThis.GSS0_DESIGNER_CONFIG = {
-  "schemaVersion": 16,
+  "schemaVersion": 17,
   "balance": {
     "playerBaseSpeed": 3,
     "playerMaxHealth": 20,
@@ -19,6 +19,15 @@ globalThis.GSS0_DESIGNER_CONFIG = {
     "upgradeInvulnerabilityDuration": 1,
     "respawnLocatorConvergeDuration": 1,
     "respawnLocatorFadeDuration": 3,
+    "multiplayerGhostSpeed": 0.3,
+    "multiplayerGhostPleaInterval": 0.65,
+    "multiplayerGhostPleaDuration": 0.9,
+    "multiplayerGhostOpacity": 0.36,
+    "multiplayerGhostPulseStrength": 0.12,
+    "multiplayerGhostPulseRate": 1.1,
+    "multiplayerReviveContactRange": 0.46,
+    "multiplayerReviveHealthRatio": 0.5,
+    "multiplayerReviveInvulnerabilityDuration": 2,
     "playerDamageEffectDuration": 0.65,
     "playerDamageFlashStrength": 0.55,
     "playerDamageShakeStrength": 9,

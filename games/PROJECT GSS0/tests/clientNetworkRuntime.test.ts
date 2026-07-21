@@ -78,11 +78,11 @@ interface ClientProjectileRuntime {
 }
 
 describe('客户端网络模块', () => {
-  it('独立解码器与服务端 V11 状态效果快照格式一致', () => {
+  it('独立解码器与服务端 V12 状态效果快照格式一致', () => {
     const snapshot: UltraSnapshot = {
       tick: 7, serverTime: 700, gameTime: 3, waveCount: 2, waveTimer: 4, threatLevel: 1, arenaSize: 24, worldObjectRevision: 0, worldObjectsComplete: true,
       players: [{
-        entityId: 1, name: '玩家甲', colorIndex: 0, connected: true, alive: true, paused: false, choosingUpgrade: false,
+        entityId: 1, name: '玩家甲', colorIndex: 0, connected: true, alive: true, ghost: false, paused: false, choosingUpgrade: false,
         col: 4.25, row: 5.5, angle: 0.4, desiredAngle: 0.5, lastInputSequence: 7, speed: 5, slow: 0, foodBoost: 0, knockbackX: 0.5, knockbackY: -0.25, invulnerable: 0, collisionCooldown: 0, health: 18.5, maxHealth: 30, shieldCharges: 4,
         score: 12, kills: 1, botKills: 1, pvpKills: 0, survivalTime: 3, level: 1, xp: 2, xpNeeded: 7, respawnAt: null,
         segments: [
@@ -299,7 +299,7 @@ function snapshotAt(tick: number, col: number): UltraSnapshot {
     worldObjectRevision: 0,
     worldObjectsComplete: true,
     players: [{
-      entityId: 1, name: '玩家甲', colorIndex: 0, connected: true, alive: true, paused: false, choosingUpgrade: false,
+      entityId: 1, name: '玩家甲', colorIndex: 0, connected: true, alive: true, ghost: false, paused: false, choosingUpgrade: false,
       col, row: 5, angle: 0.4, desiredAngle: 0.5, lastInputSequence: tick, speed: 5, slow: 0, foodBoost: 0, knockbackX: 0, knockbackY: 0, invulnerable: 0, collisionCooldown: 0, health: 30, maxHealth: 30, shieldCharges: 0,
       score: 0, kills: 0, botKills: 0, pvpKills: 0, survivalTime: 1, level: 0, xp: 0, xpNeeded: 5,
       respawnAt: null,

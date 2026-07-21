@@ -94,7 +94,7 @@
 
   const TAU = Math.PI * 2;
   const DESIGNER_CONFIG = globalThis.GSS0_DESIGNER_CONFIG || {};
-  if (DESIGNER_CONFIG.schemaVersion !== 16) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 16");
+  if (DESIGNER_CONFIG.schemaVersion !== 17) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 17");
   const DESIGNER_BALANCE = DESIGNER_CONFIG.balance || {};
   const MODULE_DESIGN_STATES = DESIGNER_CONFIG.moduleStates || {};
 
@@ -247,6 +247,12 @@
   const UPGRADE_INVULNERABILITY_DURATION = designerNumber("upgradeInvulnerabilityDuration", 0.5, 0, 10);
   const RESPAWN_LOCATOR_CONVERGE_DURATION = designerNumber("respawnLocatorConvergeDuration", 1, 0.1, 10);
   const RESPAWN_LOCATOR_FADE_DURATION = designerNumber("respawnLocatorFadeDuration", 3, 0.1, 20);
+  const MULTIPLAYER_GHOST_SPEED = designerNumber("multiplayerGhostSpeed", 0.3, 0.05, 3);
+  const MULTIPLAYER_GHOST_PLEA_INTERVAL = designerNumber("multiplayerGhostPleaInterval", 0.65, 0.1, 5);
+  const MULTIPLAYER_GHOST_PLEA_DURATION = designerNumber("multiplayerGhostPleaDuration", 0.9, 0.1, 3);
+  const MULTIPLAYER_GHOST_OPACITY = designerNumber("multiplayerGhostOpacity", 0.36, 0.05, 0.9);
+  const MULTIPLAYER_GHOST_PULSE_STRENGTH = designerNumber("multiplayerGhostPulseStrength", 0.12, 0, 0.4);
+  const MULTIPLAYER_GHOST_PULSE_RATE = designerNumber("multiplayerGhostPulseRate", 1.1, 0.1, 5);
   const PLAYER_DAMAGE_EFFECT_DURATION = designerNumber("playerDamageEffectDuration", 0.65, 0.1, 5);
   const PLAYER_DAMAGE_FLASH_STRENGTH = designerNumber("playerDamageFlashStrength", 0.55, 0, 2);
   const PLAYER_DAMAGE_SHAKE_STRENGTH = designerNumber("playerDamageShakeStrength", 9, 0, 30);
@@ -1448,12 +1454,13 @@
         const levelCell = document.createElement("span");
         const scoreCell = document.createElement("em");
         row.append(id, levelCell, scoreCell);
-        cells = { row, id, levelCell, scoreCell, colorIndex: -1, level: NaN, score: NaN, playerId: "", name: "" };
+        cells = { row, id, levelCell, scoreCell, colorIndex: -1, level: NaN, ghost: false, score: NaN, playerId: "", name: "" };
         network.scoreboardRows.set(item.entityId, cells);
         orderChanged = true;
       }
       cells.row.classList.toggle("is-self", item.entityId === network.selfEntityId);
       cells.row.classList.toggle("is-out", !stateItem.alive);
+      cells.row.classList.toggle("is-ghost", Boolean(stateItem.ghost));
       if (cells.colorIndex !== item.colorIndex) {
         cells.colorIndex = item.colorIndex;
         cells.row.style.setProperty("--player-color", PLAYER_COLORS[item.colorIndex % PLAYER_COLORS.length]);
@@ -1466,9 +1473,10 @@
         cells.name = item.name;
         cells.id.title = item.name;
       }
-      if (cells.level !== stateItem.level) {
+      if (cells.level !== stateItem.level || cells.ghost !== Boolean(stateItem.ghost)) {
         cells.level = stateItem.level;
-        cells.levelCell.textContent = stateItem.level;
+        cells.ghost = Boolean(stateItem.ghost);
+        cells.levelCell.textContent = cells.ghost ? "幽灵" : stateItem.level;
       }
       const nextScore = Math.floor(stateItem.score);
       if (cells.score !== nextScore) {
@@ -1609,6 +1617,45 @@
     void ui.healthGroup.offsetWidth;
     ui.healthGroup.classList.add("is-heal");
     window.setTimeout(() => ui.healthGroup.classList.remove("is-heal"), 620);
+  }
+
+  function playGhostRevivePresentation(target) {
+    if (!target) return;
+    target.nextGhostPleaAt = Infinity;
+    const headRadius = target.radius || playerHeadRadiusPixels();
+    const side = target.entityId % 2 === 0 ? 1 : -1;
+    playPlayerHealPresentation(target, Math.max(0, target.health || 0), target.entityId === network.selfEntityId, "#bcefff");
+    effects.push({
+      type: "text",
+      x: target.x + side * headRadius * 2.4,
+      y: target.y - headRadius * 0.25,
+      text: "复活",
+      color: "#ffffff",
+      life: MULTIPLAYER_GHOST_PLEA_DURATION,
+      maxLife: MULTIPLAYER_GHOST_PLEA_DURATION,
+      emphasis: true
+    });
+  }
+
+  function updateGhostPlea(target, now) {
+    if (!target?.ghost) {
+      target.nextGhostPleaAt = Infinity;
+      return;
+    }
+    if (Number.isFinite(target.nextGhostPleaAt) && now < target.nextGhostPleaAt) return;
+    target.nextGhostPleaAt = now + MULTIPLAYER_GHOST_PLEA_INTERVAL * 1000;
+    const headRadius = target.radius || playerHeadRadiusPixels();
+    const side = target.entityId % 2 === 0 ? 1 : -1;
+    effects.push({
+      type: "text",
+      x: target.x + side * headRadius * 2.4,
+      y: target.y - headRadius * 0.25,
+      text: "救救我",
+      color: "#bcefff",
+      life: MULTIPLAYER_GHOST_PLEA_DURATION,
+      maxLife: MULTIPLAYER_GHOST_PLEA_DURATION,
+      emphasis: true
+    });
   }
 
   function predictNetworkPlayerHurt(amount) {
@@ -2307,6 +2354,8 @@
         view = { segments: [] };
         network.playerViews.set(item.entityId, view);
       }
+      const hadSource = Boolean(view.source);
+      const wasGhost = hadSource ? Boolean(view.ghost) : Boolean(item.ghost);
       const sourceChanged = view.source !== item;
       syncNetworkNode(view, item, old, playerAmount);
       const authoritativeAngle = interpolateAngle(old?.angle ?? item.angle, item.angle, playerAmount);
@@ -2320,6 +2369,8 @@
       syncNetworkSegments(view.segments, item.segments, old?.segments, playerAmount);
       if (view.isSelf && !automaticModeEnabled && !item.paused && !item.choosingUpgrade) applyNetworkSelfPrediction(view);
       view.protectedState = item.paused || item.choosingUpgrade || view.invulnerable > 0;
+      if (hadSource && wasGhost && !item.ghost) playGhostRevivePresentation(view);
+      else if (!wasGhost && item.ghost) view.nextGhostPleaAt = -Infinity;
       let previousNode = view;
       for (const segment of view.segments) {
         segment.angle = Math.atan2(previousNode.row - segment.row, previousNode.col - segment.col);
@@ -2426,7 +2477,7 @@
     const ready = networkHeadCollisionRuntime.takeReady(now, (event) => {
       const source = networkPlayerView(event.sourceEntityId);
       const target = networkPlayerView(event.targetEntityId);
-      return Boolean(source && target && Math.hypot(source.col - target.col, source.row - target.row) <= visualRange);
+      return Boolean(source && target && !source.ghost && !target.ghost && Math.hypot(source.col - target.col, source.row - target.row) <= visualRange);
     });
     for (const event of ready) {
       if (!networkHeadCollisionRuntime.apply(event, network.selfEntityId, now)) continue;
@@ -2444,7 +2495,7 @@
 
   function applyNetworkPlayerHeadCollisionOffsets(now) {
     for (const view of visiblePlayers) {
-      if (view.isSelf) continue;
+      if (view.isSelf || view.ghost) continue;
       const offset = networkHeadCollisionRuntime.offsetFor(view.entityId, now);
       if (!offset) continue;
       view.col += offset.col;
@@ -2459,12 +2510,13 @@
   }
 
   function stabilizeNetworkPlayerHeadSeparation(dt, now) {
-    if (!player) return;
+    if (!player || player.ghost) return;
     const contactRange = networkPlayerHeadContactRange();
     let moved = false;
     for (const other of visiblePlayers) {
       if (
         other.isSelf
+        || other.ghost
         || !networkHeadCollisionRuntime.isPairCooling(network.selfEntityId, other.entityId, now)
       ) continue;
       let normalCol = player.col - other.col;
@@ -2505,6 +2557,7 @@
     networkProjectileRuntime.update(dt, (id) => network.enemyViews.get(id) || null, arena);
     projectiles = networkProjectileRuntime.items;
     for (const visiblePlayer of visiblePlayers) {
+      updateGhostPlea(visiblePlayer, now);
       if (visiblePlayer.growth) visiblePlayer.growth.elapsed += dt;
       for (const segment of visiblePlayer.segments) {
         if (segment.module !== "blade") segment.orbit = (segment.orbit || 0) + dt * 3.8;
@@ -2526,16 +2579,24 @@
       if (!automaticModeEnabled) {
         updateInput(dt, false);
         network.localDesiredAngle = player.desiredAngle;
-        const turnRate = playerTurnRate();
+        const turnRate = player.ghost ? PLAYER_TURN_RATE : playerTurnRate();
         const predictedState = networkPlayerPredictionRuntime.state;
         const slowMultiplier = predictedState.slow > 0 ? 0.48 : 1;
-        networkPlayerPredictionRuntime.update(dt, network.localDesiredAngle, turnRate, playerBaseSpeed() * slowMultiplier);
+        const moveSpeed = player.ghost ? MULTIPLAYER_GHOST_SPEED : playerBaseSpeed() * slowMultiplier;
+        networkPlayerPredictionRuntime.update(dt, network.localDesiredAngle, turnRate, moveSpeed);
         applyNetworkSelfPrediction(player);
-        stabilizeNetworkPlayerHeadSeparation(dt, now);
-        checkNetworkPlayerCollisions();
+        if (player.ghost) {
+          player.col = clamp(player.col, arena.worldMin, arena.worldMax);
+          player.row = clamp(player.row, arena.worldMin, arena.worldMax);
+          networkPlayerPredictionRuntime.adoptLocal(player);
+          applyNetworkSelfPrediction(player);
+        } else {
+          stabilizeNetworkPlayerHeadSeparation(dt, now);
+          checkNetworkPlayerCollisions();
+        }
         sendNetworkInput();
       }
-      claimNetworkFoodContacts();
+      if (!player.ghost) claimNetworkFoodContacts();
     }
     applyNetworkPlayerHeadCollisionOffsets(now);
     updateEffects(dt);
@@ -2601,7 +2662,7 @@
   }
 
   function checkNetworkPlayerCollisions() {
-    if (!player?.alive || !networkPlayerPredictionRuntime.state.initialized || checkNetworkMineCollision()) return;
+    if (!player?.alive || player.ghost || !networkPlayerPredictionRuntime.state.initialized || checkNetworkMineCollision()) return;
     const collision = networkPlayerCollisions.detect(player, enemies, visiblePlayers, {
       worldMin: arena.worldMin,
       worldMax: arena.worldMax,
@@ -2725,7 +2786,7 @@
 
   function claimNetworkFoodContacts() {
     const socket = network.socket;
-    if (!socket?.connected || !player?.alive || player.paused || player.choosingUpgrade || foods.length === 0) return;
+    if (!socket?.connected || !player?.alive || player.ghost || player.paused || player.choosingUpgrade || foods.length === 0) return;
     const now = performance.now();
     if (now - network.lastFoodContactAt < NETWORK_FOOD_CONTACT_INTERVAL_MS) return;
     network.lastFoodContactAt = now;
@@ -6675,7 +6736,7 @@
   }
 
   function drawPlayerIdLabel(target, pieceScale) {
-    const label = `@${target.playerId || target.name || "PLAYER"}`;
+    const label = `${target.ghost ? "幽灵 · " : ""}@${target.playerId || target.name || "PLAYER"}`;
     const labelScale = fontScale;
     const textPadding = 14 * labelScale;
     const cornerCut = 5 * labelScale;
@@ -6750,6 +6811,27 @@
     ctx.restore();
   }
 
+  function drawGhostBeacon(target, pieceScale) {
+    const phase = performance.now() / 1000 * TAU * MULTIPLAYER_GHOST_PULSE_RATE;
+    const pulse = (Math.sin(phase) + 1) * 0.5;
+    const radius = (target.radius || playerHeadRadiusPixels()) * (0.92 + MULTIPLAYER_GHOST_PULSE_STRENGTH * pulse);
+    ctx.save();
+    ctx.translate(target.x, target.y);
+    ctx.rotate(phase * 0.35);
+    ctx.globalAlpha = clamp(MULTIPLAYER_GHOST_OPACITY + MULTIPLAYER_GHOST_PULSE_STRENGTH * 2, 0.2, 0.95);
+    ctx.strokeStyle = "#bcefff";
+    ctx.shadowColor = "#74e8ff";
+    ctx.shadowBlur = radius * 0.55;
+    ctx.lineWidth = Math.max(1.2, pieceScale * 1.6);
+    for (let index = 0; index < 4; index += 1) {
+      const start = index * TAU / 4 - 0.23;
+      ctx.beginPath();
+      ctx.arc(0, 0, radius, start, start + 0.46);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   function drawPlayer(target = player) {
     if (!target) return;
     const previousPlayer = player;
@@ -6758,9 +6840,19 @@
     activeGrowth = target.growth || (target === previousPlayer ? previousGrowth : null);
     ctx.save();
     const pieceScale = arenaPieceScale();
+    const ghostVisual = Boolean(player.ghost);
     const protectedVisual = player.protectedState || player.invulnerable > 0;
     const damageVisual = Number.isFinite(player.damageFlashUntil) && performance.now() < player.damageFlashUntil;
-    if (protectedVisual) ctx.globalAlpha = 0.48 + Math.sin(gameTime * 28) * 0.28;
+    if (ghostVisual) {
+      const ghostPhase = performance.now() / 1000 * TAU * MULTIPLAYER_GHOST_PULSE_RATE;
+      ctx.globalAlpha = clamp(
+        MULTIPLAYER_GHOST_OPACITY + Math.sin(ghostPhase) * MULTIPLAYER_GHOST_PULSE_STRENGTH,
+        0.05,
+        0.95
+      );
+      ctx.globalCompositeOperation = "screen";
+      ctx.filter = `grayscale(0.78) brightness(1.7) drop-shadow(0 0 ${Math.max(5, (player.radius || playerHeadRadiusPixels()) * 0.7)}px rgba(116,232,255,0.9))`;
+    } else if (protectedVisual) ctx.globalAlpha = 0.48 + Math.sin(gameTime * 28) * 0.28;
     else if (damageVisual) ctx.globalAlpha = 0.58 + Math.abs(Math.sin(performance.now() * 0.035)) * 0.42;
     const repulseRange = repulseRangePixels();
     if (repulseRange > 0) {
@@ -6965,6 +7057,7 @@
     ctx.fillRect(-5, -10, 8, 2);
     ctx.restore();
     ctx.restore();
+    if (ghostVisual) drawGhostBeacon(player, pieceScale);
     if (network.enabled) drawPlayerIdLabel(player, pieceScale);
     player = previousPlayer;
     activeGrowth = previousGrowth;

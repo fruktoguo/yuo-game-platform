@@ -21,6 +21,7 @@
     const segmentSpacing = Math.max(0.05, Number(options.segmentSpacing) || 0.58);
     const state = {
       initialized: false,
+      ghost: false,
       col: 0,
       row: 0,
       angle: 0,
@@ -42,6 +43,7 @@
 
     function copyAuthoritative(authoritative) {
       state.initialized = true;
+      state.ghost = Boolean(authoritative.ghost);
       state.col = authoritative.col;
       state.row = authoritative.row;
       state.angle = authoritative.angle;
@@ -65,7 +67,7 @@
     }
 
     function syncAuthoritative(authoritative) {
-      if (!state.initialized) {
+      if (!state.initialized || state.ghost !== Boolean(authoritative.ghost)) {
         copyAuthoritative(authoritative);
         return;
       }

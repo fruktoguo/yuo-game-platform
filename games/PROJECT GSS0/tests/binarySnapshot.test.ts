@@ -5,6 +5,7 @@ import { decodeUltraSnapshot, encodeUltraSnapshot } from '../src/shared/snapshot
 describe('Ultra 二进制快照', () => {
   it('版本化二进制格式恢复客户端所需状态并拒绝截断数据', () => {
     const snapshot = snapshotAt(42, 8.25);
+    snapshot.players[0].ghost = true;
     snapshot.players[0].name = '联机玩家甲';
     snapshot.players[0].segments[0].module = 'spark';
     snapshot.players[0].segments[0].moduleLevel = 4;
@@ -24,7 +25,7 @@ describe('Ultra 二进制快照', () => {
     expect(encoded).toBeInstanceOf(Uint8Array);
     expect(encoded.byteLength).toBeLessThan(Buffer.byteLength(JSON.stringify(snapshot)));
     expect(decoded).toMatchObject({ tick: 42, waveCount: 1, players: [{ name: '联机玩家甲' }] });
-    expect(decoded.players[0]).toMatchObject({ lastInputSequence: 3, speed: 5, knockbackX: 0, knockbackY: 0 });
+    expect(decoded.players[0]).toMatchObject({ ghost: true, lastInputSequence: 3, speed: 5, knockbackX: 0, knockbackY: 0 });
     expect(decoded.players[0].segments[0]).toMatchObject({ module: 'spark', moduleLevel: 4, neutral: false, experienceTier: 0 });
     expect(decoded.players[0].segments[0].birthAge).toBeNull();
     expect(decoded.players[0].segments[1].orbit).toBeCloseTo(1.25, 3);
@@ -127,7 +128,7 @@ function snapshotAt(tick: number, col: number): UltraSnapshot {
     worldObjectRevision: 0,
     worldObjectsComplete: true,
     players: [{
-      entityId: 1, name: '玩家甲', colorIndex: 0, connected: true, alive: true, paused: false, choosingUpgrade: false,
+      entityId: 1, name: '玩家甲', colorIndex: 0, connected: true, alive: true, ghost: false, paused: false, choosingUpgrade: false,
       col, row: 5, angle: 0, desiredAngle: 0, lastInputSequence: 3, speed: 5, slow: 0, foodBoost: 0, knockbackX: 0, knockbackY: 0, invulnerable: 0, collisionCooldown: 0, health: 24, maxHealth: 30, shieldCharges: 2,
       score: 0, kills: 0, botKills: 0, pvpKills: 0, survivalTime: 1, level: 0, xp: 0, xpNeeded: 5,
       respawnAt: null,
