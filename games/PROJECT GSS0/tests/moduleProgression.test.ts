@@ -33,6 +33,17 @@ describe('机体成长规则', () => {
     expect(MODULE_PROGRESSION.chooseUpgradeIds([MODULES[0]], owned, 0, () => 0.1, 3)).toEqual([MODULES[0].id]);
   });
 
+  it('按空槽比例抽取新机体，并保证空槽期至少出现一个新选项', () => {
+    const owned = MODULES.slice(0, 2).map((module) => ({ module: module.id, moduleLevel: 1 }));
+    const rolls = [0.7, 0, 0.6, 0];
+    const weightedChoices = MODULE_PROGRESSION.chooseUpgradeIds(MODULES, owned, 8, () => rolls.shift() ?? 0, 2);
+    expect(weightedChoices.filter((id) => !owned.some((segment) => segment.module === id))).toHaveLength(1);
+
+    const guaranteeOwned = MODULES.slice(0, 3).map((module) => ({ module: module.id, moduleLevel: 1 }));
+    const guaranteedChoices = MODULE_PROGRESSION.chooseUpgradeIds(MODULES, guaranteeOwned, 8, () => 0.99, 2);
+    expect(guaranteedChoices.some((id) => !guaranteeOwned.some((segment) => segment.module === id))).toBe(true);
+  });
+
   it('自动模式填满槽位前只选择新机体', () => {
     const owned = [{ module: MODULES[0].id, moduleLevel: 1 }];
     const newChoices = MODULE_PROGRESSION.chooseAutomaticUpgradeIds(MODULES, owned, 0, () => 0.99, 3);

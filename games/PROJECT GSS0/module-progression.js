@@ -3,7 +3,7 @@
 
   const config = globalThis.GSS0_DESIGNER_CONFIG;
   const modules = globalThis.GSS0ModuleCatalog;
-  if (config?.schemaVersion !== 14 || !Array.isArray(modules) || modules.length === 0) {
+  if (config?.schemaVersion !== 15 || !Array.isArray(modules) || modules.length === 0) {
     throw new Error("PROJECT GSS0 机体成长规则依赖加载失败");
   }
 
@@ -285,13 +285,14 @@
     const ownedIds = new Set(Object.keys(levels));
     const capacity = moduleSlotCapacity(playerLevel);
     const canAddNew = ownedIds.size < capacity;
+    const newModuleChance = capacity > 0 ? clamp((capacity - ownedIds.size) / capacity, 0, 1) : 0;
     const newPool = canAddNew ? availableModules.filter((module) => !ownedIds.has(module.id)) : [];
     const upgradePool = availableModules.filter((module) => ownedIds.has(module.id) && levels[module.id] < maxModuleLevel);
     const choices = [];
     const targetCount = Math.min(Math.max(0, Math.floor(count)), newPool.length + upgradePool.length);
 
     while (choices.length < targetCount) {
-      const preferNew = canAddNew && random() < clamp(balance.newModuleOfferChance, 0, 1);
+      const preferNew = newPool.length > 0 && random() < newModuleChance;
       let pool = preferNew ? newPool : upgradePool;
       if (pool.length === 0) pool = preferNew ? upgradePool : newPool;
       if (pool.length === 0) break;
@@ -301,6 +302,12 @@
       const duplicateIndex = otherPool.findIndex((module) => module.id === choice.id);
       if (duplicateIndex >= 0) otherPool.splice(duplicateIndex, 1);
       choices.push(choice.id);
+    }
+    if (canAddNew && newPool.length > 0 && choices.length > 0 && choices.every((id) => ownedIds.has(id))) {
+      const newIndex = Math.floor(clamp(random(), 0, 0.999999999) * newPool.length);
+      const [guaranteedNew] = newPool.splice(newIndex, 1);
+      const replaceIndex = Math.floor(clamp(random(), 0, 0.999999999) * choices.length);
+      choices[replaceIndex] = guaranteedNew.id;
     }
     return choices;
   }

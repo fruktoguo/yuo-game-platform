@@ -1,5 +1,5 @@
 globalThis.GSS0_DESIGNER_CONFIG = {
-  "schemaVersion": 14,
+  "schemaVersion": 15,
   "balance": {
     "playerBaseSpeed": 5,
     "playerMaxHealth": 20,
@@ -15,7 +15,6 @@ globalThis.GSS0_DESIGNER_CONFIG = {
     "moduleSlotUnlockLevel2": 12,
     "moduleSlotUnlockLevel3": 18,
     "moduleSlotUnlockLevel4": 25,
-    "newModuleOfferChance": 0.5,
     "playerTurnRate": 4.2,
     "upgradeInvulnerabilityDuration": 1,
     "respawnLocatorConvergeDuration": 1,

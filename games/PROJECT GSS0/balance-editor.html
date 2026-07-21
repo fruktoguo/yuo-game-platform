@@ -385,11 +385,11 @@
     </div>
   </main>
 
-  <script src="enemy-codex.js?v=69"></script>
-  <script src="wave-director.js?v=69"></script>
-  <script src="designer-config.js?v=69"></script>
-  <script src="module-catalog.js?v=69"></script>
-  <script src="module-progression.js?v=69"></script>
+  <script src="enemy-codex.js?v=70"></script>
+  <script src="wave-director.js?v=70"></script>
+  <script src="designer-config.js?v=70"></script>
+  <script src="module-catalog.js?v=70"></script>
+  <script src="module-progression.js?v=70"></script>
   <script>
     (() => {
       "use strict";
@@ -421,7 +421,6 @@
         { key: "moduleSlotUnlockLevel2", group: "成长系统", label: "第 2 次扩容等级", hint: "到达该等级后增加 1 个机体槽位", min: 1, max: 100, step: 1, unit: "级" },
         { key: "moduleSlotUnlockLevel3", group: "成长系统", label: "第 3 次扩容等级", hint: "到达该等级后增加 1 个机体槽位", min: 1, max: 100, step: 1, unit: "级" },
         { key: "moduleSlotUnlockLevel4", group: "成长系统", label: "第 4 次扩容等级", hint: "到达该等级后增加最后 1 个机体槽位", min: 1, max: 100, step: 1, unit: "级" },
-        { key: "newModuleOfferChance", group: "成长系统", label: "新机体选项概率", hint: "容量未满时，每张升级卡独立成为新机体的概率；候选池为空时自动回退", min: 0, max: 1, step: 0.01, unit: "概率" },
         { key: "playerTurnRate", group: "玩家", label: "玩家基础转向", hint: "不含涡轮节加成的基础转向速度", min: 0.5, max: 12, step: 0.05, unit: "弧度/秒" },
         { key: "upgradeInvulnerabilityDuration", group: "玩家", label: "升级后无敌时间", hint: "选择机体并恢复移动后的全身保护时间", min: 0, max: 10, step: 0.05, unit: "秒" },
         { key: "respawnLocatorConvergeDuration", group: "表现", label: "复活定位收束时长", hint: "双层外框从屏幕外缩小到玩家蛇头所需的时间", min: 0.1, max: 10, step: 0.1, unit: "秒" },
@@ -640,7 +639,7 @@
       const filePickerSupported = typeof window.showOpenFilePicker === "function";
 
       function normalizeConfig(value) {
-        const config = { schemaVersion: 14, balance: {}, waveEnemyCountSchedule: [], moduleCooldownPercentages: {}, moduleStates: {} };
+        const config = { schemaVersion: 15, balance: {}, waveEnemyCountSchedule: [], moduleCooldownPercentages: {}, moduleStates: {} };
         for (const definition of ALL_PARAMETER_DEFINITIONS) {
           const candidate = Number(value?.balance?.[definition.key]);
           config.balance[definition.key] = Number.isFinite(candidate) ? Math.max(definition.min, Math.min(definition.max, candidate)) : definition.min;
@@ -676,7 +675,7 @@
         const end = text.lastIndexOf("}");
         if (start < 0 || end <= start) throw new Error("配置内容不完整");
         const parsed = JSON.parse(text.slice(start, end + 1));
-        if (parsed?.schemaVersion !== 14) throw new Error("配置版本无效，需要 schemaVersion 14");
+        if (parsed?.schemaVersion !== 15) throw new Error("配置版本无效，需要 schemaVersion 15");
         return normalizeConfig(parsed);
       }
 

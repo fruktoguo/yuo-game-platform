@@ -94,7 +94,7 @@
 
   const TAU = Math.PI * 2;
   const DESIGNER_CONFIG = globalThis.GSS0_DESIGNER_CONFIG || {};
-  if (DESIGNER_CONFIG.schemaVersion !== 14) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 14");
+  if (DESIGNER_CONFIG.schemaVersion !== 15) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 15");
   const DESIGNER_BALANCE = DESIGNER_CONFIG.balance || {};
   const MODULE_DESIGN_STATES = DESIGNER_CONFIG.moduleStates || {};
 
