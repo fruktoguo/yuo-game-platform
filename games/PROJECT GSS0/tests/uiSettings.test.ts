@@ -9,7 +9,7 @@ describe('界面设置', () => {
   it('使用正式游戏名并在左上品牌卡显示当前版本', () => {
     expect(indexHtml).toContain('<title>代号：几何贪吃蛇</title>');
     expect(indexHtml).toContain('<h1 id="game-title"><span>代号：几何贪吃蛇</span></h1>');
-    expect(indexHtml).toContain('<span class="brand-version" aria-label="游戏版本 V72">V72</span>');
+    expect(indexHtml).toContain('<span class="brand-version" aria-label="游戏版本 V73">V73</span>');
     expect(styles).toContain('.brand-version');
     const brandTitleRule = styles.match(/\.brand-lockup strong\s*\{([^}]*)\}/)?.[1];
     const brandVersionRule = styles.match(/\.brand-version\s*\{([^}]*)\}/)?.[1];
@@ -39,7 +39,7 @@ describe('界面设置', () => {
   });
 
   it('升级卡展示机体等级变化且机体架显示槽位占用', () => {
-    expect(indexHtml).toContain('src="module-progression.js?v=72"');
+    expect(indexHtml).toContain('src="module-progression.js?v=73"');
     expect(gameSource).toContain('MODULE_PROGRESSION.moduleUpgradePreview');
     expect(gameSource).toContain('progression.levelLabel');
     expect(gameSource).toContain('ui.rack.dataset.capacity');
@@ -73,6 +73,8 @@ describe('界面设置', () => {
     expect(gameSource).toContain('if (network.enabled) drawPlayerIdLabel(player, pieceScale);');
     expect(gameSource).not.toContain('connected.length > 1');
     expect(gameSource).not.toContain('network.multiplayer');
+    expect(styles).not.toMatch(/#game-shell\.is-multiplayer\s+\.module-rack\s*\{[^}]*display:\s*none;/u);
+    expect(styles).toMatch(/#game-shell\.is-multiplayer:not\(\.is-menu\)\s+\.multiplayer-scoreboard\s*\{\s*display:\s*block;/u);
     expect(indexHtml).toContain('进入多人模式即加入联机共享世界');
   });
 
@@ -100,7 +102,7 @@ describe('界面设置', () => {
     expect(tooltipRule).not.toContain('transition');
     expect(indexHtml).not.toContain('id="description-button"');
     expect(indexHtml).not.toContain('id="description-toggle"');
-    expect(indexHtml).toContain('src="module-catalog.js?v=72"');
+    expect(indexHtml).toContain('src="module-catalog.js?v=73"');
     expect(gameSource).toContain('const MODULE_CATALOG = globalThis.GSS0ModuleCatalog;');
     expect(gameSource).not.toContain('SHORT_MODULE_DESCRIPTIONS');
     expect(gameSource).not.toContain('gss0-detailed-descriptions');

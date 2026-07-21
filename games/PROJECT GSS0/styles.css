@@ -750,10 +750,6 @@ input:focus-visible {
   pointer-events: none;
 }
 
-#game-shell.is-multiplayer .module-rack {
-  display: none;
-}
-
 #game-shell.is-multiplayer:not(.is-menu) .multiplayer-scoreboard {
   display: block;
 }
