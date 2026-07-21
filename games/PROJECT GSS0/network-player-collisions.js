@@ -74,7 +74,7 @@
       if (contact) return { kind: "protected-player", targetId: other.entityId, point: contact.point };
     }
 
-    if (player.invulnerable <= 0) {
+    if (player.invulnerable <= 0 && player.collisionCooldown <= 0) {
       for (const enemy of enemies || []) {
         if (enemy.dead) continue;
         for (let index = 0; index < enemy.segments.length; index += 1) {

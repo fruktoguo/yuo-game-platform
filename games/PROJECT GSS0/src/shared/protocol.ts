@@ -50,6 +50,8 @@ export interface UltraPlayerView extends GridPoint {
   knockbackY: number;
   invulnerable: number;
   collisionCooldown: number;
+  health: number;
+  maxHealth: number;
   score: number;
   kills: number;
   botKills: number;
@@ -159,9 +161,9 @@ export interface UltraSnapshot {
   pendingSpawns: PendingSpawnView[];
 }
 
-export type UltraSoundKind = 'ui' | 'start' | 'pause' | 'resume' | 'foodSpawn' | 'enemyWarning' | 'enemySpawn' | 'bounce' | 'shoot' | 'skill' | 'frost' | 'electric' | 'nova' | 'laser' | 'mine' | 'pulse' | 'regen' | 'hit' | 'kill' | 'level' | 'levelCharge' | 'select' | 'shield' | 'death' | 'eat';
+export type UltraSoundKind = 'ui' | 'start' | 'pause' | 'resume' | 'foodSpawn' | 'enemyWarning' | 'enemySpawn' | 'bounce' | 'shoot' | 'skill' | 'frost' | 'electric' | 'nova' | 'laser' | 'mine' | 'pulse' | 'regen' | 'hit' | 'hurt' | 'kill' | 'level' | 'levelCharge' | 'select' | 'shield' | 'death' | 'eat';
 
-export type UltraFeedbackKind = 'growth' | 'growth-special' | 'level' | 'food' | 'food-special' | 'hit' | 'kill' | 'blast' | 'bounce';
+export type UltraFeedbackKind = 'growth' | 'growth-special' | 'level' | 'food' | 'food-special' | 'hit' | 'hurt' | 'kill' | 'blast' | 'bounce';
 
 export interface UltraEffectBase {
   id: string;
@@ -182,6 +184,7 @@ export type UltraEffect = UltraEffectBase & (
   | ({ type: 'text'; col: number; row: number; text: string; color: string; life: number } & UltraEffectAnchor)
   | { id: string; type: 'experienceCompress'; sources: GridPoint[]; target: GridPoint; fromTier: number; toTier: number; delay: number; ownerEntityId: number; audienceEntityId?: number }
   | { id: string; type: 'enemyBodyHit'; enemyId: number; beforeCount: number; start: number; count: number; reconnectIndex: number; audienceEntityId?: number }
+  | { id: string; type: 'playerHurt'; playerEntityId: number; col: number; row: number; amount: number; health: number; maxHealth: number }
   | { id: string; type: 'sound'; kind: UltraSoundKind; detail?: number; sourceEntityId?: number; audienceEntityId?: number }
   | { id: string; type: 'feedback'; kind: UltraFeedbackKind; audienceEntityId: number }
   | { id: string; type: 'flash'; color: string; strength: number; audienceEntityId?: number }
@@ -247,8 +250,9 @@ export interface ArenaJoinData {
 export type InputPayload = Uint8Array;
 
 export type PlayerCollisionClaim =
+  | { kind: 'wall'; normalCol: number; normalRow: number }
   | { kind: 'enemy-head' | 'enemy-protected'; targetId: number; normalCol: number; normalRow: number }
-  | { kind: 'enemy-body' | 'enemy-hit-body' | 'player-body'; targetId: number; segmentIndex: number }
+  | { kind: 'enemy-body' | 'enemy-hit-body'; targetId: number; segmentIndex: number }
   | { kind: 'mine'; targetId: number; normalCol: number; normalRow: number }
   | {
       kind: 'player-head';

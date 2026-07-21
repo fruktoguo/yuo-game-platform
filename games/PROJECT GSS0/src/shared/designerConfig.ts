@@ -11,7 +11,7 @@ interface DesignerConfigSource {
 }
 
 const source = (globalThis as typeof globalThis & { GSS0_DESIGNER_CONFIG?: DesignerConfigSource }).GSS0_DESIGNER_CONFIG;
-if (source?.schemaVersion !== 10) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 10');
+if (source?.schemaVersion !== 11) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 11');
 
 function numberSetting(key: string, fallback: number, minimum: number, maximum: number, integer = false): number {
   const candidate = source?.balance?.[key];
@@ -47,6 +47,12 @@ export const DESIGNER_WAVE_ENEMY_COUNT_SCHEDULE = waveEnemyCountScheduleSetting(
 
 export const DESIGNER_BALANCE = Object.freeze({
   playerBaseSpeed: numberSetting('playerBaseSpeed', 5, 1, 12),
+  playerMaxHealth: numberSetting('playerMaxHealth', 30, 1, 10_000),
+  playerHealthRegenPerSecond: numberSetting('playerHealthRegenPerSecond', 1, 0, 1_000),
+  playerEnemyBodyCollisionDamage: numberSetting('playerEnemyBodyCollisionDamage', 10, 0, 10_000),
+  playerWallCollisionDamage: numberSetting('playerWallCollisionDamage', 5, 0, 10_000),
+  playerCollisionDamage: numberSetting('playerCollisionDamage', 1, 0, 1_000, true),
+  enemyCollisionDamage: numberSetting('enemyCollisionDamage', 1, 0, 1_000, true),
   xpRequirementBase: numberSetting('xpRequirementBase', 5, 1, 100, true),
   xpRequirementPerLevel: numberSetting('xpRequirementPerLevel', 2, 0, 20, true),
   experienceCompressionBase: numberSetting('experienceCompressionBase', 5, 2, 10, true),
@@ -122,7 +128,6 @@ export const DESIGNER_BALANCE = Object.freeze({
   enemySpawnWarning: numberSetting('enemySpawnWarning', 1.5, 0, 10),
   projectileSpeedScale: numberSetting('projectileSpeedScale', 3, 0.1, 10),
   projectileSizeScale: numberSetting('projectileSizeScale', 2, 0.1, 10),
-  headAttackInterval: numberSetting('headAttackInterval', 3, 0.05, 30),
   poisonInitialTickDelay: numberSetting('poisonInitialTickDelay', 1.4, 0.05, 30),
   poisonTickInterval: numberSetting('poisonTickInterval', 2.3, 0.05, 30),
   activeSkillBaseCooldown: numberSetting('activeSkillBaseCooldown', 3, 0.05, 30),
@@ -159,6 +164,11 @@ export const DESIGNER_BALANCE = Object.freeze({
   upgradeInvulnerabilityDuration: numberSetting('upgradeInvulnerabilityDuration', 0.5, 0, 10),
   respawnLocatorConvergeDuration: numberSetting('respawnLocatorConvergeDuration', 1, 0.1, 10),
   respawnLocatorFadeDuration: numberSetting('respawnLocatorFadeDuration', 3, 0.1, 20),
+  playerDamageEffectDuration: numberSetting('playerDamageEffectDuration', 0.65, 0.1, 5),
+  playerDamageFlashStrength: numberSetting('playerDamageFlashStrength', 0.55, 0, 2),
+  playerDamageShakeStrength: numberSetting('playerDamageShakeStrength', 9, 0, 30),
+  playerDamageParticleCount: numberSetting('playerDamageParticleCount', 26, 0, 200, true),
+  playerDamageParticleSpeed: numberSetting('playerDamageParticleSpeed', 190, 0, 1_000),
   maxRenderFps: numberSetting('maxRenderFps', 60, 30, 240, true),
   maxRenderDpr: numberSetting('maxRenderDpr', 1.25, 1, 2),
   networkPlayerStateHz: numberSetting('networkPlayerStateHz', 20, 5, 60, true),

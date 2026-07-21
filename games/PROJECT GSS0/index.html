@@ -19,7 +19,7 @@
           <strong>代号：几何贪吃蛇</strong>
         </div>
         <span class="signature">by 四季鸽</span>
-        <span class="brand-version" aria-label="游戏版本 V60">V60</span>
+        <span class="brand-version" aria-label="游戏版本 V61">V61</span>
       </div>
 
       <div class="run-stats">
@@ -128,13 +128,24 @@
         <strong id="level-value">0</strong>
       </div>
       <div class="xp-panel">
-        <div class="xp-row">
-          <span>升级进度</span>
-          <strong><span id="xp-value">0</span> / <span id="xp-needed">5</span></strong>
+        <div id="health-group" class="resource-group health-group">
+          <div class="xp-row health-row">
+            <span>机体耐久</span>
+            <strong><span id="health-value">30</span> / <span id="health-max">30</span></strong>
+          </div>
+          <div class="health-track" aria-hidden="true">
+            <div id="health-fill" class="health-fill"></div>
+          </div>
         </div>
-        <div class="xp-track" aria-hidden="true">
-          <div id="xp-fill" class="xp-fill"></div>
-          <div id="xp-pips" class="xp-pips"></div>
+        <div class="resource-group xp-group">
+          <div class="xp-row">
+            <span>升级进度</span>
+            <strong><span id="xp-value">0</span> / <span id="xp-needed">5</span></strong>
+          </div>
+          <div class="xp-track" aria-hidden="true">
+            <div id="xp-fill" class="xp-fill"></div>
+            <div id="xp-pips" class="xp-pips"></div>
+          </div>
         </div>
       </div>
     </section>
@@ -145,7 +156,7 @@
 
     <section id="start-screen" class="modal-layer start-screen is-visible" aria-labelledby="game-title">
       <div class="start-glow" aria-hidden="true"></div>
-      <div class="start-version" aria-label="游戏版本 V60"><span>BUILD</span><strong>V60</strong></div>
+      <div class="start-version" aria-label="游戏版本 V61"><span>BUILD</span><strong>V61</strong></div>
       <div class="start-layout">
         <div class="start-content">
           <div id="network-status" class="title-kicker">TACTICAL SURVIVAL / LOCAL</div>
@@ -185,11 +196,11 @@
           </header>
           <section>
             <strong><span>01</span> 单人行动</strong>
-            <p><span>吃球升级</span><span>蛇头撞蛇头会弹开</span><span>蛇头撞身体游戏结束</span><span>敌人会抢球，摧毁敌人后全部爆出</span></p>
+            <p><span>初始拥有 30 点耐久，每秒恢复 1 点</span><span>蛇头撞敌蛇会造成 1 点伤害并弹开</span><span>撞敌蛇身体受到 10 点伤害，撞墙受到 5 点伤害</span><span>敌人会抢球，摧毁敌人后全部爆出</span></p>
           </section>
           <section>
             <strong><span>02</span> 多人共斗</strong>
-            <p><span>进入多人模式即加入联机共享世界</span><span>波次规模随人数增加</span><span>玩家技能不会误伤其他玩家</span><span>但蛇头撞上其他玩家的身体仍会死亡</span><span>只要仍有人存活，其他玩家可无限复活</span></p>
+            <p><span>进入多人模式即加入联机共享世界</span><span>波次规模随人数增加</span><span>玩家技能不会误伤其他玩家</span><span>撞上其他玩家的身体不会受伤</span><span>只要仍有人存活，其他玩家可无限复活</span></p>
           </section>
         </aside>
       </div>
@@ -236,6 +247,21 @@
           <button id="changelog-close-button" class="icon-button codex-close-button" type="button" aria-label="关闭更新日志" title="关闭更新日志">×</button>
         </header>
         <div class="changelog-list">
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V61</strong></div>
+              <time datetime="2026-07-21">2026.07.21</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">生存机制</span>
+              <h3>耐久系统与碰撞战斗</h3>
+              <ul>
+                <li>玩家获得 30 点耐久与每秒 1 点恢复；撞敌蛇身体受到 10 点伤害，撞墙受到 5 点伤害。</li>
+                <li>蛇头取消自动开火，改为撞击敌蛇造成 1 点伤害；玩家互撞身体不再死亡或受伤。</li>
+                <li>敌蛇撞墙或撞上其他敌蛇时受到 1 点伤害，并新增受伤音效、闪烁、震屏与红色伤害浮字。</li>
+              </ul>
+            </div>
+          </article>
           <article class="changelog-entry">
             <header>
               <div class="changelog-version"><span>BUILD</span><strong>V60</strong></div>
@@ -931,20 +957,20 @@
     </section>
   </main>
 
-  <script src="designer-config.js?v=60"></script>
-  <script src="module-catalog.js?v=60"></script>
-  <script src="module-progression.js?v=60"></script>
-  <script src="wave-director.js?v=60"></script>
-  <script src="spawn-planner.js?v=60"></script>
-  <script src="network-codec.js?v=60"></script>
-  <script src="network-player-prediction.js?v=60"></script>
-  <script src="network-player-state-codec.js?v=60"></script>
-  <script src="network-player-collisions.js?v=60"></script>
-  <script src="network-head-collisions.js?v=60"></script>
-  <script src="network-food-claims.js?v=60"></script>
-  <script src="network-projectiles.js?v=60"></script>
-  <script src="lobby-navigation.js?v=60"></script>
-  <script src="enemy-codex.js?v=60"></script>
-  <script src="game.js?v=60"></script>
+  <script src="designer-config.js?v=61"></script>
+  <script src="module-catalog.js?v=61"></script>
+  <script src="module-progression.js?v=61"></script>
+  <script src="wave-director.js?v=61"></script>
+  <script src="spawn-planner.js?v=61"></script>
+  <script src="network-codec.js?v=61"></script>
+  <script src="network-player-prediction.js?v=61"></script>
+  <script src="network-player-state-codec.js?v=61"></script>
+  <script src="network-player-collisions.js?v=61"></script>
+  <script src="network-head-collisions.js?v=61"></script>
+  <script src="network-food-claims.js?v=61"></script>
+  <script src="network-projectiles.js?v=61"></script>
+  <script src="lobby-navigation.js?v=61"></script>
+  <script src="enemy-codex.js?v=61"></script>
+  <script src="game.js?v=61"></script>
 </body>
 </html>

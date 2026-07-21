@@ -126,7 +126,7 @@ function snapshotAt(tick: number, col: number): UltraSnapshot {
     worldObjectsComplete: true,
     players: [{
       entityId: 1, name: '玩家甲', colorIndex: 0, connected: true, alive: true, paused: false, choosingUpgrade: false,
-      col, row: 5, angle: 0, desiredAngle: 0, lastInputSequence: 3, speed: 5, slow: 0, foodBoost: 0, knockbackX: 0, knockbackY: 0, invulnerable: 0, collisionCooldown: 0,
+      col, row: 5, angle: 0, desiredAngle: 0, lastInputSequence: 3, speed: 5, slow: 0, foodBoost: 0, knockbackX: 0, knockbackY: 0, invulnerable: 0, collisionCooldown: 0, health: 24, maxHealth: 30,
       score: 0, kills: 0, botKills: 0, pvpKills: 0, survivalTime: 1, level: 0, xp: 0, xpNeeded: 5,
       respawnAt: null,
       segments: [{ col: col - 1, row: 5, angle: 0, module: null, moduleLevel: 0, neutral: true, experienceTier: 2, timer: 0, ready: true, cooldown: 0, orbit: 0, birthAge: null }],

@@ -382,11 +382,11 @@
     </div>
   </main>
 
-  <script src="enemy-codex.js?v=60"></script>
-  <script src="wave-director.js?v=60"></script>
-  <script src="designer-config.js?v=60"></script>
-  <script src="module-catalog.js?v=60"></script>
-  <script src="module-progression.js?v=60"></script>
+  <script src="enemy-codex.js?v=61"></script>
+  <script src="wave-director.js?v=61"></script>
+  <script src="designer-config.js?v=61"></script>
+  <script src="module-catalog.js?v=61"></script>
+  <script src="module-progression.js?v=61"></script>
   <script>
     (() => {
       "use strict";
@@ -405,6 +405,10 @@
 
       const ALL_PARAMETER_DEFINITIONS = [
         { key: "playerBaseSpeed", group: "玩家", label: "玩家基础速度", hint: "升级与机体加速前的每秒移动格数", min: 1, max: 12, step: 0.1, unit: "格/秒" },
+        { key: "playerMaxHealth", group: "玩家", label: "玩家生命上限", hint: "每次出生时拥有的生命值与生命上限", min: 1, max: 10000, step: 1, unit: "点" },
+        { key: "playerHealthRegenPerSecond", group: "玩家", label: "玩家生命恢复", hint: "存活并正常行动时每秒恢复的生命值", min: 0, max: 1000, step: 0.1, unit: "点/秒" },
+        { key: "playerEnemyBodyCollisionDamage", group: "玩家", label: "撞敌蛇身体受伤", hint: "玩家蛇头撞上敌蛇身体时受到的伤害", min: 0, max: 10000, step: 1, unit: "点" },
+        { key: "playerWallCollisionDamage", group: "玩家", label: "撞墙受伤", hint: "玩家蛇头撞上场地边界时受到的伤害", min: 0, max: 10000, step: 1, unit: "点" },
         { key: "xpRequirementBase", group: "玩家", label: "升级基础经验需求", hint: "0 级升到 1 级所需的经验球数量", min: 1, max: 100, step: 1, unit: "球" },
         { key: "xpRequirementPerLevel", group: "玩家", label: "升级每级经验增长", hint: "需求公式为：基础需求 + 当前等级 × 此数值", min: 0, max: 20, step: 1, unit: "球/级" },
         { key: "experienceCompressionBase", group: "成长系统", label: "经验压缩进位数", hint: "达到该数量的同级经验机体后，自动压缩成一节高一级经验机体", min: 2, max: 10, step: 1, unit: "节" },
@@ -419,7 +423,11 @@
         { key: "upgradeInvulnerabilityDuration", group: "玩家", label: "升级后无敌时间", hint: "选择机体并恢复移动后的全身保护时间", min: 0, max: 10, step: 0.05, unit: "秒" },
         { key: "respawnLocatorConvergeDuration", group: "表现", label: "复活定位收束时长", hint: "双层外框从屏幕外缩小到玩家蛇头所需的时间", min: 0.1, max: 10, step: 0.1, unit: "秒" },
         { key: "respawnLocatorFadeDuration", group: "表现", label: "复活定位淡出时长", hint: "外框到达玩家蛇头后逐渐变淡消失的时间", min: 0.1, max: 20, step: 0.1, unit: "秒" },
-        { key: "headAttackInterval", group: "玩家", label: "蛇头基础攻击间隔", hint: "未受超频增幅节影响时，蛇头自动开火的基础间隔", min: 0.05, max: 30, step: 0.05, unit: "秒" },
+        { key: "playerDamageEffectDuration", group: "表现", label: "玩家受伤演出时长", hint: "受伤闪烁、红色浮字与冲击环的持续时间", min: 0.1, max: 5, step: 0.05, unit: "秒" },
+        { key: "playerDamageFlashStrength", group: "表现", label: "玩家受伤闪屏强度", hint: "本地玩家受伤时红色全屏闪光的强度", min: 0, max: 2, step: 0.05, unit: "强度" },
+        { key: "playerDamageShakeStrength", group: "表现", label: "玩家受伤震屏强度", hint: "本地玩家受伤时镜头震动的强度", min: 0, max: 30, step: 0.5, unit: "强度" },
+        { key: "playerDamageParticleCount", group: "表现", label: "玩家受伤粒子数", hint: "每次受伤在玩家位置爆出的红色粒子数量", min: 0, max: 200, step: 1, unit: "个" },
+        { key: "playerDamageParticleSpeed", group: "表现", label: "玩家受伤粒子速度", hint: "每次受伤爆出粒子的基础飞行速度", min: 0, max: 1000, step: 5, unit: "速度" },
         { key: "enemyBaseSpeed", group: "敌人全局", label: "敌人基础速度", hint: "各类型速度倍率和时间成长生效前的每秒移动格数", min: 0.5, max: 12, step: 0.1, unit: "格/秒" },
         { key: "enemySpeedPerMinute", group: "敌人全局", label: "每分钟速度成长", hint: "每经过一分钟附加的敌人速度倍率；0.01 表示提高 1%", min: 0, max: 0.2, step: 0.005, unit: "倍率/分钟" },
         { key: "enemySpeedMaxMultiplier", group: "敌人全局", label: "时间速度倍率上限", hint: "时间成长可将敌人基础速度提高到的最高倍率", min: 1, max: 3, step: 0.01, unit: "倍" },
@@ -428,6 +436,7 @@
         { key: "enemyThinkIntervalMin", group: "敌人全局", label: "AI 思考间隔下界", hint: "敌人重新选择目标和路线的最短间隔", min: 0.05, max: 5, step: 0.01, unit: "秒" },
         { key: "enemyThinkIntervalMax", group: "敌人全局", label: "AI 思考间隔上界", hint: "敌人重新选择目标和路线的最长间隔", min: 0.05, max: 5, step: 0.01, unit: "秒" },
         { key: "enemyFoodSearchLimit", group: "敌人全局", label: "AI 候选球数量", hint: "敌人每次决策最多评估的附近球数量", min: 1, max: 32, step: 1, unit: "枚" },
+        { key: "enemyCollisionDamage", group: "敌人全局", label: "敌人碰撞伤害", hint: "敌蛇撞墙或撞上其他敌蛇时受到的伤害", min: 0, max: 1000, step: 1, unit: "点" },
         { key: "waveInterval", group: "波次曲线", label: "基础波次间隔", hint: "不含增压信标时，相邻两波之间的固定倒计时", min: 0.5, max: 120, step: 0.1, unit: "秒" },
         { key: "enemyPressureWaveInterval", group: "波次曲线", label: "高压波周期", hint: "每隔多少波触发高压波；0 表示关闭", min: 0, max: 50, step: 1, unit: "波" },
         { key: "enemyPressureEnemyCountMultiplier", group: "波次曲线", label: "高压波敌人数倍率", hint: "高压波相对当前区间基础敌人数的整数倍率", min: 1, max: 10, step: 1, unit: "倍" },
@@ -484,6 +493,7 @@
         { key: "enemyWardenKnockbackMultiplier", group: "守卫者", label: "头撞击退倍率", hint: "玩家与守卫者蛇头碰撞时受到的额外击退倍率", min: 1, max: 4, step: 0.05, unit: "倍" },
         { key: "projectileSpeedScale", group: "战斗", label: "全局子弹速度倍率", hint: "作用于所有以速度参数发射的投射物", min: 0.1, max: 10, step: 0.05, unit: "倍" },
         { key: "projectileSizeScale", group: "战斗", label: "全局子弹体积倍率", hint: "同时放大所有子弹的绘制尺寸与命中体积；2 表示基础尺寸的两倍", min: 0.1, max: 10, step: 0.05, unit: "倍" },
+        { key: "playerCollisionDamage", group: "战斗", label: "玩家撞击伤害", hint: "玩家蛇头撞上敌蛇头部或身体时对敌蛇造成的基础伤害", min: 0, max: 1000, step: 1, unit: "点" },
         { key: "poisonInitialTickDelay", group: "战斗", label: "毒伤首次生效延迟", hint: "毒弹命中后到第一次持续伤害生效的等待时间", min: 0.05, max: 30, step: 0.05, unit: "秒" },
         { key: "poisonTickInterval", group: "战斗", label: "毒伤后续间隔", hint: "第一次毒伤生效后，每次持续伤害之间的间隔", min: 0.05, max: 30, step: 0.05, unit: "秒" },
         { key: "activeSkillBaseCooldown", group: "战斗", label: "主动技能基础冷却", hint: "第二页各机体的冷却百分比均以此时间为 100%", min: 0.05, max: 30, step: 0.05, unit: "秒" },
@@ -503,7 +513,7 @@
         { key: "moduleFeastDuration", moduleId: "feast", group: "吞噬涡轮", label: "吃球增益时长", hint: "吃球后移动速度增益的持续时间，再次吃球会刷新", min: 0.05, max: 30, step: 0.05, unit: "秒" },
         { key: "moduleFeastSpeedPerLevel", moduleId: "feast", group: "吞噬涡轮", label: "每级增益速度", hint: "增益期间每一级增加的移动速度倍率", min: 0, max: 5, step: 0.01, unit: "倍率/级" },
         { key: "moduleSalvageExpectedDropsPerLevel", moduleId: "salvage", group: "回收炉节", label: "每级回收期望", hint: "每节敌蛇身体受损时，每一级增加的回收球期望", min: 0, max: 10, step: 0.01, unit: "球/级" },
-        { key: "moduleAmplifierCooldownRatePerLevel", moduleId: "amplifier", group: "超频增幅节", label: "每级冷却速度", hint: "每一级为蛇头与所有主动技能增加的冷却速度", min: 0, max: 5, step: 0.01, unit: "倍率/级" },
+        { key: "moduleAmplifierCooldownRatePerLevel", moduleId: "amplifier", group: "超频增幅节", label: "每级冷却速度", hint: "每一级为所有主动技能增加的冷却速度", min: 0, max: 5, step: 0.01, unit: "倍率/级" },
         { key: "moduleBufferKnockbackReductionPerLevel", moduleId: "buffer", group: "动能缓冲节", label: "每级击退减免", hint: "每一级减少的玩家物理击退力度", min: 0, max: 1, step: 0.01, unit: "比例/级" },
         { key: "moduleDecoyAvoidanceReductionPerLevel", moduleId: "decoy", group: "诱导涂层", label: "每级避让削弱", hint: "每一级减少的敌蛇身体避让强度", min: 0, max: 1, step: 0.01, unit: "比例/级" },
         { key: "moduleDecoyMaxAvoidanceReduction", moduleId: "decoy", group: "诱导涂层", label: "避让削弱上限", hint: "诱导涂层最多能够削弱的敌蛇避让强度", min: 0, max: 1, step: 0.01, unit: "比例" },
@@ -600,7 +610,7 @@
       const filePickerSupported = typeof window.showOpenFilePicker === "function";
 
       function normalizeConfig(value) {
-        const config = { schemaVersion: 10, balance: {}, waveEnemyCountSchedule: [], moduleCooldownPercentages: {}, moduleStates: {} };
+        const config = { schemaVersion: 11, balance: {}, waveEnemyCountSchedule: [], moduleCooldownPercentages: {}, moduleStates: {} };
         for (const definition of ALL_PARAMETER_DEFINITIONS) {
           const candidate = Number(value?.balance?.[definition.key]);
           config.balance[definition.key] = Number.isFinite(candidate) ? Math.max(definition.min, Math.min(definition.max, candidate)) : definition.min;
@@ -636,7 +646,7 @@
         const end = text.lastIndexOf("}");
         if (start < 0 || end <= start) throw new Error("配置内容不完整");
         const parsed = JSON.parse(text.slice(start, end + 1));
-        if (parsed?.schemaVersion !== 10) throw new Error("配置版本无效，需要 schemaVersion 10");
+        if (parsed?.schemaVersion !== 11) throw new Error("配置版本无效，需要 schemaVersion 11");
         return normalizeConfig(parsed);
       }
 
@@ -854,7 +864,7 @@
           draft.balance[definition.key] = next;
           range.value = next;
           number.value = next;
-          if (["activeSkillBaseCooldown", "headAttackInterval"].includes(definition.key)) renderModules();
+          if (definition.key === "activeSkillBaseCooldown") renderModules();
           if (definition.moduleId) refreshModuleDescription(definition.moduleId);
           if (WAVE_PREVIEW_PARAMETER_KEYS.has(definition.key)) renderWavePreview();
           scheduleAutoSave();

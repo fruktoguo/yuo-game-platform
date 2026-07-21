@@ -2,7 +2,7 @@
   "use strict";
 
   const MAGIC = 0x55534e50;
-  const VERSION = 9;
+  const VERSION = 10;
   const GRID_SIZE = 24;
   const COORDINATE_PADDING = 2;
   const TAU = Math.PI * 2;
@@ -92,6 +92,8 @@
     result.knockbackY = reader.f32();
     result.invulnerable = reader.f32();
     result.collisionCooldown = reader.f32();
+    result.health = reader.f32();
+    result.maxHealth = reader.f32();
     result.score = reader.f32();
     result.kills = reader.u16();
     result.botKills = reader.u16();

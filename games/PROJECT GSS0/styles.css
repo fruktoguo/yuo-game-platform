@@ -1003,10 +1003,17 @@ input:focus-visible {
 }
 
 .xp-panel {
+  display: grid;
   flex: 1;
   min-width: 0;
+  align-content: center;
+  gap: 13px;
   padding: 11px 18px 10px;
   transform: translate3d(var(--ui-shift-x-reverse), var(--ui-shift-y-reverse), 12px);
+}
+
+.resource-group {
+  min-width: 0;
 }
 
 .xp-row {
@@ -1026,7 +1033,13 @@ input:focus-visible {
   font-variant-numeric: tabular-nums;
 }
 
-.xp-track {
+.health-row strong,
+.health-row strong span {
+  color: #ff6b82;
+}
+
+.xp-track,
+.health-track {
   position: relative;
   height: 13px;
   overflow: hidden;
@@ -1274,6 +1287,38 @@ input:focus-visible {
   font-size: calc(11px * var(--font-scale));
   font-weight: 700;
   line-height: 1.75;
+}
+
+.health-track {
+  border-color: rgba(255, 92, 119, 0.52);
+  background: repeating-linear-gradient(135deg, #2d2024 0 5px, #211a1d 5px 10px);
+}
+
+.health-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 100%;
+  background: linear-gradient(90deg, #ff355e, #ff6b82 72%, #f3c600);
+  box-shadow: 8px 0 0 rgba(255, 255, 255, 0.22);
+  transition: width 140ms ease;
+}
+
+.health-group.is-hit .health-track {
+  animation: health-hit-track 260ms steps(2, end) 2;
+}
+
+.health-group.is-hit .health-fill {
+  animation: health-hit-fill 180ms ease-out 2 alternate;
+}
+
+@keyframes health-hit-track {
+  0%, 100% { border-color: rgba(255, 92, 119, 0.52); }
+  50% { border-color: #ffffff; box-shadow: 0 0 18px rgba(255, 53, 94, 0.72); }
+}
+
+@keyframes health-hit-fill {
+  from { filter: brightness(1); }
+  to { filter: brightness(1.75); }
 }
 
 .module-rack::before {
@@ -2369,16 +2414,16 @@ input:focus-visible {
   }
 
   .hud-bottom .xp-panel {
-    display: flex;
+    display: grid;
     min-height: 0;
-    justify-content: center;
-    flex-direction: column;
+    align-content: center;
+    gap: 22px;
     padding: 22px 24px 24px;
     transform: none;
   }
 
   .hud-bottom .xp-row {
-    margin-bottom: 20px;
+    margin-bottom: 9px;
   }
 
   .hud-bottom .xp-row > span {
@@ -2397,7 +2442,8 @@ input:focus-visible {
     font-size: inherit;
   }
 
-  .hud-bottom .xp-track {
+  .hud-bottom .xp-track,
+  .hud-bottom .health-track {
     height: 18px;
   }
 

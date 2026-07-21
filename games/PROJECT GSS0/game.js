@@ -22,6 +22,10 @@
     level: document.querySelector("#level-value"),
     xp: document.querySelector("#xp-value"),
     needed: document.querySelector("#xp-needed"),
+    health: document.querySelector("#health-value"),
+    maxHealth: document.querySelector("#health-max"),
+    healthFill: document.querySelector("#health-fill"),
+    healthGroup: document.querySelector("#health-group"),
     xpFill: document.querySelector("#xp-fill"),
     xpPips: document.querySelector("#xp-pips"),
     rack: document.querySelector("#module-rack"),
@@ -87,7 +91,7 @@
 
   const TAU = Math.PI * 2;
   const DESIGNER_CONFIG = globalThis.GSS0_DESIGNER_CONFIG || {};
-  if (DESIGNER_CONFIG.schemaVersion !== 10) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 10");
+  if (DESIGNER_CONFIG.schemaVersion !== 11) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 11");
   const DESIGNER_BALANCE = DESIGNER_CONFIG.balance || {};
   const MODULE_DESIGN_STATES = DESIGNER_CONFIG.moduleStates || {};
 
@@ -98,7 +102,6 @@
     return integer ? Math.round(clamped) : clamped;
   }
 
-  const HEAD_ATTACK_INTERVAL = designerNumber("headAttackInterval", 3, 0.05, 30);
   const POISON_INITIAL_TICK_DELAY = designerNumber("poisonInitialTickDelay", 1.4, 0.05, 30);
   const POISON_TICK_INTERVAL = designerNumber("poisonTickInterval", 2.3, 0.05, 30);
   const XP_REQUIREMENT_BASE = designerNumber("xpRequirementBase", 5, 1, 100, true);
@@ -171,6 +174,12 @@
   const PROJECTILE_SPEED_SCALE = designerNumber("projectileSpeedScale", 3, 0.1, 10);
   const PROJECTILE_SIZE_SCALE = designerNumber("projectileSizeScale", 2, 0.1, 10);
   const PLAYER_BASE_SPEED = designerNumber("playerBaseSpeed", 5, 1, 12);
+  const PLAYER_MAX_HEALTH = designerNumber("playerMaxHealth", 30, 1, 10000);
+  const PLAYER_HEALTH_REGEN_PER_SECOND = designerNumber("playerHealthRegenPerSecond", 1, 0, 1000);
+  const PLAYER_ENEMY_BODY_COLLISION_DAMAGE = designerNumber("playerEnemyBodyCollisionDamage", 10, 0, 10000);
+  const PLAYER_WALL_COLLISION_DAMAGE = designerNumber("playerWallCollisionDamage", 5, 0, 10000);
+  const PLAYER_COLLISION_DAMAGE = designerNumber("playerCollisionDamage", 1, 0, 1000, true);
+  const ENEMY_COLLISION_DAMAGE = designerNumber("enemyCollisionDamage", 1, 0, 1000, true);
   const PLAYER_TURN_RATE = designerNumber("playerTurnRate", 4.2, 0.5, 12);
   const ENEMY_BASE_SPEED = designerNumber("enemyBaseSpeed", 4, 0.5, 12);
   const ENEMY_SPEED_PER_MINUTE = designerNumber("enemySpeedPerMinute", 0.01, 0, 0.2);
@@ -231,6 +240,11 @@
   const UPGRADE_INVULNERABILITY_DURATION = designerNumber("upgradeInvulnerabilityDuration", 0.5, 0, 10);
   const RESPAWN_LOCATOR_CONVERGE_DURATION = designerNumber("respawnLocatorConvergeDuration", 1, 0.1, 10);
   const RESPAWN_LOCATOR_FADE_DURATION = designerNumber("respawnLocatorFadeDuration", 3, 0.1, 20);
+  const PLAYER_DAMAGE_EFFECT_DURATION = designerNumber("playerDamageEffectDuration", 0.65, 0.1, 5);
+  const PLAYER_DAMAGE_FLASH_STRENGTH = designerNumber("playerDamageFlashStrength", 0.55, 0, 2);
+  const PLAYER_DAMAGE_SHAKE_STRENGTH = designerNumber("playerDamageShakeStrength", 9, 0, 30);
+  const PLAYER_DAMAGE_PARTICLE_COUNT = designerNumber("playerDamageParticleCount", 26, 0, 200, true);
+  const PLAYER_DAMAGE_PARTICLE_SPEED = designerNumber("playerDamageParticleSpeed", 190, 0, 1000);
   const GROWTH_NODE_DELAY = 0.045;
   const GROWTH_PULSE_DURATION = 0.3;
   const SEGMENT_BIRTH_DURATION = 0.34;
@@ -257,6 +271,7 @@
     food: 2.8,
     "food-special": 4,
     hit: 2.2,
+    hurt: PLAYER_DAMAGE_SHAKE_STRENGTH,
     kill: 7,
     blast: 5,
     bounce: 4.5
@@ -312,7 +327,6 @@
   let lastNeeded = -1;
   let waveTimer = 0;
   let waveCount = 0;
-  let headFireTimer = 0;
   let nextEnemyId = 1;
   let nextLocalFoodId = 1;
   let shake = 0;
@@ -379,6 +393,7 @@
     localDesiredAngle: NaN,
     localDeathPending: false,
     collisionClaims: new Map(),
+    localHurtPredictions: [],
     localEnemyDeaths: new Map(),
     enemyBodyDamageOps: new Map(),
     pendingVisualEffects: [],
@@ -1352,6 +1367,7 @@
     network.localDesiredAngle = NaN;
     network.localDeathPending = false;
     network.collisionClaims.clear();
+    network.localHurtPredictions.length = 0;
     network.localEnemyDeaths.clear();
     networkHeadCollisionRuntime.clear();
     networkPlayerPredictionRuntime.clear();
@@ -1481,7 +1497,87 @@
     return Number.isFinite(anchor?.x) && Number.isFinite(anchor?.y) ? anchor : cellCenter(col, row);
   }
 
+  function formatDamageAmount(amount) {
+    return Number.isInteger(amount) ? String(amount) : String(Number(amount.toFixed(1)));
+  }
+
+  function pulseHealthHud() {
+    ui.healthGroup.classList.remove("is-hit");
+    void ui.healthGroup.offsetWidth;
+    ui.healthGroup.classList.add("is-hit");
+    window.setTimeout(() => ui.healthGroup.classList.remove("is-hit"), PLAYER_DAMAGE_EFFECT_DURATION * 1000);
+  }
+
+  function playPlayerHurtPresentation(target, amount, affectsSelf) {
+    if (!target || amount <= 0) return;
+    const x = Number.isFinite(target.x) ? target.x : cellCenter(target.col, target.row).x;
+    const y = Number.isFinite(target.y) ? target.y : cellCenter(target.col, target.row).y;
+    target.damageFlashUntil = performance.now() + PLAYER_DAMAGE_EFFECT_DURATION * 1000;
+    burst(x, y, "#ff355e", PLAYER_DAMAGE_PARTICLE_COUNT, PLAYER_DAMAGE_PARTICLE_SPEED);
+    effects.push({
+      type: "ring",
+      x,
+      y,
+      color: "#ff355e",
+      life: PLAYER_DAMAGE_EFFECT_DURATION,
+      maxLife: PLAYER_DAMAGE_EFFECT_DURATION,
+      radius: Math.max(4, (target.radius || playerHeadRadiusPixels()) * 0.45),
+      endRadius: Math.max(18, (target.radius || playerHeadRadiusPixels()) * 2.8)
+    });
+    effects.push({
+      type: "text",
+      x,
+      y: y - (target.radius || playerHeadRadiusPixels()),
+      text: `-${formatDamageAmount(amount)}`,
+      color: "#ff355e",
+      life: PLAYER_DAMAGE_EFFECT_DURATION,
+      maxLife: PLAYER_DAMAGE_EFFECT_DURATION,
+      emphasis: true
+    });
+    if (!affectsSelf) return;
+    sound("hurt", 0, network.enabled ? network.selfEntityId : null);
+    shake = Math.max(shake, PLAYER_DAMAGE_SHAKE_STRENGTH);
+    flash = Math.max(flash, PLAYER_DAMAGE_FLASH_STRENGTH);
+    pulseHealthHud();
+  }
+
+  function predictNetworkPlayerHurt(amount) {
+    if (!player || amount <= 0) return;
+    const now = performance.now();
+    network.localHurtPredictions.push({ amount, at: now });
+    if (network.localHurtPredictions.length > 4) network.localHurtPredictions.shift();
+    if (Number.isFinite(player.health)) player.health = Math.max(0, player.health - amount);
+    playPlayerHurtPresentation(player, amount, true);
+    updateHud();
+  }
+
+  function consumeNetworkHurtPrediction(amount, now = performance.now()) {
+    let matched = false;
+    let writeIndex = 0;
+    for (const prediction of network.localHurtPredictions) {
+      if (now - prediction.at > 1500) continue;
+      if (!matched && Math.abs(prediction.amount - amount) < 0.01) {
+        matched = true;
+        continue;
+      }
+      network.localHurtPredictions[writeIndex++] = prediction;
+    }
+    network.localHurtPredictions.length = writeIndex;
+    return matched;
+  }
+
   function applyNetworkEffect(item) {
+    if (item.type === "playerHurt") {
+      const target = network.playerViews.get(item.playerEntityId) || cellCenter(item.col, item.row);
+      const affectsSelf = item.playerEntityId === network.selfEntityId;
+      target.health = item.health;
+      target.maxHealth = item.maxHealth;
+      if (!affectsSelf || !consumeNetworkHurtPrediction(item.amount)) {
+        playPlayerHurtPresentation(target, item.amount, affectsSelf);
+      }
+      if (affectsSelf) updateHud();
+      return;
+    }
     if (item.type === "sound") {
       if (item.kind === "levelCharge") {
         ui.levelUpBanner.classList.remove("is-active");
@@ -1536,7 +1632,7 @@
         : item.segments.map((segment) => cellCenter(segment.col, segment.row));
       if (renderedEnemy) renderedEnemy.dead = true;
       playEnemyDeathPresentation(head, segments, item.color, {
-        playSound: item.ownerEntityId != null,
+        playSound: true,
         rewardSelf: item.ownerEntityId === network.selfEntityId,
         soundSourceEntityId: item.ownerEntityId
       });
@@ -2357,15 +2453,6 @@
     sendNetworkInput(true, true);
   }
 
-  function eliminateNetworkSelf(claim, key) {
-    if (network.localDeathPending || state !== "running") return;
-    sendNetworkInput(true);
-    network.localDeathPending = true;
-    burst(player.x, player.y, "#b8f53f", 28, 170);
-    showNetworkGameOver(player);
-    reportNetworkCollision(claim, key);
-  }
-
   function checkNetworkMineCollision() {
     const headRange = playerHeadRadiusPixels() / arena.cellSize + 6 / 34;
     for (const hazard of hazards) {
@@ -2399,6 +2486,11 @@
     if (collision.kind === "wall") {
       player.col = clamp(player.col, arena.worldMin, arena.worldMax);
       player.row = clamp(player.row, arena.worldMin, arena.worldMax);
+      const claimed = reportNetworkCollision(
+        { kind: "wall", normalCol: collision.normalCol, normalRow: collision.normalRow },
+        "wall"
+      );
+      if (claimed && player.invulnerable <= 0) predictNetworkPlayerHurt(PLAYER_WALL_COLLISION_DAMAGE);
       bounceNetworkSelf(collision.normalCol, collision.normalRow, "#b8f53f");
       return;
     }
@@ -2412,23 +2504,22 @@
       return;
     }
     if (collision.kind === "enemy-body") {
-      if (consumeDefense()) {
-        networkPlayerPredictionRuntime.adoptLocal(player);
-        applyNetworkSelfPrediction(player);
-        sendNetworkInput(true);
-        reportNetworkCollision({ kind: "enemy-body", targetId: collision.targetId, segmentIndex: collision.segmentIndex }, `enemy-body:${collision.targetId}`);
-      } else {
-        eliminateNetworkSelf(
-          { kind: "enemy-body", targetId: collision.targetId, segmentIndex: collision.segmentIndex },
-          `death:enemy:${collision.targetId}`
-        );
-      }
+      const defended = consumeDefense();
+      const claimed = reportNetworkCollision(
+        { kind: "enemy-body", targetId: collision.targetId, segmentIndex: collision.segmentIndex },
+        `enemy-body:${collision.targetId}`
+      );
+      if (claimed && !defended) predictNetworkPlayerHurt(PLAYER_ENEMY_BODY_COLLISION_DAMAGE);
+      const enemy = enemies.find((item) => item.id === collision.targetId);
+      bounceNetworkSelf(player.col - collision.point.col, player.row - collision.point.row, enemy?.color || "#ff355e");
       return;
     }
     if (collision.kind === "player-body") {
-      eliminateNetworkSelf(
-        { kind: "player-body", targetId: collision.targetId, segmentIndex: collision.segmentIndex },
-        `death:player:${collision.targetId}`
+      const other = visiblePlayers.find((item) => item.entityId === collision.targetId);
+      bounceNetworkSelf(
+        player.col - collision.point.col,
+        player.row - collision.point.row,
+        other?.playerColor || "#dffcff"
       );
       return;
     }
@@ -2584,7 +2675,6 @@
     xpNeeded = experienceRequiredForLevel(0);
     waveTimer = 0;
     waveCount = 0;
-    headFireTimer = HEAD_ATTACK_INTERVAL;
     nextEnemyId = 1;
     nextLocalFoodId = 1;
     shake = 0;
@@ -2621,6 +2711,8 @@
       speed: 5,
       radius: playerHeadRadiusPixels(),
       invulnerable: 0,
+      health: PLAYER_MAX_HEALTH,
+      maxHealth: PLAYER_MAX_HEALTH,
       slow: 0,
       collisionCooldown: 0,
       knockbackX: 0,
@@ -3157,7 +3249,7 @@
       return;
     }
 
-    const cooldowns = { shoot: 45, skill: 65, frost: 70, electric: 75, hit: 48, foodSpawn: 70, bounce: 90, ui: 70 };
+    const cooldowns = { shoot: 45, skill: 65, frost: 70, electric: 75, hit: 48, hurt: 180, foodSpawn: 70, bounce: 90, ui: 70 };
     const wallTime = performance.now();
     const cooldown = cooldowns[kind] || 0;
     const cooldownKey = sourceEntityId == null ? kind : `${kind}:${sourceEntityId}`;
@@ -3183,6 +3275,7 @@
       pulse: [310, 90, 0.2, "sine", 0.034],
       regen: [410, 760, 0.24, "sine", 0.028, 980],
       hit: [150, 90, 0.08, "square", 0.025],
+      hurt: [105, 38, 0.28, "sawtooth", 0.075, 430],
       kill: [180, 560, 0.18, "sawtooth", 0.045, 840],
       level: [330, 880, 0.3, "triangle", 0.06, 1320],
       compress: [260, 760, 0.18, "triangle", 0.04, 1040],
@@ -3230,10 +3323,6 @@
       if (segment.module === id) count += Math.max(1, segment.moduleLevel || 1);
     }
     return Math.min(maximum, count);
-  }
-
-  function outputRateMultiplier() {
-    return 1 / (1 + MODULE_EFFECTS.amplifierCooldownRateBonus(moduleCount("amplifier")));
   }
 
   function activeModuleCooldown(moduleId, moduleLevel = moduleCount(moduleId), extraCooldownRateBonus = 0) {
@@ -3764,6 +3853,12 @@
     setText(ui.wave, `${waveCount}/${population} · ${nextWave}`);
     setText(ui.score, Math.floor(score).toLocaleString("zh-CN"));
     setText(ui.level, level);
+    const currentHealth = Math.max(0, player?.health || 0);
+    const maximumHealth = Math.max(1, player?.maxHealth || PLAYER_MAX_HEALTH);
+    setText(ui.health, Number(currentHealth.toFixed(1)));
+    setText(ui.maxHealth, Number(maximumHealth.toFixed(1)));
+    const healthWidth = `${clamp(currentHealth / maximumHealth * 100, 0, 100)}%`;
+    if (force || ui.healthFill.style.width !== healthWidth) ui.healthFill.style.width = healthWidth;
     setText(ui.xp, xp);
     setText(ui.needed, xpNeeded);
     const xpWidth = `${clamp((xp / xpNeeded) * 100, 0, 100)}%`;
@@ -4166,16 +4261,9 @@
     return true;
   }
 
-  function updateHeadWeapon(dt) {
-    headFireTimer -= dt;
-    if (headFireTimer > 0) return;
-    const target = nearestEnemyJoint(player);
-    if (!target) {
-      headFireTimer = 0;
-      return;
-    }
-    const fired = spawnShot(player, target, { color: "#dffcff", speed: 360, size: 3.7 });
+  function triggerCollisionEcho(target) {
     const echoes = moduleCount("echo");
+    if (echoes <= 0 || !target) return;
     for (let index = 0; index < echoes; index += 1) {
       const direction = index % 2 ? 1 : -1;
       const tier = Math.floor(index / 2) + 1;
@@ -4186,10 +4274,22 @@
         angleOffset: direction * tier * 0.13
       });
     }
-    if (fired) {
-      sound("shoot");
-      headFireTimer = HEAD_ATTACK_INTERVAL * outputRateMultiplier();
-    }
+    sound("shoot");
+  }
+
+  function applyPlayerCollisionAttack(enemy, node, hitHead) {
+    if (!enemy || enemy.dead || !node) return;
+    const segmentIndex = hitHead ? -1 : enemy.segments.indexOf(node);
+    const target = { enemy, node, segmentIndex, distanceSquared: distanceSquared(player, node) };
+    triggerCollisionEcho(target);
+    damageEnemy(enemy, PLAYER_COLLISION_DAMAGE, node.x, node.y, player.playerColor || "#f3c600", { hitSegmentIndex: segmentIndex });
+    if (!hitHead || enemy.dead) return;
+    const ram = moduleCount("ram");
+    if (ram <= 0 || player.ramCooldown > 0) return;
+    damageEnemy(enemy, 1, enemy.x, enemy.y, MODULE_BY_ID.ram.color, { hitSegmentIndex: -1 });
+    player.ramCooldown = activeModuleCooldown("ram", ram);
+    effects.push({ type: "ring", x: player.x, y: player.y, color: MODULE_BY_ID.ram.color, life: 0.42, maxLife: 0.42, radius: 6, endRadius: arena.cellSize });
+    playSkillSound("ram");
   }
 
   function playSkillSound(moduleId) {
@@ -4633,8 +4733,10 @@
           normalY = -Math.sin(first.angle);
         }
 
-        bounceEntity(first, normalX, normalY, first.color, 0.54);
-        bounceEntity(second, -normalX, -normalY, second.color, 0.54);
+        damageEnemy(first, ENEMY_COLLISION_DAMAGE, first.x, first.y, second.color, { rewardSelf: false, hitSegmentIndex: -1 });
+        damageEnemy(second, ENEMY_COLLISION_DAMAGE, second.x, second.y, first.color, { rewardSelf: false, hitSegmentIndex: -1 });
+        if (!first.dead) bounceEntity(first, normalX, normalY, first.color, 0.54);
+        if (!second.dead) bounceEntity(second, -normalX, -normalY, second.color, 0.54);
         break;
       }
     }
@@ -4663,15 +4765,29 @@
           const bucket = bodyBuckets.get(`${col},${row}`);
           if (!bucket) continue;
           for (const entry of bucket) {
-            if (entry.owner === enemy || distanceSquared(enemy, entry.segment) >= bodyRangeSquared) continue;
-            bodyHit = entry.segment;
+            if (
+              entry.owner === enemy
+              || entry.owner.dead
+              || !entry.owner.segments.includes(entry.segment)
+              || distanceSquared(enemy, entry.segment) >= bodyRangeSquared
+            ) continue;
+            bodyHit = entry;
             break;
           }
         }
       }
 
       if (bodyHit) {
-        bounceEntity(enemy, enemy.col - bodyHit.col, enemy.row - bodyHit.row, enemy.color, 0.54);
+        const ownerSegmentIndex = bodyHit.owner.segments.indexOf(bodyHit.segment);
+        if (ownerSegmentIndex < 0) continue;
+        const normalX = enemy.col - bodyHit.segment.col;
+        const normalY = enemy.row - bodyHit.segment.row;
+        damageEnemy(bodyHit.owner, ENEMY_COLLISION_DAMAGE, bodyHit.segment.x, bodyHit.segment.y, enemy.color, {
+          rewardSelf: false,
+          hitSegmentIndex: ownerSegmentIndex
+        });
+        damageEnemy(enemy, ENEMY_COLLISION_DAMAGE, enemy.x, enemy.y, bodyHit.owner.color, { rewardSelf: false, hitSegmentIndex: -1 });
+        if (!enemy.dead) bounceEntity(enemy, normalX, normalY, enemy.color, 0.54);
       }
     }
   }
@@ -4909,13 +5025,7 @@
             normalX = -Math.cos(player.angle);
             normalY = -Math.sin(player.angle);
           }
-          const ram = moduleCount("ram");
-          if (ram > 0 && player.ramCooldown <= 0) {
-            damageEnemy(enemy, 1, enemy.x, enemy.y, MODULE_BY_ID.ram.color);
-            player.ramCooldown = activeModuleCooldown("ram", ram);
-            effects.push({ type: "ring", x: player.x, y: player.y, color: MODULE_BY_ID.ram.color, life: 0.42, maxLife: 0.42, radius: 6, endRadius: arena.cellSize });
-            playSkillSound("ram");
-          }
+          applyPlayerCollisionAttack(enemy, enemy, true);
           const impulseMultiplier = enemy.archetype === "warden" ? ENEMY_BEHAVIOR_TUNING.wardenKnockbackMultiplier : 1;
           bounceEntity(player, normalX, normalY, "#dffcff", 0.58, impulseMultiplier);
           if (!enemy.dead) bounceEntity(enemy, -normalX, -normalY, enemy.color, 0.54);
@@ -4926,7 +5036,9 @@
       if (wallNormal) {
         enemy.col = clamp(nextCol, arena.worldMin, arena.worldMax);
         enemy.row = clamp(nextRow, arena.worldMin, arena.worldMax);
-        bounceEntity(enemy, wallNormal.x, wallNormal.y, enemy.color, 0.54);
+        syncNodePosition(enemy);
+        damageEnemy(enemy, ENEMY_COLLISION_DAMAGE, enemy.x, enemy.y, "#f3c600", { rewardSelf: false, hitSegmentIndex: -1 });
+        if (!enemy.dead) bounceEntity(enemy, wallNormal.x, wallNormal.y, enemy.color, 0.54);
         continue;
       }
       enemy.col = nextCol;
@@ -5147,7 +5259,7 @@
     return { start: Math.min(hit - before, segmentCount - count), count };
   }
 
-  function damageEnemy(enemy, amount, x, y, color) {
+  function damageEnemy(enemy, amount, x, y, color, options = {}) {
     if (!enemy || enemy.dead) return;
     const impactX = Number.isFinite(x) ? x : enemy.x;
     const impactY = Number.isFinite(y) ? y : enemy.y;
@@ -5155,7 +5267,9 @@
     const safeAmount = Math.max(0, Math.floor(amount));
     if (safeAmount === 0) return;
     const beforeCount = enemy.segments.length;
-    const hitSegmentIndex = nearestEnemySegmentIndex(enemy, impactX, impactY);
+    const hitSegmentIndex = Number.isInteger(options.hitSegmentIndex)
+      ? clamp(options.hitSegmentIndex, -1, Math.max(-1, beforeCount - 1))
+      : nearestEnemySegmentIndex(enemy, impactX, impactY);
     const span = enemyDamageSpan(beforeCount, hitSegmentIndex, safeAmount);
     const removed = enemy.segments.splice(span.start, span.count);
     const destroysHead = safeAmount > beforeCount;
@@ -5164,61 +5278,71 @@
     if (!destroysHead) startEnemyReconnect(enemy, reconnectIndex);
     for (const segment of removed) {
       burst(segment.x, segment.y, impactColor, 7, 95);
-      const salvageDrops = MODULE_PROGRESSION.rollLinearRewards(
-        MODULE_EFFECTS.salvageExpectedDrops(moduleCount("salvage")),
-        Math.random
-      );
-      for (let index = 0; index < salvageDrops; index += 1) {
-        spawnFood(segment.x + random(-10, 10), segment.y + random(-10, 10), true);
+      if (options.rewardSelf !== false) {
+        const salvageDrops = MODULE_PROGRESSION.rollLinearRewards(
+          MODULE_EFFECTS.salvageExpectedDrops(moduleCount("salvage")),
+          Math.random
+        );
+        for (let index = 0; index < salvageDrops; index += 1) {
+          spawnFood(segment.x + random(-10, 10), segment.y + random(-10, 10), true);
+        }
       }
     }
     updateEnemyHitBounds(enemy);
     burst(impactX, impactY, impactColor, 8, 115);
     effects.push({ type: "ring", x: impactX, y: impactY, color: impactColor, life: 0.34, maxLife: 0.34, radius: 3, endRadius: 16 });
     effects.push({ type: "text", x: impactX, y: impactY - 12, text: `-${appliedDamage}`, color: impactColor, life: 0.62, maxLife: 0.62 });
-    sound("hit");
-    shake = Math.max(shake, 2.2);
-    if (destroysHead) killEnemy(enemy);
+    if (options.rewardSelf !== false) {
+      sound("hit");
+      shake = Math.max(shake, 2.2);
+    }
+    if (destroysHead) killEnemy(enemy, options.rewardSelf !== false);
   }
 
-  function killEnemy(enemy) {
+  function killEnemy(enemy, rewardSelf = true) {
     if (!enemy || enemy.dead) return;
     enemy.dead = true;
     const dropOccupied = occupiedCellKeys();
-    kills += 1;
-    score += 100 + enemy.captured * 25;
-    playEnemyDeathPresentation(enemy, enemy.segments, enemy.color, { playSound: true, rewardSelf: true });
+    if (rewardSelf) {
+      kills += 1;
+      score += 100 + enemy.captured * 25;
+    }
+    playEnemyDeathPresentation(enemy, enemy.segments, enemy.color, { playSound: true, rewardSelf });
     spawnFood(enemy.x, enemy.y, false, dropOccupied);
 
-    const cache = moduleCount("cache");
-    if (cache > 0) {
-      player.cacheKills += 1;
-      const cacheThreshold = MODULE_EFFECTS.cacheKillsPerTrigger();
-      if (player.cacheKills >= cacheThreshold) {
-        player.cacheKills -= cacheThreshold;
-        for (let index = 0; index < cache; index += 1) spawnFood(enemy.x, enemy.y, true, dropOccupied);
-        effects.push({ type: "ring", x: enemy.x, y: enemy.y, color: MODULE_BY_ID.cache.color, life: 0.65, maxLife: 0.65, radius: 8, endRadius: arena.cellSize });
+    if (rewardSelf) {
+      const cache = moduleCount("cache");
+      if (cache > 0) {
+        player.cacheKills += 1;
+        const cacheThreshold = MODULE_EFFECTS.cacheKillsPerTrigger();
+        if (player.cacheKills >= cacheThreshold) {
+          player.cacheKills -= cacheThreshold;
+          for (let index = 0; index < cache; index += 1) spawnFood(enemy.x, enemy.y, true, dropOccupied);
+          effects.push({ type: "ring", x: enemy.x, y: enemy.y, color: MODULE_BY_ID.cache.color, life: 0.65, maxLife: 0.65, radius: 8, endRadius: arena.cellSize });
+        }
       }
-    }
 
-    const bloom = moduleCount("bloom");
-    if (bloom > 0 && player.bloomCooldown <= 0) {
-      spawnFood(enemy.x, enemy.y, true, dropOccupied);
-      player.bloomCooldown = activeModuleCooldown("bloom", bloom);
+      const bloom = moduleCount("bloom");
+      if (bloom > 0 && player.bloomCooldown <= 0) {
+        spawnFood(enemy.x, enemy.y, true, dropOccupied);
+        player.bloomCooldown = activeModuleCooldown("bloom", bloom);
+      }
     }
 
     let dropCount = enemy.captured;
     enemy.captured = 0;
-    dropCount += MODULE_PROGRESSION.rollLinearRewards(
-      MODULE_EFFECTS.fortuneExpectedDrops(moduleCount("fortune")),
-      Math.random
-    );
+    if (rewardSelf) {
+      dropCount += MODULE_PROGRESSION.rollLinearRewards(
+        MODULE_EFFECTS.fortuneExpectedDrops(moduleCount("fortune")),
+        Math.random
+      );
+    }
     for (let index = 0; index < dropCount; index += 1) {
       const angle = index * 2.4 + random(-0.25, 0.25);
       const distance = 22 + Math.sqrt(index + 1) * 12;
       spawnFood(enemy.x + Math.cos(angle) * distance, enemy.y + Math.sin(angle) * distance, true, dropOccupied);
     }
-    updateHud();
+    if (rewardSelf) updateHud();
   }
 
   function playEnemyDeathParticles(head, segments, color) {
@@ -5237,7 +5361,16 @@
     if (options.rewardSelf) shake = Math.max(shake, 7);
   }
 
-  function consumeDefense(enemy = null) {
+  function damagePlayer(amount) {
+    if (!player || state !== "running" || player.invulnerable > 0 || amount <= 0) return false;
+    player.health = Math.max(0, player.health - amount);
+    playPlayerHurtPresentation(player, amount, true);
+    updateHud();
+    if (player.health <= 0) gameOver();
+    return true;
+  }
+
+  function consumeDefense() {
     const armorRateBonus = MODULE_EFFECTS.armorCooldownRateBonus(moduleCount("armor"));
     const shield = player.segments.find((segment) => segment.module === "shield" && segment.ready);
     const phase = player.segments.find((segment) => segment.module === "phase" && segment.ready);
@@ -5259,7 +5392,8 @@
     if (wallNormal) {
       player.col = clamp(player.col, arena.worldMin, arena.worldMax);
       player.row = clamp(player.row, arena.worldMin, arena.worldMax);
-      bounceEntity(player, wallNormal.x, wallNormal.y, "#b8f53f", 0.58);
+      damagePlayer(PLAYER_WALL_COLLISION_DAMAGE);
+      if (state === "running") bounceEntity(player, wallNormal.x, wallNormal.y, "#b8f53f", 0.58);
       return;
     }
 
@@ -5271,13 +5405,16 @@
       }
     }
 
-    if (player.invulnerable <= 0) {
+    if (player.invulnerable <= 0 && player.collisionCooldown <= 0) {
       for (const enemy of enemies) {
         if (enemy.dead) continue;
-        for (const segment of enemy.segments) {
+        for (let segmentIndex = 0; segmentIndex < enemy.segments.length; segmentIndex += 1) {
+          const segment = enemy.segments[segmentIndex];
           if (Math.hypot(player.col - segment.col, player.row - segment.row) < 0.42) {
-            if (consumeDefense(enemy)) damageEnemy(enemy, 1, segment.x, segment.y, "#ffffff");
-            else gameOver();
+            const defended = consumeDefense();
+            applyPlayerCollisionAttack(enemy, segment, false);
+            if (!defended) damagePlayer(PLAYER_ENEMY_BODY_COLLISION_DAMAGE);
+            if (state === "running") bounceEntity(player, player.col - segment.col, player.row - segment.row, enemy.color, 0.58);
             return;
           }
         }
@@ -5301,13 +5438,7 @@
         normalY = -Math.sin(player.angle);
       }
 
-      const ram = moduleCount("ram");
-      if (ram > 0 && player.ramCooldown <= 0) {
-        damageEnemy(enemy, 1, enemy.x, enemy.y, MODULE_BY_ID.ram.color);
-        player.ramCooldown = activeModuleCooldown("ram", ram);
-        effects.push({ type: "ring", x: player.x, y: player.y, color: MODULE_BY_ID.ram.color, life: 0.42, maxLife: 0.42, radius: 6, endRadius: arena.cellSize });
-        playSkillSound("ram");
-      }
+      applyPlayerCollisionAttack(enemy, enemy, true);
 
       const impulseMultiplier = enemy.archetype === "warden" ? ENEMY_BEHAVIOR_TUNING.wardenKnockbackMultiplier : 1;
       bounceEntity(player, normalX, normalY, "#dffcff", 0.58, impulseMultiplier);
@@ -5396,6 +5527,7 @@
 
     gameTime += worldDt;
     score += worldDt * (3 + level * 0.35);
+    player.health = Math.min(player.maxHealth, player.health + PLAYER_HEALTH_REGEN_PER_SECOND * worldDt);
     updateGrowthAnimation(worldDt, dt);
     if (state !== "running") {
       updateEffects(dt);
@@ -5408,7 +5540,6 @@
     movePlayer(worldDt);
     updateFood(worldDt);
     if (state !== "running") return;
-    updateHeadWeapon(worldDt);
     updateModules(worldDt);
     updateEnemies(worldDt);
     updateProjectiles(worldDt);
@@ -6141,7 +6272,9 @@
     ctx.save();
     const pieceScale = arenaPieceScale();
     const protectedVisual = player.protectedState || player.invulnerable > 0;
+    const damageVisual = Number.isFinite(player.damageFlashUntil) && performance.now() < player.damageFlashUntil;
     if (protectedVisual) ctx.globalAlpha = 0.48 + Math.sin(gameTime * 28) * 0.28;
+    else if (damageVisual) ctx.globalAlpha = 0.58 + Math.abs(Math.sin(performance.now() * 0.035)) * 0.42;
     const repulseRange = repulseRangePixels();
     if (repulseRange > 0) {
       ctx.save();
@@ -6304,7 +6437,7 @@
     const headScale = 1 + headGrowthPulse * 0.44;
     ctx.scale(pieceScale * headScale, pieceScale * headScale);
     ctx.rotate(player.angle);
-    ctx.shadowColor = headGrowthPulse > 0 ? activeGrowth.color : (player.playerColor || "rgba(243,198,0,0.7)");
+    ctx.shadowColor = damageVisual ? "#ff355e" : (headGrowthPulse > 0 ? activeGrowth.color : (player.playerColor || "rgba(243,198,0,0.7)"));
     ctx.shadowBlur = 14 + headGrowthPulse * 9;
     ctx.fillStyle = "#e7e9e8";
     ctx.strokeStyle = "#090b0c";

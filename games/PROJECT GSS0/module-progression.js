@@ -3,7 +3,7 @@
 
   const config = globalThis.GSS0_DESIGNER_CONFIG;
   const modules = globalThis.GSS0ModuleCatalog;
-  if (config?.schemaVersion !== 10 || !Array.isArray(modules) || modules.length === 0) {
+  if (config?.schemaVersion !== 11 || !Array.isArray(modules) || modules.length === 0) {
     throw new Error("PROJECT GSS0 机体成长规则依赖加载失败");
   }
 
@@ -143,7 +143,7 @@
 
   function passiveStats(moduleId, level) {
     switch (moduleId) {
-      case "echo": return [{ label: "追加子弹", value: safeLevel(level), format: (value) => `${value}枚` }];
+      case "echo": return [{ label: "撞击发射", value: safeLevel(level), format: (value) => `${value}枚` }];
       case "repulse": return [{ label: "作用半径", value: effects.repulseRangePixels(level), format: (value) => `${formatNumber(value)}px` }];
       case "armor": return [{ label: "护盾冷却速度", value: effects.armorCooldownRateBonus(level), format: formatPercent }];
       case "stabilizer": return [
