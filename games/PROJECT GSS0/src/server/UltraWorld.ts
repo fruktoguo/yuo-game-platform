@@ -8,7 +8,6 @@ import {
   DISCONNECT_GRACE_MS,
   ENEMY_BASE_SPEED,
   ENEMY_BODY_RECONNECT_DURATION,
-  ENEMY_SEGMENT_SPACING,
   ENEMY_HEAD_REFORM_DURATION,
   ENEMY_COLORS,
   ENEMY_DAMAGE_NUMBER_DURATION,
@@ -48,7 +47,6 @@ import {
   PLAYER_ENEMY_BODY_COLLISION_DAMAGE,
   PLAYER_HEALTH_REGEN_PER_SECOND,
   PLAYER_MAX_HEALTH,
-  PLAYER_SEGMENT_SPACING,
   PLAYER_TURN_RATE,
   PLAYER_WALL_COLLISION_DAMAGE,
   ENEMY_COLLISION_DAMAGE,
@@ -56,6 +54,8 @@ import {
   PROJECTILE_SIZE_SCALE,
   PROJECTILE_SPEED_SCALE,
   RESPAWN_DELAY_MS,
+  SNAKE_BODY_SIZE_SCALE,
+  SNAKE_SEGMENT_SPACING,
   UPGRADE_INVULNERABILITY_DURATION,
   WAVE_BASE_INTERVAL,
 } from '../shared/constants';
@@ -93,6 +93,11 @@ import type {
 } from '../shared/protocol';
 
 const TAU = Math.PI * 2;
+const ENEMY_HEAD_RADIUS_CELLS = 0.28 * SNAKE_BODY_SIZE_SCALE;
+const SNAKE_BODY_CONTACT_RANGE = 0.42 * SNAKE_BODY_SIZE_SCALE;
+const ENEMY_BODY_CONTACT_RANGE = 0.46 * SNAKE_BODY_SIZE_SCALE;
+const PLAYER_SELF_COLLISION_RANGE = 0.5 * SNAKE_BODY_SIZE_SCALE;
+const ENEMY_SELF_COLLISION_RANGE = 0.48 * SNAKE_BODY_SIZE_SCALE;
 const TARGET_REQUIRED_MODULES = new Set<ModuleId>([
   'spark', 'frost', 'prism', 'tesla', 'laser', 'missile', 'venom',
   'rail', 'ricochet', 'cluster', 'fan', 'gravity', 'needle', 'mortar', 'sweep',
@@ -557,7 +562,7 @@ export class UltraWorld {
       if (claim.kind === 'enemy-head') {
         this.applyPlayerCollisionAttack(player, enemy, enemy, -1, true);
       }
-      if (!enemy.dead) this.bounceEntity(enemy, -claim.normalCol, -claim.normalRow, enemy.color, ENEMY_SEGMENT_SPACING, 1 + MODULE_PROGRESSION.effects.momentumKnockbackBonus(this.moduleCount(player, 'momentum')));
+      if (!enemy.dead) this.bounceEntity(enemy, -claim.normalCol, -claim.normalRow, enemy.color, SNAKE_SEGMENT_SPACING, 1 + MODULE_PROGRESSION.effects.momentumKnockbackBonus(this.moduleCount(player, 'momentum')));
       return true;
     }
     if (claim.kind === 'enemy-body') {
@@ -626,7 +631,7 @@ export class UltraWorld {
     this.recentPlayerHeadCollisionPairs.set(pairKey, { eventId, at: now });
     this.recentPlayerHeadCollisionEvents.set(eventId, now);
     if (target.autopilot) {
-      this.bounceEntity(target, -event.normalCol, -event.normalRow, PLAYER_COLORS[target.colorIndex], PLAYER_SEGMENT_SPACING, 1, true);
+      this.bounceEntity(target, -event.normalCol, -event.normalRow, PLAYER_COLORS[target.colorIndex], SNAKE_SEGMENT_SPACING, 1, true);
     }
     this.callbacks.onPlayerHeadCollision?.(event);
     return true;
@@ -1312,7 +1317,7 @@ export class UltraWorld {
       player.knockbackY = 0;
       player.col = clamp(player.col + Math.cos(player.angle) * player.speed * delta, this.arenaMinimum(), this.arenaMaximum());
       player.row = clamp(player.row + Math.sin(player.angle) * player.speed * delta, this.arenaMinimum(), this.arenaMaximum());
-      followContinuousSegments(player.col, player.row, player.segments, PLAYER_SEGMENT_SPACING);
+      followContinuousSegments(player.col, player.row, player.segments, SNAKE_SEGMENT_SPACING);
       return;
     }
     if (player.collisionCooldown > 0) player.desiredAngle = player.angle;
@@ -1322,7 +1327,7 @@ export class UltraWorld {
     player.col += (Math.cos(player.angle) * player.speed + player.knockbackX) * delta;
     player.row += (Math.sin(player.angle) * player.speed + player.knockbackY) * delta;
     this.applyKnockbackDecay(player, delta);
-    followContinuousSegments(player.col, player.row, player.segments, PLAYER_SEGMENT_SPACING);
+    followContinuousSegments(player.col, player.row, player.segments, SNAKE_SEGMENT_SPACING);
   }
 
   private updatePlayerTimers(player: PlayerEntity, delta: number): void {
@@ -1597,7 +1602,7 @@ export class UltraWorld {
       profile.tractorRange = MODULE_PROGRESSION.effects.tractorRangeCells(tractor);
       profile.tractorSpeed = MODULE_PROGRESSION.effects.tractorPullSpeed(tractor);
       profile.headRange = this.playerHeadRadiusCells() + 0.13 + MODULE_PROGRESSION.effects.magnetPickupRangeCells(this.moduleCount(player, 'magnet'));
-      profile.bodyRange = 0.42 + MODULE_PROGRESSION.effects.collectorPickupRadiusCells(this.moduleCount(player, 'collector'));
+      profile.bodyRange = SNAKE_BODY_CONTACT_RANGE + MODULE_PROGRESSION.effects.collectorPickupRadiusCells(this.moduleCount(player, 'collector'));
       if (tractor > 0) tractorProfiles.push(profile);
       if (player.autopilot) collectorProfiles.push(profile);
       profileCount += 1;
@@ -1705,7 +1710,7 @@ export class UltraWorld {
 
   private findFoodCollector(player: PlayerEntity, food: FoodEntity, extraRange = 0): { collector: GridPoint; distance: number } | null {
     const headRange = this.playerHeadRadiusCells() + 0.13 + MODULE_PROGRESSION.effects.magnetPickupRangeCells(this.moduleCount(player, 'magnet')) + extraRange;
-    const bodyRange = 0.42 + MODULE_PROGRESSION.effects.collectorPickupRadiusCells(this.moduleCount(player, 'collector')) + extraRange;
+    const bodyRange = SNAKE_BODY_CONTACT_RANGE + MODULE_PROGRESSION.effects.collectorPickupRadiusCells(this.moduleCount(player, 'collector')) + extraRange;
     return this.findFoodCollectorWithin(player, food, headRange, bodyRange);
   }
 
@@ -2318,8 +2323,8 @@ export class UltraWorld {
   }
 
   private bladeHitSegmentIndex(target: EnemyEntity, blade: GridPoint, radius: number): number | null {
-    if (distanceSquared(blade, target) < (radius + 0.28) ** 2) return -1;
-    const segmentRadiusSquared = (radius + this.pixelsToCells(9)) ** 2;
+    if (distanceSquared(blade, target) < (radius + ENEMY_HEAD_RADIUS_CELLS) ** 2) return -1;
+    const segmentRadiusSquared = (radius + this.enemySegmentRadiusCells()) ** 2;
     let nearestIndex: number | null = null;
     let nearestDistance = segmentRadiusSquared;
     for (let index = 0; index < target.segments.length; index += 1) {
@@ -2666,8 +2671,8 @@ export class UltraWorld {
 
   private circularTargetHitIndexes(origin: GridPoint, radius: number, target: EnemyEntity): number[] {
     const hits: number[] = [];
-    if (distanceSquared(origin, target) < (radius + 0.28) ** 2) hits.push(-1);
-    const segmentRadiusSquared = (radius + this.pixelsToCells(9)) ** 2;
+    if (distanceSquared(origin, target) < (radius + ENEMY_HEAD_RADIUS_CELLS) ** 2) hits.push(-1);
+    const segmentRadiusSquared = (radius + this.enemySegmentRadiusCells()) ** 2;
     for (let index = 0; index < target.segments.length; index += 1) {
       if (distanceSquared(origin, target.segments[index]) < segmentRadiusSquared) hits.push(index);
     }
@@ -2683,7 +2688,7 @@ export class UltraWorld {
       const projection = relativeCol * directionCol + relativeRow * directionRow;
       if (projection < 0 || projection > range) continue;
       const perpendicular = Math.abs(relativeCol * directionRow - relativeRow * directionCol);
-      const nodeRadius = index < 0 ? 0.28 : this.pixelsToCells(9);
+      const nodeRadius = index < 0 ? ENEMY_HEAD_RADIUS_CELLS : this.enemySegmentRadiusCells();
       if (perpendicular <= halfWidth + nodeRadius) hits.push(index);
     }
     return hits;
@@ -2975,7 +2980,7 @@ export class UltraWorld {
             enemy.col - playerCollision.point.col,
             enemy.row - playerCollision.point.row,
             PLAYER_COLORS[playerCollision.player.colorIndex],
-            ENEMY_SEGMENT_SPACING,
+            SNAKE_SEGMENT_SPACING,
           );
         } else if (playerCollision.kind === 'body') {
           const thorns = this.moduleCount(playerCollision.player, 'thorns');
@@ -2989,8 +2994,8 @@ export class UltraWorld {
           const normal = collisionNormal(playerCollision.player, enemy);
           this.applyPlayerCollisionAttack(playerCollision.player, enemy, enemy, -1, true);
           const knockbackMultiplier = enemy.archetype === 'warden' ? DESIGNER_BALANCE.enemyWardenKnockbackMultiplier : 1;
-          this.bounceEntity(playerCollision.player, normal.col, normal.row, '#dffcff', PLAYER_SEGMENT_SPACING, knockbackMultiplier, true);
-          if (!enemy.dead) this.bounceEntity(enemy, -normal.col, -normal.row, enemy.color, ENEMY_SEGMENT_SPACING, 1 + MODULE_PROGRESSION.effects.momentumKnockbackBonus(this.moduleCount(playerCollision.player, 'momentum')));
+          this.bounceEntity(playerCollision.player, normal.col, normal.row, '#dffcff', SNAKE_SEGMENT_SPACING, knockbackMultiplier, true);
+          if (!enemy.dead) this.bounceEntity(enemy, -normal.col, -normal.row, enemy.color, SNAKE_SEGMENT_SPACING, 1 + MODULE_PROGRESSION.effects.momentumKnockbackBonus(this.moduleCount(playerCollision.player, 'momentum')));
         }
         continue;
       }
@@ -2999,17 +3004,17 @@ export class UltraWorld {
         enemy.col = clamp(nextCol, this.arenaMinimum(), this.arenaMaximum());
         enemy.row = clamp(nextRow, this.arenaMinimum(), this.arenaMaximum());
         this.damageTarget(null, enemy, ENEMY_COLLISION_DAMAGE * this.enemyWallDamageMultiplier, enemy, '#f3c600', -1);
-        if (!enemy.dead) this.bounceEntity(enemy, wallNormal.col, wallNormal.row, enemy.color, ENEMY_SEGMENT_SPACING, this.enemyWallKnockbackMultiplier);
+        if (!enemy.dead) this.bounceEntity(enemy, wallNormal.col, wallNormal.row, enemy.color, SNAKE_SEGMENT_SPACING, this.enemyWallKnockbackMultiplier);
         continue;
       }
       enemy.col = nextCol;
       enemy.row = nextRow;
       this.applyKnockbackDecay(enemy, delta);
-      followEnemySegments(enemy, delta, ENEMY_SEGMENT_SPACING);
+      followEnemySegments(enemy, delta, SNAKE_SEGMENT_SPACING);
       if (enemy.collisionCooldown <= 0) {
-        const ownBodyHit = findSelfCollision(enemy, 0.48);
+        const ownBodyHit = findSelfCollision(enemy, ENEMY_SELF_COLLISION_RANGE);
         if (ownBodyHit) {
-          this.bounceEntity(enemy, enemy.col - ownBodyHit.col, enemy.row - ownBodyHit.row, enemy.color, ENEMY_SEGMENT_SPACING);
+          this.bounceEntity(enemy, enemy.col - ownBodyHit.col, enemy.row - ownBodyHit.row, enemy.color, SNAKE_SEGMENT_SPACING);
           continue;
         }
       }
@@ -3038,7 +3043,7 @@ export class UltraWorld {
     for (const player of presentPlayers) {
       const protectedPlayer = this.isPlayerProtected(player);
       if ((protectedPlayer || player.collisionCooldown <= 0) && enemy.collisionCooldown <= 0) {
-        const headProgress = sweptContactProgress(start, end, player, this.playerHeadRadiusCells() + 0.28);
+        const headProgress = sweptContactProgress(start, end, player, this.playerHeadRadiusCells() + ENEMY_HEAD_RADIUS_CELLS);
         if (headProgress !== null && (!nearest || headProgress < nearest.progress)) {
           nearest = protectedPlayer
             ? { kind: 'protected', player, point: player, progress: headProgress }
@@ -3047,7 +3052,7 @@ export class UltraWorld {
       }
       for (const segment of player.segments) {
         if (protectedPlayer && enemy.collisionCooldown > 0) continue;
-        const progress = sweptContactProgress(start, end, segment, 0.46);
+        const progress = sweptContactProgress(start, end, segment, ENEMY_BODY_CONTACT_RANGE);
         if (progress === null || (nearest && nearest.progress <= progress)) continue;
         nearest = protectedPlayer
           ? { kind: 'protected', player, point: segment, progress }
@@ -3058,7 +3063,7 @@ export class UltraWorld {
   }
 
   private resolveEnemyCollisions(): void {
-    const headRangeSquared = (this.playerHeadRadiusCells() * 2) ** 2;
+    const headRangeSquared = (ENEMY_HEAD_RADIUS_CELLS * 2) ** 2;
     for (let firstIndex = 0; firstIndex < this.enemies.length; firstIndex += 1) {
       const first = this.enemies[firstIndex];
       if (first.dead || first.collisionCooldown > 0) continue;
@@ -3069,8 +3074,8 @@ export class UltraWorld {
         const normal = collisionNormal(first, second);
         this.damageTarget(null, first, ENEMY_COLLISION_DAMAGE, first, second.color, -1);
         this.damageTarget(null, second, ENEMY_COLLISION_DAMAGE, second, first.color, -1);
-        if (!first.dead) this.bounceEntity(first, normal.col, normal.row, first.color, ENEMY_SEGMENT_SPACING);
-        if (!second.dead) this.bounceEntity(second, -normal.col, -normal.row, second.color, ENEMY_SEGMENT_SPACING);
+        if (!first.dead) this.bounceEntity(first, normal.col, normal.row, first.color, SNAKE_SEGMENT_SPACING);
+        if (!second.dead) this.bounceEntity(second, -normal.col, -normal.row, second.color, SNAKE_SEGMENT_SPACING);
         break;
       }
     }
@@ -3102,14 +3107,14 @@ export class UltraWorld {
         bucket.count += 1;
       }
     }
-    const bodyRangeSquared = 0.46 ** 2;
+    const bodyRangeSquared = ENEMY_BODY_CONTACT_RANGE ** 2;
     for (const enemy of this.enemies) {
       if (enemy.dead || enemy.collisionCooldown > 0) continue;
       let bodyHit: EnemyBodyBucketEntry | null = null;
-      const minimumCol = Math.floor(enemy.col - 0.46);
-      const maximumCol = Math.floor(enemy.col + 0.46);
-      const minimumRow = Math.floor(enemy.row - 0.46);
-      const maximumRow = Math.floor(enemy.row + 0.46);
+      const minimumCol = Math.floor(enemy.col - ENEMY_BODY_CONTACT_RANGE);
+      const maximumCol = Math.floor(enemy.col + ENEMY_BODY_CONTACT_RANGE);
+      const minimumRow = Math.floor(enemy.row - ENEMY_BODY_CONTACT_RANGE);
+      const maximumRow = Math.floor(enemy.row + ENEMY_BODY_CONTACT_RANGE);
       for (let col = minimumCol; col <= maximumCol && !bodyHit; col += 1) {
         for (let row = minimumRow; row <= maximumRow && !bodyHit; row += 1) {
           const bucket = bodyBuckets.get(spatialBucketCode(col, row));
@@ -3134,7 +3139,7 @@ export class UltraWorld {
       const normalRow = enemy.row - bodyHit.segment.row;
       this.damageTarget(null, bodyHit.owner, ENEMY_COLLISION_DAMAGE, bodyHit.segment, enemy.color, ownerSegmentIndex);
       this.damageTarget(null, enemy, ENEMY_COLLISION_DAMAGE, enemy, bodyHit.owner.color, -1);
-      if (!enemy.dead) this.bounceEntity(enemy, normalCol, normalRow, enemy.color, ENEMY_SEGMENT_SPACING);
+      if (!enemy.dead) this.bounceEntity(enemy, normalCol, normalRow, enemy.color, SNAKE_SEGMENT_SPACING);
     }
   }
 
@@ -3311,7 +3316,7 @@ export class UltraWorld {
           hostile.col += dx / distance * pull;
           hostile.row += dy / distance * pull;
           hostile.slow = Math.max(hostile.slow, 0.2);
-          followEnemySegments(hostile, 0, ENEMY_SEGMENT_SPACING);
+          followEnemySegments(hostile, 0, SNAKE_SEGMENT_SPACING);
         }
         continue;
       }
@@ -3339,7 +3344,7 @@ export class UltraWorld {
       const hitIndexes = this.circularTargetHitIndexes(hazard, hazard.radius, hostile);
       if (hitIndexes.length > 0) this.damageTargetParts(owner, hostile, hitIndexes, hazard, hazard.color);
     }
-    if (bounceOwner) this.bounceEntity(owner, owner.col - hazard.col, owner.row - hazard.row, hazard.color, PLAYER_SEGMENT_SPACING);
+    if (bounceOwner) this.bounceEntity(owner, owner.col - hazard.col, owner.row - hazard.row, hazard.color, SNAKE_SEGMENT_SPACING);
     hazard.life = 0;
     this.effectSound('mine', owner.entityId);
   }
@@ -3389,37 +3394,37 @@ export class UltraWorld {
         player.row = clamp(player.row, this.arenaMinimum(), this.arenaMaximum());
         this.triggerCollisionEcho(player);
         this.damagePlayer(player, PLAYER_WALL_COLLISION_DAMAGE, now, '撞上墙壁');
-        if (player.alive) this.bounceEntity(player, wall.col, wall.row, '#b8f53f', PLAYER_SEGMENT_SPACING);
+        if (player.alive) this.bounceEntity(player, wall.col, wall.row, '#b8f53f', SNAKE_SEGMENT_SPACING);
         continue;
       }
       if (player.collisionCooldown <= 0) {
-        const ownBody = findSelfCollision(player, 0.5);
+        const ownBody = findSelfCollision(player, PLAYER_SELF_COLLISION_RANGE);
         if (ownBody) {
-          this.bounceEntity(player, player.col - ownBody.col, player.row - ownBody.row, '#f4ffdc', PLAYER_SEGMENT_SPACING, 1, true);
+          this.bounceEntity(player, player.col - ownBody.col, player.row - ownBody.row, '#f4ffdc', SNAKE_SEGMENT_SPACING, 1, true);
           continue;
         }
       }
       if (player.invulnerable <= 0 && player.collisionCooldown <= 0) {
         for (const enemy of this.enemies) {
           if (enemy.dead) continue;
-          const segmentIndex = enemy.segments.findIndex((segment) => Math.hypot(player.col - segment.col, player.row - segment.row) < 0.42);
+          const segmentIndex = enemy.segments.findIndex((segment) => Math.hypot(player.col - segment.col, player.row - segment.row) < SNAKE_BODY_CONTACT_RANGE);
           if (segmentIndex < 0) continue;
           const body = enemy.segments[segmentIndex];
           const defended = this.consumeDefense(player);
           this.applyPlayerCollisionAttack(player, enemy, body, segmentIndex, false);
           if (!defended) this.damagePlayer(player, PLAYER_ENEMY_BODY_COLLISION_DAMAGE, now, '被敌蛇重创');
-          if (player.alive) this.bounceEntity(player, player.col - body.col, player.row - body.row, enemy.color, PLAYER_SEGMENT_SPACING, 1, true);
+          if (player.alive) this.bounceEntity(player, player.col - body.col, player.row - body.row, enemy.color, SNAKE_SEGMENT_SPACING, 1, true);
           break;
         }
       }
       if (!player.alive) continue;
       for (const enemy of this.enemies) {
-        if (enemy.dead || Math.hypot(player.col - enemy.col, player.row - enemy.row) >= this.playerHeadRadiusCells() + 0.28 || player.collisionCooldown > 0 || enemy.collisionCooldown > 0) continue;
+        if (enemy.dead || Math.hypot(player.col - enemy.col, player.row - enemy.row) >= this.playerHeadRadiusCells() + ENEMY_HEAD_RADIUS_CELLS || player.collisionCooldown > 0 || enemy.collisionCooldown > 0) continue;
         const normal = collisionNormal(player, enemy);
         this.applyPlayerCollisionAttack(player, enemy, enemy, -1, true);
         const knockbackMultiplier = enemy.archetype === 'warden' ? DESIGNER_BALANCE.enemyWardenKnockbackMultiplier : 1;
-        this.bounceEntity(player, normal.col, normal.row, '#dffcff', PLAYER_SEGMENT_SPACING, knockbackMultiplier, true);
-        if (!enemy.dead) this.bounceEntity(enemy, -normal.col, -normal.row, enemy.color, ENEMY_SEGMENT_SPACING, 1 + MODULE_PROGRESSION.effects.momentumKnockbackBonus(this.moduleCount(player, 'momentum')));
+        this.bounceEntity(player, normal.col, normal.row, '#dffcff', SNAKE_SEGMENT_SPACING, knockbackMultiplier, true);
+        if (!enemy.dead) this.bounceEntity(enemy, -normal.col, -normal.row, enemy.color, SNAKE_SEGMENT_SPACING, 1 + MODULE_PROGRESSION.effects.momentumKnockbackBonus(this.moduleCount(player, 'momentum')));
       }
     }
 
@@ -3434,7 +3439,7 @@ export class UltraWorld {
           attacker.col - contact.col,
           attacker.row - contact.row,
           PLAYER_COLORS[defender.colorIndex],
-          PLAYER_SEGMENT_SPACING,
+          SNAKE_SEGMENT_SPACING,
           1,
           true,
         );
@@ -3452,8 +3457,8 @@ export class UltraWorld {
         if (left.alive && right.alive) this.checkPlayerBodyHit(right, left);
         if (!left.alive || !right.alive || left.collisionCooldown > 0 || right.collisionCooldown > 0 || Math.hypot(left.col - right.col, left.row - right.row) >= this.playerHeadRadiusCells() * 2) continue;
         const normal = collisionNormal(left, right);
-        this.bounceEntity(left, normal.col, normal.row, PLAYER_COLORS[left.colorIndex], PLAYER_SEGMENT_SPACING, 1, true);
-        if (right.alive) this.bounceEntity(right, -normal.col, -normal.row, PLAYER_COLORS[right.colorIndex], PLAYER_SEGMENT_SPACING, 1, true);
+        this.bounceEntity(left, normal.col, normal.row, PLAYER_COLORS[left.colorIndex], SNAKE_SEGMENT_SPACING, 1, true);
+        if (right.alive) this.bounceEntity(right, -normal.col, -normal.row, PLAYER_COLORS[right.colorIndex], SNAKE_SEGMENT_SPACING, 1, true);
         this.publishAuthoritativePlayerHeadCollision(left, right, normal, now);
       }
     }
@@ -3465,7 +3470,7 @@ export class UltraWorld {
         this.checkPlayerBodyHit(attacker, defender);
         if (!attacker.alive || Math.hypot(attacker.col - defender.col, attacker.row - defender.row) >= this.playerHeadRadiusCells() * 2) continue;
         const normal = collisionNormal(attacker, defender);
-        this.bounceEntity(attacker, normal.col, normal.row, PLAYER_COLORS[attacker.colorIndex], PLAYER_SEGMENT_SPACING, 1, true);
+        this.bounceEntity(attacker, normal.col, normal.row, PLAYER_COLORS[attacker.colorIndex], SNAKE_SEGMENT_SPACING, 1, true);
         this.publishAuthoritativePlayerHeadCollision(attacker, defender, normal, now);
         break;
       }
@@ -3479,7 +3484,7 @@ export class UltraWorld {
   private protectedPlayerContact(attacker: PlayerEntity, defender: PlayerEntity): GridPoint | null {
     const headRange = this.playerHeadRadiusCells() * 2;
     if (distanceSquared(attacker, defender) < headRange * headRange) return defender;
-    const bodyRangeSquared = 0.42 * 0.42;
+    const bodyRangeSquared = SNAKE_BODY_CONTACT_RANGE * SNAKE_BODY_CONTACT_RANGE;
     for (const segment of defender.segments) {
       if (distanceSquared(attacker, segment) < bodyRangeSquared) return segment;
     }
@@ -3496,9 +3501,9 @@ export class UltraWorld {
       || defender.choosingUpgrade
       || attacker.collisionCooldown > 0
     ) return;
-    const body = defender.segments.find((segment) => Math.hypot(attacker.col - segment.col, attacker.row - segment.row) < 0.42);
+    const body = defender.segments.find((segment) => Math.hypot(attacker.col - segment.col, attacker.row - segment.row) < SNAKE_BODY_CONTACT_RANGE);
     if (!body) return;
-    this.bounceEntity(attacker, attacker.col - body.col, attacker.row - body.row, PLAYER_COLORS[defender.colorIndex], PLAYER_SEGMENT_SPACING, 1, true);
+    this.bounceEntity(attacker, attacker.col - body.col, attacker.row - body.row, PLAYER_COLORS[defender.colorIndex], SNAKE_SEGMENT_SPACING, 1, true);
   }
 
   private consumeDefense(player: PlayerEntity): boolean {
@@ -3620,7 +3625,7 @@ export class UltraWorld {
         duration: ENEMY_HEAD_REFORM_DURATION,
       });
     } else if (removed.length > 0 && !destroysHead) {
-      beginEnemyReconnect(target, reconnectIndex, ENEMY_SEGMENT_SPACING);
+      beginEnemyReconnect(target, reconnectIndex, SNAKE_SEGMENT_SPACING);
       this.pendingEffects.push({
         id: this.effectId(),
         type: 'enemyBodyHit',
@@ -3762,8 +3767,8 @@ export class UltraWorld {
   }
 
   private pointHitsTarget(point: GridPoint, radius: number, target: EnemyEntity): boolean {
-    if (distanceSquared(point, target) < (radius + 0.28) ** 2) return true;
-    return target.segments.some((segment) => distanceSquared(point, segment) < (radius + this.pixelsToCells(9)) ** 2);
+    if (distanceSquared(point, target) < (radius + ENEMY_HEAD_RADIUS_CELLS) ** 2) return true;
+    return target.segments.some((segment) => distanceSquared(point, segment) < (radius + this.enemySegmentRadiusCells()) ** 2);
   }
 
   private refreshProjectileHitBounds(): void {
@@ -3787,7 +3792,7 @@ export class UltraWorld {
   }
 
   private sweptTargetContacts(start: GridPoint, end: GridPoint, radius: number, target: EnemyEntity): Array<{ node: GridPoint; progress: number; head: boolean }> {
-    const padding = radius + 0.28;
+    const padding = radius + ENEMY_HEAD_RADIUS_CELLS;
     if (
       Math.max(start.col, end.col) < target.projectileMinCol - padding
       || Math.min(start.col, end.col) > target.projectileMaxCol + padding
@@ -3795,9 +3800,9 @@ export class UltraWorld {
       || Math.min(start.row, end.row) > target.projectileMaxRow + padding
     ) return [];
     const contacts: Array<{ node: GridPoint; progress: number; head: boolean }> = [];
-    const headProgress = sweptContactProgress(start, end, target, radius + 0.28);
+    const headProgress = sweptContactProgress(start, end, target, radius + ENEMY_HEAD_RADIUS_CELLS);
     if (headProgress !== null) contacts.push({ node: target, progress: headProgress, head: true });
-    const segmentRadius = radius + this.pixelsToCells(9);
+    const segmentRadius = radius + this.enemySegmentRadiusCells();
     for (const segment of target.segments) {
       const progress = sweptContactProgress(start, end, segment, segmentRadius);
       if (progress !== null) contacts.push({ node: segment, progress, head: false });
@@ -3822,7 +3827,11 @@ export class UltraWorld {
   }
 
   private playerHeadRadiusCells(): number {
-    return 18 / CANONICAL_CELL_SIZE;
+    return 18 / CANONICAL_CELL_SIZE * SNAKE_BODY_SIZE_SCALE;
+  }
+
+  private enemySegmentRadiusCells(): number {
+    return this.pixelsToCells(9) * SNAKE_BODY_SIZE_SCALE;
   }
 
   private allocateProjectileId(): number {

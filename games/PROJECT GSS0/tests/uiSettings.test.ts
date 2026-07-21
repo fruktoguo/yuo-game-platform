@@ -9,7 +9,7 @@ describe('界面设置', () => {
   it('使用正式游戏名并在左上品牌卡显示当前版本', () => {
     expect(indexHtml).toContain('<title>代号：几何贪吃蛇</title>');
     expect(indexHtml).toContain('<h1 id="game-title"><span>代号：几何贪吃蛇</span></h1>');
-    expect(indexHtml).toContain('<span class="brand-version" aria-label="游戏版本 V78">V78</span>');
+    expect(indexHtml).toContain('<span class="brand-version" aria-label="游戏版本 V79">V79</span>');
     expect(styles).toContain('.brand-version');
     const brandTitleRule = styles.match(/\.brand-lockup strong\s*\{([^}]*)\}/)?.[1];
     const brandVersionRule = styles.match(/\.brand-version\s*\{([^}]*)\}/)?.[1];
@@ -33,11 +33,12 @@ describe('界面设置', () => {
     expect(gameSource).toContain('ctx.lineWidth = (target.isSelf ? 1.4 : 1) * labelScale;');
   });
 
-  it('蛇体视觉倍率独立校准尺寸且不改变碰撞基准', () => {
-    expect(gameSource).toContain('const SNAKE_VISUAL_SCALE = designerNumber("snakeVisualScale", 0.775, 0.25, 2);');
-    expect(gameSource).toContain('return arenaPieceScale() * SNAKE_VISUAL_SCALE;');
-    expect(gameSource).toContain('const pieceScale = snakePieceScale();');
+  it('蛇体大小同步缩放绘制与碰撞体积', () => {
+    expect(gameSource).toContain('const SNAKE_BODY_SIZE_SCALE = designerNumber("snakeBodySizeScale", 0.775, 0.25, 2);');
+    expect(gameSource).toContain('return arena.baseCellSize / 34 * arenaVisualScale() * SNAKE_BODY_SIZE_SCALE;');
     expect(gameSource).toContain('return 18 * arenaPieceScale();');
+    expect(gameSource).toContain('enemy.radius = arena.cellSize * ENEMY_HEAD_RADIUS_CELLS;');
+    expect(gameSource).toContain('const bodyRangeSquared = ENEMY_BODY_CONTACT_RANGE ** 2;');
   });
 
   it('机体卡片区分实际冷却与被动效果', () => {
@@ -46,7 +47,7 @@ describe('界面设置', () => {
   });
 
   it('升级卡展示机体等级变化且机体架显示槽位占用', () => {
-    expect(indexHtml).toContain('src="module-progression.js?v=78"');
+    expect(indexHtml).toContain('src="module-progression.js?v=79"');
     expect(gameSource).toContain('MODULE_PROGRESSION.moduleUpgradePreview');
     expect(gameSource).toContain('progression.levelLabel');
     expect(gameSource).toContain('ui.rack.dataset.capacity');
@@ -119,7 +120,7 @@ describe('界面设置', () => {
     expect(tooltipRule).not.toContain('transition');
     expect(indexHtml).not.toContain('id="description-button"');
     expect(indexHtml).not.toContain('id="description-toggle"');
-    expect(indexHtml).toContain('src="module-catalog.js?v=78"');
+    expect(indexHtml).toContain('src="module-catalog.js?v=79"');
     expect(gameSource).toContain('const MODULE_CATALOG = globalThis.GSS0ModuleCatalog;');
     expect(gameSource).not.toContain('SHORT_MODULE_DESCRIPTIONS');
     expect(gameSource).not.toContain('gss0-detailed-descriptions');

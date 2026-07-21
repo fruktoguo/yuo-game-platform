@@ -1,10 +1,9 @@
 globalThis.GSS0_DESIGNER_CONFIG = {
-  "schemaVersion": 19,
+  "schemaVersion": 20,
   "balance": {
     "playerBaseSpeed": 3,
-    "snakeVisualScale": 0.775,
-    "playerSegmentSpacing": 0.45,
-    "enemySegmentSpacing": 0.42,
+    "snakeBodySizeScale": 0.775,
+    "snakeSegmentSpacing": 0.45,
     "playerMaxHealth": 20,
     "playerHealthRegenPerSecond": 0.25,
     "playerEnemyBodyCollisionDamage": 10,

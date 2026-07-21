@@ -22,9 +22,8 @@ describe('设计配置', () => {
   it('默认参数保持现有玩法数值', () => {
     expect(DESIGNER_BALANCE).toMatchObject({
       playerBaseSpeed: 3,
-      snakeVisualScale: 0.775,
-      playerSegmentSpacing: 0.45,
-      enemySegmentSpacing: 0.42,
+      snakeBodySizeScale: 0.775,
+      snakeSegmentSpacing: 0.45,
       playerMaxHealth: 20,
       playerHealthRegenPerSecond: 0.25,
       playerEnemyBodyCollisionDamage: 10,
@@ -196,7 +195,7 @@ describe('设计配置', () => {
 
     expect(parameterKeys.sort()).toEqual(Object.keys(DESIGNER_BALANCE).sort());
     expect(moduleIds.sort()).toEqual(MODULES.map((module) => module.id).sort());
-    expect(new Set(parameterKeys).size).toBe(187);
+    expect(new Set(parameterKeys).size).toBe(186);
     expect(parameterKeys).not.toContain('playerSpeedPerLevel');
     expect(parameterKeys).not.toContain('moduleEffectReductionMaximum');
     expect(parameterKeys).not.toContain('newModuleOfferChance');
@@ -217,8 +216,8 @@ describe('设计配置', () => {
     expect(MODULES.some((module) => ['输出', '防御', '恢复'].includes(module.category as string))).toBe(false);
     expect(MODULES.every((module) => ['进攻', '生存', '辅助', '发育'].includes(module.category))).toBe(true);
     expect(MODULES.filter((module) => module.category === '发育')).toHaveLength(9);
-    expect(editorHtml).toContain('src="module-catalog.js?v=78"');
-    expect(editorHtml).toContain('src="module-progression.js?v=78"');
+    expect(editorHtml).toContain('src="module-catalog.js?v=79"');
+    expect(editorHtml).toContain('src="module-progression.js?v=79"');
     expect(editorHtml).toContain('const MODULES = moduleCatalog;');
     expect(editorHtml).toContain('descriptionText.textContent = describeModule(module.id, draft.balance);');
     expect(editorHtml).toContain('ID: ${module.id}');
@@ -273,6 +272,8 @@ describe('设计配置', () => {
     expect(launcherServer).not.toContain('[Net.IPAddress]::Any');
     expect(launcherServer).toContain('RandomNumberGenerator');
     expect(launcherServer).toContain('X-GSS0-Editor-Token');
+    expect(launcherServer).toContain('$config.schemaVersion -eq $currentConfig.schemaVersion');
+    expect(launcherServer).not.toContain('$config.schemaVersion -eq 16');
     expect(launcherServer).toContain('"/api/config"');
     expect(launcherServer).toContain('"designer-config.js"');
     expect(launcherServer).toContain('"/enemy-codex.js"');

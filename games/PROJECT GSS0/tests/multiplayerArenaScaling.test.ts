@@ -3,10 +3,9 @@ import { describe, expect, it } from 'vitest';
 import {
   ARENA_BASE_AREA,
   ARENA_BASE_SIZE,
-  ENEMY_SEGMENT_SPACING,
   GRID_SIZE,
-  PLAYER_SEGMENT_SPACING,
-  SNAKE_VISUAL_SCALE,
+  SNAKE_BODY_SIZE_SCALE,
+  SNAKE_SEGMENT_SPACING,
 } from '../src/shared/constants';
 
 const clientSource = readFileSync(new URL('../game.js', import.meta.url), 'utf8');
@@ -30,16 +29,15 @@ describe('多人场地等级缩放', () => {
     expect(editorSource).toContain('多人按所有在场玩家总等级增加的场地面积倍率');
   });
 
-  it('使用图2比例校准蛇体尺寸与单机多人间距', () => {
-    expect(SNAKE_VISUAL_SCALE).toBe(0.775);
-    expect(PLAYER_SEGMENT_SPACING).toBe(0.45);
-    expect(ENEMY_SEGMENT_SPACING).toBe(0.42);
-    expect(clientSource).toContain('segmentSpacing: PLAYER_SEGMENT_SPACING');
-    expect(clientSource).toContain('followContinuousSegments(player.col, player.row, player.segments, PLAYER_SEGMENT_SPACING);');
-    expect(serverSource).toContain('followContinuousSegments(player.col, player.row, player.segments, PLAYER_SEGMENT_SPACING);');
-    expect(serverSource).toContain('followEnemySegments(enemy, delta, ENEMY_SEGMENT_SPACING);');
-    expect(editorSource).toContain('{ key: "snakeVisualScale", group: "表现", label: "蛇体视觉倍率"');
-    expect(editorSource).toContain('{ key: "playerSegmentSpacing", group: "玩家", label: "玩家身体节间距"');
-    expect(editorSource).toContain('{ key: "enemySegmentSpacing", group: "敌人全局", label: "敌蛇身体节间距"');
+  it('使用两个参数同步蛇体大小、碰撞体积与单机多人间距', () => {
+    expect(SNAKE_BODY_SIZE_SCALE).toBeGreaterThan(0);
+    expect(SNAKE_SEGMENT_SPACING).toBeGreaterThan(0);
+    expect(clientSource).toContain('segmentSpacing: SNAKE_SEGMENT_SPACING');
+    expect(clientSource).toContain('followContinuousSegments(player.col, player.row, player.segments, SNAKE_SEGMENT_SPACING);');
+    expect(serverSource).toContain('followContinuousSegments(player.col, player.row, player.segments, SNAKE_SEGMENT_SPACING);');
+    expect(serverSource).toContain('followEnemySegments(enemy, delta, SNAKE_SEGMENT_SPACING);');
+    expect(serverSource).toContain('return 18 / CANONICAL_CELL_SIZE * SNAKE_BODY_SIZE_SCALE;');
+    expect(editorSource).toContain('{ key: "snakeBodySizeScale", group: "表现", label: "蛇体大小"');
+    expect(editorSource).toContain('{ key: "snakeSegmentSpacing", group: "表现", label: "连接线距离"');
   });
 });

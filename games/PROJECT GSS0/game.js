@@ -94,7 +94,7 @@
 
   const TAU = Math.PI * 2;
   const DESIGNER_CONFIG = globalThis.GSS0_DESIGNER_CONFIG || {};
-  if (DESIGNER_CONFIG.schemaVersion !== 19) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 19");
+  if (DESIGNER_CONFIG.schemaVersion !== 20) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 20");
   const DESIGNER_BALANCE = DESIGNER_CONFIG.balance || {};
   const MODULE_DESIGN_STATES = DESIGNER_CONFIG.moduleStates || {};
 
@@ -158,9 +158,13 @@
   const FOOD_COLORS = ["#b8f53f", "#36dcff", "#ff4d96", "#ffd166", "#a98cff", "#54e1a6"];
   const ENEMY_COLORS = ["#ff5c62", "#ff8a4c", "#d95cff", "#ff477e", "#f4c542"];
   const GRID_SIZE = 24;
-  const SNAKE_VISUAL_SCALE = designerNumber("snakeVisualScale", 0.775, 0.25, 2);
-  const PLAYER_SEGMENT_SPACING = designerNumber("playerSegmentSpacing", 0.45, 0.1, 1.5);
-  const ENEMY_SEGMENT_SPACING = designerNumber("enemySegmentSpacing", 0.42, 0.1, 1.5);
+  const SNAKE_BODY_SIZE_SCALE = designerNumber("snakeBodySizeScale", 0.775, 0.25, 2);
+  const SNAKE_SEGMENT_SPACING = designerNumber("snakeSegmentSpacing", 0.45, 0.1, 1.5);
+  const ENEMY_HEAD_RADIUS_CELLS = 0.28 * SNAKE_BODY_SIZE_SCALE;
+  const SNAKE_BODY_CONTACT_RANGE = 0.42 * SNAKE_BODY_SIZE_SCALE;
+  const ENEMY_BODY_CONTACT_RANGE = 0.46 * SNAKE_BODY_SIZE_SCALE;
+  const PLAYER_SELF_COLLISION_RANGE = 0.5 * SNAKE_BODY_SIZE_SCALE;
+  const ENEMY_SELF_COLLISION_RANGE = 0.48 * SNAKE_BODY_SIZE_SCALE;
   const ARENA_BASE_SIZE = Math.sqrt(designerNumber("arenaBaseArea", 345.6, 64, 4096));
   const ARENA_AREA_PER_LEVEL = designerNumber("arenaAreaPerLevel", 0.03, 0, 0.5);
   const ARENA_RESIZE_RATE = designerNumber("arenaResizeRate", 2.4, 0.1, 10);
@@ -443,7 +447,7 @@
   if (!networkProjectileRuntime) throw new Error("PROJECT GSS0 投射物运行时未加载");
   const networkPlayerPredictionRuntime = globalThis.GSS0PlayerPrediction?.create({
     knockbackDecay: KNOCKBACK_DECAY,
-    segmentSpacing: PLAYER_SEGMENT_SPACING
+    segmentSpacing: SNAKE_SEGMENT_SPACING
   });
   if (!networkPlayerPredictionRuntime) throw new Error("PROJECT GSS0 玩家预测运行时未加载");
   const networkPlayerStateCodec = globalThis.GSS0PlayerStateCodec;
@@ -830,7 +834,7 @@
       for (const segment of player.segments) syncNodePosition(segment);
       for (const enemy of enemies) {
         syncNodePosition(enemy);
-        enemy.radius = arena.cellSize * 0.28;
+        enemy.radius = arena.cellSize * ENEMY_HEAD_RADIUS_CELLS;
         for (const segment of enemy.segments) syncNodePosition(segment);
       }
       for (const food of foods) {
@@ -930,7 +934,7 @@
     }
     for (const enemy of enemies) {
       syncNodePosition(enemy);
-      enemy.radius = arena.cellSize * 0.28;
+      enemy.radius = arena.cellSize * ENEMY_HEAD_RADIUS_CELLS;
       for (const segment of enemy.segments) syncNodePosition(segment);
     }
     for (const food of foods) {
@@ -1043,16 +1047,16 @@
     return 18 * arenaPieceScale();
   }
 
+  function enemySegmentRadiusPixels() {
+    return 9 * arenaVisualScale() * SNAKE_BODY_SIZE_SCALE;
+  }
+
   function arenaVisualScale() {
     return arena.cellSize / arena.baseCellSize;
   }
 
   function arenaPieceScale() {
-    return arena.baseCellSize / 34 * arenaVisualScale();
-  }
-
-  function snakePieceScale() {
-    return arenaPieceScale() * SNAKE_VISUAL_SCALE;
+    return arena.baseCellSize / 34 * arenaVisualScale() * SNAKE_BODY_SIZE_SCALE;
   }
 
   function missingHealthFraction(target = player) {
@@ -2442,7 +2446,7 @@
       enemy.behaviorPhase = interpolateNumber(old?.behaviorPhase, item.behaviorPhase, amount);
       enemy.permanentSlow = item.permanentSlow || 0;
       enemy.poisonStacks = item.poisonStacks || 0;
-      enemy.radius = arena.cellSize * 0.28;
+      enemy.radius = arena.cellSize * ENEMY_HEAD_RADIUS_CELLS;
       enemy.dead = false;
       const currentSegments = projectedEnemySegments(item.segments, damageOperations, enemy.currentSegmentScratch ||= []);
       const previousSegments = projectedEnemySegments(old?.segments, damageOperations, enemy.previousSegmentScratch ||= []);
@@ -2646,7 +2650,7 @@
   }
 
   function bounceNetworkSelf(normalCol, normalRow, color, impulseMultiplier = 1, mitigateCollision = false) {
-    bounceEntity(player, normalCol, normalRow, color, PLAYER_SEGMENT_SPACING, impulseMultiplier, mitigateCollision);
+    bounceEntity(player, normalCol, normalRow, color, SNAKE_SEGMENT_SPACING, impulseMultiplier, mitigateCollision);
     networkPlayerPredictionRuntime.adoptLocal(player);
     applyNetworkSelfPrediction(player);
     sendNetworkInput(true, true);
@@ -2676,10 +2680,10 @@
     const collision = networkPlayerCollisions.detect(player, enemies, visiblePlayers, {
       worldMin: arena.worldMin,
       worldMax: arena.worldMax,
-      selfRange: 0.5,
-      bodyRange: 0.42,
+      selfRange: PLAYER_SELF_COLLISION_RANGE,
+      bodyRange: SNAKE_BODY_CONTACT_RANGE,
       playerHeadRange: playerHeadRadiusPixels() * 2 / arena.cellSize,
-      enemyHeadRange: playerHeadRadiusPixels() / arena.cellSize + 0.28
+      enemyHeadRange: playerHeadRadiusPixels() / arena.cellSize + ENEMY_HEAD_RADIUS_CELLS
     });
     if (!collision) return;
     if (collision.kind === "wall") {
@@ -2800,8 +2804,8 @@
     const now = performance.now();
     if (now - network.lastFoodContactAt < NETWORK_FOOD_CONTACT_INTERVAL_MS) return;
     network.lastFoodContactAt = now;
-    const headRange = 18 / 34 + 0.13 + MODULE_EFFECTS.magnetPickupRangeCells(moduleCount("magnet"));
-    const bodyRange = 0.42 + MODULE_EFFECTS.collectorPickupRadiusCells(moduleCount("collector"));
+    const headRange = playerHeadRadiusPixels() / arena.cellSize + 0.13 + MODULE_EFFECTS.magnetPickupRangeCells(moduleCount("magnet"));
+    const bodyRange = SNAKE_BODY_CONTACT_RANGE + MODULE_EFFECTS.collectorPickupRadiusCells(moduleCount("collector"));
     const requestedFoodIds = networkFoodClaimRuntime.detect(player, headRange, bodyRange, now);
     if (requestedFoodIds.length === 0) return;
     syncNetworkFoodVisibility(requestedFoodIds);
@@ -3127,7 +3131,7 @@
       birthLength: totalLength,
       speed: ENEMY_BASE_SPEED * archetype.speedMultiplier,
       turnRate: random(Math.min(ENEMY_TURN_RATE_MIN, ENEMY_TURN_RATE_MAX), Math.max(ENEMY_TURN_RATE_MIN, ENEMY_TURN_RATE_MAX)) * archetype.turnMultiplier,
-      radius: arena.cellSize * 0.28,
+      radius: arena.cellSize * ENEMY_HEAD_RADIUS_CELLS,
       color,
       segments: bodyCells.map((cell) => makeSegmentAtCell(cell.col, cell.row)),
       captured: 0,
@@ -4244,7 +4248,7 @@
     const previous = index === 0 ? enemy : enemy.segments[index - 1];
     const segment = enemy.segments[index];
     const gap = Math.hypot(previous.col - segment.col, previous.row - segment.row);
-    if (gap <= ENEMY_SEGMENT_SPACING) return;
+    if (gap <= SNAKE_SEGMENT_SPACING) return;
     segment.reconnectElapsed = 0;
     segment.reconnectGap = gap;
     segment.reconnectStartedAt = Number.isFinite(startedAt) ? startedAt : null;
@@ -4255,14 +4259,14 @@
     let previous = enemy;
     let reconnectActive = false;
     for (const segment of enemy.segments) {
-      let allowedDistance = ENEMY_SEGMENT_SPACING;
-      if (segment.reconnectGap > ENEMY_SEGMENT_SPACING) {
+      let allowedDistance = SNAKE_SEGMENT_SPACING;
+      if (segment.reconnectGap > SNAKE_SEGMENT_SPACING) {
         segment.reconnectElapsed = Number.isFinite(segment.reconnectStartedAt) && Number.isFinite(now)
           ? Math.max(0, (now - segment.reconnectStartedAt) / 1000)
           : (segment.reconnectElapsed || 0) + dt;
         const progress = clamp(segment.reconnectElapsed / ENEMY_BODY_RECONNECT_DURATION, 0, 1);
         const eased = 1 - (1 - progress) ** 3;
-        allowedDistance += (segment.reconnectGap - ENEMY_SEGMENT_SPACING) * (1 - eased);
+        allowedDistance += (segment.reconnectGap - SNAKE_SEGMENT_SPACING) * (1 - eased);
         if (progress >= 1) {
           segment.reconnectElapsed = 0;
           segment.reconnectGap = 0;
@@ -4371,7 +4375,7 @@
     player.row += (Math.sin(player.angle) * player.speed + player.knockbackY) * dt;
     applyKnockbackDecay(player, dt);
     syncNodePosition(player);
-    followContinuousSegments(player.col, player.row, player.segments, PLAYER_SEGMENT_SPACING);
+    followContinuousSegments(player.col, player.row, player.segments, SNAKE_SEGMENT_SPACING);
   }
 
   function cellDistanceSquared(first, second) {
@@ -4579,7 +4583,7 @@
     if ((enemy.x - x) ** 2 + (enemy.y - y) ** 2 < (enemy.radius + radius) ** 2) {
       return -1;
     }
-    const segmentRadius = radius + 9 * arenaVisualScale();
+    const segmentRadius = radius + enemySegmentRadiusPixels();
     let nearestIndex = null;
     let nearestDistance = segmentRadius * segmentRadius;
     for (let index = 0; index < enemy.segments.length; index += 1) {
@@ -4892,7 +4896,7 @@
   function circularEnemyHitIndexes(originX, originY, radius, enemy) {
     const hits = [];
     if ((enemy.x - originX) ** 2 + (enemy.y - originY) ** 2 < (radius + enemy.radius) ** 2) hits.push(-1);
-    const segmentRadius = radius + 9 * arenaVisualScale();
+    const segmentRadius = radius + enemySegmentRadiusPixels();
     const segmentRadiusSquared = segmentRadius * segmentRadius;
     for (let index = 0; index < enemy.segments.length; index += 1) {
       const segment = enemy.segments[index];
@@ -4911,7 +4915,7 @@
       const projection = relativeX * directionX + relativeY * directionY;
       if (projection < 0 || projection > range) continue;
       const perpendicular = Math.abs(relativeX * directionY - relativeY * directionX);
-      const nodeRadius = index === 0 ? enemy.radius : 9 * arenaVisualScale();
+      const nodeRadius = index === 0 ? enemy.radius : enemySegmentRadiusPixels();
       if (perpendicular <= halfWidth + nodeRadius) hits.push(index - 1);
     }
     return hits;
@@ -4949,7 +4953,7 @@
       const projection = relativeX * directionX + relativeY * directionY;
       if (projection < 0 || projection > range) continue;
       const perpendicular = Math.abs(relativeX * directionY - relativeY * directionX);
-      const nodeRadius = index === 0 ? enemy.radius : 9 * arenaVisualScale();
+      const nodeRadius = index === 0 ? enemy.radius : enemySegmentRadiusPixels();
       if (perpendicular > halfWidth + nodeRadius || projection >= hitProjection) continue;
       hit = node;
       hitProjection = projection;
@@ -5085,8 +5089,8 @@
 
         damageEnemy(first, ENEMY_COLLISION_DAMAGE, first.x, first.y, second.color, { rewardSelf: false, hitSegmentIndex: -1 });
         damageEnemy(second, ENEMY_COLLISION_DAMAGE, second.x, second.y, first.color, { rewardSelf: false, hitSegmentIndex: -1 });
-        if (!first.dead) bounceEntity(first, normalX, normalY, first.color, ENEMY_SEGMENT_SPACING);
-        if (!second.dead) bounceEntity(second, -normalX, -normalY, second.color, ENEMY_SEGMENT_SPACING);
+        if (!first.dead) bounceEntity(first, normalX, normalY, first.color, SNAKE_SEGMENT_SPACING);
+        if (!second.dead) bounceEntity(second, -normalX, -normalY, second.color, SNAKE_SEGMENT_SPACING);
         break;
       }
     }
@@ -5102,14 +5106,14 @@
         else bodyBuckets.set(key, [entry]);
       }
     }
-    const bodyRangeSquared = 0.46 ** 2;
+    const bodyRangeSquared = ENEMY_BODY_CONTACT_RANGE ** 2;
     for (const enemy of enemies) {
       if (enemy.dead || enemy.collisionCooldown > 0) continue;
       let bodyHit = null;
-      const minimumCol = Math.floor(enemy.col - 0.46);
-      const maximumCol = Math.floor(enemy.col + 0.46);
-      const minimumRow = Math.floor(enemy.row - 0.46);
-      const maximumRow = Math.floor(enemy.row + 0.46);
+      const minimumCol = Math.floor(enemy.col - ENEMY_BODY_CONTACT_RANGE);
+      const maximumCol = Math.floor(enemy.col + ENEMY_BODY_CONTACT_RANGE);
+      const minimumRow = Math.floor(enemy.row - ENEMY_BODY_CONTACT_RANGE);
+      const maximumRow = Math.floor(enemy.row + ENEMY_BODY_CONTACT_RANGE);
       for (let col = minimumCol; col <= maximumCol && !bodyHit; col += 1) {
         for (let row = minimumRow; row <= maximumRow && !bodyHit; row += 1) {
           const bucket = bodyBuckets.get(`${col},${row}`);
@@ -5137,7 +5141,7 @@
           hitSegmentIndex: ownerSegmentIndex
         });
         damageEnemy(enemy, ENEMY_COLLISION_DAMAGE, enemy.x, enemy.y, bodyHit.owner.color, { rewardSelf: false, hitSegmentIndex: -1 });
-        if (!enemy.dead) bounceEntity(enemy, normalX, normalY, enemy.color, ENEMY_SEGMENT_SPACING);
+        if (!enemy.dead) bounceEntity(enemy, normalX, normalY, enemy.color, SNAKE_SEGMENT_SPACING);
       }
     }
   }
@@ -5348,7 +5352,7 @@
       }
       for (const segment of player.segments) {
         if (protectedPlayer && enemy.collisionCooldown > 0) continue;
-        const progress = sweptContactProgress(previousPosition, { col: nextCol, row: nextRow }, segment, 0.46);
+        const progress = sweptContactProgress(previousPosition, { col: nextCol, row: nextRow }, segment, ENEMY_BODY_CONTACT_RANGE);
         if (progress === null || (playerCollision && playerCollision.progress <= progress)) continue;
         playerCollision = protectedPlayer
           ? { kind: "protected", point: segment, progress }
@@ -5365,7 +5369,7 @@
             enemy.col - playerCollision.point.col,
             enemy.row - playerCollision.point.row,
             player.playerColor || "#f3c600",
-            ENEMY_SEGMENT_SPACING
+            SNAKE_SEGMENT_SPACING
           );
         } else if (playerCollision.kind === "body") {
           const thorns = moduleCount("thorns");
@@ -5388,8 +5392,8 @@
           }
           applyPlayerCollisionAttack(enemy, enemy, true);
           const impulseMultiplier = enemy.archetype === "warden" ? ENEMY_BEHAVIOR_TUNING.wardenKnockbackMultiplier : 1;
-          bounceEntity(player, normalX, normalY, "#dffcff", PLAYER_SEGMENT_SPACING, impulseMultiplier, true);
-          if (!enemy.dead) bounceEntity(enemy, -normalX, -normalY, enemy.color, ENEMY_SEGMENT_SPACING, 1 + MODULE_EFFECTS.momentumKnockbackBonus(moduleCount("momentum")));
+          bounceEntity(player, normalX, normalY, "#dffcff", SNAKE_SEGMENT_SPACING, impulseMultiplier, true);
+          if (!enemy.dead) bounceEntity(enemy, -normalX, -normalY, enemy.color, SNAKE_SEGMENT_SPACING, 1 + MODULE_EFFECTS.momentumKnockbackBonus(moduleCount("momentum")));
         }
         continue;
       }
@@ -5399,7 +5403,7 @@
         enemy.row = clamp(nextRow, arena.worldMin, arena.worldMax);
         syncNodePosition(enemy);
         damageEnemy(enemy, ENEMY_COLLISION_DAMAGE * (1 + MODULE_EFFECTS.enemyWallDamageBonus(moduleCount("wallbreaker"))), enemy.x, enemy.y, "#f3c600", { rewardSelf: false, hitSegmentIndex: -1 });
-        if (!enemy.dead) bounceEntity(enemy, wallNormal.x, wallNormal.y, enemy.color, ENEMY_SEGMENT_SPACING, 1 + MODULE_EFFECTS.enemyWallKnockbackBonus(moduleCount("wallbreaker")));
+        if (!enemy.dead) bounceEntity(enemy, wallNormal.x, wallNormal.y, enemy.color, SNAKE_SEGMENT_SPACING, 1 + MODULE_EFFECTS.enemyWallKnockbackBonus(moduleCount("wallbreaker")));
         continue;
       }
       enemy.col = nextCol;
@@ -5410,9 +5414,9 @@
       updateEnemyHitBounds(enemy);
 
       if (enemy.collisionCooldown <= 0) {
-        const ownBodyHit = findSelfCollision(enemy, 0.48);
+        const ownBodyHit = findSelfCollision(enemy, ENEMY_SELF_COLLISION_RANGE);
         if (ownBodyHit) {
-          bounceEntity(enemy, enemy.col - ownBodyHit.col, enemy.row - ownBodyHit.row, enemy.color, ENEMY_SEGMENT_SPACING);
+          bounceEntity(enemy, enemy.col - ownBodyHit.col, enemy.row - ownBodyHit.row, enemy.color, SNAKE_SEGMENT_SPACING);
           continue;
         }
       }
@@ -5451,7 +5455,7 @@
 
   function pointHitsEnemy(x, y, radius, enemy) {
     const bounds = enemy.hitBounds;
-    const segmentRadius = 9 * arenaVisualScale();
+    const segmentRadius = enemySegmentRadiusPixels();
     const broadPadding = radius + Math.max(enemy.radius, segmentRadius);
     if (
       bounds
@@ -5548,7 +5552,7 @@
         for (let nodeIndex = 0; nodeIndex < nodes.length; nodeIndex += 1) {
           const node = nodes[nodeIndex];
           if (projectile.hitNodes.has(node)) continue;
-          const radius = projectile.size + (nodeIndex === 0 ? enemy.radius : 9 * arenaVisualScale());
+          const radius = projectile.size + (nodeIndex === 0 ? enemy.radius : enemySegmentRadiusPixels());
           const progress = sweptPixelContactProgress(startX, startY, projectile.x, projectile.y, node, radius);
           if (progress !== null) contacts.push({ enemy, node, progress, head: nodeIndex === 0 });
         }
@@ -5622,7 +5626,7 @@
         const hitIndexes = circularEnemyHitIndexes(hazard.x, hazard.y, hazard.radius, enemy);
         if (hitIndexes.length) damageEnemyParts(enemy, hitIndexes, hazard.x, hazard.y, hazard.color);
       }
-      if (playerTrigger) bounceEntity(player, player.x - hazard.x, player.y - hazard.y, hazard.color, PLAYER_SEGMENT_SPACING);
+      if (playerTrigger) bounceEntity(player, player.x - hazard.x, player.y - hazard.y, hazard.color, SNAKE_SEGMENT_SPACING);
       hazard.life = 0;
       sound("mine");
       shake = Math.max(shake, 5);
@@ -5666,7 +5670,7 @@
   function playEnemyHeadReformPresentation(enemy, _oldHead, color, duration = ENEMY_HEAD_REFORM_DURATION) {
     if (!enemy || enemy.dead) return;
     const safeDuration = clamp(Number(duration) || ENEMY_HEAD_REFORM_DURATION, 0.05, 2);
-    const radius = enemy.radius || arena.cellSize * 0.28;
+    const radius = enemy.radius || arena.cellSize * ENEMY_HEAD_RADIUS_CELLS;
     enemy.headReform = { startedAt: performance.now(), duration: safeDuration };
     effects.push({ type: "ring", x: enemy.x, y: enemy.y, color, life: safeDuration, maxLife: safeDuration, radius: radius * 0.45, endRadius: radius * 1.65 });
   }
@@ -5881,14 +5885,14 @@
       player.row = clamp(player.row, arena.worldMin, arena.worldMax);
       triggerCollisionEcho();
       damagePlayer(PLAYER_WALL_COLLISION_DAMAGE);
-      if (state === "running") bounceEntity(player, wallNormal.x, wallNormal.y, "#b8f53f", PLAYER_SEGMENT_SPACING);
+      if (state === "running") bounceEntity(player, wallNormal.x, wallNormal.y, "#b8f53f", SNAKE_SEGMENT_SPACING);
       return;
     }
 
     if (player.collisionCooldown <= 0) {
-      const ownBodyHit = findSelfCollision(player, 0.5);
+      const ownBodyHit = findSelfCollision(player, PLAYER_SELF_COLLISION_RANGE);
       if (ownBodyHit) {
-        bounceEntity(player, player.col - ownBodyHit.col, player.row - ownBodyHit.row, "#f4ffdc", PLAYER_SEGMENT_SPACING, 1, true);
+        bounceEntity(player, player.col - ownBodyHit.col, player.row - ownBodyHit.row, "#f4ffdc", SNAKE_SEGMENT_SPACING, 1, true);
         return;
       }
     }
@@ -5898,11 +5902,11 @@
         if (enemy.dead) continue;
         for (let segmentIndex = 0; segmentIndex < enemy.segments.length; segmentIndex += 1) {
           const segment = enemy.segments[segmentIndex];
-          if (Math.hypot(player.col - segment.col, player.row - segment.row) < 0.42) {
+          if (Math.hypot(player.col - segment.col, player.row - segment.row) < SNAKE_BODY_CONTACT_RANGE) {
             const defended = consumeDefense();
             applyPlayerCollisionAttack(enemy, segment, false);
             if (!defended) damagePlayer(PLAYER_ENEMY_BODY_COLLISION_DAMAGE);
-            if (state === "running") bounceEntity(player, player.col - segment.col, player.row - segment.row, enemy.color, PLAYER_SEGMENT_SPACING, 1, true);
+            if (state === "running") bounceEntity(player, player.col - segment.col, player.row - segment.row, enemy.color, SNAKE_SEGMENT_SPACING, 1, true);
             return;
           }
         }
@@ -5929,8 +5933,8 @@
       applyPlayerCollisionAttack(enemy, enemy, true);
 
       const impulseMultiplier = enemy.archetype === "warden" ? ENEMY_BEHAVIOR_TUNING.wardenKnockbackMultiplier : 1;
-      bounceEntity(player, normalX, normalY, "#dffcff", PLAYER_SEGMENT_SPACING, impulseMultiplier, true);
-      if (!enemy.dead) bounceEntity(enemy, -normalX, -normalY, enemy.color, ENEMY_SEGMENT_SPACING, 1 + MODULE_EFFECTS.momentumKnockbackBonus(moduleCount("momentum")));
+      bounceEntity(player, normalX, normalY, "#dffcff", SNAKE_SEGMENT_SPACING, impulseMultiplier, true);
+      if (!enemy.dead) bounceEntity(enemy, -normalX, -normalY, enemy.color, SNAKE_SEGMENT_SPACING, 1 + MODULE_EFFECTS.momentumKnockbackBonus(moduleCount("momentum")));
       return;
     }
   }
@@ -6676,7 +6680,7 @@
   }
 
   function drawEnemy(enemy) {
-    const pieceScale = snakePieceScale();
+    const pieceScale = arenaPieceScale();
     drawLinkedPath(enemy, enemy.segments, "rgba(4, 6, 7, 0.92)", (enemy.archetype === "warden" ? 14 : 11) * pieceScale);
     drawLinkedPath(enemy, enemy.segments, enemy.color, (enemy.archetype === "cutter" ? 3.4 : 2.2) * pieceScale, 0.72);
     for (let index = enemy.segments.length - 1; index >= 0; index -= 1) drawEnemySegment(enemy, enemy.segments[index], pieceScale);
@@ -6785,7 +6789,7 @@
     if (elapsed >= totalDuration) return;
 
     const center = worldToScreen(player.x, player.y);
-    const pieceScale = snakePieceScale();
+    const pieceScale = arenaPieceScale();
     const finalRadius = 25 * pieceScale;
     const startRadius = Math.max(
       Math.hypot(center.x, center.y),
@@ -6844,7 +6848,7 @@
     player = target;
     activeGrowth = target.growth || (target === previousPlayer ? previousGrowth : null);
     ctx.save();
-    const pieceScale = snakePieceScale();
+    const pieceScale = arenaPieceScale();
     const ghostVisual = Boolean(player.ghost);
     const protectedVisual = player.protectedState || player.invulnerable > 0;
     const damageVisual = Number.isFinite(player.damageFlashUntil) && performance.now() < player.damageFlashUntil;

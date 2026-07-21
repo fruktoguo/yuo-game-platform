@@ -103,7 +103,11 @@ function Test-DesignerConfig {
   if (!$match.Success) { return $false }
   try {
     $config = $match.Groups["json"].Value | ConvertFrom-Json
-    return $config.schemaVersion -eq 16 -and $null -ne $config.balance -and $null -ne $config.waveEnemyCountSchedule -and $null -ne $config.moduleCooldownPercentages -and $null -ne $config.moduleStates
+    $currentContent = [IO.File]::ReadAllText($configPath)
+    $currentMatch = [regex]::Match($currentContent, '^\s*globalThis\.GSS0_DESIGNER_CONFIG\s*=\s*(?<json>\{[\s\S]*\})\s*;\s*$')
+    if (!$currentMatch.Success) { return $false }
+    $currentConfig = $currentMatch.Groups["json"].Value | ConvertFrom-Json
+    return $config.schemaVersion -eq $currentConfig.schemaVersion -and $null -ne $config.balance -and $null -ne $config.waveEnemyCountSchedule -and $null -ne $config.moduleCooldownPercentages -and $null -ne $config.moduleStates
   } catch {
     return $false
   }
