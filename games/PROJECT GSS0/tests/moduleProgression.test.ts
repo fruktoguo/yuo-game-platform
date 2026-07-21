@@ -75,7 +75,7 @@ describe('机体成长规则', () => {
     expect(passive.lines.map((line) => line.text)).toEqual([
       '转向速度 +40% → +60%',
     ]);
-    expect(MODULE_PROGRESSION.moduleUpgradePreview('vitality', 4).lines[0].text).toBe('最大生命值 +24 → +30');
+    expect(MODULE_PROGRESSION.moduleUpgradePreview('vitality', 4).lines[0].text).toBe('最大生命值 +16 → +20');
     expect(MODULE_PROGRESSION.moduleUpgradePreview('replicator', 4).lines[0].text).toBe('复制球概率 24% → 30%');
   });
 

@@ -1,5 +1,6 @@
 import {
   ARENA_AREA_PER_LEVEL,
+  ARENA_BASE_SIZE,
   ARENA_RESIZE_RATE,
   BOUNCE_LOCK_TIME,
   BOUNCE_SLOW_TIME,
@@ -334,7 +335,7 @@ export class UltraWorld {
   private gameTime = 0;
   private waveTimer = 0;
   private waveCount = 0;
-  private arenaSize = GRID_SIZE;
+  private arenaSize = ARENA_BASE_SIZE;
   private nextEntityId = 1;
   private nextEnemyId = 1;
   private nextFoodId = 1;
@@ -875,7 +876,7 @@ export class UltraWorld {
       waveCount: 0,
       waveTimer: 0,
       threatLevel: 0,
-      arenaSize: GRID_SIZE,
+      arenaSize: ARENA_BASE_SIZE,
       worldObjectRevision: 0,
       worldObjectsComplete: false,
       players: this.networkPlayers,
@@ -1052,7 +1053,7 @@ export class UltraWorld {
     this.gameTime = 0;
     this.waveTimer = 0;
     this.waveCount = 0;
-    this.arenaSize = GRID_SIZE;
+    this.arenaSize = ARENA_BASE_SIZE;
     this.nextEnemyId = 1;
     this.resetFoodState();
     this.enemies = [];
@@ -1091,7 +1092,7 @@ export class UltraWorld {
 
   private updateArenaSize(delta: number, presentPlayers = this.presentPlayers()): void {
     const totalLevel = presentPlayers.reduce((total, player) => total + Math.max(0, player.level), 0);
-    const target = GRID_SIZE * Math.sqrt(1 + totalLevel * ARENA_AREA_PER_LEVEL);
+    const target = ARENA_BASE_SIZE * Math.sqrt(1 + totalLevel * ARENA_AREA_PER_LEVEL);
     const amount = 1 - Math.exp(-ARENA_RESIZE_RATE * delta);
     const previousSize = this.arenaSize;
     this.arenaSize += (target - this.arenaSize) * amount;

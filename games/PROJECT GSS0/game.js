@@ -94,7 +94,7 @@
 
   const TAU = Math.PI * 2;
   const DESIGNER_CONFIG = globalThis.GSS0_DESIGNER_CONFIG || {};
-  if (DESIGNER_CONFIG.schemaVersion !== 15) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 15");
+  if (DESIGNER_CONFIG.schemaVersion !== 16) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 16");
   const DESIGNER_BALANCE = DESIGNER_CONFIG.balance || {};
   const MODULE_DESIGN_STATES = DESIGNER_CONFIG.moduleStates || {};
 
@@ -158,6 +158,7 @@
   const FOOD_COLORS = ["#b8f53f", "#36dcff", "#ff4d96", "#ffd166", "#a98cff", "#54e1a6"];
   const ENEMY_COLORS = ["#ff5c62", "#ff8a4c", "#d95cff", "#ff477e", "#f4c542"];
   const GRID_SIZE = 24;
+  const ARENA_BASE_SIZE = Math.sqrt(designerNumber("arenaBaseArea", 345.6, 64, 4096));
   const ARENA_AREA_PER_LEVEL = designerNumber("arenaAreaPerLevel", 0.03, 0, 0.5);
   const ARENA_RESIZE_RATE = designerNumber("arenaResizeRate", 2.4, 0.1, 10);
   const FOOD_WALL_MARGIN = 2;
@@ -310,8 +311,8 @@
   let width = 1;
   let height = 1;
   let dpr = 1;
-  let arenaWorldSize = GRID_SIZE;
-  let arena = { left: 16, top: 80, right: 241, bottom: 305, width: 225, height: 225, centerX: 128.5, centerY: 192.5, baseCellSize: 9.375, cellSize: 9.375, worldMin: 0, worldMax: GRID_SIZE - 1, worldSize: GRID_SIZE };
+  let arenaWorldSize = ARENA_BASE_SIZE;
+  let arena = { left: 16, top: 80, right: 241, bottom: 305, width: 225, height: 225, centerX: 128.5, centerY: 192.5, baseCellSize: 225 / ARENA_BASE_SIZE, cellSize: 225 / ARENA_BASE_SIZE, worldMin: (GRID_SIZE - ARENA_BASE_SIZE) / 2, worldMax: (GRID_SIZE + ARENA_BASE_SIZE) / 2 - 1, worldSize: ARENA_BASE_SIZE };
   let state = "menu";
   let lastFrame = performance.now();
   let lastCanvasRender = 0;
@@ -842,7 +843,7 @@
       height: arenaSize,
       centerX: left + arenaSize / 2,
       centerY: top + arenaSize / 2,
-      baseCellSize: arenaSize / GRID_SIZE,
+      baseCellSize: arenaSize / ARENA_BASE_SIZE,
       cellSize: arenaSize / arenaWorldSize,
       worldMin,
       worldMax: worldMin + arenaWorldSize - 1,
@@ -887,7 +888,7 @@
   }
 
   function setArenaWorldSize(nextSize, constrainContents = false) {
-    const safeSize = Math.max(GRID_SIZE, Number(nextSize) || GRID_SIZE);
+    const safeSize = Math.max(ARENA_BASE_SIZE, Number(nextSize) || ARENA_BASE_SIZE);
     if (Math.abs(safeSize - arenaWorldSize) < 0.00001) return;
     const previousArena = arena;
     arenaWorldSize = safeSize;
@@ -928,7 +929,7 @@
   }
 
   function updateArenaWorldSize(dt, highestLevel) {
-    const target = GRID_SIZE * Math.sqrt(1 + Math.max(0, highestLevel) * ARENA_AREA_PER_LEVEL);
+    const target = ARENA_BASE_SIZE * Math.sqrt(1 + Math.max(0, highestLevel) * ARENA_AREA_PER_LEVEL);
     const amount = 1 - Math.exp(-ARENA_RESIZE_RATE * dt);
     const nextSize = arenaWorldSize + (target - arenaWorldSize) * amount;
     setArenaWorldSize(Math.abs(target - nextSize) < 0.0001 ? target : nextSize, true);
@@ -2795,7 +2796,7 @@
   }
 
   function resetGame() {
-    setArenaWorldSize(GRID_SIZE);
+    setArenaWorldSize(ARENA_BASE_SIZE);
     gameTime = 0;
     score = 0;
     kills = 0;

@@ -19,7 +19,7 @@
           <strong>代号：几何贪吃蛇</strong>
         </div>
         <span class="signature">by 四季鸽</span>
-        <span class="brand-version" aria-label="游戏版本 V73">V73</span>
+        <span class="brand-version" aria-label="游戏版本 V74">V74</span>
       </div>
 
       <div class="run-stats">
@@ -157,7 +157,7 @@
 
     <section id="start-screen" class="modal-layer start-screen is-visible" aria-labelledby="game-title">
       <div class="start-glow" aria-hidden="true"></div>
-      <div class="start-version" aria-label="游戏版本 V73"><span>BUILD</span><strong>V73</strong></div>
+      <div class="start-version" aria-label="游戏版本 V74"><span>BUILD</span><strong>V74</strong></div>
       <div class="start-layout">
         <div class="start-content">
           <div id="network-status" class="title-kicker">TACTICAL SURVIVAL / LOCAL</div>
@@ -197,7 +197,7 @@
           </header>
           <section>
             <strong><span>01</span> 单人行动</strong>
-            <p><span>初始拥有 20 点耐久，每秒恢复 0.5 点</span><span>蛇头撞敌蛇会造成 1 点伤害并弹开</span><span>撞敌蛇身体受到 10 点伤害，撞墙受到 5 点伤害</span><span>敌人会抢球，摧毁敌人后全部爆出</span></p>
+            <p><span>初始拥有 20 点耐久，每秒恢复 0.25 点</span><span>蛇头撞敌蛇会造成 1 点伤害并弹开</span><span>撞敌蛇身体受到 10 点伤害，撞墙受到 5 点伤害</span><span>敌人会抢球，摧毁敌人后全部爆出</span></p>
           </section>
           <section>
             <strong><span>02</span> 多人共斗</strong>
@@ -258,6 +258,23 @@
           <button id="changelog-close-button" class="icon-button codex-close-button" type="button" aria-label="关闭更新日志" title="关闭更新日志">×</button>
         </header>
         <div class="changelog-list">
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V74</strong></div>
+              <time datetime="2026-07-22">2026.07.22</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">场地与平衡</span>
+              <h3>基础场地收紧，机体参数继续调整</h3>
+              <ul>
+                <li>新增“基础场地面积”参数，默认由576格²缩小40%至345.6格²；单机与多人共用。</li>
+                <li>玩家基础速度改为3、每秒恢复改为0.25；敌人基础速度改为2.4、波次间隔改为9秒，威胁时间系数改为12。</li>
+                <li>调整引力环节、吞噬涡轮、生命扩容、恒愈芯节、摄生转化与危态代偿的效果参数，以及磁暴雷、再生芽、终结协议和相位回旋的冷却倍率。</li>
+                <li>追迹弹舱、截击反应节、平衡陀螺、幸运星节、钨针贯节、震荡榴巢、近炸蜂巢和双生电极现标记为禁用。</li>
+                <li>腐蚀囊节显示基础中毒间隔，孢子复制节精简描述；动能缓冲节改为辅助类。</li>
+              </ul>
+            </div>
+          </article>
           <article class="changelog-entry">
             <header>
               <div class="changelog-version"><span>BUILD</span><strong>V73</strong></div>
@@ -1135,20 +1152,20 @@
     </section>
   </main>
 
-  <script src="designer-config.js?v=73"></script>
-  <script src="module-catalog.js?v=73"></script>
-  <script src="module-progression.js?v=73"></script>
-  <script src="wave-director.js?v=73"></script>
-  <script src="spawn-planner.js?v=73"></script>
-  <script src="network-codec.js?v=73"></script>
-  <script src="network-player-prediction.js?v=73"></script>
-  <script src="network-player-state-codec.js?v=73"></script>
-  <script src="network-player-collisions.js?v=73"></script>
-  <script src="network-head-collisions.js?v=73"></script>
-  <script src="network-food-claims.js?v=73"></script>
-  <script src="network-projectiles.js?v=73"></script>
-  <script src="lobby-navigation.js?v=73"></script>
-  <script src="enemy-codex.js?v=73"></script>
-  <script src="game.js?v=73"></script>
+  <script src="designer-config.js?v=74"></script>
+  <script src="module-catalog.js?v=74"></script>
+  <script src="module-progression.js?v=74"></script>
+  <script src="wave-director.js?v=74"></script>
+  <script src="spawn-planner.js?v=74"></script>
+  <script src="network-codec.js?v=74"></script>
+  <script src="network-player-prediction.js?v=74"></script>
+  <script src="network-player-state-codec.js?v=74"></script>
+  <script src="network-player-collisions.js?v=74"></script>
+  <script src="network-head-collisions.js?v=74"></script>
+  <script src="network-food-claims.js?v=74"></script>
+  <script src="network-projectiles.js?v=74"></script>
+  <script src="lobby-navigation.js?v=74"></script>
+  <script src="enemy-codex.js?v=74"></script>
+  <script src="game.js?v=74"></script>
 </body>
 </html>

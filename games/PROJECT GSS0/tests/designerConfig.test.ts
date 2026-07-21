@@ -21,9 +21,9 @@ function editorDefinitionIds(marker: string, endMarker: string, property: string
 describe('设计配置', () => {
   it('默认参数保持现有玩法数值', () => {
     expect(DESIGNER_BALANCE).toMatchObject({
-      playerBaseSpeed: 5,
+      playerBaseSpeed: 3,
       playerMaxHealth: 20,
-      playerHealthRegenPerSecond: 0.5,
+      playerHealthRegenPerSecond: 0.25,
       playerEnemyBodyCollisionDamage: 10,
       playerWallCollisionDamage: 5,
       playerCollisionDamage: 1,
@@ -37,14 +37,14 @@ describe('设计配置', () => {
       moduleSlotUnlockLevel3: 18,
       moduleSlotUnlockLevel4: 25,
       playerTurnRate: 4.2,
-      enemyBaseSpeed: 4,
+      enemyBaseSpeed: 2.4,
       enemySpeedPerMinute: 0.01,
       enemySpeedMaxMultiplier: 1.12,
       enemyPressureWaveInterval: 5,
       enemyPressureEnemyCountMultiplier: 2,
       enemyPressureThreatMultiplier: 2,
       enemyExpectedDpsInterval: 6,
-      enemyThreatTimeCoefficient: 6,
+      enemyThreatTimeCoefficient: 12,
       enemyThreatGrowthPerWave: 0.02,
       enemyHealthWeightVariation: 0.25,
       enemyWallAvoidanceDistance: 1.35,
@@ -62,7 +62,7 @@ describe('设计配置', () => {
       enemyCutterUnlockSeconds: 180,
       enemyCoilerUnlockSeconds: 300,
       enemyWardenUnlockSeconds: 420,
-      waveInterval: 6,
+      waveInterval: 9,
       foodsPerPlayerPerWave: 2,
       projectileSpeedScale: 3,
       projectileSizeScale: 2,
@@ -70,6 +70,10 @@ describe('设计配置', () => {
       activeSkillBaseCooldown: 6,
       moduleRepulseRangePerLevelPixels: 110,
       moduleHasteTurnRatePerLevel: 0.2,
+      moduleTractorRangePerLevel: 2,
+      moduleTractorPullSpeedPerLevel: 1.5,
+      moduleFeastDuration: 3,
+      moduleFeastSpeedPerLevel: 0.3,
       moduleBufferCollisionReductionPerLevel: 0.2,
       moduleBeaconEnemyCountPerLevel: 0.15,
       moduleProgressorSpeedPerLevel: 0.2,
@@ -77,12 +81,14 @@ describe('设计配置', () => {
       moduleClusterBlastRadiusCells: 5,
       moduleShieldMaxCharges: 5,
       moduleBonusXpChancePerLevel: 0.1,
-      moduleMaxHealthPerLevel: 6,
-      moduleHealthRegenPerLevel: 0.5,
+      moduleMaxHealthPerLevel: 4,
+      moduleHealthRegenPerLevel: 0.25,
       moduleDamageReductionPerLevel: 0.1,
       moduleFoodReplicationChancePerLevel: 0.06,
-      moduleFoodHealPerLevel: 1,
+      moduleFoodHealPerLevel: 0.5,
       moduleCacheKillsPerTrigger: 5,
+      moduleCrisisRegenPerLevel: 0.5,
+      arenaBaseArea: 345.6,
       arenaAreaPerLevel: 0.03,
       upgradeInvulnerabilityDuration: 1,
       respawnLocatorConvergeDuration: 1,
@@ -156,7 +162,7 @@ describe('设计配置', () => {
     expect(ACTIVE_SKILL_MODULES.some((module) => module.id === 'echo')).toBe(false);
     expect(ACTIVE_SKILL_MODULES.some((module) => module.id === 'emergency')).toBe(false);
     expect(ACTIVE_SKILL_MODULES.some((module) => module.id === 'feast')).toBe(false);
-    expect(feast?.desc).toContain('吃球后2.5秒内');
+    expect(feast?.desc).toContain('吃球后3秒内');
     expect(moduleCatalogSource).not.toMatch(/cooldown: "(?:常驻|吃球触发|击破触发|伤害触发|每\d+次击破)/u);
     expect(editorHtml).toContain('cooldownSummary.textContent = moduleUsageLabel(module);');
   });
@@ -164,10 +170,10 @@ describe('设计配置', () => {
   it('全部现有机体都有审查状态且禁用项不会进入升级池', () => {
     const source = (globalThis as typeof globalThis & { GSS0_DESIGNER_CONFIG: { moduleStates: Record<string, string> } }).GSS0_DESIGNER_CONFIG;
     expect(Object.keys(source.moduleStates).sort()).toEqual(MODULES.map((module) => module.id).sort());
-    expect(Object.values(source.moduleStates).filter((state) => state === 'normal')).toHaveLength(57);
+    expect(Object.values(source.moduleStates).filter((state) => state === 'normal')).toHaveLength(49);
     expect(Object.values(source.moduleStates).filter((state) => state === 'tune')).toHaveLength(0);
     expect(Object.values(source.moduleStates).filter((state) => state === 'rework')).toHaveLength(0);
-    expect(Object.values(source.moduleStates).filter((state) => state === 'disabled')).toHaveLength(15);
+    expect(Object.values(source.moduleStates).filter((state) => state === 'disabled')).toHaveLength(23);
     expect(UPGRADE_MODULES.map((module) => module.id)).toEqual(MODULES.filter((module) => moduleDesignState(module.id) !== 'disabled').map((module) => module.id));
   });
 
@@ -177,7 +183,7 @@ describe('设计配置', () => {
 
     expect(parameterKeys.sort()).toEqual(Object.keys(DESIGNER_BALANCE).sort());
     expect(moduleIds.sort()).toEqual(MODULES.map((module) => module.id).sort());
-    expect(new Set(parameterKeys).size).toBe(173);
+    expect(new Set(parameterKeys).size).toBe(174);
     expect(parameterKeys).not.toContain('playerSpeedPerLevel');
     expect(parameterKeys).not.toContain('moduleEffectReductionMaximum');
     expect(parameterKeys).not.toContain('newModuleOfferChance');
@@ -192,11 +198,14 @@ describe('设计配置', () => {
     expect(MODULES.find((module) => module.id === 'haste')?.desc).toBe('每级使玩家转向速度提高20%。');
     expect(MODULES.find((module) => module.id === 'headstrike')?.desc).toContain('敌蛇蛇头');
     expect(MODULES.find((module) => module.id === 'ram')?.desc).toContain('敌蛇任意部位');
+    expect(MODULES.find((module) => module.id === 'venom')?.desc).toContain('中毒间隔3秒');
+    expect(MODULES.find((module) => module.id === 'replicator')?.desc).toBe('吃球时，每级有6%概率在蛇尾后方生成1枚球。此机体生成的球也可以再次触发此效果。');
+    expect(MODULES.find((module) => module.id === 'buffer')?.category).toBe('辅助');
     expect(MODULES.some((module) => ['输出', '防御', '恢复'].includes(module.category as string))).toBe(false);
     expect(MODULES.every((module) => ['进攻', '生存', '辅助', '发育'].includes(module.category))).toBe(true);
     expect(MODULES.filter((module) => module.category === '发育')).toHaveLength(9);
-    expect(editorHtml).toContain('src="module-catalog.js?v=73"');
-    expect(editorHtml).toContain('src="module-progression.js?v=73"');
+    expect(editorHtml).toContain('src="module-catalog.js?v=74"');
+    expect(editorHtml).toContain('src="module-progression.js?v=74"');
     expect(editorHtml).toContain('const MODULES = moduleCatalog;');
     expect(editorHtml).toContain('descriptionText.textContent = describeModule(module.id, draft.balance);');
     expect(editorHtml).toContain('ID: ${module.id}');

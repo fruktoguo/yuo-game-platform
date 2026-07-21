@@ -29,8 +29,8 @@ describe('自动模式设置', () => {
     expect(gameSource).toContain('networkPlayerPredictionRuntime.adoptLocal(player);');
     expect(serverSource).toContain('if (enabled && player.choosingUpgrade && player.upgradeOffer)');
     expect(serverSource).toContain('MODULE_PROGRESSION.chooseAutomaticUpgradeIds');
-    expect(gameSource).toContain('const headStrikeDamage = PLAYER_COLLISION_DAMAGE');
-    expect(serverSource).toContain('const headStrikeDamage = PLAYER_COLLISION_DAMAGE');
+    expect(gameSource).toContain('const damage = playerHeadDamage(hitHead);');
+    expect(serverSource).toContain('this.playerHeadDamage(player, hitHead),');
     expect(gameSource).not.toContain('repel(enemy, 3.2, 3.5);');
     expect(serverSource).not.toContain('repel(enemy, 3.2, 3.5);');
   });

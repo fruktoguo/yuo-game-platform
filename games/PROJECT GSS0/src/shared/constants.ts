@@ -1,6 +1,8 @@
 import { DESIGNER_BALANCE } from './designerConfig';
 
 export const GRID_SIZE = 24;
+export const ARENA_BASE_AREA = DESIGNER_BALANCE.arenaBaseArea;
+export const ARENA_BASE_SIZE = Math.sqrt(ARENA_BASE_AREA);
 export const ARENA_AREA_PER_LEVEL = DESIGNER_BALANCE.arenaAreaPerLevel;
 export const ARENA_RESIZE_RATE = DESIGNER_BALANCE.arenaResizeRate;
 export const FOOD_WALL_MARGIN = 2;

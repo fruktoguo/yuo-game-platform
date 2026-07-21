@@ -11,7 +11,7 @@ interface DesignerConfigSource {
 }
 
 const source = (globalThis as typeof globalThis & { GSS0_DESIGNER_CONFIG?: DesignerConfigSource }).GSS0_DESIGNER_CONFIG;
-if (source?.schemaVersion !== 15) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 15');
+if (source?.schemaVersion !== 16) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 16');
 
 function numberSetting(key: string, fallback: number, minimum: number, maximum: number, integer = false): number {
   const candidate = source?.balance?.[key];
@@ -181,6 +181,7 @@ export const DESIGNER_BALANCE = Object.freeze({
   moduleDeathBurstProjectilesPerLevel: numberSetting('moduleDeathBurstProjectilesPerLevel', 2, 0, 20, true),
   moduleCrisisHealthThreshold: numberSetting('moduleCrisisHealthThreshold', 0.5, 0, 1),
   moduleCrisisRegenPerLevel: numberSetting('moduleCrisisRegenPerLevel', 1, 0, 20),
+  arenaBaseArea: numberSetting('arenaBaseArea', 345.6, 64, 4_096),
   arenaAreaPerLevel: numberSetting('arenaAreaPerLevel', 0.03, 0, 0.5),
   arenaResizeRate: numberSetting('arenaResizeRate', 2.4, 0.1, 10),
   upgradeInvulnerabilityDuration: numberSetting('upgradeInvulnerabilityDuration', 0.5, 0, 10),

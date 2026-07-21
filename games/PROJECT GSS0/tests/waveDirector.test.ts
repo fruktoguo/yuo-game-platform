@@ -24,9 +24,9 @@ describe('敌人波次导演', () => {
   });
 
   it('第1波与第100波威胁值匹配验收口径', () => {
-    expect(enemyWaveDirector.plan(1)).toMatchObject({ expectedLevel: 0, expectedDps: 1 / 6, totalThreat: 1.5 });
+    expect(enemyWaveDirector.plan(1)).toMatchObject({ expectedLevel: 0, expectedDps: 1 / 6, totalThreat: 2 });
     expect(enemyWaveDirector.plan(100)).toMatchObject({ expectedLevel: 22, expectedExperience: 606, enemyCount: 12 });
-    expect(enemyWaveDirector.plan(100).totalThreat).toBeCloseTo(205.62, 8);
+    expect(enemyWaveDirector.plan(100).totalThreat).toBeCloseTo(274.16, 8);
   });
 
   it('每只敌人独立浮动权重并在分配后概率取整', () => {

@@ -27,7 +27,7 @@
     { id: "mine", name: "磁暴雷节", category: "进攻", color: "#9a7cff", shape: "square", cooldown: "", activeCooldown: true, desc: "布置永久存在的磁雷；引爆时对范围内每个敌方部位分别造成1伤害，玩家触发时自身只被击退。" },
     { id: "blade", name: "旋刃节", category: "进攻", color: "#e8eef7", shape: "diamond", cooldown: "被动效果", desc: "每级生成1枚环绕机体的旋刃；接触敌蛇时直接摧毁命中的部位，命中蛇头会触发断首与新头接替。" },
     { id: "pulse", name: "脉冲核心", category: "进攻", color: "#3eb7ff", shape: "ring", cooldown: "", activeCooldown: true, desc: "释放半径6格的冲击波，对范围内每个敌方部位分别造成1伤害。" },
-    { id: "venom", name: "腐蚀囊节", category: "进攻", color: "#8be04e", shape: "hex", cooldown: "", activeCooldown: true, desc: "发射腐蚀弹，命中造成1伤害并施加可无限叠加的永久中毒；每层中毒定期随机摧毁1节身体。" },
+    { id: "venom", name: "腐蚀囊节", category: "进攻", color: "#8be04e", shape: "hex", cooldown: "", activeCooldown: true, desc: "发射腐蚀弹，命中造成1伤害并施加可无限叠加的永久中毒；中毒间隔3秒，每层中毒随机摧毁1节身体。" },
     { id: "echo", name: "回声弹匣", category: "进攻", color: "#ff8bd7", shape: "capsule", cooldown: "被动效果", desc: "蛇头撞击敌蛇或墙壁时，每级向随机方向发射1枚子弹。" },
     { id: "rail", name: "贯穿轨炮节", category: "进攻", color: "#7ef9ff", shape: "capsule", cooldown: "", activeCooldown: true, desc: "发射具有3次穿透的轨炮弹，每次命中造成1伤害。" },
     { id: "ricochet", name: "弹射晶节", category: "进攻", color: "#ffcf5a", shape: "diamond", cooldown: "", activeCooldown: true, desc: "发射最多反弹墙壁2次的晶体弹；只能命中1次并造成1伤害。" },
@@ -66,7 +66,7 @@
     { id: "crossfire", name: "十字火控", category: "进攻", color: "#ffb347", shape: "square", cooldown: "", activeCooldown: true, desc: "向目标方向、反方向和两侧各发射1枚具有1次穿透的重弹。" },
     { id: "phasebolt", name: "相位回旋节", category: "进攻", color: "#b49cff", shape: "circle", cooldown: "", activeCooldown: true, desc: "发射可无限次反弹墙壁并具有5次穿透的相位弹。" },
     { id: "ram", name: "破障冲角", category: "进攻", color: "#f3c600", shape: "triangle", cooldown: "被动效果", desc: "每级使玩家蛇头撞击敌蛇任意部位时造成的伤害+1。" },
-    { id: "buffer", name: "动能缓冲节", category: "生存", color: "#8fa6ad", shape: "square", cooldown: "被动效果", desc: "蛇头撞击任意单位时，每级使受到的击退力与减速时间降低20%。" },
+    { id: "buffer", name: "动能缓冲节", category: "辅助", color: "#8fa6ad", shape: "square", cooldown: "被动效果", desc: "蛇头撞击任意单位时，每级使受到的击退力与减速时间降低20%。" },
     { id: "decoy", name: "诱导涂层", category: "生存", color: "#ff7a90", shape: "diamond", cooldown: "被动效果", desc: "每级使敌蛇对玩家身体的避让强度-12%，最多-55%。" },
     { id: "emergency", name: "应急屏障节", category: "生存", color: "#62e6bf", shape: "hex", cooldown: "被动效果", desc: "身体吃球后全身无敌；每级持续0.37秒，最多0.9秒。" },
     { id: "collector", name: "全身采集节", category: "辅助", color: "#d4f05c", shape: "ring", cooldown: "被动效果", desc: "每级使自身所有身体节的吃球半径+0.09格。" },
@@ -80,7 +80,7 @@
     { id: "vitality", name: "生命扩容节", category: "生存", color: "#52e0a4", shape: "hex", cooldown: "被动效果", desc: "每级使最大生命值+6；装载或升级时同步恢复6生命。" },
     { id: "renewal", name: "恒愈芯节", category: "生存", color: "#6df0c4", shape: "circle", cooldown: "被动效果", desc: "每级使每秒生命恢复+0.5。" },
     { id: "plating", name: "层叠装甲", category: "生存", color: "#9da8b0", shape: "square", cooldown: "被动效果", desc: "每级使受到的所有伤害降低10%。" },
-    { id: "replicator", name: "孢子复制节", category: "发育", color: "#b7ef70", shape: "circle", cooldown: "被动效果", desc: "吃球并完成全身成长动画时，每级有6%概率在蛇尾后方生成1枚可再次触发本效果的球。" },
+    { id: "replicator", name: "孢子复制节", category: "发育", color: "#b7ef70", shape: "circle", cooldown: "被动效果", desc: "吃球时，每级有6%概率在蛇尾后方生成1枚球。此机体生成的球也可以再次触发此效果。" },
     { id: "medkit", name: "摄生转化节", category: "生存", color: "#65e6ae", shape: "diamond", cooldown: "被动效果", desc: "吃球时，每级恢复1生命。" },
     { id: "adrenaline", name: "失压推进节", category: "辅助", color: "#ffbd59", shape: "triangle", cooldown: "被动效果", desc: "每损失3%最大生命值，每级使移动速度提高1%。" },
     { id: "berserk", name: "逆境撞针", category: "进攻", color: "#ff5964", shape: "star", cooldown: "被动效果", desc: "每损失30%最大生命值，每级使蛇头伤害+1。" },
@@ -100,6 +100,8 @@
         return "每级生成1枚环绕机体的旋刃；接触敌蛇时直接摧毁命中的部位，命中蛇头会触发断首与新头接替。";
       case "pulse":
         return `释放半径${formatNumber(setting(balance, "modulePulseRadiusCells", 6))}格的冲击波，对范围内每个敌方部位分别造成1伤害。`;
+      case "venom":
+        return `发射腐蚀弹，命中造成1伤害并施加可无限叠加的永久中毒；中毒间隔${formatNumber(setting(balance, "poisonTickInterval", 3))}秒，每层中毒随机摧毁1节身体。`;
       case "cluster":
         return `发射追踪爆弹，对半径${formatNumber(setting(balance, "moduleClusterBlastRadiusCells", 5))}格内每个敌方部位分别造成1伤害。`;
       case "shield":
@@ -157,7 +159,7 @@
       case "plating":
         return `每级使受到的所有伤害降低${formatPercent(setting(balance, "moduleDamageReductionPerLevel", 0.1))}。`;
       case "replicator":
-        return `吃球并完成全身成长动画时，每级有${formatPercent(setting(balance, "moduleFoodReplicationChancePerLevel", 0.06))}概率在蛇尾后方生成1枚可再次触发本效果的球。`;
+        return `吃球时，每级有${formatPercent(setting(balance, "moduleFoodReplicationChancePerLevel", 0.06))}概率在蛇尾后方生成1枚球。此机体生成的球也可以再次触发此效果。`;
       case "medkit":
         return `吃球时，每级恢复${formatNumber(setting(balance, "moduleFoodHealPerLevel", 1))}生命。`;
       case "adrenaline":
