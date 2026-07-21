@@ -39,4 +39,21 @@ describe('自动模式设置', () => {
     expect(gameSource).toContain('if (backgroundPauseEnabled && state === "running") setPaused(true);');
     expect(gameSource).toContain('if (document.hidden && backgroundPauseEnabled && state === "running") setPaused(true);');
   });
+
+  it('多人自动模式把救援插入高优先目标与吃球之间', () => {
+    const stepSource = serverSource.slice(
+      serverSource.indexOf('step(deltaSeconds:'),
+      serverSource.indexOf('getSnapshot('),
+    );
+    const autopilotSource = serverSource.slice(
+      serverSource.indexOf('private autopilotAngle('),
+      serverSource.indexOf('private ghostAutopilotAngle('),
+    );
+
+    expect(stepSource).toContain('this.autopilotAngle(player, present)');
+    expect(autopilotSource.indexOf('for (const enemy of this.enemies)')).toBeLessThan(autopilotSource.indexOf('if (!hasHigherPriorityTarget)'));
+    expect(autopilotSource.indexOf('if (!hasHigherPriorityTarget)')).toBeLessThan(autopilotSource.indexOf('const targetCol = target.col - player.col;'));
+    expect(autopilotSource).toContain('if (other === player || !other.ghost) continue;');
+    expect(autopilotSource).toContain('if (other === player || other.ghost || other.paused || other.choosingUpgrade) continue;');
+  });
 });

@@ -803,6 +803,11 @@ export class UltraWorld {
       return;
     }
 
+    if (this.endRunsWhenAllPresentPlayersAreGhosts(now, present)) {
+      this.flushOutputs();
+      return;
+    }
+
     if (moving.length === 0) {
       this.flushOutputs();
       return;
@@ -823,10 +828,14 @@ export class UltraWorld {
       living.push(player);
       if (!player.paused && !player.choosingUpgrade) active.push(player);
     }
+    if (this.endRunsWhenAllPresentPlayersAreGhosts(now, present)) {
+      this.flushOutputs();
+      return;
+    }
 
     for (const player of moving) {
       if (!player.autopilot || player.collisionCooldown > 0) continue;
-      player.desiredAngle = player.ghost ? this.ghostAutopilotAngle(player, living) : this.autopilotAngle(player, living);
+      player.desiredAngle = player.ghost ? this.ghostAutopilotAngle(player, living) : this.autopilotAngle(player, present);
     }
     for (const player of moving) this.movePlayer(player, worldDelta);
     for (const player of moving) this.recordPlayerMovement(player, now);
@@ -860,6 +869,10 @@ export class UltraWorld {
     this.updateProjectiles(worldDelta);
     this.updateHazards(worldDelta);
     this.checkCollisions(now, active, living);
+    if (this.endRunsWhenAllPresentPlayersAreGhosts(now, present)) {
+      this.flushOutputs();
+      return;
+    }
     retainInPlace(this.enemies, (enemy) => !enemy.dead);
     retainInPlace(this.projectiles, (projectile) => {
       const alive = projectile.life > 0 && this.isProjectileInside(projectile);
@@ -1247,6 +1260,7 @@ export class UltraWorld {
 
     let target: GridPoint = nearestFood ?? { col: (this.arenaMinimum() + this.arenaMaximum()) / 2, row: (this.arenaMinimum() + this.arenaMaximum()) / 2 };
     let targetDistance = nearestDistance;
+    let hasHigherPriorityTarget = false;
     const headStrikeDamage = this.playerHeadDamage(player, true);
     for (const enemy of this.enemies) {
       if (enemy.dead || enemy.segments.length >= headStrikeDamage) continue;
@@ -1254,6 +1268,19 @@ export class UltraWorld {
       if (distance >= targetDistance) continue;
       target = enemy;
       targetDistance = distance;
+      hasHigherPriorityTarget = true;
+    }
+    if (!hasHigherPriorityTarget) {
+      let nearestGhost: PlayerEntity | null = null;
+      let nearestGhostDistance = Number.POSITIVE_INFINITY;
+      for (const other of presentPlayers) {
+        if (other === player || !other.ghost) continue;
+        const distance = distanceSquared(player, other);
+        if (distance >= nearestGhostDistance) continue;
+        nearestGhost = other;
+        nearestGhostDistance = distance;
+      }
+      if (nearestGhost) target = nearestGhost;
     }
     const targetCol = target.col - player.col;
     const targetRow = target.row - player.row;
@@ -1283,7 +1310,7 @@ export class UltraWorld {
       for (const segment of enemy.segments) repel(segment, 2.4, 2.8);
     }
     for (const other of presentPlayers) {
-      if (other === player || other.paused || other.choosingUpgrade) continue;
+      if (other === player || other.ghost || other.paused || other.choosingUpgrade) continue;
       repel(other, 3.2, 3.5);
       for (const segment of other.segments) repel(segment, 2.8, 3);
     }
@@ -3339,6 +3366,12 @@ export class UltraWorld {
     if (bounceOwner) this.bounceEntity(owner, owner.col - hazard.col, owner.row - hazard.row, hazard.color, SNAKE_SEGMENT_SPACING);
     hazard.life = 0;
     this.effectSound('mine', owner.entityId);
+  }
+
+  private endRunsWhenAllPresentPlayersAreGhosts(now: number, presentPlayers: readonly PlayerEntity[]): boolean {
+    if (presentPlayers.length === 0 || presentPlayers.some((player) => !player.ghost)) return false;
+    for (const player of presentPlayers) this.eliminatePlayer(player, null, now, '所有玩家均已进入幽灵状态');
+    return true;
   }
 
   private reviveGhostPlayers(now: number, presentPlayers: readonly PlayerEntity[]): boolean {

@@ -254,7 +254,7 @@
   const UPGRADE_INVULNERABILITY_DURATION = designerNumber("upgradeInvulnerabilityDuration", 0.5, 0, 10);
   const RESPAWN_LOCATOR_CONVERGE_DURATION = designerNumber("respawnLocatorConvergeDuration", 1, 0.1, 10);
   const RESPAWN_LOCATOR_FADE_DURATION = designerNumber("respawnLocatorFadeDuration", 3, 0.1, 20);
-  const MULTIPLAYER_GHOST_SPEED = designerNumber("multiplayerGhostSpeed", 0.3, 0.05, 3);
+  const MULTIPLAYER_GHOST_SPEED = designerNumber("multiplayerGhostSpeed", 0.6, 0.05, 3);
   const MULTIPLAYER_GHOST_PLEA_INTERVAL = designerNumber("multiplayerGhostPleaInterval", 0.65, 0.1, 5);
   const MULTIPLAYER_GHOST_PLEA_DURATION = designerNumber("multiplayerGhostPleaDuration", 0.9, 0.1, 3);
   const MULTIPLAYER_GHOST_OPACITY = designerNumber("multiplayerGhostOpacity", 0.36, 0.05, 0.9);

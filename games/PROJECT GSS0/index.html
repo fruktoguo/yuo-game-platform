@@ -19,7 +19,7 @@
           <strong>代号：几何贪吃蛇</strong>
         </div>
         <span class="signature">by 四季鸽</span>
-        <span class="brand-version" aria-label="游戏版本 V82">V82</span>
+        <span class="brand-version" aria-label="游戏版本 V83">V83</span>
       </div>
 
       <div class="run-stats">
@@ -157,7 +157,7 @@
 
     <section id="start-screen" class="modal-layer start-screen is-visible" aria-labelledby="game-title">
       <div class="start-glow" aria-hidden="true"></div>
-      <div class="start-version" aria-label="游戏版本 V82"><span>BUILD</span><strong>V82</strong></div>
+      <div class="start-version" aria-label="游戏版本 V83"><span>BUILD</span><strong>V83</strong></div>
       <div class="start-layout">
         <div class="start-content">
           <div id="network-status" class="title-kicker">TACTICAL SURVIVAL / LOCAL</div>
@@ -201,7 +201,7 @@
           </section>
           <section>
             <strong><span>02</span> 多人共斗</strong>
-            <p><span>进入多人模式即加入联机共享世界</span><span>波次规模随人数增加</span><span>玩家技能不会误伤其他玩家</span><span>撞上其他玩家的身体不会受伤</span><span>只要仍有人存活，其他玩家可无限复活</span></p>
+            <p><span>进入多人模式即加入联机共享世界</span><span>波次规模随人数增加</span><span>玩家技能不会误伤其他玩家</span><span>撞上其他玩家的身体不会受伤</span><span>只要仍有人存活，其他玩家可无限复活；全员成为幽灵时本轮结束</span></p>
           </section>
         </aside>
       </div>
@@ -258,6 +258,20 @@
           <button id="changelog-close-button" class="icon-button codex-close-button" type="button" aria-label="关闭更新日志" title="关闭更新日志">×</button>
         </header>
         <div class="changelog-list">
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V83</strong></div>
+              <time datetime="2026-07-22">2026.07.22</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">多人协作</span>
+              <h3>全员幽灵正确结算并主动救援</h3>
+              <ul>
+                <li>幽灵移动速度提高至原来的两倍；所有在场玩家均为幽灵时立即结束本轮。</li>
+                <li>自动玩家会在原有高优先行为完成后优先复活幽灵队友，再继续吃球。</li>
+              </ul>
+            </div>
+          </article>
           <article class="changelog-entry">
             <header>
               <div class="changelog-version"><span>BUILD</span><strong>V82</strong></div>
@@ -1268,20 +1282,20 @@
     </section>
   </main>
 
-  <script src="designer-config.js?v=82"></script>
-  <script src="module-catalog.js?v=82"></script>
-  <script src="module-progression.js?v=82"></script>
-  <script src="wave-director.js?v=82"></script>
-  <script src="spawn-planner.js?v=82"></script>
-  <script src="network-codec.js?v=82"></script>
-  <script src="network-player-prediction.js?v=82"></script>
-  <script src="network-player-state-codec.js?v=82"></script>
-  <script src="network-player-collisions.js?v=82"></script>
-  <script src="network-head-collisions.js?v=82"></script>
-  <script src="network-food-claims.js?v=82"></script>
-  <script src="network-projectiles.js?v=82"></script>
-  <script src="lobby-navigation.js?v=82"></script>
-  <script src="enemy-codex.js?v=82"></script>
-  <script src="game.js?v=82"></script>
+  <script src="designer-config.js?v=83"></script>
+  <script src="module-catalog.js?v=83"></script>
+  <script src="module-progression.js?v=83"></script>
+  <script src="wave-director.js?v=83"></script>
+  <script src="spawn-planner.js?v=83"></script>
+  <script src="network-codec.js?v=83"></script>
+  <script src="network-player-prediction.js?v=83"></script>
+  <script src="network-player-state-codec.js?v=83"></script>
+  <script src="network-player-collisions.js?v=83"></script>
+  <script src="network-head-collisions.js?v=83"></script>
+  <script src="network-food-claims.js?v=83"></script>
+  <script src="network-projectiles.js?v=83"></script>
+  <script src="lobby-navigation.js?v=83"></script>
+  <script src="enemy-codex.js?v=83"></script>
+  <script src="game.js?v=83"></script>
 </body>
 </html>

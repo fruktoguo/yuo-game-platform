@@ -96,7 +96,7 @@ describe('设计配置', () => {
       upgradeInvulnerabilityDuration: 1,
       respawnLocatorConvergeDuration: 1,
       respawnLocatorFadeDuration: 3,
-      multiplayerGhostSpeed: 0.3,
+      multiplayerGhostSpeed: 0.6,
       multiplayerGhostPleaInterval: 0.65,
       multiplayerGhostPleaDuration: 0.9,
       multiplayerGhostOpacity: 0.36,
@@ -216,8 +216,8 @@ describe('设计配置', () => {
     expect(MODULES.some((module) => ['输出', '防御', '恢复'].includes(module.category as string))).toBe(false);
     expect(MODULES.every((module) => ['进攻', '生存', '辅助', '发育'].includes(module.category))).toBe(true);
     expect(MODULES.filter((module) => module.category === '发育')).toHaveLength(9);
-    expect(editorHtml).toContain('src="module-catalog.js?v=82"');
-    expect(editorHtml).toContain('src="module-progression.js?v=82"');
+    expect(editorHtml).toContain('src="module-catalog.js?v=83"');
+    expect(editorHtml).toContain('src="module-progression.js?v=83"');
     expect(editorHtml).toContain('const MODULES = moduleCatalog;');
     expect(editorHtml).toContain('descriptionText.textContent = describeModule(module.id, draft.balance);');
     expect(editorHtml).toContain('ID: ${module.id}');

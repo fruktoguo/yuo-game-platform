@@ -21,7 +21,7 @@ globalThis.GSS0_DESIGNER_CONFIG = {
     "upgradeInvulnerabilityDuration": 1,
     "respawnLocatorConvergeDuration": 1,
     "respawnLocatorFadeDuration": 3,
-    "multiplayerGhostSpeed": 0.3,
+    "multiplayerGhostSpeed": 0.6,
     "multiplayerGhostPleaInterval": 0.65,
     "multiplayerGhostPleaDuration": 0.9,
     "multiplayerGhostOpacity": 0.36,

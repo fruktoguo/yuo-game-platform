@@ -190,7 +190,7 @@ export const DESIGNER_BALANCE = Object.freeze({
   upgradeInvulnerabilityDuration: numberSetting('upgradeInvulnerabilityDuration', 0.5, 0, 10),
   respawnLocatorConvergeDuration: numberSetting('respawnLocatorConvergeDuration', 1, 0.1, 10),
   respawnLocatorFadeDuration: numberSetting('respawnLocatorFadeDuration', 3, 0.1, 20),
-  multiplayerGhostSpeed: numberSetting('multiplayerGhostSpeed', 0.3, 0.05, 3),
+  multiplayerGhostSpeed: numberSetting('multiplayerGhostSpeed', 0.6, 0.05, 3),
   multiplayerGhostPleaInterval: numberSetting('multiplayerGhostPleaInterval', 0.65, 0.1, 5),
   multiplayerGhostPleaDuration: numberSetting('multiplayerGhostPleaDuration', 0.9, 0.1, 3),
   multiplayerGhostOpacity: numberSetting('multiplayerGhostOpacity', 0.36, 0.05, 0.9),
