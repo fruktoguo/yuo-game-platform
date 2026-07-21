@@ -94,7 +94,7 @@
 
   const TAU = Math.PI * 2;
   const DESIGNER_CONFIG = globalThis.GSS0_DESIGNER_CONFIG || {};
-  if (DESIGNER_CONFIG.schemaVersion !== 13) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 13");
+  if (DESIGNER_CONFIG.schemaVersion !== 14) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 14");
   const DESIGNER_BALANCE = DESIGNER_CONFIG.balance || {};
   const MODULE_DESIGN_STATES = DESIGNER_CONFIG.moduleStates || {};
 
@@ -251,6 +251,7 @@
   const PLAYER_DAMAGE_SHAKE_STRENGTH = designerNumber("playerDamageShakeStrength", 9, 0, 30);
   const PLAYER_DAMAGE_PARTICLE_COUNT = designerNumber("playerDamageParticleCount", 26, 0, 200, true);
   const PLAYER_DAMAGE_PARTICLE_SPEED = designerNumber("playerDamageParticleSpeed", 190, 0, 1000);
+  const ENEMY_DAMAGE_NUMBER_DURATION = designerNumber("enemyDamageNumberDuration", 0.82, 0.1, 3);
   const FOOD_BIRTH_DURATION = designerNumber("foodBirthDuration", 0.36, 0.05, 2);
   const GROWTH_NODE_DELAY = 0.045;
   const GROWTH_PULSE_DURATION = 0.3;
@@ -1768,7 +1769,8 @@
         color: item.color,
         life: item.life,
         maxLife: item.life,
-        emphasis: item.text === "击破"
+        emphasis: Boolean(item.emphasis) || item.text === "击破",
+        damageNumber: Boolean(item.damageNumber)
       });
     }
   }
@@ -5612,6 +5614,7 @@
     const impactX = Number.isFinite(x) ? x : enemy.x;
     const impactY = Number.isFinite(y) ? y : enemy.y;
     const impactColor = color || enemy.color || "#ffffff";
+    const causedByPlayer = options.rewardSelf !== false;
     const safeAmount = Math.max(0, Math.floor(amount));
     if (safeAmount === 0) return;
     const beforeCount = enemy.segments.length;
@@ -5635,7 +5638,7 @@
     const destroyedNodes = promotedHead ? [oldHead, ...removed.slice(0, -1)] : removed;
     for (const segment of destroyedNodes) {
       burst(segment.x, segment.y, impactColor, 7, 95);
-      if (options.rewardSelf !== false) {
+      if (causedByPlayer) {
         const salvageDrops = MODULE_PROGRESSION.rollLinearRewards(
           MODULE_EFFECTS.salvageExpectedDrops(moduleCount("salvage")),
           Math.random
@@ -5648,8 +5651,18 @@
     updateEnemyHitBounds(enemy);
     burst(impactX, impactY, impactColor, 8, 115);
     effects.push({ type: "ring", x: impactX, y: impactY, color: impactColor, life: 0.34, maxLife: 0.34, radius: 3, endRadius: 16 });
-    effects.push({ type: "text", x: impactX, y: impactY - 12, text: `-${appliedDamage}`, color: impactColor, life: 0.62, maxLife: 0.62 });
-    if (options.rewardSelf !== false) {
+    if (causedByPlayer) {
+      effects.push({
+        type: "text",
+        x: impactX,
+        y: impactY - 12,
+        text: `-${appliedDamage}`,
+        color: impactColor,
+        life: ENEMY_DAMAGE_NUMBER_DURATION,
+        maxLife: ENEMY_DAMAGE_NUMBER_DURATION,
+        emphasis: true,
+        damageNumber: true
+      });
       sound("hit");
       shake = Math.max(shake, 2.2);
     }
@@ -7116,11 +7129,11 @@
       } else if (effect.type === "text") {
         ctx.fillStyle = effect.color;
         ctx.strokeStyle = "rgba(4, 7, 8, 0.92)";
-        ctx.lineWidth = effect.emphasis ? 4 : 3;
+        ctx.lineWidth = effect.damageNumber ? 5 : effect.emphasis ? 4 : 3;
         ctx.lineJoin = "round";
-        ctx.font = `900 ${effect.emphasis ? 15 : 12}px Bahnschrift, Arial Narrow, sans-serif`;
+        ctx.font = `900 ${effect.damageNumber ? 19 : effect.emphasis ? 15 : 12}px Bahnschrift, Arial Narrow, sans-serif`;
         ctx.textAlign = "center";
-        const textY = effect.y - progress * (effect.emphasis ? 32 : 24);
+        const textY = effect.y - progress * (effect.damageNumber ? 42 : effect.emphasis ? 32 : 24);
         ctx.strokeText(effect.text, effect.x, textY);
         ctx.fillText(effect.text, effect.x, textY);
       }

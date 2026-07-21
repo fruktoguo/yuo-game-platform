@@ -1,5 +1,5 @@
 globalThis.GSS0_DESIGNER_CONFIG = {
-  "schemaVersion": 13,
+  "schemaVersion": 14,
   "balance": {
     "playerBaseSpeed": 5,
     "playerMaxHealth": 20,
@@ -25,6 +25,7 @@ globalThis.GSS0_DESIGNER_CONFIG = {
     "playerDamageShakeStrength": 9,
     "playerDamageParticleCount": 26,
     "playerDamageParticleSpeed": 190,
+    "enemyDamageNumberDuration": 0.82,
     "foodBirthDuration": 0.36,
     "enemyBaseSpeed": 4,
     "enemySpeedPerMinute": 0.01,

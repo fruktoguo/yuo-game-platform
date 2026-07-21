@@ -103,7 +103,7 @@ function Test-DesignerConfig {
   if (!$match.Success) { return $false }
   try {
     $config = $match.Groups["json"].Value | ConvertFrom-Json
-    return $config.schemaVersion -eq 13 -and $null -ne $config.balance -and $null -ne $config.waveEnemyCountSchedule -and $null -ne $config.moduleCooldownPercentages -and $null -ne $config.moduleStates
+    return $config.schemaVersion -eq 14 -and $null -ne $config.balance -and $null -ne $config.waveEnemyCountSchedule -and $null -ne $config.moduleCooldownPercentages -and $null -ne $config.moduleStates
   } catch {
     return $false
   }

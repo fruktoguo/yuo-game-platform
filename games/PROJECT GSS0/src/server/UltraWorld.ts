@@ -9,6 +9,7 @@ import {
   ENEMY_BODY_RECONNECT_DURATION,
   ENEMY_HEAD_REFORM_DURATION,
   ENEMY_COLORS,
+  ENEMY_DAMAGE_NUMBER_DURATION,
   ENEMY_FOOD_SEARCH_LIMIT,
   ENEMY_WALL_AVOIDANCE_DISTANCE,
   ENEMY_SPAWN_WARNING_TIME,
@@ -3538,8 +3539,8 @@ export class UltraWorld {
       }
     }
     this.ring(point.col, point.row, color, 0.34, 3, 0.48, owner?.entityId);
-    this.textEffect(point.col, point.row - 0.35, `-${applied}`, color, 0.62, owner?.entityId);
     if (owner) {
+      this.textEffect(point.col, point.row - 0.35, `-${applied}`, color, ENEMY_DAMAGE_NUMBER_DURATION, owner.entityId, true, true);
       this.effectSound('hit', owner.entityId);
       this.feedback('hit', owner.entityId);
     }
@@ -3910,8 +3911,17 @@ export class UltraWorld {
     this.pendingEffects.push({ id: this.effectId(), type, col: from.col, row: from.row, col2: to.col, row2: to.row, color, life, audienceEntityId });
   }
 
-  private textEffect(col: number, row: number, text: string, color: string, life: number, audienceEntityId?: number): void {
-    this.pendingEffects.push({ id: this.effectId(), type: 'text', col, row, text, color, life, audienceEntityId });
+  private textEffect(
+    col: number,
+    row: number,
+    text: string,
+    color: string,
+    life: number,
+    audienceEntityId?: number,
+    emphasis = false,
+    damageNumber = false,
+  ): void {
+    this.pendingEffects.push({ id: this.effectId(), type: 'text', col, row, text, color, life, audienceEntityId, emphasis, damageNumber });
   }
 
   private effectSound(kind: Extract<UltraEffect, { type: 'sound' }>['kind'], audienceEntityId?: number, detail?: number): void {
