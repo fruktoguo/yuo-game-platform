@@ -11,7 +11,7 @@ interface DesignerConfigSource {
 }
 
 const source = (globalThis as typeof globalThis & { GSS0_DESIGNER_CONFIG?: DesignerConfigSource }).GSS0_DESIGNER_CONFIG;
-if (source?.schemaVersion !== 8) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 8');
+if (source?.schemaVersion !== 9) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 9');
 
 function numberSetting(key: string, fallback: number, minimum: number, maximum: number, integer = false): number {
   const candidate = source?.balance?.[key];
@@ -79,7 +79,7 @@ export const DESIGNER_BALANCE = Object.freeze({
   enemyScoutHealthWeight: numberSetting('enemyScoutHealthWeight', 1, 0.01, 20),
   enemyScoutSpeedMultiplier: numberSetting('enemyScoutSpeedMultiplier', 1.08, 0.1, 3),
   enemyScoutTurnMultiplier: numberSetting('enemyScoutTurnMultiplier', 1.15, 0.1, 3),
-  enemyScoutFoodInterest: numberSetting('enemyScoutFoodInterest', 0.3, 0, 1),
+  enemyScoutFoodRange: numberSetting('enemyScoutFoodRange', 6, 0, 30),
   enemyForagerUnlockSeconds: numberSetting('enemyForagerUnlockSeconds', 0, 0, 3_600),
   enemyForagerSpawnWeight: numberSetting('enemyForagerSpawnWeight', 4, 0, 20),
   enemyForagerHealthWeight: numberSetting('enemyForagerHealthWeight', 1.65, 0.01, 20),
@@ -90,19 +90,13 @@ export const DESIGNER_BALANCE = Object.freeze({
   enemyCourierHealthWeight: numberSetting('enemyCourierHealthWeight', 2, 0.01, 20),
   enemyCourierSpeedMultiplier: numberSetting('enemyCourierSpeedMultiplier', 1.12, 0.1, 3),
   enemyCourierTurnMultiplier: numberSetting('enemyCourierTurnMultiplier', 1.08, 0.1, 3),
-  enemyCourierCarryThreshold: numberSetting('enemyCourierCarryThreshold', 3, 1, 100, true),
-  enemyCourierFleeStrength: numberSetting('enemyCourierFleeStrength', 0.9, 0, 1),
   enemyCourierFoodClusterRadius: numberSetting('enemyCourierFoodClusterRadius', 2.5, 0.5, 10),
   enemyChargerUnlockSeconds: numberSetting('enemyChargerUnlockSeconds', 90, 0, 3_600),
   enemyChargerSpawnWeight: numberSetting('enemyChargerSpawnWeight', 1.8, 0, 20),
   enemyChargerHealthWeight: numberSetting('enemyChargerHealthWeight', 2.2, 0.01, 20),
   enemyChargerSpeedMultiplier: numberSetting('enemyChargerSpeedMultiplier', 0.78, 0.1, 3),
   enemyChargerTurnMultiplier: numberSetting('enemyChargerTurnMultiplier', 0.72, 0.1, 3),
-  enemyChargerCooldown: numberSetting('enemyChargerCooldown', 2.8, 0.1, 20),
-  enemyChargerDetectionRange: numberSetting('enemyChargerDetectionRange', 9, 1, 30),
-  enemyChargerTelegraphDuration: numberSetting('enemyChargerTelegraphDuration', 0.7, 0.1, 5),
-  enemyChargerChargeDuration: numberSetting('enemyChargerChargeDuration', 1.1, 0.1, 5),
-  enemyChargerChargeSpeedMultiplier: numberSetting('enemyChargerChargeSpeedMultiplier', 1.85, 1, 5),
+  enemyChargerTrackingWobble: numberSetting('enemyChargerTrackingWobble', 0.16, 0, 0.6),
   enemyCutterUnlockSeconds: numberSetting('enemyCutterUnlockSeconds', 180, 0, 3_600),
   enemyCutterSpawnWeight: numberSetting('enemyCutterSpawnWeight', 1.4, 0, 20),
   enemyCutterHealthWeight: numberSetting('enemyCutterHealthWeight', 3.6, 0.01, 20),

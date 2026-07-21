@@ -19,7 +19,7 @@
           <strong>代号：几何贪吃蛇</strong>
         </div>
         <span class="signature">by 四季鸽</span>
-        <span class="brand-version" aria-label="游戏版本 V58">V58</span>
+        <span class="brand-version" aria-label="游戏版本 V59">V59</span>
       </div>
 
       <div class="run-stats">
@@ -145,7 +145,7 @@
 
     <section id="start-screen" class="modal-layer start-screen is-visible" aria-labelledby="game-title">
       <div class="start-glow" aria-hidden="true"></div>
-      <div class="start-version" aria-label="游戏版本 V58"><span>BUILD</span><strong>V58</strong></div>
+      <div class="start-version" aria-label="游戏版本 V59"><span>BUILD</span><strong>V59</strong></div>
       <div class="start-layout">
         <div class="start-content">
           <div id="network-status" class="title-kicker">TACTICAL SURVIVAL / LOCAL</div>
@@ -236,6 +236,21 @@
           <button id="changelog-close-button" class="icon-button codex-close-button" type="button" aria-label="关闭更新日志" title="关闭更新日志">×</button>
         </header>
         <div class="changelog-list">
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V59</strong></div>
+              <time datetime="2026-07-21">2026.07.21</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">敌人 AI</span>
+              <h3>避障分层与追头行为重构</h3>
+              <ul>
+                <li>浮游体改为范围内抢球，浮游体与觅食者不再主动避开玩家身体。</li>
+                <li>搬运者取消满载撤离，始终寻找球群，并在接近玩家身体时优先避障。</li>
+                <li>冲角者取消蓄力冲锋，改为持续追踪最近玩家蛇头，同时保留摆动、渐进转向与机体避障。</li>
+              </ul>
+            </div>
+          </article>
           <article class="changelog-entry">
             <header>
               <div class="changelog-version"><span>BUILD</span><strong>V58</strong></div>
@@ -901,20 +916,20 @@
     </section>
   </main>
 
-  <script src="designer-config.js?v=58"></script>
-  <script src="module-catalog.js?v=58"></script>
-  <script src="module-progression.js?v=58"></script>
-  <script src="wave-director.js?v=58"></script>
-  <script src="spawn-planner.js?v=58"></script>
-  <script src="network-codec.js?v=58"></script>
-  <script src="network-player-prediction.js?v=58"></script>
-  <script src="network-player-state-codec.js?v=58"></script>
-  <script src="network-player-collisions.js?v=58"></script>
-  <script src="network-head-collisions.js?v=58"></script>
-  <script src="network-food-claims.js?v=58"></script>
-  <script src="network-projectiles.js?v=58"></script>
-  <script src="lobby-navigation.js?v=58"></script>
-  <script src="enemy-codex.js?v=58"></script>
-  <script src="game.js?v=58"></script>
+  <script src="designer-config.js?v=59"></script>
+  <script src="module-catalog.js?v=59"></script>
+  <script src="module-progression.js?v=59"></script>
+  <script src="wave-director.js?v=59"></script>
+  <script src="spawn-planner.js?v=59"></script>
+  <script src="network-codec.js?v=59"></script>
+  <script src="network-player-prediction.js?v=59"></script>
+  <script src="network-player-state-codec.js?v=59"></script>
+  <script src="network-player-collisions.js?v=59"></script>
+  <script src="network-head-collisions.js?v=59"></script>
+  <script src="network-food-claims.js?v=59"></script>
+  <script src="network-projectiles.js?v=59"></script>
+  <script src="lobby-navigation.js?v=59"></script>
+  <script src="enemy-codex.js?v=59"></script>
+  <script src="game.js?v=59"></script>
 </body>
 </html>

@@ -78,7 +78,7 @@ interface ClientProjectileRuntime {
 }
 
 describe('客户端网络模块', () => {
-  it('独立解码器与服务端 V8 机体等级快照格式一致', () => {
+  it('独立解码器与服务端 V9 机体等级快照格式一致', () => {
     const snapshot: UltraSnapshot = {
       tick: 7, serverTime: 700, gameTime: 3, waveCount: 2, waveTimer: 4, threatLevel: 1, arenaSize: 24, worldObjectRevision: 0, worldObjectsComplete: true,
       players: [{
@@ -91,7 +91,7 @@ describe('客户端网络模块', () => {
         ],
         growth: null,
       }],
-      enemies: [{ id: 2, archetype: 'charger', behaviorState: 'telegraph', behaviorPhase: 0.5, col: 8, row: 9, angle: 1, color: '#ff5c62', captured: 0, segments: [{ col: 7.5, row: 9 }] }],
+      enemies: [{ id: 2, archetype: 'charger', behaviorState: 'roam', behaviorPhase: 0, col: 8, row: 9, angle: 1, color: '#ff5c62', captured: 0, segments: [{ col: 7.5, row: 9 }] }],
       foods: [], projectiles: [], hazards: [], pendingSpawns: [],
     };
 

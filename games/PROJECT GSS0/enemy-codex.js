@@ -7,10 +7,10 @@
       id: "scout",
       code: "SCOUT",
       name: "浮游体",
-      role: "高速游荡",
+      role: "游荡抢球",
       color: "#ff5c62",
-      description: "轻快灵活的基础敌人。通常随意游荡，偶尔会转向附近的球，用不断变化的路线干扰玩家。",
-      traits: Object.freeze(["转向灵敏", "偶尔争抢附近球", "身体较短，容易击破"])
+      description: "在场地中随机游荡。只有球进入抢球范围后才会转向追逐，不会主动避开玩家身体。",
+      traits: Object.freeze(["随机游荡", "范围内优先抢球", "不会主动避障"])
     }),
     Object.freeze({
       id: "forager",
@@ -18,26 +18,26 @@
       name: "觅食者",
       role: "稳定觅食",
       color: "#ff8a4c",
-      description: "持续在附近寻找球并追逐目标。它的行动容易被球群牵引，抢到的球会在被摧毁时全部返还场地。",
-      traits: Object.freeze(["主动追逐球", "移动稳定", "适合用球群诱导路线"])
+      description: "持续寻找并追逐球，抢到的球会在被摧毁时全部返还场地。不会主动避开玩家身体，容易被蛇身截杀。",
+      traits: Object.freeze(["主动追逐球", "移动稳定", "不会主动避障"])
     }),
     Object.freeze({
       id: "courier",
       code: "COURIER",
       name: "搬运者",
-      role: "抢球撤离",
+      role: "持续搬运",
       color: "#d95cff",
-      description: "优先冲向最密集的球群。携带足够战利品后会放弃觅食，转而远离最近的玩家并保存收获。",
-      traits: Object.freeze(["寻找球群", "满载后主动撤离", "速度较快"])
+      description: "始终寻找最密集的球群并持续抢球。接近玩家身体时优先避障，绕开后继续搬运。",
+      traits: Object.freeze(["持续寻找球群", "避障优先于抢球", "永不主动撤离"])
     }),
     Object.freeze({
       id: "charger",
       code: "CHARGER",
       name: "冲角者",
-      role: "锁定冲锋",
+      role: "追头压迫",
       color: "#ff477e",
-      description: "发现玩家后短暂蓄势，锁定当时的方向高速直冲。预告阶段可以避让，冲锋开始后它无法临时转向。",
-      traits: Object.freeze(["冲锋前有明确预告", "直线爆发速度高", "巡航转向较慢"])
+      description: "持续朝最近玩家的蛇头移动，以渐进转向和左右摆动追踪目标；接近玩家机体时优先避开。",
+      traits: Object.freeze(["持续追踪蛇头", "保留摆动与渐进转向", "会主动避障"])
     }),
     Object.freeze({
       id: "cutter",
@@ -46,7 +46,7 @@
       role: "预测封路",
       color: "#f4c542",
       description: "读取最近玩家的移动方向，瞄准其前方并从侧面横切路线。它不执着于球，而是主动制造蛇身封锁。",
-      traits: Object.freeze(["预测玩家前进方向", "侧向切入封路", "身体较长"])
+      traits: Object.freeze(["预测玩家前进方向", "侧向切入封路", "会主动避障"])
     }),
     Object.freeze({
       id: "coiler",
@@ -55,7 +55,7 @@
       role: "区域盘旋",
       color: "#08c7dc",
       description: "寻找密集球群并围绕目标持续盘旋。它会逐渐把身体铺在资源周围，迫使玩家改变进入和撤离路线。",
-      traits: Object.freeze(["围绕球群盘旋", "转向灵活", "擅长占据资源区"])
+      traits: Object.freeze(["围绕球群盘旋", "转向灵活", "会主动避障"])
     }),
     Object.freeze({
       id: "warden",
@@ -64,7 +64,7 @@
       role: "重装护卫",
       color: "#70d6ff",
       description: "优先护卫携带球最多的敌人；没有护卫目标时才自行觅食。厚重身体和强力头撞会把玩家推得更远。",
-      traits: Object.freeze(["保护高价值敌人", "生命和身体长度较高", "蛇头击退更强"])
+      traits: Object.freeze(["保护高价值敌人", "生命和身体长度较高", "会主动避障"])
     })
   ]);
   const byId = Object.freeze(Object.fromEntries(entries.map((entry) => [entry.id, entry])));

@@ -45,15 +45,15 @@ describe('设计配置', () => {
       enemyHealthWeightVariation: 0.25,
       enemyScoutSpawnWeight: 5,
       enemyScoutHealthWeight: 1,
+      enemyScoutFoodRange: 6,
       enemyForagerHealthWeight: 1.65,
       enemyCourierHealthWeight: 2,
       enemyChargerHealthWeight: 2.2,
+      enemyChargerTrackingWobble: 0.16,
       enemyCutterHealthWeight: 3.6,
       enemyCoilerHealthWeight: 4,
       enemyWardenHealthWeight: 6.2,
       enemyChargerUnlockSeconds: 90,
-      enemyChargerTelegraphDuration: 0.7,
-      enemyCourierCarryThreshold: 3,
       enemyCutterUnlockSeconds: 180,
       enemyCoilerUnlockSeconds: 300,
       enemyWardenUnlockSeconds: 420,
@@ -154,7 +154,7 @@ describe('设计配置', () => {
 
     expect(parameterKeys.sort()).toEqual(Object.keys(DESIGNER_BALANCE).sort());
     expect(moduleIds.sort()).toEqual(MODULES.map((module) => module.id).sort());
-    expect(new Set(parameterKeys).size).toBe(146);
+    expect(new Set(parameterKeys).size).toBe(140);
     expect(new Set(moduleIds).size).toBe(58);
   });
 
@@ -167,8 +167,8 @@ describe('设计配置', () => {
     expect(MODULES.find((module) => module.id === 'haste')?.desc).toContain('0.18弧度/秒转向速度');
     expect(MODULES.some((module) => (module.category as string) === '恢复')).toBe(false);
     expect(MODULES.filter((module) => module.category === '发育')).toHaveLength(5);
-    expect(editorHtml).toContain('src="module-catalog.js?v=58"');
-    expect(editorHtml).toContain('src="module-progression.js?v=58"');
+    expect(editorHtml).toContain('src="module-catalog.js?v=59"');
+    expect(editorHtml).toContain('src="module-progression.js?v=59"');
     expect(editorHtml).toContain('const MODULES = moduleCatalog;');
     expect(editorHtml).toContain('descriptionText.textContent = describeModule(module.id, draft.balance);');
     expect(editorHtml).toContain('ID: ${module.id}');

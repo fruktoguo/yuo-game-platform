@@ -382,11 +382,11 @@
     </div>
   </main>
 
-  <script src="enemy-codex.js?v=58"></script>
-  <script src="wave-director.js?v=58"></script>
-  <script src="designer-config.js?v=58"></script>
-  <script src="module-catalog.js?v=58"></script>
-  <script src="module-progression.js?v=58"></script>
+  <script src="enemy-codex.js?v=59"></script>
+  <script src="wave-director.js?v=59"></script>
+  <script src="designer-config.js?v=59"></script>
+  <script src="module-catalog.js?v=59"></script>
+  <script src="module-progression.js?v=59"></script>
   <script>
     (() => {
       "use strict";
@@ -444,7 +444,7 @@
         { key: "enemyScoutHealthWeight", group: "浮游体", label: "生命权重", hint: "浮游体在同波总威胁分配中的相对生命份额", min: 0.01, max: 20, step: 0.05, unit: "权重" },
         { key: "enemyScoutSpeedMultiplier", group: "浮游体", label: "速度倍率", hint: "浮游体相对全局敌人速度的倍率", min: 0.1, max: 3, step: 0.01, unit: "倍" },
         { key: "enemyScoutTurnMultiplier", group: "浮游体", label: "转向倍率", hint: "浮游体相对全局敌人转向速度的倍率", min: 0.1, max: 3, step: 0.01, unit: "倍" },
-        { key: "enemyScoutFoodInterest", group: "浮游体", label: "抢球意愿", hint: "每次思考时主动追逐附近球的概率", min: 0, max: 1, step: 0.01, unit: "概率" },
+        { key: "enemyScoutFoodRange", group: "浮游体", label: "抢球范围", hint: "任意球进入该距离后，浮游体才会停止游荡并追逐最近的球", min: 0, max: 30, step: 0.1, unit: "格" },
         { key: "enemyForagerUnlockSeconds", group: "觅食者", label: "解锁时间", hint: "觅食者加入刷新池的游戏时间", min: 0, max: 3600, step: 5, unit: "秒" },
         { key: "enemyForagerSpawnWeight", group: "觅食者", label: "刷新权重", hint: "觅食者在可用敌人中的相对抽取权重", min: 0, max: 20, step: 0.05, unit: "权重" },
         { key: "enemyForagerHealthWeight", group: "觅食者", label: "生命权重", hint: "觅食者在同波总威胁分配中的相对生命份额", min: 0.01, max: 20, step: 0.05, unit: "权重" },
@@ -455,19 +455,13 @@
         { key: "enemyCourierHealthWeight", group: "搬运者", label: "生命权重", hint: "搬运者在同波总威胁分配中的相对生命份额", min: 0.01, max: 20, step: 0.05, unit: "权重" },
         { key: "enemyCourierSpeedMultiplier", group: "搬运者", label: "速度倍率", hint: "搬运者相对全局敌人速度的倍率", min: 0.1, max: 3, step: 0.01, unit: "倍" },
         { key: "enemyCourierTurnMultiplier", group: "搬运者", label: "转向倍率", hint: "搬运者相对全局敌人转向速度的倍率", min: 0.1, max: 3, step: 0.01, unit: "倍" },
-        { key: "enemyCourierCarryThreshold", group: "搬运者", label: "撤离持球阈值", hint: "持有球达到该数量后，搬运者转为躲避玩家", min: 1, max: 100, step: 1, unit: "枚" },
-        { key: "enemyCourierFleeStrength", group: "搬运者", label: "躲避强度", hint: "撤离时远离最近玩家的转向影响", min: 0, max: 1, step: 0.01, unit: "强度" },
         { key: "enemyCourierFoodClusterRadius", group: "搬运者", label: "球团识别半径", hint: "评估球密集程度时使用的半径", min: 0.5, max: 10, step: 0.1, unit: "格" },
         { key: "enemyChargerUnlockSeconds", group: "冲角者", label: "解锁时间", hint: "冲角者加入刷新池的游戏时间", min: 0, max: 3600, step: 5, unit: "秒" },
         { key: "enemyChargerSpawnWeight", group: "冲角者", label: "刷新权重", hint: "冲角者在可用敌人中的相对抽取权重", min: 0, max: 20, step: 0.05, unit: "权重" },
         { key: "enemyChargerHealthWeight", group: "冲角者", label: "生命权重", hint: "冲角者在同波总威胁分配中的相对生命份额", min: 0.01, max: 20, step: 0.05, unit: "权重" },
-        { key: "enemyChargerSpeedMultiplier", group: "冲角者", label: "巡航速度倍率", hint: "冲锋前相对全局敌人速度的倍率", min: 0.1, max: 3, step: 0.01, unit: "倍" },
+        { key: "enemyChargerSpeedMultiplier", group: "冲角者", label: "速度倍率", hint: "冲角者持续追踪玩家蛇头时相对全局敌人速度的倍率", min: 0.1, max: 3, step: 0.01, unit: "倍" },
         { key: "enemyChargerTurnMultiplier", group: "冲角者", label: "转向倍率", hint: "冲角者相对全局敌人转向速度的倍率", min: 0.1, max: 3, step: 0.01, unit: "倍" },
-        { key: "enemyChargerCooldown", group: "冲角者", label: "冲锋冷却", hint: "一次冲锋结束后再次尝试锁定玩家的等待时间", min: 0.1, max: 20, step: 0.05, unit: "秒" },
-        { key: "enemyChargerDetectionRange", group: "冲角者", label: "锁定范围", hint: "检测并预告冲锋的最大玩家距离", min: 1, max: 30, step: 0.1, unit: "格" },
-        { key: "enemyChargerTelegraphDuration", group: "冲角者", label: "冲锋预告时长", hint: "锁定方向后原地蓄势的持续时间", min: 0.1, max: 5, step: 0.05, unit: "秒" },
-        { key: "enemyChargerChargeDuration", group: "冲角者", label: "冲锋持续时间", hint: "保持锁定方向高速突进的时间", min: 0.1, max: 5, step: 0.05, unit: "秒" },
-        { key: "enemyChargerChargeSpeedMultiplier", group: "冲角者", label: "冲锋速度倍率", hint: "冲锋期间相对巡航速度的倍率", min: 1, max: 5, step: 0.05, unit: "倍" },
+        { key: "enemyChargerTrackingWobble", group: "冲角者", label: "追头摆动幅度", hint: "追踪玩家蛇头时保留的左右游动偏角；0 表示完全直指目标", min: 0, max: 0.6, step: 0.01, unit: "弧度" },
         { key: "enemyCutterUnlockSeconds", group: "截断者", label: "解锁时间", hint: "截断者加入刷新池的游戏时间", min: 0, max: 3600, step: 5, unit: "秒" },
         { key: "enemyCutterSpawnWeight", group: "截断者", label: "刷新权重", hint: "截断者在可用敌人中的相对抽取权重", min: 0, max: 20, step: 0.05, unit: "权重" },
         { key: "enemyCutterHealthWeight", group: "截断者", label: "生命权重", hint: "截断者在同波总威胁分配中的相对生命份额", min: 0.01, max: 20, step: 0.05, unit: "权重" },
@@ -608,7 +602,7 @@
       const filePickerSupported = typeof window.showOpenFilePicker === "function";
 
       function normalizeConfig(value) {
-        const config = { schemaVersion: 8, balance: {}, waveEnemyCountSchedule: [], moduleCooldownPercentages: {}, moduleStates: {} };
+        const config = { schemaVersion: 9, balance: {}, waveEnemyCountSchedule: [], moduleCooldownPercentages: {}, moduleStates: {} };
         for (const definition of ALL_PARAMETER_DEFINITIONS) {
           const candidate = Number(value?.balance?.[definition.key]);
           config.balance[definition.key] = Number.isFinite(candidate) ? Math.max(definition.min, Math.min(definition.max, candidate)) : definition.min;
@@ -644,7 +638,7 @@
         const end = text.lastIndexOf("}");
         if (start < 0 || end <= start) throw new Error("配置内容不完整");
         const parsed = JSON.parse(text.slice(start, end + 1));
-        if (parsed?.schemaVersion !== 8) throw new Error("配置版本无效，需要 schemaVersion 8");
+        if (parsed?.schemaVersion !== 9) throw new Error("配置版本无效，需要 schemaVersion 9");
         return normalizeConfig(parsed);
       }
 

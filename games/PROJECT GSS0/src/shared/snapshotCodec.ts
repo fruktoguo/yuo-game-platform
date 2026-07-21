@@ -14,7 +14,7 @@ import type {
 } from './protocol';
 
 const MAGIC = 0x5553_4e50;
-export const SNAPSHOT_PROTOCOL_VERSION = 8;
+export const SNAPSHOT_PROTOCOL_VERSION = 9;
 const COORDINATE_SCALE = 65_535;
 const COORDINATE_PADDING = 2;
 const VELOCITY_SCALE = 64;

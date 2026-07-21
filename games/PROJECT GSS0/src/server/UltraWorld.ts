@@ -85,6 +85,7 @@ const TARGET_REQUIRED_MODULES = new Set<ModuleId>([
   'sniper', 'flak', 'fork', 'anchor', 'flare', 'scatter', 'lance', 'execute',
   'crossfire', 'phasebolt',
 ]);
+const ENEMY_PLAYER_BODY_AVOIDANCE = new Set<EnemyArchetypeId>(['courier', 'charger', 'cutter', 'coiler', 'warden']);
 const PERSONAL_SOUND_KINDS = new Set<Extract<UltraEffect, { type: 'sound' }>['kind']>([
   'ui', 'start', 'pause', 'resume', 'level', 'levelCharge', 'select',
 ]);
@@ -143,9 +144,6 @@ interface EnemyEntity extends UltraEnemyView {
   bladeCooldownsByPlayer: Map<number, number>;
   sawCooldownsByPlayer: Map<number, number>;
   collisionCooldown: number;
-  behaviorTimer: number;
-  chargeCooldown: number;
-  chargeAngle: number;
   projectileMinCol: number;
   projectileMaxCol: number;
   projectileMinRow: number;
@@ -1986,9 +1984,6 @@ export class UltraWorld {
       bladeCooldownsByPlayer: new Map(),
       sawCooldownsByPlayer: new Map(),
       collisionCooldown: 0,
-      behaviorTimer: 0,
-      chargeCooldown: spawn.archetype === 'charger' ? DESIGNER_BALANCE.enemyChargerCooldown * this.randomBetween(0.35, 0.8) : 0,
-      chargeAngle: angle,
       projectileMinCol: spawn.headCell.col,
       projectileMaxCol: spawn.headCell.col,
       projectileMinRow: spawn.headCell.row,
@@ -2618,30 +2613,31 @@ export class UltraWorld {
   }
 
   private chooseEnemyIntent(enemy: EnemyEntity): void {
-    const candidates = this.nearestFoods(enemy, ENEMY_FOOD_SEARCH_LIMIT);
     enemy.wobble += this.randomBetween(-1.2, 1.2);
+    if (enemy.archetype === 'charger') {
+      enemy.targetFoodId = null;
+      enemy.behaviorState = 'roam';
+      return;
+    }
+    if (enemy.archetype === 'cutter') {
+      enemy.targetFoodId = null;
+      enemy.behaviorState = 'intercept';
+      return;
+    }
+    const candidates = this.nearestFoods(enemy, ENEMY_FOOD_SEARCH_LIMIT);
     switch (enemy.archetype) {
-      case 'scout':
-        enemy.targetFoodId = this.random() < DESIGNER_BALANCE.enemyScoutFoodInterest && candidates.length > 0
-          ? candidates[Math.floor(this.random() * candidates.length)].id
-          : null;
+      case 'scout': {
+        const target = candidates[0];
+        enemy.targetFoodId = target && distanceSquared(enemy, target) <= DESIGNER_BALANCE.enemyScoutFoodRange ** 2 ? target.id : null;
         enemy.behaviorState = enemy.targetFoodId === null ? 'roam' : 'forage';
         break;
+      }
       case 'courier': {
-        if (enemy.captured >= DESIGNER_BALANCE.enemyCourierCarryThreshold) {
-          enemy.targetFoodId = null;
-          enemy.behaviorState = 'flee';
-          break;
-        }
         const target = this.densestFood(enemy, candidates, DESIGNER_BALANCE.enemyCourierFoodClusterRadius);
         enemy.targetFoodId = target?.id ?? null;
         enemy.behaviorState = target ? 'forage' : 'roam';
         break;
       }
-      case 'cutter':
-        enemy.targetFoodId = null;
-        enemy.behaviorState = 'intercept';
-        break;
       case 'coiler': {
         const target = this.densestFood(enemy, candidates, DESIGNER_BALANCE.enemyCoilerOrbitRadius);
         enemy.targetFoodId = target?.id ?? null;
@@ -2663,14 +2659,17 @@ export class UltraWorld {
 
   private steerEnemy(enemy: EnemyEntity, players: readonly PlayerEntity[]): void {
     const targetFood = enemy.targetFoodId === null ? null : this.foodsById.get(enemy.targetFoodId) ?? null;
-    if (enemy.behaviorState === 'flee') {
-      const nearest = this.nearestPlayer(enemy, players);
-      if (nearest) {
-        const away = Math.atan2(enemy.row - nearest.row, enemy.col - nearest.col);
-        const strength = DESIGNER_BALANCE.enemyCourierFleeStrength;
-        enemy.desiredAngle += angleDifference(enemy.desiredAngle, away) * strength;
+    if (enemy.archetype === 'charger') {
+      const target = this.nearestPlayer(enemy, players);
+      if (target) {
+        const ideal = Math.atan2(target.row - enemy.row, target.col - enemy.col);
+        const sway = (
+          Math.sin(this.gameTime * 1.7 + enemy.wobble) * 0.72
+          + Math.sin(this.gameTime * 0.47 + enemy.id) * 0.28
+        ) * DESIGNER_BALANCE.enemyChargerTrackingWobble;
+        enemy.desiredAngle = ideal + sway;
       }
-      enemy.behaviorPhase = clamp(enemy.captured / DESIGNER_BALANCE.enemyCourierCarryThreshold, 0, 1);
+      enemy.behaviorPhase = 0;
       return;
     }
     if (enemy.behaviorState === 'intercept') {
@@ -2728,50 +2727,6 @@ export class UltraWorld {
     enemy.desiredAngle += Math.sin(this.gameTime + enemy.wobble) * 0.05;
   }
 
-  private updateChargerBehavior(enemy: EnemyEntity, delta: number, players: readonly PlayerEntity[]): number {
-    enemy.chargeCooldown = Math.max(0, enemy.chargeCooldown - delta);
-    if (enemy.behaviorState === 'telegraph') {
-      enemy.behaviorTimer -= delta;
-      enemy.behaviorPhase = clamp(1 - enemy.behaviorTimer / DESIGNER_BALANCE.enemyChargerTelegraphDuration, 0, 1);
-      enemy.desiredAngle = enemy.chargeAngle;
-      enemy.angle = rotateToward(enemy.angle, enemy.chargeAngle, delta * enemy.turnRate * 1.8);
-      if (enemy.behaviorTimer <= 0) {
-        enemy.behaviorState = 'charge';
-        enemy.behaviorTimer = DESIGNER_BALANCE.enemyChargerChargeDuration;
-        enemy.behaviorPhase = 0;
-        enemy.angle = enemy.chargeAngle;
-      }
-      return 0.12;
-    }
-    if (enemy.behaviorState === 'charge') {
-      enemy.behaviorTimer -= delta;
-      enemy.behaviorPhase = clamp(1 - enemy.behaviorTimer / DESIGNER_BALANCE.enemyChargerChargeDuration, 0, 1);
-      enemy.angle = enemy.chargeAngle;
-      enemy.desiredAngle = enemy.chargeAngle;
-      if (enemy.behaviorTimer <= 0) {
-        enemy.behaviorState = 'roam';
-        enemy.behaviorPhase = 0;
-        enemy.chargeCooldown = DESIGNER_BALANCE.enemyChargerCooldown;
-        enemy.think = 0;
-        return 1;
-      }
-      return DESIGNER_BALANCE.enemyChargerChargeSpeedMultiplier;
-    }
-    if (enemy.chargeCooldown <= 0) {
-      const target = this.nearestPlayer(enemy, players);
-      if (target && distanceSquared(enemy, target) <= DESIGNER_BALANCE.enemyChargerDetectionRange ** 2) {
-        enemy.targetFoodId = null;
-        enemy.behaviorState = 'telegraph';
-        enemy.behaviorTimer = DESIGNER_BALANCE.enemyChargerTelegraphDuration;
-        enemy.behaviorPhase = 0;
-        enemy.chargeAngle = Math.atan2(target.row - enemy.row, target.col - enemy.col);
-        enemy.desiredAngle = enemy.chargeAngle;
-        return 0.12;
-      }
-    }
-    return 1;
-  }
-
   private updateEnemies(delta: number, activePlayers: PlayerEntity[], presentPlayers: PlayerEntity[]): void {
     const chronosMultiplier = 1 - MODULE_PROGRESSION.effects.chronosSlowReduction(this.maximumModuleCount('chronos', activePlayers));
     const timeSpeedMultiplier = Math.min(ENEMY_SPEED_MAX_MULTIPLIER, 1 + this.gameTime / 60 * ENEMY_SPEED_PER_MINUTE);
@@ -2782,29 +2737,30 @@ export class UltraWorld {
     for (const enemy of this.enemies) {
       if (enemy.dead) continue;
       enemy.collisionCooldown = Math.max(0, enemy.collisionCooldown - delta);
-      const behaviorSpeedMultiplier = enemy.archetype === 'charger'
-        ? this.updateChargerBehavior(enemy, delta, presentPlayers)
-        : 1;
-      const steeringLocked = enemy.behaviorState === 'telegraph' || enemy.behaviorState === 'charge';
       if (enemy.collisionCooldown <= 0) {
-        if (!steeringLocked) {
-          enemy.think -= delta;
-          if (enemy.think <= 0) {
-            enemy.think = this.randomBetween(ENEMY_THINK_INTERVAL_MIN, ENEMY_THINK_INTERVAL_MAX);
-            this.chooseEnemyIntent(enemy);
-          }
-          this.steerEnemy(enemy, presentPlayers);
+        enemy.think -= delta;
+        if (enemy.think <= 0) {
+          enemy.think = this.randomBetween(ENEMY_THINK_INTERVAL_MIN, ENEMY_THINK_INTERVAL_MAX);
+          this.chooseEnemyIntent(enemy);
         }
+        this.steerEnemy(enemy, presentPlayers);
         const wallDistance = 1.35;
-        if (!steeringLocked && (enemy.col < this.arenaMinimum() + wallDistance || enemy.col > this.arenaMaximum() - wallDistance || enemy.row < this.arenaMinimum() + wallDistance || enemy.row > this.arenaMaximum() - wallDistance)) {
+        if (enemy.col < this.arenaMinimum() + wallDistance || enemy.col > this.arenaMaximum() - wallDistance || enemy.row < this.arenaMinimum() + wallDistance || enemy.row > this.arenaMaximum() - wallDistance) {
           const center = (this.arenaMinimum() + this.arenaMaximum()) / 2;
           enemy.desiredAngle = Math.atan2(center - enemy.row, center - enemy.col) + Math.sin(enemy.wobble) * 0.18;
         }
-        const avoidance = steeringLocked ? null : this.playerBodyAvoidance(enemy, presentPlayers);
-        if (avoidance) enemy.desiredAngle += angleDifference(enemy.desiredAngle, avoidance.angle) * avoidance.strength;
-        if (!steeringLocked) enemy.angle = rotateToward(enemy.angle, enemy.desiredAngle, delta * enemy.turnRate);
+        const avoidance = ENEMY_PLAYER_BODY_AVOIDANCE.has(enemy.archetype)
+          ? this.playerBodyAvoidance(enemy, presentPlayers)
+          : null;
+        if (avoidance) {
+          const priorityStrength = enemy.archetype === 'courier' || enemy.archetype === 'charger'
+            ? avoidance.priorityStrength
+            : avoidance.strength;
+          enemy.desiredAngle += angleDifference(enemy.desiredAngle, avoidance.angle) * priorityStrength;
+        }
+        enemy.angle = rotateToward(enemy.angle, enemy.desiredAngle, delta * enemy.turnRate);
       }
-      const speed = enemy.speed * timeSpeedMultiplier * behaviorSpeedMultiplier * chronosMultiplier * (enemy.slow > 0 ? 0.55 : 1);
+      const speed = enemy.speed * timeSpeedMultiplier * chronosMultiplier * (enemy.slow > 0 ? 0.55 : 1);
       const previousPosition = this.enemyMovementStart;
       previousPosition.col = enemy.col;
       previousPosition.row = enemy.row;
@@ -2871,10 +2827,6 @@ export class UltraWorld {
         this.removeFoodAt(foodContact.index);
         enemy.captured += 1;
         enemy.targetFoodId = null;
-        if (enemy.archetype === 'courier' && enemy.captured >= DESIGNER_BALANCE.enemyCourierCarryThreshold) {
-          enemy.behaviorState = 'flee';
-          enemy.think = 0;
-        }
         this.burst(foodContact.collector.col, foodContact.collector.row, enemy.color, 5, 55);
         this.textEffect(foodContact.collector.col, foodContact.collector.row - 0.4, `×${enemy.captured}`, enemy.color, 0.55);
       }
@@ -2981,10 +2933,11 @@ export class UltraWorld {
     }
   }
 
-  private playerBodyAvoidance(enemy: EnemyEntity, presentPlayers: PlayerEntity[]): { angle: number; strength: number } | null {
+  private playerBodyAvoidance(enemy: EnemyEntity, presentPlayers: PlayerEntity[]): { angle: number; strength: number; priorityStrength: number } | null {
     let combinedX = 0;
     let combinedY = 0;
     let combinedWeight = 0;
+    let rawCombinedWeight = 0;
     const forwardX = Math.cos(enemy.desiredAngle);
     const forwardY = Math.sin(enemy.desiredAngle);
     const probeCol = enemy.col + forwardX * 0.7;
@@ -3011,9 +2964,14 @@ export class UltraWorld {
       combinedX += awayX * decoyMultiplier;
       combinedY += awayY * decoyMultiplier;
       combinedWeight += totalWeight * decoyMultiplier;
+      rawCombinedWeight += totalWeight;
     }
     if (combinedWeight < 0.02) return null;
-    return { angle: Math.atan2(combinedY, combinedX), strength: clamp(combinedWeight * 1.85, 0.28, 0.96) };
+    return {
+      angle: Math.atan2(combinedY, combinedX),
+      strength: clamp(combinedWeight * 1.85, 0.28, 0.96),
+      priorityStrength: clamp(combinedWeight / Math.max(0.001, rawCombinedWeight), 0, 1),
+    };
   }
 
   private updateProjectiles(delta: number): void {
@@ -3672,14 +3630,6 @@ export class UltraWorld {
     const stabilization = isPlayer ? this.moduleCount(entity, 'stabilizer') : 0;
     entity.slow = Math.max(entity.slow, BOUNCE_SLOW_TIME * (1 - MODULE_PROGRESSION.effects.stabilizerSlowReduction(stabilization)));
     entity.collisionCooldown = BOUNCE_LOCK_TIME * (1 - MODULE_PROGRESSION.effects.stabilizerLockReduction(stabilization));
-    if (!isPlayer && entity.archetype === 'charger' && (entity.behaviorState === 'telegraph' || entity.behaviorState === 'charge')) {
-      entity.behaviorState = 'roam';
-      entity.behaviorPhase = 0;
-      entity.behaviorTimer = 0;
-      entity.chargeCooldown = DESIGNER_BALANCE.enemyChargerCooldown;
-      entity.chargeAngle = bounceAngle;
-      entity.think = 0;
-    }
     if (isPlayer) followContinuousSegments(entity.col, entity.row, entity.segments, spacing);
     else followEnemySegments(entity, 0, spacing);
     const anchor: UltraEffectAnchor = isPlayer

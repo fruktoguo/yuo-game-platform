@@ -87,7 +87,7 @@
 
   const TAU = Math.PI * 2;
   const DESIGNER_CONFIG = globalThis.GSS0_DESIGNER_CONFIG || {};
-  if (DESIGNER_CONFIG.schemaVersion !== 8) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 8");
+  if (DESIGNER_CONFIG.schemaVersion !== 9) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 9");
   const DESIGNER_BALANCE = DESIGNER_CONFIG.balance || {};
   const MODULE_DESIGN_STATES = DESIGNER_CONFIG.moduleStates || {};
 
@@ -216,17 +216,12 @@
     enemyArchetype("warden", "Warden", { unlockSeconds: 420, spawnWeight: 0.45, healthWeight: 6.2, speedMultiplier: 0.72, turnMultiplier: 0.68 })
   ]);
   const ENEMY_ARCHETYPE_BY_ID = Object.freeze(Object.fromEntries(ENEMY_ARCHETYPES.map((entry) => [entry.id, entry])));
+  const ENEMY_PLAYER_BODY_AVOIDANCE = new Set(["courier", "charger", "cutter", "coiler", "warden"]);
   const ENEMY_ARCHETYPE_GLYPHS = Object.freeze({ scout: "·", forager: "F", courier: "◆", charger: "!", cutter: "×", coiler: "◎", warden: "▣" });
   const ENEMY_BEHAVIOR_TUNING = Object.freeze({
-    scoutFoodInterest: designerNumber("enemyScoutFoodInterest", 0.3, 0, 1),
-    courierCarryThreshold: designerNumber("enemyCourierCarryThreshold", 3, 1, 100, true),
-    courierFleeStrength: designerNumber("enemyCourierFleeStrength", 0.9, 0, 1),
+    scoutFoodRange: designerNumber("enemyScoutFoodRange", 6, 0, 30),
     courierFoodClusterRadius: designerNumber("enemyCourierFoodClusterRadius", 2.5, 0.5, 10),
-    chargerCooldown: designerNumber("enemyChargerCooldown", 2.8, 0.1, 20),
-    chargerDetectionRange: designerNumber("enemyChargerDetectionRange", 9, 1, 30),
-    chargerTelegraphDuration: designerNumber("enemyChargerTelegraphDuration", 0.7, 0.1, 5),
-    chargerChargeDuration: designerNumber("enemyChargerChargeDuration", 1.1, 0.1, 5),
-    chargerChargeSpeedMultiplier: designerNumber("enemyChargerChargeSpeedMultiplier", 1.85, 1, 5),
+    chargerTrackingWobble: designerNumber("enemyChargerTrackingWobble", 0.16, 0, 0.6),
     cutterLeadDistance: designerNumber("enemyCutterLeadDistance", 3.2, 0.5, 12),
     cutterLateralDistance: designerNumber("enemyCutterLateralDistance", 2.4, 0.5, 12),
     coilerOrbitRadius: designerNumber("enemyCoilerOrbitRadius", 2.7, 0.5, 10),
@@ -2854,9 +2849,6 @@
       bladeCooldown: 0,
       sawCooldown: 0,
       collisionCooldown: 0,
-      behaviorTimer: 0,
-      chargeCooldown: spawn.archetype === "charger" ? ENEMY_BEHAVIOR_TUNING.chargerCooldown * random(0.35, 0.8) : 0,
-      chargeAngle: angle,
       dead: false,
       hitBounds: null
     };
@@ -3962,14 +3954,6 @@
     const lockDuration = BOUNCE_LOCK_TIME * (1 - MODULE_EFFECTS.stabilizerLockReduction(stabilization));
     entity.slow = Math.max(entity.slow || 0, slowDuration);
     entity.collisionCooldown = lockDuration;
-    if (entity !== player && entity.archetype === "charger" && (entity.behaviorState === "telegraph" || entity.behaviorState === "charge")) {
-      entity.behaviorState = "roam";
-      entity.behaviorPhase = 0;
-      entity.behaviorTimer = 0;
-      entity.chargeCooldown = ENEMY_BEHAVIOR_TUNING.chargerCooldown;
-      entity.chargeAngle = bounceAngle;
-      entity.think = 0;
-    }
     syncNodePosition(entity);
     if (entity === player) followContinuousSegments(entity.col, entity.row, entity.segments, segmentSpacing);
     else followEnemySegments(entity, 0);
@@ -4622,7 +4606,8 @@
     const decoyMultiplier = 1 - MODULE_EFFECTS.decoyAvoidanceReduction(moduleCount("decoy"));
     return {
       angle: Math.atan2(awayY, awayX),
-      strength: clamp(totalWeight * 1.85, 0.28, 0.96) * decoyMultiplier
+      strength: clamp(totalWeight * 1.85, 0.28, 0.96) * decoyMultiplier,
+      priorityStrength: decoyMultiplier
     };
   }
 
@@ -4722,27 +4707,28 @@
   }
 
   function chooseEnemyIntent(enemy) {
-    const candidates = nearestFoodsForEnemy(enemy, ENEMY_FOOD_SEARCH_LIMIT);
     enemy.wobble += random(-1.2, 1.2);
+    if (enemy.archetype === "charger") {
+      enemy.target = null;
+      enemy.behaviorState = "roam";
+      return;
+    }
+    if (enemy.archetype === "cutter") {
+      enemy.target = null;
+      enemy.behaviorState = "intercept";
+      return;
+    }
+    const candidates = nearestFoodsForEnemy(enemy, ENEMY_FOOD_SEARCH_LIMIT);
     switch (enemy.archetype) {
-      case "scout":
-        enemy.target = Math.random() < ENEMY_BEHAVIOR_TUNING.scoutFoodInterest && candidates.length
-          ? candidates[Math.floor(Math.random() * candidates.length)]
-          : null;
+      case "scout": {
+        const target = candidates[0];
+        enemy.target = target && distanceSquared(enemy, target) <= ENEMY_BEHAVIOR_TUNING.scoutFoodRange ** 2 ? target : null;
         enemy.behaviorState = enemy.target ? "forage" : "roam";
         break;
+      }
       case "courier":
-        if (enemy.captured >= ENEMY_BEHAVIOR_TUNING.courierCarryThreshold) {
-          enemy.target = null;
-          enemy.behaviorState = "flee";
-        } else {
-          enemy.target = densestEnemyFood(enemy, candidates, ENEMY_BEHAVIOR_TUNING.courierFoodClusterRadius);
-          enemy.behaviorState = enemy.target ? "forage" : "roam";
-        }
-        break;
-      case "cutter":
-        enemy.target = null;
-        enemy.behaviorState = "intercept";
+        enemy.target = densestEnemyFood(enemy, candidates, ENEMY_BEHAVIOR_TUNING.courierFoodClusterRadius);
+        enemy.behaviorState = enemy.target ? "forage" : "roam";
         break;
       case "coiler":
         enemy.target = densestEnemyFood(enemy, candidates, ENEMY_BEHAVIOR_TUNING.coilerOrbitRadius);
@@ -4760,10 +4746,14 @@
   }
 
   function steerEnemy(enemy, activeFoods) {
-    if (enemy.behaviorState === "flee") {
-      const away = Math.atan2(enemy.row - player.row, enemy.col - player.col);
-      enemy.desiredAngle += angleDelta(enemy.desiredAngle, away) * ENEMY_BEHAVIOR_TUNING.courierFleeStrength;
-      enemy.behaviorPhase = clamp(enemy.captured / ENEMY_BEHAVIOR_TUNING.courierCarryThreshold, 0, 1);
+    if (enemy.archetype === "charger") {
+      const ideal = Math.atan2(player.row - enemy.row, player.col - enemy.col);
+      const sway = (
+        Math.sin(gameTime * 1.7 + enemy.wobble) * 0.72
+        + Math.sin(gameTime * 0.47 + enemy.id) * 0.28
+      ) * ENEMY_BEHAVIOR_TUNING.chargerTrackingWobble;
+      enemy.desiredAngle = ideal + sway;
+      enemy.behaviorPhase = 0;
       return;
     }
     if (enemy.behaviorState === "intercept") {
@@ -4819,47 +4809,6 @@
     enemy.desiredAngle += Math.sin(gameTime + enemy.wobble) * 0.05;
   }
 
-  function updateChargerBehavior(enemy, dt) {
-    enemy.chargeCooldown = Math.max(0, enemy.chargeCooldown - dt);
-    if (enemy.behaviorState === "telegraph") {
-      enemy.behaviorTimer -= dt;
-      enemy.behaviorPhase = clamp(1 - enemy.behaviorTimer / ENEMY_BEHAVIOR_TUNING.chargerTelegraphDuration, 0, 1);
-      enemy.desiredAngle = enemy.chargeAngle;
-      enemy.angle = rotateToward(enemy.angle, enemy.chargeAngle, dt * enemy.turnRate * 1.8);
-      if (enemy.behaviorTimer <= 0) {
-        enemy.behaviorState = "charge";
-        enemy.behaviorTimer = ENEMY_BEHAVIOR_TUNING.chargerChargeDuration;
-        enemy.behaviorPhase = 0;
-        enemy.angle = enemy.chargeAngle;
-      }
-      return 0.12;
-    }
-    if (enemy.behaviorState === "charge") {
-      enemy.behaviorTimer -= dt;
-      enemy.behaviorPhase = clamp(1 - enemy.behaviorTimer / ENEMY_BEHAVIOR_TUNING.chargerChargeDuration, 0, 1);
-      enemy.angle = enemy.chargeAngle;
-      enemy.desiredAngle = enemy.chargeAngle;
-      if (enemy.behaviorTimer <= 0) {
-        enemy.behaviorState = "roam";
-        enemy.behaviorPhase = 0;
-        enemy.chargeCooldown = ENEMY_BEHAVIOR_TUNING.chargerCooldown;
-        enemy.think = 0;
-        return 1;
-      }
-      return ENEMY_BEHAVIOR_TUNING.chargerChargeSpeedMultiplier;
-    }
-    if (enemy.chargeCooldown <= 0 && distanceSquared(enemy, player) <= ENEMY_BEHAVIOR_TUNING.chargerDetectionRange ** 2) {
-      enemy.target = null;
-      enemy.behaviorState = "telegraph";
-      enemy.behaviorTimer = ENEMY_BEHAVIOR_TUNING.chargerTelegraphDuration;
-      enemy.behaviorPhase = 0;
-      enemy.chargeAngle = Math.atan2(player.row - enemy.row, player.col - enemy.col);
-      enemy.desiredAngle = enemy.chargeAngle;
-      return 0.12;
-    }
-    return 1;
-  }
-
   function updateEnemies(dt) {
     const chronosMultiplier = 1 - MODULE_EFFECTS.chronosSlowReduction(moduleCount("chronos"));
     const timeSpeedMultiplier = Math.min(ENEMY_SPEED_MAX_MULTIPLIER, 1 + gameTime / 60 * ENEMY_SPEED_PER_MINUTE);
@@ -4868,29 +4817,28 @@
     for (const enemy of enemies) {
       if (enemy.dead) continue;
       enemy.collisionCooldown = Math.max(0, enemy.collisionCooldown - dt);
-      const behaviorSpeedMultiplier = enemy.archetype === "charger"
-        ? updateChargerBehavior(enemy, dt)
-        : 1;
-      const steeringLocked = enemy.behaviorState === "telegraph" || enemy.behaviorState === "charge";
       if (enemy.collisionCooldown <= 0) {
-        if (!steeringLocked) {
-          enemy.think -= dt;
-          if (enemy.think <= 0) {
-            enemy.think = random(Math.min(ENEMY_THINK_INTERVAL_MIN, ENEMY_THINK_INTERVAL_MAX), Math.max(ENEMY_THINK_INTERVAL_MIN, ENEMY_THINK_INTERVAL_MAX));
-            chooseEnemyIntent(enemy);
-          }
-          steerEnemy(enemy, activeFoods);
+        enemy.think -= dt;
+        if (enemy.think <= 0) {
+          enemy.think = random(Math.min(ENEMY_THINK_INTERVAL_MIN, ENEMY_THINK_INTERVAL_MAX), Math.max(ENEMY_THINK_INTERVAL_MIN, ENEMY_THINK_INTERVAL_MAX));
+          chooseEnemyIntent(enemy);
         }
+        steerEnemy(enemy, activeFoods);
         const wallDistance = 1.35;
-        if (!steeringLocked && (enemy.col < arena.worldMin + wallDistance || enemy.col > arena.worldMax - wallDistance || enemy.row < arena.worldMin + wallDistance || enemy.row > arena.worldMax - wallDistance)) {
+        if (enemy.col < arena.worldMin + wallDistance || enemy.col > arena.worldMax - wallDistance || enemy.row < arena.worldMin + wallDistance || enemy.row > arena.worldMax - wallDistance) {
           const center = (arena.worldMin + arena.worldMax) / 2;
           enemy.desiredAngle = Math.atan2(center - enemy.row, center - enemy.col) + Math.sin(enemy.wobble) * 0.18;
         }
 
-        const avoidance = steeringLocked ? null : playerBodyAvoidance(enemy);
-        if (avoidance) enemy.desiredAngle += angleDelta(enemy.desiredAngle, avoidance.angle) * avoidance.strength;
+        const avoidance = ENEMY_PLAYER_BODY_AVOIDANCE.has(enemy.archetype) ? playerBodyAvoidance(enemy) : null;
+        if (avoidance) {
+          const priorityStrength = enemy.archetype === "courier" || enemy.archetype === "charger"
+            ? avoidance.priorityStrength
+            : avoidance.strength;
+          enemy.desiredAngle += angleDelta(enemy.desiredAngle, avoidance.angle) * priorityStrength;
+        }
 
-        if (!steeringLocked && repulseRange > 0) {
+        if (repulseRange > 0) {
           const distance = Math.sqrt(distanceSquared(player, enemy));
           if (distance < repulseRange) {
             const awayAngle = distance > 0.001
@@ -4902,10 +4850,10 @@
           }
         }
 
-        if (!steeringLocked) enemy.angle = rotateToward(enemy.angle, enemy.desiredAngle, dt * enemy.turnRate);
+        enemy.angle = rotateToward(enemy.angle, enemy.desiredAngle, dt * enemy.turnRate);
       }
       const statusMultiplier = enemy.slow > 0 ? 0.55 : 1;
-      const speed = enemy.speed * timeSpeedMultiplier * behaviorSpeedMultiplier * chronosMultiplier * statusMultiplier;
+      const speed = enemy.speed * timeSpeedMultiplier * chronosMultiplier * statusMultiplier;
       const previousPosition = { col: enemy.col, row: enemy.row };
       const nextCol = enemy.col + (Math.cos(enemy.angle) * speed + enemy.knockbackX) * dt;
       const nextRow = enemy.row + (Math.sin(enemy.angle) * speed + enemy.knockbackY) * dt;
@@ -5006,10 +4954,6 @@
         activeFoods.delete(food);
         enemy.captured += 1;
         enemy.target = null;
-        if (enemy.archetype === "courier" && enemy.captured >= ENEMY_BEHAVIOR_TUNING.courierCarryThreshold) {
-          enemy.behaviorState = "flee";
-          enemy.think = 0;
-        }
         burst(collector.x, collector.y, enemy.color, 5, 55);
         effects.push({ type: "text", x: collector.x, y: collector.y - arena.cellSize * 0.4, text: `×${enemy.captured}`, color: enemy.color, life: 0.55, maxLife: 0.55 });
       }
@@ -5866,32 +5810,6 @@
     context.closePath();
   }
 
-  function drawEnemyBehaviorCue(enemy, pieceScale, time) {
-    if (enemy.archetype !== "charger" || (enemy.behaviorState !== "telegraph" && enemy.behaviorState !== "charge")) return;
-    const charging = enemy.behaviorState === "charge";
-    const pulse = 0.45 + Math.abs(Math.sin(time * 18)) * 0.55;
-    const directionX = Math.cos(enemy.angle);
-    const directionY = Math.sin(enemy.angle);
-    const lineLength = Math.min(arena.worldSize * 0.55, ENEMY_BEHAVIOR_TUNING.chargerDetectionRange) * arena.cellSize;
-    ctx.save();
-    ctx.globalAlpha = charging ? 0.7 : 0.25 + pulse * 0.45;
-    ctx.strokeStyle = charging ? "#ffffff" : enemy.color;
-    ctx.lineWidth = Math.max(2, 2.5 * pieceScale);
-    ctx.setLineDash(charging ? [] : [10 * pieceScale, 8 * pieceScale]);
-    ctx.lineDashOffset = -time * 38;
-    ctx.beginPath();
-    ctx.moveTo(enemy.x + directionX * 16 * pieceScale, enemy.y + directionY * 16 * pieceScale);
-    ctx.lineTo(enemy.x + directionX * lineLength, enemy.y + directionY * lineLength);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.strokeStyle = "#ffffff";
-    ctx.globalAlpha = charging ? 0.72 : 0.3 + pulse * 0.5;
-    ctx.beginPath();
-    ctx.arc(enemy.x, enemy.y, (20 + (1 - enemy.behaviorPhase) * 12) * pieceScale, 0, TAU);
-    ctx.stroke();
-    ctx.restore();
-  }
-
   function paintEnemySegmentSprite(context, enemy, renderScale) {
     context.shadowColor = "rgba(0,0,0,0.8)";
     context.shadowBlur = 6 * renderScale;
@@ -6075,9 +5993,8 @@
     ctx.restore();
   }
 
-  function drawEnemy(enemy, time) {
+  function drawEnemy(enemy) {
     const pieceScale = arenaPieceScale();
-    drawEnemyBehaviorCue(enemy, pieceScale, time);
     drawLinkedPath(enemy, enemy.segments, "rgba(4, 6, 7, 0.92)", (enemy.archetype === "warden" ? 14 : 11) * pieceScale);
     drawLinkedPath(enemy, enemy.segments, enemy.color, (enemy.archetype === "cutter" ? 3.4 : 2.2) * pieceScale, 0.72);
     for (let index = enemy.segments.length - 1; index >= 0; index -= 1) drawEnemySegment(enemy, enemy.segments[index], pieceScale);
@@ -6666,7 +6583,7 @@
     drawFood(visualTime);
     drawEnemySpawnWarnings(visualTime);
     drawHazards(visualTime);
-    for (const enemy of enemies) drawEnemy(enemy, visualTime);
+    for (const enemy of enemies) drawEnemy(enemy);
     if (network.enabled) {
       for (const networkPlayer of visiblePlayers) drawPlayer(networkPlayer);
     } else if (player) {
