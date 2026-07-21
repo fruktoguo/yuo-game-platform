@@ -11,7 +11,7 @@ interface DesignerConfigSource {
 }
 
 const source = (globalThis as typeof globalThis & { GSS0_DESIGNER_CONFIG?: DesignerConfigSource }).GSS0_DESIGNER_CONFIG;
-if (source?.schemaVersion !== 20) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 20');
+if (source?.schemaVersion !== 21) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 21');
 
 function numberSetting(key: string, fallback: number, minimum: number, maximum: number, integer = false): number {
   const candidate = source?.balance?.[key];
@@ -157,6 +157,7 @@ export const DESIGNER_BALANCE = Object.freeze({
   moduleBeaconEnemyCountPerLevel: numberSetting('moduleBeaconEnemyCountPerLevel', 0.15, 0, 5),
   moduleMomentumKnockbackPerLevel: numberSetting('moduleMomentumKnockbackPerLevel', 1, 0, 10),
   moduleProgressorSpeedPerLevel: numberSetting('moduleProgressorSpeedPerLevel', 0.2, 0, 5),
+  moduleLinkageSpacingPerLevel: numberSetting('moduleLinkageSpacingPerLevel', 0.2, 0, 5),
   moduleCacheKillsPerTrigger: numberSetting('moduleCacheKillsPerTrigger', 5, 1, 100, true),
   moduleThornsProjectileCount: numberSetting('moduleThornsProjectileCount', 6, 1, 100, true),
   moduleFrostSlowPerHit: numberSetting('moduleFrostSlowPerHit', 0.2, 0, 1),

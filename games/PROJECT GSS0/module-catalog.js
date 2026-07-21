@@ -88,7 +88,8 @@
     { id: "wallbreaker", name: "壁垒共振节", category: "进攻", color: "#ff9d42", shape: "square", cooldown: "被动效果", desc: "每级使敌蛇撞墙伤害和反弹击退提高100%；多人模式取最高等级。" },
     { id: "tailguard", name: "尾部隔离舱", category: "辅助", color: "#e8eef5", shape: "capsule", cooldown: "被动效果", desc: "每级在蛇尾追加2节无特殊效果的白色拦截机体。" },
     { id: "deathburst", name: "猎杀齐射节", category: "进攻", color: "#ff8d6b", shape: "star", cooldown: "被动效果", desc: "任意敌蛇死亡时，每级向随机方向发射2枚子弹。" },
-    { id: "crisis", name: "危态代偿节", category: "生存", color: "#ff6f91", shape: "diamond", cooldown: "被动效果", desc: "生命低于50%时，每级使每秒生命恢复+1；否则每级使每秒生命恢复-1。" }
+    { id: "crisis", name: "危态代偿节", category: "生存", color: "#ff6f91", shape: "diamond", cooldown: "被动效果", desc: "生命低于50%时，每级使每秒生命恢复+1；否则每级使每秒生命恢复-1。" },
+    { id: "linkage", name: "延展耦合节", category: "辅助", color: "#62d8ff", shape: "capsule", cooldown: "被动效果", desc: "每级使自身机体连接距离提高20%。" }
   ];
 
   function describeModule(moduleId, balance = defaultBalance) {
@@ -176,6 +177,8 @@
         return `任意敌蛇死亡时，每级向随机方向发射${formatNumber(setting(balance, "moduleDeathBurstProjectilesPerLevel", 2))}枚子弹。`;
       case "crisis":
         return `生命低于${formatPercent(setting(balance, "moduleCrisisHealthThreshold", 0.5))}时，每级使每秒生命恢复+${formatNumber(setting(balance, "moduleCrisisRegenPerLevel", 1))}；否则每级使每秒生命恢复-${formatNumber(setting(balance, "moduleCrisisRegenPerLevel", 1))}。`;
+      case "linkage":
+        return `每级使自身机体连接距离提高${formatPercent(setting(balance, "moduleLinkageSpacingPerLevel", 0.2))}。`;
       case "cache":
         return `每击破${formatNumber(setting(balance, "moduleCacheKillsPerTrigger", 5))}名敌人，按机体等级生成等量的球。`;
       default:

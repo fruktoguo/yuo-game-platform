@@ -1246,6 +1246,10 @@ export class UltraWorld {
     return Math.min(MODULE_PROGRESSION.maxModuleLevel, count);
   }
 
+  private playerSegmentSpacing(player: PlayerEntity): number {
+    return SNAKE_SEGMENT_SPACING * (1 + MODULE_PROGRESSION.effects.segmentSpacingBonus(this.moduleCount(player, 'linkage')));
+  }
+
   private autopilotAngle(player: PlayerEntity, presentPlayers = this.presentPlayers()): number {
     let vectorCol = 0;
     let vectorRow = 0;
@@ -1341,7 +1345,7 @@ export class UltraWorld {
       player.knockbackY = 0;
       player.col = clamp(player.col + Math.cos(player.angle) * player.speed * delta, this.arenaMinimum(), this.arenaMaximum());
       player.row = clamp(player.row + Math.sin(player.angle) * player.speed * delta, this.arenaMinimum(), this.arenaMaximum());
-      followContinuousSegments(player.col, player.row, player.segments, SNAKE_SEGMENT_SPACING);
+      followContinuousSegments(player.col, player.row, player.segments, this.playerSegmentSpacing(player));
       return;
     }
     if (player.collisionCooldown > 0) player.desiredAngle = player.angle;
@@ -1351,7 +1355,7 @@ export class UltraWorld {
     player.col += (Math.cos(player.angle) * player.speed + player.knockbackX) * delta;
     player.row += (Math.sin(player.angle) * player.speed + player.knockbackY) * delta;
     this.applyKnockbackDecay(player, delta);
-    followContinuousSegments(player.col, player.row, player.segments, SNAKE_SEGMENT_SPACING);
+    followContinuousSegments(player.col, player.row, player.segments, this.playerSegmentSpacing(player));
   }
 
   private updatePlayerTimers(player: PlayerEntity, delta: number): void {
@@ -4011,7 +4015,7 @@ export class UltraWorld {
     const stabilization = isPlayer ? this.moduleCount(entity, 'stabilizer') : 0;
     entity.slow = Math.max(entity.slow, BOUNCE_SLOW_TIME * (1 - MODULE_PROGRESSION.effects.stabilizerSlowReduction(stabilization)) * (1 - collisionReduction));
     entity.collisionCooldown = Math.max(0.06, BOUNCE_LOCK_TIME * (1 - MODULE_PROGRESSION.effects.stabilizerLockReduction(stabilization)) * (1 - collisionReduction));
-    if (isPlayer) followContinuousSegments(entity.col, entity.row, entity.segments, spacing);
+    if (isPlayer) followContinuousSegments(entity.col, entity.row, entity.segments, this.playerSegmentSpacing(entity));
     else followEnemySegments(entity, 0, spacing);
     const anchor: UltraEffectAnchor = isPlayer
       ? { anchorKind: 'player', anchorId: entity.entityId }

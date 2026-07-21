@@ -3,7 +3,7 @@
 
   const config = globalThis.GSS0_DESIGNER_CONFIG;
   const modules = globalThis.GSS0ModuleCatalog;
-  if (config?.schemaVersion !== 20 || !Array.isArray(modules) || modules.length === 0) {
+  if (config?.schemaVersion !== 21 || !Array.isArray(modules) || modules.length === 0) {
     throw new Error("PROJECT GSS0 机体成长规则依赖加载失败");
   }
 
@@ -123,6 +123,7 @@
     beaconEnemyCountMultiplier: (level) => 1 + balance.moduleBeaconEnemyCountPerLevel * effectLevel(level),
     momentumKnockbackBonus: (level) => balance.moduleMomentumKnockbackPerLevel * effectLevel(level),
     progressorSpeedBonus: (level) => balance.moduleProgressorSpeedPerLevel * effectLevel(level),
+    segmentSpacingBonus: (level) => balance.moduleLinkageSpacingPerLevel * effectLevel(level),
     cacheKillsPerTrigger: () => Math.max(1, Math.round(balance.moduleCacheKillsPerTrigger)),
     thornsProjectileCount: () => Math.max(1, Math.round(balance.moduleThornsProjectileCount)),
     frostSlowPerHit: () => balance.moduleFrostSlowPerHit,
@@ -209,6 +210,7 @@
       case "beacon": return [{ label: "敌蛇生成数量", value: effects.beaconEnemyCountMultiplier(level) - 1, format: formatPercent }];
       case "momentum": return [{ label: "蛇头撞击击退", value: effects.momentumKnockbackBonus(level), format: formatPercent }];
       case "progressor": return [{ label: "移动速度", value: effects.progressorSpeedBonus(level), format: formatPercent }];
+      case "linkage": return [{ label: "机体连接距离", value: effects.segmentSpacingBonus(level), format: formatPercent }];
       case "ram": return [{ label: "蛇头伤害", value: safeLevel(level), format: (value) => `+${value}` }];
       case "insight": return [{ label: "额外经验概率", value: effects.bonusXpChance(level), format: (value) => formatPercent(value, false) }];
       case "headstrike": return [{ label: "对敌蛇头额外伤害", value: effects.headCollisionDamageBonus(level), format: (value) => `+${formatNumber(value)}` }];

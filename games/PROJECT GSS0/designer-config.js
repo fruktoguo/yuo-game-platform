@@ -1,5 +1,5 @@
 globalThis.GSS0_DESIGNER_CONFIG = {
-  "schemaVersion": 20,
+  "schemaVersion": 21,
   "balance": {
     "playerBaseSpeed": 5,
     "snakeBodySizeScale": 0.775,
@@ -138,6 +138,7 @@ globalThis.GSS0_DESIGNER_CONFIG = {
     "moduleBeaconEnemyCountPerLevel": 0.15,
     "moduleMomentumKnockbackPerLevel": 1,
     "moduleProgressorSpeedPerLevel": 0.2,
+    "moduleLinkageSpacingPerLevel": 0.2,
     "moduleCacheKillsPerTrigger": 5,
     "moduleThornsProjectileCount": 6,
     "moduleBonusXpChancePerLevel": 0.1,
@@ -323,6 +324,7 @@ globalThis.GSS0_DESIGNER_CONFIG = {
     "wallbreaker": "normal",
     "tailguard": "normal",
     "deathburst": "normal",
-    "crisis": "normal"
+    "crisis": "normal",
+    "linkage": "normal"
   }
 };

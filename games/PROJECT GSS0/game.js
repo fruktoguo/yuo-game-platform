@@ -94,7 +94,7 @@
 
   const TAU = Math.PI * 2;
   const DESIGNER_CONFIG = globalThis.GSS0_DESIGNER_CONFIG || {};
-  if (DESIGNER_CONFIG.schemaVersion !== 20) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 20");
+  if (DESIGNER_CONFIG.schemaVersion !== 21) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 21");
   const DESIGNER_BALANCE = DESIGNER_CONFIG.balance || {};
   const MODULE_DESIGN_STATES = DESIGNER_CONFIG.moduleStates || {};
 
@@ -447,7 +447,7 @@
   if (!networkProjectileRuntime) throw new Error("PROJECT GSS0 投射物运行时未加载");
   const networkPlayerPredictionRuntime = globalThis.GSS0PlayerPrediction?.create({
     knockbackDecay: KNOCKBACK_DECAY,
-    segmentSpacing: SNAKE_SEGMENT_SPACING
+    segmentSpacing: playerSegmentSpacing
   });
   if (!networkPlayerPredictionRuntime) throw new Error("PROJECT GSS0 玩家预测运行时未加载");
   const networkPlayerStateCodec = globalThis.GSS0PlayerStateCodec;
@@ -1077,6 +1077,10 @@
 
   function playerTurnRate() {
     return PLAYER_TURN_RATE * (1 + MODULE_EFFECTS.hasteTurnRateBonus(moduleCount("haste")));
+  }
+
+  function playerSegmentSpacing() {
+    return SNAKE_SEGMENT_SPACING * (1 + MODULE_EFFECTS.segmentSpacingBonus(moduleCount("linkage")));
   }
 
   function playerHeadDamage(hitEnemyHead = false) {
@@ -4324,7 +4328,7 @@
     entity.slow = Math.max(entity.slow || 0, slowDuration);
     entity.collisionCooldown = Math.max(0.06, lockDuration);
     syncNodePosition(entity);
-    if (entity === player) followContinuousSegments(entity.col, entity.row, entity.segments, segmentSpacing);
+    if (entity === player) followContinuousSegments(entity.col, entity.row, entity.segments, playerSegmentSpacing());
     else followEnemySegments(entity, 0);
     if (entity !== player) updateEnemyHitBounds(entity);
     burst(entity.x, entity.y, color, 13, 135);
@@ -4374,7 +4378,7 @@
     player.row += (Math.sin(player.angle) * player.speed + player.knockbackY) * dt;
     applyKnockbackDecay(player, dt);
     syncNodePosition(player);
-    followContinuousSegments(player.col, player.row, player.segments, SNAKE_SEGMENT_SPACING);
+    followContinuousSegments(player.col, player.row, player.segments, playerSegmentSpacing());
   }
 
   function cellDistanceSquared(first, second) {

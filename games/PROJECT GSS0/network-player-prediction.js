@@ -18,7 +18,7 @@
 
   function create(options = {}) {
     const knockbackDecay = Math.max(0, Number(options.knockbackDecay) || 8);
-    const segmentSpacing = Math.max(0.05, Number(options.segmentSpacing) || 0.58);
+    const segmentSpacingOption = options.segmentSpacing;
     const state = {
       initialized: false,
       ghost: false,
@@ -88,6 +88,9 @@
     }
 
     function followSegments() {
+      const segmentSpacing = Math.max(0.05, Number(
+        typeof segmentSpacingOption === "function" ? segmentSpacingOption() : segmentSpacingOption
+      ) || 0.58);
       let previousCol = state.col;
       let previousRow = state.row;
       for (const segment of state.segments) {

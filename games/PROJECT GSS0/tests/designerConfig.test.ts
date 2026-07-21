@@ -79,6 +79,7 @@ describe('设计配置', () => {
       moduleBufferCollisionReductionPerLevel: 0.2,
       moduleBeaconEnemyCountPerLevel: 0.15,
       moduleProgressorSpeedPerLevel: 0.2,
+      moduleLinkageSpacingPerLevel: 0.2,
       moduleBladeOrbitSpeed: 1.5,
       modulePulseRadiusCells: 3,
       moduleClusterBlastRadiusCells: 2,
@@ -182,7 +183,7 @@ describe('设计配置', () => {
   it('全部现有机体都有审查状态且禁用项不会进入升级池', () => {
     const source = (globalThis as typeof globalThis & { GSS0_DESIGNER_CONFIG: { moduleStates: Record<string, string> } }).GSS0_DESIGNER_CONFIG;
     expect(Object.keys(source.moduleStates).sort()).toEqual(MODULES.map((module) => module.id).sort());
-    expect(Object.values(source.moduleStates).filter((state) => state === 'normal')).toHaveLength(48);
+    expect(Object.values(source.moduleStates).filter((state) => state === 'normal')).toHaveLength(49);
     expect(Object.values(source.moduleStates).filter((state) => state === 'tune')).toHaveLength(0);
     expect(Object.values(source.moduleStates).filter((state) => state === 'rework')).toHaveLength(0);
     expect(Object.values(source.moduleStates).filter((state) => state === 'disabled')).toHaveLength(24);
@@ -195,15 +196,15 @@ describe('设计配置', () => {
 
     expect(parameterKeys.sort()).toEqual(Object.keys(DESIGNER_BALANCE).sort());
     expect(moduleIds.sort()).toEqual(MODULES.map((module) => module.id).sort());
-    expect(new Set(parameterKeys).size).toBe(186);
+    expect(new Set(parameterKeys).size).toBe(187);
     expect(parameterKeys).not.toContain('playerSpeedPerLevel');
     expect(parameterKeys).not.toContain('moduleEffectReductionMaximum');
     expect(parameterKeys).not.toContain('newModuleOfferChance');
-    expect(new Set(moduleIds).size).toBe(72);
+    expect(new Set(moduleIds).size).toBe(73);
   });
 
   it('全部机体共用唯一描述目录且被动参数明确', () => {
-    expect(MODULES).toHaveLength(72);
+    expect(MODULES).toHaveLength(73);
     expect(MODULES.every((module) => module.desc.trim().length > 0)).toBe(true);
     expect(new Set(MODULES.map((module) => module.id)).size).toBe(MODULES.length);
     expect(MODULES.find((module) => module.id === 'spark')?.desc).toBe('发射1枚高速焰弹，造成1伤害。');
@@ -213,11 +214,12 @@ describe('设计配置', () => {
     expect(MODULES.find((module) => module.id === 'venom')?.desc).toContain('中毒间隔3秒');
     expect(MODULES.find((module) => module.id === 'replicator')?.desc).toBe('吃球时，每级有6%概率在蛇尾后方生成1枚球。此机体生成的球也可以再次触发此效果。');
     expect(MODULES.find((module) => module.id === 'buffer')?.category).toBe('辅助');
+    expect(MODULES.find((module) => module.id === 'linkage')?.desc).toBe('每级使自身机体连接距离提高20%。');
     expect(MODULES.some((module) => ['输出', '防御', '恢复'].includes(module.category as string))).toBe(false);
     expect(MODULES.every((module) => ['进攻', '生存', '辅助', '发育'].includes(module.category))).toBe(true);
     expect(MODULES.filter((module) => module.category === '发育')).toHaveLength(9);
-    expect(editorHtml).toContain('src="module-catalog.js?v=83"');
-    expect(editorHtml).toContain('src="module-progression.js?v=83"');
+    expect(editorHtml).toContain('src="module-catalog.js?v=84"');
+    expect(editorHtml).toContain('src="module-progression.js?v=84"');
     expect(editorHtml).toContain('const MODULES = moduleCatalog;');
     expect(editorHtml).toContain('descriptionText.textContent = describeModule(module.id, draft.balance);');
     expect(editorHtml).toContain('ID: ${module.id}');
