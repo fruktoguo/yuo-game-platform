@@ -305,6 +305,27 @@
     return choices;
   }
 
+  function chooseAutomaticUpgradeIds(availableModules, segments, playerLevel, random = Math.random, count = 3) {
+    const levels = moduleLevelsFromSegments(segments);
+    const ownedIds = new Set(Object.keys(levels));
+    const capacity = moduleSlotCapacity(playerLevel);
+    const newPool = ownedIds.size < capacity
+      ? availableModules.filter((module) => !ownedIds.has(module.id))
+      : [];
+    if (newPool.length === 0) {
+      return chooseUpgradeIds(availableModules, segments, playerLevel, random, count);
+    }
+
+    const choices = [];
+    const targetCount = Math.min(Math.max(0, Math.floor(count)), newPool.length);
+    while (choices.length < targetCount) {
+      const index = Math.floor(clamp(random(), 0, 0.999999999) * newPool.length);
+      const [choice] = newPool.splice(index, 1);
+      choices.push(choice.id);
+    }
+    return choices;
+  }
+
   globalThis.GSS0ModuleProgression = Object.freeze({
     maxModuleLevel,
     compressionBase,
@@ -322,6 +343,7 @@
     rollLinearRewards,
     moduleCurrentEffect,
     moduleUpgradePreview,
-    chooseUpgradeIds
+    chooseUpgradeIds,
+    chooseAutomaticUpgradeIds
   });
 })();

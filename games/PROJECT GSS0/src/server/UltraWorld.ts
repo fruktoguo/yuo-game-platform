@@ -437,7 +437,8 @@ export class UltraWorld {
     if (!player?.connected) return false;
     player.autopilot = enabled;
     if (enabled && player.choosingUpgrade && player.upgradeOffer) {
-      const options = player.upgradeOffer.options;
+      const automaticOptions = this.chooseUpgradeOptions(player, true);
+      const options = automaticOptions.length > 0 ? automaticOptions : player.upgradeOffer.options;
       this.applyUpgrade(player, options[Math.floor(this.random() * options.length)], this.now);
     }
     return true;
@@ -1370,7 +1371,7 @@ export class UltraWorld {
     const offer: UpgradeOffer = {
       level: player.level + 1,
       expiresAt: 0,
-      options: this.chooseUpgradeOptions(player),
+      options: this.chooseUpgradeOptions(player, player.autopilot),
     };
     if (offer.options.length === 0) {
       this.completeLevelWithoutModule(player);
@@ -1387,8 +1388,11 @@ export class UltraWorld {
     this.callbacks.onUpgrade?.(player.entityId, offer);
   }
 
-  private chooseUpgradeOptions(player: PlayerEntity): ModuleId[] {
-    return MODULE_PROGRESSION.chooseUpgradeIds(UPGRADE_MODULES, player.segments, player.level + 1, () => this.random(), 3);
+  private chooseUpgradeOptions(player: PlayerEntity, automatic = player.autopilot): ModuleId[] {
+    const chooseIds = automatic
+      ? MODULE_PROGRESSION.chooseAutomaticUpgradeIds
+      : MODULE_PROGRESSION.chooseUpgradeIds;
+    return chooseIds(UPGRADE_MODULES, player.segments, player.level + 1, () => this.random(), 3);
   }
 
   private completeLevelWithoutModule(player: PlayerEntity): void {

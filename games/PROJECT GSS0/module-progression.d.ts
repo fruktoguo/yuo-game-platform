@@ -45,6 +45,13 @@ export interface GSS0ModuleProgressionApi {
     random?: () => number,
     count?: number
   ): GSS0ModuleId[];
+  chooseAutomaticUpgradeIds(
+    availableModules: readonly GSS0ModuleCatalogEntry[],
+    segments: readonly GSS0ProgressionSegment[],
+    playerLevel: number,
+    random?: () => number,
+    count?: number
+  ): GSS0ModuleId[];
 }
 
 declare global {

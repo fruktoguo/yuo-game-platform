@@ -33,6 +33,17 @@ describe('机体成长规则', () => {
     expect(MODULE_PROGRESSION.chooseUpgradeIds([MODULES[0]], owned, 0, () => 0.1, 3)).toEqual([MODULES[0].id]);
   });
 
+  it('自动模式填满槽位前只选择新机体', () => {
+    const owned = [{ module: MODULES[0].id, moduleLevel: 1 }];
+    const newChoices = MODULE_PROGRESSION.chooseAutomaticUpgradeIds(MODULES, owned, 0, () => 0.99, 3);
+    expect(newChoices).toHaveLength(3);
+    expect(newChoices.every((id) => id !== MODULES[0].id)).toBe(true);
+
+    const full = MODULES.slice(0, 5).map((module) => ({ module: module.id, moduleLevel: 1 }));
+    const fullChoices = MODULE_PROGRESSION.chooseAutomaticUpgradeIds(MODULES, full, 0, () => 0.25, 3);
+    expect(fullChoices.every((id) => full.some((segment) => segment.module === id))).toBe(true);
+  });
+
   it('主动冷却按等级反比成长并在五级封顶', () => {
     expect(MODULE_PROGRESSION.activeCooldownSeconds('spark', 1)).toBe(6);
     expect(MODULE_PROGRESSION.activeCooldownSeconds('spark', 2)).toBe(3);

@@ -689,7 +689,8 @@
       network.localDesiredAngle = player.desiredAngle;
     }
     if (automaticModeEnabled) {
-      scheduleAutomaticUpgrade();
+      if (!network.enabled && state === "upgrade") showUpgrade();
+      else scheduleAutomaticUpgrade();
       if (!network.enabled && state === "gameover") {
         window.setTimeout(() => {
           if (automaticModeEnabled && !network.enabled && state === "gameover") startGame();
@@ -3599,7 +3600,10 @@
   }
 
   function chooseUpgradeOptions() {
-    return MODULE_PROGRESSION.chooseUpgradeIds(UPGRADE_MODULES, player.segments, level + 1, Math.random, 3)
+    const chooseIds = automaticModeEnabled
+      ? MODULE_PROGRESSION.chooseAutomaticUpgradeIds
+      : MODULE_PROGRESSION.chooseUpgradeIds;
+    return chooseIds(UPGRADE_MODULES, player.segments, level + 1, Math.random, 3)
       .map((id) => MODULE_BY_ID[id])
       .filter(Boolean);
   }

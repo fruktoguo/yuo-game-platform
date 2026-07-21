@@ -23,10 +23,12 @@ describe('自动模式设置', () => {
     expect(gameSource).toContain('loadSetting("gss0-automatic-mode", 0, 0, 1)');
     expect(gameSource).toContain('player.desiredAngle = testAutopilotAngle();');
     expect(gameSource).toContain('function scheduleAutomaticUpgrade()');
+    expect(gameSource).toContain('MODULE_PROGRESSION.chooseAutomaticUpgradeIds');
     expect(gameSource).toContain('if (automaticModeEnabled) startGame();');
     expect(gameSource).toContain('emitNetworkAction("ultra:autopilot", automaticModeEnabled)');
     expect(gameSource).toContain('networkPlayerPredictionRuntime.adoptLocal(player);');
     expect(serverSource).toContain('if (enabled && player.choosingUpgrade && player.upgradeOffer)');
+    expect(serverSource).toContain('MODULE_PROGRESSION.chooseAutomaticUpgradeIds');
     expect(gameSource).toContain('const headStrikeDamage = PLAYER_COLLISION_DAMAGE');
     expect(serverSource).toContain('const headStrikeDamage = PLAYER_COLLISION_DAMAGE');
     expect(gameSource).not.toContain('repel(enemy, 3.2, 3.5);');
