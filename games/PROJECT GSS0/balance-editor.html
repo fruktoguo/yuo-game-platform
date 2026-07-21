@@ -385,11 +385,11 @@
     </div>
   </main>
 
-  <script src="enemy-codex.js?v=66"></script>
-  <script src="wave-director.js?v=66"></script>
-  <script src="designer-config.js?v=66"></script>
-  <script src="module-catalog.js?v=66"></script>
-  <script src="module-progression.js?v=66"></script>
+  <script src="enemy-codex.js?v=67"></script>
+  <script src="wave-director.js?v=67"></script>
+  <script src="designer-config.js?v=67"></script>
+  <script src="module-catalog.js?v=67"></script>
+  <script src="module-progression.js?v=67"></script>
   <script>
     (() => {
       "use strict";
@@ -572,6 +572,7 @@
         { key: "enemyDeathHeadParticleSpeed", group: "表现", label: "敌蛇死亡头部粒子速度", hint: "头部爆散粒子的基础速度", min: 10, max: 500, step: 5, unit: "速度" },
         { key: "enemyDeathBodyParticleSpeed", group: "表现", label: "敌蛇死亡身体粒子速度", hint: "身体爆散粒子的基础速度", min: 10, max: 400, step: 5, unit: "速度" },
         { key: "enemyBodyReconnectDuration", group: "表现", label: "敌蛇断体衔接时间", hint: "中段机体被摧毁后，后段身体追上前段并重新衔接所需的时间", min: 0.05, max: 2, step: 0.01, unit: "秒" },
+        { key: "enemyHeadReformDuration", group: "表现", label: "敌蛇新头重构时间", hint: "旧头碎裂后，颈部身体节变形并接替为新头的动画时间", min: 0.05, max: 2, step: 0.01, unit: "秒" },
         { key: "experienceCompressionDuration", group: "表现", label: "经验压缩动画时长", hint: "同级经验机体吸附并压缩成高阶机体的动画时间", min: 0.05, max: 3, step: 0.01, unit: "秒" },
         { key: "experienceCompressionCascadeDelay", group: "表现", label: "连续压缩间隔", hint: "一次大量吃球触发多次进位时，相邻压缩反馈的错峰时间", min: 0, max: 2, step: 0.01, unit: "秒" },
         { key: "experienceCompressionGrayParticles", group: "表现", label: "灰转蓝粒子数", hint: "灰色经验机体压缩为蓝色时的粒子数量", min: 1, max: 100, step: 1, unit: "个" },
@@ -638,7 +639,7 @@
       const filePickerSupported = typeof window.showOpenFilePicker === "function";
 
       function normalizeConfig(value) {
-        const config = { schemaVersion: 12, balance: {}, waveEnemyCountSchedule: [], moduleCooldownPercentages: {}, moduleStates: {} };
+        const config = { schemaVersion: 13, balance: {}, waveEnemyCountSchedule: [], moduleCooldownPercentages: {}, moduleStates: {} };
         for (const definition of ALL_PARAMETER_DEFINITIONS) {
           const candidate = Number(value?.balance?.[definition.key]);
           config.balance[definition.key] = Number.isFinite(candidate) ? Math.max(definition.min, Math.min(definition.max, candidate)) : definition.min;
@@ -674,7 +675,7 @@
         const end = text.lastIndexOf("}");
         if (start < 0 || end <= start) throw new Error("配置内容不完整");
         const parsed = JSON.parse(text.slice(start, end + 1));
-        if (parsed?.schemaVersion !== 12) throw new Error("配置版本无效，需要 schemaVersion 12");
+        if (parsed?.schemaVersion !== 13) throw new Error("配置版本无效，需要 schemaVersion 13");
         return normalizeConfig(parsed);
       }
 

@@ -94,7 +94,7 @@
 
   const TAU = Math.PI * 2;
   const DESIGNER_CONFIG = globalThis.GSS0_DESIGNER_CONFIG || {};
-  if (DESIGNER_CONFIG.schemaVersion !== 12) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 12");
+  if (DESIGNER_CONFIG.schemaVersion !== 13) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 13");
   const DESIGNER_BALANCE = DESIGNER_CONFIG.balance || {};
   const MODULE_DESIGN_STATES = DESIGNER_CONFIG.moduleStates || {};
 
@@ -288,6 +288,7 @@
   const ENEMY_DEATH_HEAD_PARTICLE_SPEED = designerNumber("enemyDeathHeadParticleSpeed", 185, 10, 500);
   const ENEMY_DEATH_BODY_PARTICLE_SPEED = designerNumber("enemyDeathBodyParticleSpeed", 105, 10, 400);
   const ENEMY_BODY_RECONNECT_DURATION = designerNumber("enemyBodyReconnectDuration", 0.28, 0.05, 2);
+  const ENEMY_HEAD_REFORM_DURATION = designerNumber("enemyHeadReformDuration", 0.42, 0.05, 2);
   const EXPERIENCE_COMPRESSION_DURATION = designerNumber("experienceCompressionDuration", 0.42, 0.05, 3);
   const EXPERIENCE_COMPRESSION_CASCADE_DELAY = designerNumber("experienceCompressionCascadeDelay", 0.18, 0, 2);
   const EXPERIENCE_COMPRESSION_GRAY_PARTICLES = designerNumber("experienceCompressionGrayParticles", 24, 1, 100, true);
@@ -403,6 +404,7 @@
     localHurtPredictions: [],
     localEnemyDeaths: new Map(),
     enemyBodyDamageOps: new Map(),
+    pendingEnemyHeadReforms: new Map(),
     pendingVisualEffects: [],
     lastFoodContactAt: 0,
     playerViews: new Map(),
@@ -1513,6 +1515,21 @@
     return applyEnemyBodyDamageOperationsInPlace(scratch, operations);
   }
 
+  function projectedEnemyHead(item, operations, scratch) {
+    if (!item || !operations?.length) return item;
+    scratch.length = 0;
+    for (const segment of item.segments || []) scratch.push(segment);
+    let head = item;
+    for (const operation of operations) {
+      if (scratch.length !== operation.beforeCount) continue;
+      const start = clamp(operation.start, 0, scratch.length);
+      const count = clamp(operation.count, 0, scratch.length - start);
+      if (operation.promoteHead && count > 0) head = scratch[start + count - 1] || head;
+      scratch.splice(start, count);
+    }
+    return head;
+  }
+
   function isSharedNetworkVisual(item) {
     return item.audienceEntityId == null && (
       item.type === "burst"
@@ -1664,7 +1681,7 @@
       flash = Math.max(flash, item.strength || 0);
       return;
     }
-    if (item.type === "enemyBodyHit") {
+    if (item.type === "enemyBodyHit" || item.type === "enemyHeadHit") {
       let operations = network.enemyBodyDamageOps.get(item.enemyId);
       if (!operations) {
         operations = [];
@@ -1674,20 +1691,37 @@
       const operation = {
         id: item.id,
         beforeCount: Math.max(0, Math.floor(item.beforeCount)),
-        start: Math.max(0, Math.floor(item.start)),
-        count: Math.max(0, Math.floor(item.count))
+        start: item.type === "enemyHeadHit" ? 0 : Math.max(0, Math.floor(item.start)),
+        count: Math.max(0, Math.floor(item.count)),
+        promoteHead: item.type === "enemyHeadHit"
       };
       operations.push(operation);
       const renderedEnemy = network.enemyViews.get(item.enemyId);
       if (renderedEnemy) {
+        const canApply = renderedEnemy.segments.length === operation.beforeCount;
+        const promotedSegment = canApply && operation.promoteHead
+          ? renderedEnemy.segments[operation.start + operation.count - 1] || null
+          : null;
+        const renderedOldHead = canApply
+          ? { x: renderedEnemy.x, y: renderedEnemy.y, col: renderedEnemy.col, row: renderedEnemy.row }
+          : null;
         applyEnemyBodyDamageOperationsInPlace(renderedEnemy.segments, operations);
-        startEnemyReconnect(renderedEnemy, item.reconnectIndex, performance.now());
+        if (item.type === "enemyHeadHit") {
+          const oldHead = renderedOldHead || cellCenter(item.oldHead.col, item.oldHead.row);
+          if (promotedSegment) setEnemyHeadFromPromotion(renderedEnemy, promotedSegment, oldHead);
+          playEnemyHeadReformPresentation(renderedEnemy, oldHead, item.color, item.duration);
+        } else {
+          startEnemyReconnect(renderedEnemy, item.reconnectIndex, performance.now());
+        }
+      } else if (item.type === "enemyHeadHit") {
+        network.pendingEnemyHeadReforms.set(item.enemyId, item);
       }
       return;
     }
     if (item.type === "snakeDeath") {
       if (network.localEnemyDeaths.has(item.enemyId)) return;
       network.localEnemyDeaths.set(item.enemyId, performance.now());
+      network.pendingEnemyHeadReforms.delete(item.enemyId);
       const renderedEnemy = network.enemyViews.get(item.enemyId);
       const head = renderedEnemy || cellCenter(item.head.col, item.head.row);
       const segments = renderedEnemy?.segments?.length
@@ -1848,6 +1882,7 @@
     network.playerViews.clear();
     network.enemyViews.clear();
     network.enemyBodyDamageOps.clear();
+    network.pendingEnemyHeadReforms.clear();
     network.pendingVisualEffects.length = 0;
     network.foodViews.clear();
     network.foodIndexes.clear();
@@ -2328,7 +2363,15 @@
         enemy = { segments: [] };
         network.enemyViews.set(item.id, enemy);
       }
+      const damageOperations = network.enemyBodyDamageOps.get(item.id);
+      const currentHead = projectedEnemyHead(item, damageOperations, enemy.currentHeadProjectionScratch ||= []);
+      const previousHead = projectedEnemyHead(old, damageOperations, enemy.previousHeadProjectionScratch ||= []);
       syncNetworkNode(enemy, item, old, amount);
+      if (currentHead && (currentHead !== item || previousHead !== old)) {
+        enemy.col = interpolateNumber(previousHead?.col, currentHead.col, amount);
+        enemy.row = interpolateNumber(previousHead?.row, currentHead.row, amount);
+        syncNodePosition(enemy);
+      }
       enemy.angle = interpolateAngle(old?.angle ?? item.angle, item.angle, amount);
       enemy.archetype = item.archetype;
       enemy.behaviorState = item.behaviorState;
@@ -2337,7 +2380,6 @@
       enemy.poisonStacks = item.poisonStacks || 0;
       enemy.radius = arena.cellSize * 0.28;
       enemy.dead = false;
-      const damageOperations = network.enemyBodyDamageOps.get(item.id);
       const currentSegments = projectedEnemySegments(item.segments, damageOperations, enemy.currentSegmentScratch ||= []);
       const previousSegments = projectedEnemySegments(old?.segments, damageOperations, enemy.previousSegmentScratch ||= []);
       syncNetworkSegments(enemy.segments, currentSegments, previousSegments, amount);
@@ -2347,10 +2389,23 @@
         segment.angle = Math.atan2(previousNode.row - segment.row, previousNode.col - segment.col);
         previousNode = segment;
       }
+      const pendingHeadReform = network.pendingEnemyHeadReforms.get(item.id);
+      if (pendingHeadReform) {
+        playEnemyHeadReformPresentation(
+          enemy,
+          cellCenter(pendingHeadReform.oldHead.col, pendingHeadReform.oldHead.row),
+          pendingHeadReform.color,
+          pendingHeadReform.duration
+        );
+        network.pendingEnemyHeadReforms.delete(item.id);
+      }
       enemy.seenAtTick = activeTick;
       enemies.push(enemy);
     }
-    pruneNetworkViews(network.enemyViews, activeTick, (enemyId) => network.enemyBodyDamageOps.delete(enemyId));
+    pruneNetworkViews(network.enemyViews, activeTick, (enemyId) => {
+      network.enemyBodyDamageOps.delete(enemyId);
+      network.pendingEnemyHeadReforms.delete(enemyId);
+    });
 
     network.presentationSnapshot = current;
   }
@@ -4448,7 +4503,7 @@
 
   function bladeHitSegmentIndex(enemy, x, y, radius) {
     if ((enemy.x - x) ** 2 + (enemy.y - y) ** 2 < (enemy.radius + radius) ** 2) {
-      return enemy.segments.length > 0 ? 0 : null;
+      return -1;
     }
     const segmentRadius = radius + 9 * arenaVisualScale();
     let nearestIndex = null;
@@ -5528,6 +5583,30 @@
     return { start: Math.min(hit - before, segmentCount - count), count };
   }
 
+  function setEnemyHeadFromPromotion(enemy, promotedSegment, oldHead) {
+    const oldX = Number.isFinite(oldHead?.x) ? oldHead.x : enemy.x;
+    const oldY = Number.isFinite(oldHead?.y) ? oldHead.y : enemy.y;
+    enemy.col = promotedSegment.col;
+    enemy.row = promotedSegment.row;
+    syncNodePosition(enemy);
+    const tangentX = oldX - enemy.x;
+    const tangentY = oldY - enemy.y;
+    if (Math.hypot(tangentX, tangentY) > 0.001) enemy.angle = Math.atan2(tangentY, tangentX);
+  }
+
+  function playEnemyHeadReformPresentation(enemy, oldHead, color, duration = ENEMY_HEAD_REFORM_DURATION) {
+    if (!enemy || enemy.dead) return;
+    const safeDuration = clamp(Number(duration) || ENEMY_HEAD_REFORM_DURATION, 0.05, 2);
+    const oldX = Number.isFinite(oldHead?.x) ? oldHead.x : enemy.x;
+    const oldY = Number.isFinite(oldHead?.y) ? oldHead.y : enemy.y;
+    const radius = enemy.radius || arena.cellSize * 0.28;
+    enemy.headReform = { startedAt: performance.now(), duration: safeDuration };
+    burst(oldX, oldY, color, ENEMY_DEATH_HEAD_PARTICLES, ENEMY_DEATH_HEAD_PARTICLE_SPEED);
+    effects.push({ type: "ring", x: oldX, y: oldY, color, life: safeDuration, maxLife: safeDuration, radius: radius * 0.45, endRadius: radius * 2.8 });
+    effects.push({ type: "beam", x: oldX, y: oldY, x2: enemy.x, y2: enemy.y, color: "#ffffff", width: Math.max(2, radius * 0.22), life: safeDuration, maxLife: safeDuration });
+    effects.push({ type: "ring", x: enemy.x, y: enemy.y, color: "#ffffff", life: safeDuration, maxLife: safeDuration, radius: radius * 0.3, endRadius: radius * 1.9 });
+  }
+
   function damageEnemy(enemy, amount, x, y, color, options = {}) {
     if (!enemy || enemy.dead) return;
     const impactX = Number.isFinite(x) ? x : enemy.x;
@@ -5539,13 +5618,22 @@
     const hitSegmentIndex = Number.isInteger(options.hitSegmentIndex)
       ? clamp(options.hitSegmentIndex, -1, Math.max(-1, beforeCount - 1))
       : nearestEnemySegmentIndex(enemy, impactX, impactY);
+    const hitsHead = hitSegmentIndex < 0;
+    const oldHead = { x: enemy.x, y: enemy.y, col: enemy.col, row: enemy.row };
     const span = enemyDamageSpan(beforeCount, hitSegmentIndex, safeAmount);
     const removed = enemy.segments.splice(span.start, span.count);
     const destroysHead = safeAmount > beforeCount;
     const appliedDamage = removed.length + Number(destroysHead);
     const reconnectIndex = span.start < enemy.segments.length ? span.start : -1;
-    if (!destroysHead) startEnemyReconnect(enemy, reconnectIndex);
-    for (const segment of removed) {
+    const promotedHead = hitsHead && !destroysHead ? removed.at(-1) || null : null;
+    if (promotedHead) {
+      setEnemyHeadFromPromotion(enemy, promotedHead, oldHead);
+      playEnemyHeadReformPresentation(enemy, oldHead, impactColor);
+    } else if (!destroysHead) {
+      startEnemyReconnect(enemy, reconnectIndex);
+    }
+    const destroyedNodes = promotedHead ? [oldHead, ...removed.slice(0, -1)] : removed;
+    for (const segment of destroyedNodes) {
       burst(segment.x, segment.y, impactColor, 7, 95);
       if (options.rewardSelf !== false) {
         const salvageDrops = MODULE_PROGRESSION.rollLinearRewards(
@@ -6443,12 +6531,42 @@
   }
 
   function drawEnemyHead(enemy, pieceScale) {
-    const sprite = enemySprite("head", enemy);
+    const headSprite = enemySprite("head", enemy);
+    const reform = enemy.headReform;
+    const reformProgress = reform
+      ? clamp((performance.now() - reform.startedAt) / (reform.duration * 1000), 0, 1)
+      : 1;
+    if (reform && reformProgress >= 1) delete enemy.headReform;
     ctx.save();
     ctx.translate(enemy.x, enemy.y);
     ctx.scale(pieceScale, pieceScale);
     ctx.rotate(enemy.angle);
-    ctx.drawImage(sprite.canvas, -sprite.size / 2, -sprite.size / 2, sprite.size, sprite.size);
+    if (reform && reformProgress < 1) {
+      const eased = 1 - (1 - reformProgress) ** 3;
+      const pulse = Math.sin(reformProgress * Math.PI);
+      const bodySprite = enemySprite("segment", enemy);
+      ctx.save();
+      ctx.globalAlpha = (1 - eased) * 0.92;
+      ctx.scale(1 + pulse * 0.16, 1 + pulse * 0.16);
+      ctx.drawImage(bodySprite.canvas, -bodySprite.size / 2, -bodySprite.size / 2, bodySprite.size, bodySprite.size);
+      ctx.restore();
+
+      ctx.save();
+      ctx.globalAlpha = eased;
+      ctx.scale(0.48 + eased * 0.52, 0.48 + eased * 0.52);
+      ctx.drawImage(headSprite.canvas, -headSprite.size / 2, -headSprite.size / 2, headSprite.size, headSprite.size);
+      ctx.restore();
+
+      ctx.globalAlpha = (1 - reformProgress) * 0.9;
+      ctx.strokeStyle = "#ffffff";
+      ctx.shadowColor = enemy.color;
+      ctx.shadowBlur = 12;
+      ctx.lineWidth = 2.4 * (1 - reformProgress) + 0.6;
+      drawPolygonPath(0, 0, headSprite.size * (0.42 + pulse * 0.34), 6, reformProgress * Math.PI);
+      ctx.stroke();
+    } else {
+      ctx.drawImage(headSprite.canvas, -headSprite.size / 2, -headSprite.size / 2, headSprite.size, headSprite.size);
+    }
     ctx.restore();
   }
 

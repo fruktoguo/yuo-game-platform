@@ -1,5 +1,5 @@
 globalThis.GSS0_DESIGNER_CONFIG = {
-  "schemaVersion": 12,
+  "schemaVersion": 13,
   "balance": {
     "playerBaseSpeed": 5,
     "playerMaxHealth": 20,
@@ -166,6 +166,7 @@ globalThis.GSS0_DESIGNER_CONFIG = {
     "enemyDeathHeadParticleSpeed": 185,
     "enemyDeathBodyParticleSpeed": 105,
     "enemyBodyReconnectDuration": 0.28,
+    "enemyHeadReformDuration": 0.42,
     "experienceCompressionDuration": 0.42,
     "experienceCompressionCascadeDelay": 0.18,
     "experienceCompressionGrayParticles": 24,

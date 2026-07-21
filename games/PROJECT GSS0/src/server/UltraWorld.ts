@@ -7,6 +7,7 @@ import {
   DISCONNECT_GRACE_MS,
   ENEMY_BASE_SPEED,
   ENEMY_BODY_RECONNECT_DURATION,
+  ENEMY_HEAD_REFORM_DURATION,
   ENEMY_COLORS,
   ENEMY_FOOD_SEARCH_LIMIT,
   ENEMY_WALL_AVOIDANCE_DISTANCE,
@@ -2255,7 +2256,7 @@ export class UltraWorld {
   }
 
   private bladeHitSegmentIndex(target: EnemyEntity, blade: GridPoint, radius: number): number | null {
-    if (distanceSquared(blade, target) < (radius + 0.28) ** 2) return target.segments.length > 0 ? 0 : null;
+    if (distanceSquared(blade, target) < (radius + 0.28) ** 2) return -1;
     const segmentRadiusSquared = (radius + this.pixelsToCells(9)) ** 2;
     let nearestIndex: number | null = null;
     let nearestDistance = segmentRadiusSquared;
@@ -3484,12 +3485,32 @@ export class UltraWorld {
     const resolvedHitIndex = Number.isInteger(hitSegmentIndex)
       ? clamp(hitSegmentIndex!, -1, Math.max(-1, beforeCount - 1))
       : nearestEnemySegmentIndex(target, point);
+    const hitsHead = resolvedHitIndex < 0;
+    const oldHead = { col: target.col, row: target.row };
     const span = enemyDamageSpan(beforeCount, resolvedHitIndex, safeAmount);
     const removed = target.segments.splice(span.start, span.count);
     const destroysHead = safeAmount > beforeCount;
     const applied = removed.length + Number(destroysHead);
+    const promotedHead = hitsHead && !destroysHead ? removed.at(-1) ?? null : null;
     const reconnectIndex = span.start < target.segments.length ? span.start : -1;
-    if (removed.length > 0 && !destroysHead) {
+    if (promotedHead) {
+      const tangentCol = oldHead.col - promotedHead.col;
+      const tangentRow = oldHead.row - promotedHead.row;
+      target.col = promotedHead.col;
+      target.row = promotedHead.row;
+      if (Math.hypot(tangentCol, tangentRow) > 0.001) target.angle = Math.atan2(tangentRow, tangentCol);
+      this.pendingEffects.push({
+        id: this.effectId(),
+        type: 'enemyHeadHit',
+        enemyId: target.id,
+        beforeCount,
+        count: removed.length,
+        oldHead,
+        newHead: { col: target.col, row: target.row },
+        color,
+        duration: ENEMY_HEAD_REFORM_DURATION,
+      });
+    } else if (removed.length > 0 && !destroysHead) {
       beginEnemyReconnect(target, reconnectIndex, 0.54);
       this.pendingEffects.push({
         id: this.effectId(),
@@ -3501,7 +3522,10 @@ export class UltraWorld {
         reconnectIndex,
       });
     }
-    for (const segment of removed) {
+    const destroyedNodes: GridPoint[] = promotedHead
+      ? [oldHead, ...removed.slice(0, -1)]
+      : removed;
+    for (const segment of destroyedNodes) {
       this.burst(segment.col, segment.row, color, 7, 95, owner?.entityId);
       if (owner) {
         const salvageDrops = MODULE_PROGRESSION.rollLinearRewards(

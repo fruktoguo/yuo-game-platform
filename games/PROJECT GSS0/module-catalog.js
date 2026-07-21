@@ -25,7 +25,7 @@
     { id: "laser", name: "霓虹线圈", category: "进攻", color: "#39f5a6", shape: "capsule", cooldown: "", activeCooldown: true, desc: "瞬间命中最近的敌蛇，造成1伤害。" },
     { id: "missile", name: "追迹弹舱", category: "进攻", color: "#ef476f", shape: "triangle", cooldown: "", activeCooldown: true, desc: "发射1枚能够自动追踪敌蛇的追迹弹，造成1伤害。" },
     { id: "mine", name: "磁暴雷节", category: "进攻", color: "#9a7cff", shape: "square", cooldown: "", activeCooldown: true, desc: "布置永久存在的磁雷；引爆时对范围内每个敌方部位分别造成1伤害，玩家触发时自身只被击退。" },
-    { id: "blade", name: "旋刃节", category: "进攻", color: "#e8eef7", shape: "diamond", cooldown: "被动效果", desc: "每级生成1枚环绕机体的旋刃；接触敌蛇时直接摧毁命中的身体节，命中蛇头则摧毁头后一节。" },
+    { id: "blade", name: "旋刃节", category: "进攻", color: "#e8eef7", shape: "diamond", cooldown: "被动效果", desc: "每级生成1枚环绕机体的旋刃；接触敌蛇时直接摧毁命中的部位，命中蛇头会触发断首与新头接替。" },
     { id: "pulse", name: "脉冲核心", category: "进攻", color: "#3eb7ff", shape: "ring", cooldown: "", activeCooldown: true, desc: "释放半径6格的冲击波，对范围内每个敌方部位分别造成1伤害。" },
     { id: "venom", name: "腐蚀囊节", category: "进攻", color: "#8be04e", shape: "hex", cooldown: "", activeCooldown: true, desc: "发射腐蚀弹，命中造成1伤害并施加可无限叠加的永久中毒；每层中毒定期随机摧毁1节身体。" },
     { id: "echo", name: "回声弹匣", category: "进攻", color: "#ff8bd7", shape: "capsule", cooldown: "被动效果", desc: "蛇头撞击敌蛇或墙壁时，每级向随机方向发射1枚子弹。" },
@@ -97,7 +97,7 @@
       case "frost":
         return `发射冰晶弹，造成1伤害并永久降低敌蛇${formatPercent(setting(balance, "moduleFrostSlowPerHit", 0.2))}移动速度；可叠加至仅剩${formatPercent(setting(balance, "moduleFrostMinimumSpeedMultiplier", 0.05))}。`;
       case "blade":
-        return "每级生成1枚环绕机体的旋刃；接触敌蛇时直接摧毁命中的身体节，命中蛇头则摧毁头后一节。";
+        return "每级生成1枚环绕机体的旋刃；接触敌蛇时直接摧毁命中的部位，命中蛇头会触发断首与新头接替。";
       case "pulse":
         return `释放半径${formatNumber(setting(balance, "modulePulseRadiusCells", 6))}格的冲击波，对范围内每个敌方部位分别造成1伤害。`;
       case "cluster":

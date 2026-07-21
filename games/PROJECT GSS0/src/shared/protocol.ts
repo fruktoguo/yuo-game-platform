@@ -189,6 +189,7 @@ export type UltraEffect = UltraEffectBase & (
   | ({ type: 'text'; col: number; row: number; text: string; color: string; life: number } & UltraEffectAnchor)
   | { id: string; type: 'experienceCompress'; sources: GridPoint[]; target: GridPoint; fromTier: number; toTier: number; delay: number; ownerEntityId: number; audienceEntityId?: number }
   | { id: string; type: 'enemyBodyHit'; enemyId: number; beforeCount: number; start: number; count: number; reconnectIndex: number; audienceEntityId?: number }
+  | { id: string; type: 'enemyHeadHit'; enemyId: number; beforeCount: number; count: number; oldHead: GridPoint; newHead: GridPoint; color: string; duration: number; audienceEntityId?: number }
   | { id: string; type: 'playerHurt'; playerEntityId: number; col: number; row: number; amount: number; health: number; maxHealth: number }
   | { id: string; type: 'playerHeal'; playerEntityId: number; col: number; row: number; amount: number; health: number; maxHealth: number; color: string }
   | { id: string; type: 'sound'; kind: UltraSoundKind; detail?: number; sourceEntityId?: number; audienceEntityId?: number }

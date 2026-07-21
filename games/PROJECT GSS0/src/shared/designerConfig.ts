@@ -11,7 +11,7 @@ interface DesignerConfigSource {
 }
 
 const source = (globalThis as typeof globalThis & { GSS0_DESIGNER_CONFIG?: DesignerConfigSource }).GSS0_DESIGNER_CONFIG;
-if (source?.schemaVersion !== 12) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 12');
+if (source?.schemaVersion !== 13) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 13');
 
 function numberSetting(key: string, fallback: number, minimum: number, maximum: number, integer = false): number {
   const candidate = source?.balance?.[key];
@@ -211,6 +211,7 @@ export const DESIGNER_BALANCE = Object.freeze({
   enemyDeathHeadParticleSpeed: numberSetting('enemyDeathHeadParticleSpeed', 185, 10, 500),
   enemyDeathBodyParticleSpeed: numberSetting('enemyDeathBodyParticleSpeed', 105, 10, 400),
   enemyBodyReconnectDuration: numberSetting('enemyBodyReconnectDuration', 0.28, 0.05, 2),
+  enemyHeadReformDuration: numberSetting('enemyHeadReformDuration', 0.42, 0.05, 2),
   experienceCompressionDuration: numberSetting('experienceCompressionDuration', 0.42, 0.05, 3),
   experienceCompressionCascadeDelay: numberSetting('experienceCompressionCascadeDelay', 0.18, 0, 2),
   experienceCompressionGrayParticles: numberSetting('experienceCompressionGrayParticles', 24, 1, 100, true),
