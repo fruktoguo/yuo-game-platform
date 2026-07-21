@@ -9,7 +9,7 @@ describe('界面设置', () => {
   it('使用正式游戏名并在左上品牌卡显示当前版本', () => {
     expect(indexHtml).toContain('<title>代号：几何贪吃蛇</title>');
     expect(indexHtml).toContain('<h1 id="game-title"><span>代号：几何贪吃蛇</span></h1>');
-    expect(indexHtml).toContain('<span class="brand-version" aria-label="游戏版本 V79">V79</span>');
+    expect(indexHtml).toContain('<span class="brand-version" aria-label="游戏版本 V80">V80</span>');
     expect(styles).toContain('.brand-version');
     const brandTitleRule = styles.match(/\.brand-lockup strong\s*\{([^}]*)\}/)?.[1];
     const brandVersionRule = styles.match(/\.brand-version\s*\{([^}]*)\}/)?.[1];
@@ -47,7 +47,7 @@ describe('界面设置', () => {
   });
 
   it('升级卡展示机体等级变化且机体架显示槽位占用', () => {
-    expect(indexHtml).toContain('src="module-progression.js?v=79"');
+    expect(indexHtml).toContain('src="module-progression.js?v=80"');
     expect(gameSource).toContain('MODULE_PROGRESSION.moduleUpgradePreview');
     expect(gameSource).toContain('progression.levelLabel');
     expect(gameSource).toContain('ui.rack.dataset.capacity');
@@ -70,7 +70,7 @@ describe('界面设置', () => {
     expect(gameSource).toContain('const FOOD_BIRTH_DURATION = designerNumber("foodBirthDuration"');
     expect(gameSource).toContain('const birthScale =');
     expect(gameSource).toContain('food.birthAge = 0;');
-    expect(indexHtml).toContain('初始拥有 20 点耐久，每秒恢复 0.25 点');
+    expect(indexHtml).toContain('初始拥有 15 点耐久，每秒恢复 0.25 点');
     expect(indexHtml).toContain('id="shield-fill" class="shield-fill" data-charges="0"');
     expect(styles).toContain('.shield-fill.is-active');
     expect(styles).toContain('.health-group.is-heal');
@@ -120,7 +120,7 @@ describe('界面设置', () => {
     expect(tooltipRule).not.toContain('transition');
     expect(indexHtml).not.toContain('id="description-button"');
     expect(indexHtml).not.toContain('id="description-toggle"');
-    expect(indexHtml).toContain('src="module-catalog.js?v=79"');
+    expect(indexHtml).toContain('src="module-catalog.js?v=80"');
     expect(gameSource).toContain('const MODULE_CATALOG = globalThis.GSS0ModuleCatalog;');
     expect(gameSource).not.toContain('SHORT_MODULE_DESCRIPTIONS');
     expect(gameSource).not.toContain('gss0-detailed-descriptions');

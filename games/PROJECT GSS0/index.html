@@ -19,7 +19,7 @@
           <strong>代号：几何贪吃蛇</strong>
         </div>
         <span class="signature">by 四季鸽</span>
-        <span class="brand-version" aria-label="游戏版本 V79">V79</span>
+        <span class="brand-version" aria-label="游戏版本 V80">V80</span>
       </div>
 
       <div class="run-stats">
@@ -157,7 +157,7 @@
 
     <section id="start-screen" class="modal-layer start-screen is-visible" aria-labelledby="game-title">
       <div class="start-glow" aria-hidden="true"></div>
-      <div class="start-version" aria-label="游戏版本 V79"><span>BUILD</span><strong>V79</strong></div>
+      <div class="start-version" aria-label="游戏版本 V80"><span>BUILD</span><strong>V80</strong></div>
       <div class="start-layout">
         <div class="start-content">
           <div id="network-status" class="title-kicker">TACTICAL SURVIVAL / LOCAL</div>
@@ -197,7 +197,7 @@
           </header>
           <section>
             <strong><span>01</span> 单人行动</strong>
-            <p><span>初始拥有 20 点耐久，每秒恢复 0.25 点</span><span>蛇头撞敌蛇会造成 1 点伤害并弹开</span><span>撞敌蛇身体受到 10 点伤害，撞墙受到 5 点伤害</span><span>敌人会抢球，摧毁敌人后全部爆出</span></p>
+            <p><span>初始拥有 15 点耐久，每秒恢复 0.25 点</span><span>蛇头撞敌蛇会造成 1 点伤害并弹开</span><span>撞敌蛇身体受到 10 点伤害，撞墙受到 5 点伤害</span><span>敌人会抢球，摧毁敌人后全部爆出</span></p>
           </section>
           <section>
             <strong><span>02</span> 多人共斗</strong>
@@ -258,6 +258,20 @@
           <button id="changelog-close-button" class="icon-button codex-close-button" type="button" aria-label="关闭更新日志" title="关闭更新日志">×</button>
         </header>
         <div class="changelog-list">
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V80</strong></div>
+              <time datetime="2026-07-22">2026.07.22</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">数值调整</span>
+              <h3>最新平衡参数正式定版</h3>
+              <ul>
+                <li>收录设计控制台中的最新玩家、敌人、蛇体间距、机体效果与冷却参数。</li>
+                <li>采用新的波次敌人数曲线，并暂时禁用仍需调整的激光节与导弹节。</li>
+              </ul>
+            </div>
+          </article>
           <article class="changelog-entry">
             <header>
               <div class="changelog-version"><span>BUILD</span><strong>V79</strong></div>
@@ -1226,20 +1240,20 @@
     </section>
   </main>
 
-  <script src="designer-config.js?v=79"></script>
-  <script src="module-catalog.js?v=79"></script>
-  <script src="module-progression.js?v=79"></script>
-  <script src="wave-director.js?v=79"></script>
-  <script src="spawn-planner.js?v=79"></script>
-  <script src="network-codec.js?v=79"></script>
-  <script src="network-player-prediction.js?v=79"></script>
-  <script src="network-player-state-codec.js?v=79"></script>
-  <script src="network-player-collisions.js?v=79"></script>
-  <script src="network-head-collisions.js?v=79"></script>
-  <script src="network-food-claims.js?v=79"></script>
-  <script src="network-projectiles.js?v=79"></script>
-  <script src="lobby-navigation.js?v=79"></script>
-  <script src="enemy-codex.js?v=79"></script>
-  <script src="game.js?v=79"></script>
+  <script src="designer-config.js?v=80"></script>
+  <script src="module-catalog.js?v=80"></script>
+  <script src="module-progression.js?v=80"></script>
+  <script src="wave-director.js?v=80"></script>
+  <script src="spawn-planner.js?v=80"></script>
+  <script src="network-codec.js?v=80"></script>
+  <script src="network-player-prediction.js?v=80"></script>
+  <script src="network-player-state-codec.js?v=80"></script>
+  <script src="network-player-collisions.js?v=80"></script>
+  <script src="network-head-collisions.js?v=80"></script>
+  <script src="network-food-claims.js?v=80"></script>
+  <script src="network-projectiles.js?v=80"></script>
+  <script src="lobby-navigation.js?v=80"></script>
+  <script src="enemy-codex.js?v=80"></script>
+  <script src="game.js?v=80"></script>
 </body>
 </html>

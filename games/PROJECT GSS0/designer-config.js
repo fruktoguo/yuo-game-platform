@@ -1,10 +1,10 @@
 globalThis.GSS0_DESIGNER_CONFIG = {
   "schemaVersion": 20,
   "balance": {
-    "playerBaseSpeed": 3,
+    "playerBaseSpeed": 5,
     "snakeBodySizeScale": 0.775,
-    "snakeSegmentSpacing": 0.45,
-    "playerMaxHealth": 20,
+    "snakeSegmentSpacing": 0.66,
+    "playerMaxHealth": 15,
     "playerHealthRegenPerSecond": 0.25,
     "playerEnemyBodyCollisionDamage": 10,
     "playerWallCollisionDamage": 5,
@@ -17,7 +17,7 @@ globalThis.GSS0_DESIGNER_CONFIG = {
     "moduleSlotUnlockLevel2": 12,
     "moduleSlotUnlockLevel3": 18,
     "moduleSlotUnlockLevel4": 25,
-    "playerTurnRate": 3.6,
+    "playerTurnRate": 4.2,
     "upgradeInvulnerabilityDuration": 1,
     "respawnLocatorConvergeDuration": 1,
     "respawnLocatorFadeDuration": 3,
@@ -37,11 +37,11 @@ globalThis.GSS0_DESIGNER_CONFIG = {
     "playerDamageParticleSpeed": 190,
     "enemyDamageNumberDuration": 0.82,
     "foodBirthDuration": 0.36,
-    "enemyBaseSpeed": 2.4,
+    "enemyBaseSpeed": 3,
     "enemySpeedPerMinute": 0.01,
     "enemySpeedMaxMultiplier": 1.12,
-    "enemyTurnRateMin": 1.8,
-    "enemyTurnRateMax": 2.4,
+    "enemyTurnRateMin": 2.05,
+    "enemyTurnRateMax": 2.75,
     "enemyThinkIntervalMin": 0.22,
     "enemyThinkIntervalMax": 0.55,
     "enemyFoodSearchLimit": 8,
@@ -109,9 +109,9 @@ globalThis.GSS0_DESIGNER_CONFIG = {
     "moduleFrostSlowPerHit": 0.2,
     "moduleFrostMinimumSpeedMultiplier": 0.05,
     "moduleBladeBaseSizePixels": 10,
-    "moduleBladeOrbitSpeed": 2.28,
-    "modulePulseRadiusCells": 6,
-    "moduleClusterBlastRadiusCells": 5,
+    "moduleBladeOrbitSpeed": 1.5,
+    "modulePulseRadiusCells": 3,
+    "moduleClusterBlastRadiusCells": 2,
     "moduleShieldMaxCharges": 5,
     "moduleRepulseRangePerLevelPixels": 110,
     "moduleArmorCooldownRatePerLevel": 0.18,
@@ -120,8 +120,8 @@ globalThis.GSS0_DESIGNER_CONFIG = {
     "moduleMagnetPickupRangePerLevel": 0.55,
     "moduleHasteTurnRatePerLevel": 0.2,
     "moduleChronosSlowPerLevel": 0.08,
-    "moduleTractorRangePerLevel": 2,
-    "moduleTractorPullSpeedPerLevel": 1.5,
+    "moduleTractorRangePerLevel": 1,
+    "moduleTractorPullSpeedPerLevel": 1,
     "moduleFortuneExpectedDropsPerLevel": 0.18,
     "moduleGuidanceProjectileSpeedPerLevel": 0.12,
     "moduleGuidanceHomingPerLevel": 0.35,
@@ -142,7 +142,7 @@ globalThis.GSS0_DESIGNER_CONFIG = {
     "moduleThornsProjectileCount": 6,
     "moduleBonusXpChancePerLevel": 0.1,
     "moduleHeadCollisionDamagePerLevel": 2,
-    "moduleMaxHealthPerLevel": 4,
+    "moduleMaxHealthPerLevel": 5,
     "moduleHealthRegenPerLevel": 0.25,
     "moduleDamageReductionPerLevel": 0.1,
     "moduleFoodReplicationChancePerLevel": 0.06,
@@ -191,27 +191,27 @@ globalThis.GSS0_DESIGNER_CONFIG = {
   "waveEnemyCountSchedule": [
     {
       "startWave": 1,
-      "enemyCount": 2
+      "enemyCount": 1
     },
     {
       "startWave": 11,
-      "enemyCount": 3
+      "enemyCount": 2
     },
     {
       "startWave": 31,
+      "enemyCount": 3
+    },
+    {
+      "startWave": 61,
       "enemyCount": 4
     },
     {
-      "startWave": 51,
+      "startWave": 101,
       "enemyCount": 5
     },
     {
-      "startWave": 71,
+      "startWave": 301,
       "enemyCount": 6
-    },
-    {
-      "startWave": 91,
-      "enemyCount": 7
     }
   ],
   "moduleCooldownPercentages": {
@@ -223,13 +223,13 @@ globalThis.GSS0_DESIGNER_CONFIG = {
     "laser": 130,
     "missile": 150,
     "mine": 100,
-    "pulse": 260,
+    "pulse": 300,
     "venom": 225,
     "rail": 260,
     "ricochet": 240,
-    "cluster": 260,
+    "cluster": 300,
     "fan": 375,
-    "gravity": 320,
+    "gravity": 250,
     "shield": 300,
     "phase": 735,
     "thorns": 200,
@@ -257,7 +257,7 @@ globalThis.GSS0_DESIGNER_CONFIG = {
     "prism": "normal",
     "nova": "normal",
     "tesla": "normal",
-    "laser": "normal",
+    "laser": "disabled",
     "missile": "disabled",
     "mine": "normal",
     "blade": "normal",
