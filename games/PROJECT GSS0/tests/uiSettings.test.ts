@@ -3,13 +3,14 @@ import { describe, expect, it } from 'vitest';
 
 const gameSource = readFileSync(new URL('../game.js', import.meta.url), 'utf8');
 const indexHtml = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+const serverSource = readFileSync(new URL('../src/server/UltraWorld.ts', import.meta.url), 'utf8');
 const styles = readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
 
 describe('界面设置', () => {
   it('使用正式游戏名并在左上品牌卡显示当前版本', () => {
     expect(indexHtml).toContain('<title>代号：几何贪吃蛇</title>');
     expect(indexHtml).toContain('<h1 id="game-title"><span>代号：几何贪吃蛇</span></h1>');
-    expect(indexHtml).toContain('<span class="brand-version" aria-label="游戏版本 V80">V80</span>');
+    expect(indexHtml).toContain('<span class="brand-version" aria-label="游戏版本 V81">V81</span>');
     expect(styles).toContain('.brand-version');
     const brandTitleRule = styles.match(/\.brand-lockup strong\s*\{([^}]*)\}/)?.[1];
     const brandVersionRule = styles.match(/\.brand-version\s*\{([^}]*)\}/)?.[1];
@@ -47,7 +48,7 @@ describe('界面设置', () => {
   });
 
   it('升级卡展示机体等级变化且机体架显示槽位占用', () => {
-    expect(indexHtml).toContain('src="module-progression.js?v=80"');
+    expect(indexHtml).toContain('src="module-progression.js?v=81"');
     expect(gameSource).toContain('MODULE_PROGRESSION.moduleUpgradePreview');
     expect(gameSource).toContain('progression.levelLabel');
     expect(gameSource).toContain('ui.rack.dataset.capacity');
@@ -74,6 +75,29 @@ describe('界面设置', () => {
     expect(indexHtml).toContain('id="shield-fill" class="shield-fill" data-charges="0"');
     expect(styles).toContain('.shield-fill.is-active');
     expect(styles).toContain('.health-group.is-heal');
+  });
+
+  it('生命值固定显示一位小数且负恢复静默扣除生命', () => {
+    const localDrainSource = gameSource.slice(
+      gameSource.indexOf('function drainPlayerHealth('),
+      gameSource.indexOf('function updatePlayerHealthRegen('),
+    );
+    const serverDrainSource = serverSource.slice(
+      serverSource.indexOf('private drainPlayerHealth('),
+      serverSource.indexOf('private enterGhostState('),
+    );
+
+    expect(indexHtml).toContain('<span id="health-value">15.0</span> / <span id="health-max">15.0</span>');
+    expect(gameSource).toContain('setText(ui.health, currentHealth.toFixed(1));');
+    expect(gameSource).toContain('setText(ui.maxHealth, maximumHealth.toFixed(1));');
+    expect(gameSource).toContain('drainPlayerHealth(-rate * dt);');
+    expect(serverSource).toContain("this.drainPlayerHealth(player, -regenRate * delta, this.now, '生命代偿失衡');");
+    expect(localDrainSource).not.toContain('playPlayerHurtPresentation');
+    expect(localDrainSource).not.toContain('consumeShieldCharge');
+    expect(serverDrainSource).not.toContain('pendingEffects.push');
+    expect(serverDrainSource).not.toContain('consumeShieldCharge');
+    expect(gameSource).not.toContain('regenDamageBuffer');
+    expect(serverSource).not.toContain('regenDamageBuffer');
   });
 
   it('联机入口从一名玩家起始终显示共享世界界面', () => {
@@ -120,7 +144,7 @@ describe('界面设置', () => {
     expect(tooltipRule).not.toContain('transition');
     expect(indexHtml).not.toContain('id="description-button"');
     expect(indexHtml).not.toContain('id="description-toggle"');
-    expect(indexHtml).toContain('src="module-catalog.js?v=80"');
+    expect(indexHtml).toContain('src="module-catalog.js?v=81"');
     expect(gameSource).toContain('const MODULE_CATALOG = globalThis.GSS0ModuleCatalog;');
     expect(gameSource).not.toContain('SHORT_MODULE_DESCRIPTIONS');
     expect(gameSource).not.toContain('gss0-detailed-descriptions');

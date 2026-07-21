@@ -122,7 +122,6 @@ interface PlayerEntity extends UltraPlayerView {
   thornsCooldown: number;
   bloomCooldown: number;
   cacheKills: number;
-  regenDamageBuffer: number;
   lastInputSequence: number;
   movementHistory: PlayerMovementSample[];
   recentPicks: ModuleId[];
@@ -1025,7 +1024,6 @@ export class UltraWorld {
       thornsCooldown: 0,
       bloomCooldown: 0,
       cacheKills: 0,
-      regenDamageBuffer: 0,
       lastInputSequence: -1,
       movementHistory: [],
       score: 0,
@@ -1070,7 +1068,6 @@ export class UltraWorld {
     player.thornsCooldown = 0;
     player.bloomCooldown = 0;
     player.cacheKills = 0;
-    player.regenDamageBuffer = 0;
     player.lastInputSequence = -1;
     player.movementHistory.length = 0;
     this.clearPlayerHeadCollisionRecords(player.entityId);
@@ -1334,14 +1331,9 @@ export class UltraWorld {
     player.invulnerable = Math.max(0, player.invulnerable - delta);
     const regenRate = this.playerHealthRegenRate(player);
     if (regenRate >= 0) {
-      player.regenDamageBuffer = 0;
       this.healPlayer(player, regenRate * delta);
     } else {
-      player.regenDamageBuffer += -regenRate * delta;
-      while (player.regenDamageBuffer >= 1 && player.alive && !player.ghost) {
-        player.regenDamageBuffer -= 1;
-        this.damagePlayer(player, 1, this.now, '生命代偿失衡');
-      }
+      this.drainPlayerHealth(player, -regenRate * delta, this.now, '生命代偿失衡');
     }
     player.slow = Math.max(0, player.slow - delta);
     player.collisionCooldown = Math.max(0, player.collisionCooldown - delta);
@@ -3363,7 +3355,6 @@ export class UltraWorld {
         ghost.collisionCooldown = 0;
         ghost.knockbackX = 0;
         ghost.knockbackY = 0;
-        ghost.regenDamageBuffer = 0;
         this.emitEvent('record', `${rescuer.name} 复活了 ${ghost.name}`, now, rescuer.entityId);
         revived = true;
         break;
@@ -3574,6 +3565,13 @@ export class UltraWorld {
     return true;
   }
 
+  private drainPlayerHealth(player: PlayerEntity, amount: number, now: number, reason: string): boolean {
+    if (!player.alive || player.ghost || amount <= 0) return false;
+    player.health = Math.max(0, player.health - amount);
+    if (player.health <= 0) this.enterGhostState(player, now, reason);
+    return true;
+  }
+
   private enterGhostState(player: PlayerEntity, now: number, reason: string): void {
     if (!player.alive || player.ghost) return;
     player.health = 0;
@@ -3585,7 +3583,6 @@ export class UltraWorld {
     player.knockbackX = 0;
     player.knockbackY = 0;
     player.foodBoost = 0;
-    player.regenDamageBuffer = 0;
     player.desiredAngle = player.angle;
     this.clearPlayerHeadCollisionRecords(player.entityId);
     this.emitEvent('record', `${player.name} ${reason}，正在等待救援`, now, player.entityId);

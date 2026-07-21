@@ -2927,7 +2927,6 @@
       thornsCooldown: 0,
       bloomCooldown: 0,
       cacheKills: 0,
-      regenDamageBuffer: 0,
       segments: []
     };
     visiblePlayers = [];
@@ -4112,8 +4111,8 @@
     setText(ui.level, level);
     const currentHealth = Math.max(0, player?.health || 0);
     const maximumHealth = Math.max(0, player?.maxHealth ?? PLAYER_MAX_HEALTH);
-    setText(ui.health, Number(currentHealth.toFixed(1)));
-    setText(ui.maxHealth, Number(maximumHealth.toFixed(1)));
+    setText(ui.health, currentHealth.toFixed(1));
+    setText(ui.maxHealth, maximumHealth.toFixed(1));
     const healthWidth = `${clamp(currentHealth / Math.max(1, maximumHealth) * 100, 0, 100)}%`;
     if (force || ui.healthFill.style.width !== healthWidth) ui.healthFill.style.width = healthWidth;
     const shieldCharges = Math.max(0, Math.round(player?.shieldCharges || 0));
@@ -5848,18 +5847,20 @@
     return true;
   }
 
+  function drainPlayerHealth(amount) {
+    if (!player || state !== "running" || amount <= 0) return false;
+    player.health = Math.max(0, player.health - amount);
+    if (player.health <= 0) gameOver();
+    return true;
+  }
+
   function updatePlayerHealthRegen(dt) {
     const rate = playerHealthRegenRate();
     if (rate >= 0) {
-      player.regenDamageBuffer = 0;
       healPlayer(rate * dt);
       return;
     }
-    player.regenDamageBuffer = (player.regenDamageBuffer || 0) + -rate * dt;
-    while (player.regenDamageBuffer >= 1 && state === "running") {
-      player.regenDamageBuffer -= 1;
-      damagePlayer(1);
-    }
+    drainPlayerHealth(-rate * dt);
   }
 
   function consumeDefense() {
