@@ -48,7 +48,6 @@ export const GROWTH_NODE_DELAY = 0.045;
 export const GROWTH_PULSE_DURATION = 0.3;
 export const SEGMENT_BIRTH_DURATION = 0.34;
 export const LEVEL_UP_TRANSITION_DURATION = 0.9;
-export const LEVEL_UP_TIME_SCALE = 0.15;
 export const CANONICAL_CELL_SIZE = 34;
 export const SIMULATION_HZ = 30;
 export const SNAPSHOT_HZ = 15;

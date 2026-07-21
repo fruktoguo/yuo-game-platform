@@ -86,10 +86,9 @@
 
   const TAU = Math.PI * 2;
   const DESIGNER_CONFIG = globalThis.GSS0_DESIGNER_CONFIG || {};
-  if (DESIGNER_CONFIG.schemaVersion !== 7) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 7");
+  if (DESIGNER_CONFIG.schemaVersion !== 8) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 8");
   const DESIGNER_BALANCE = DESIGNER_CONFIG.balance || {};
   const MODULE_DESIGN_STATES = DESIGNER_CONFIG.moduleStates || {};
-  const MODULE_COOLDOWN_PERCENTAGES = DESIGNER_CONFIG.moduleCooldownPercentages || {};
 
   function designerNumber(key, fallback, minimum, maximum, integer = false) {
     const candidate = DESIGNER_BALANCE[key];
@@ -101,7 +100,6 @@
   const HEAD_ATTACK_INTERVAL = designerNumber("headAttackInterval", 3, 0.05, 30);
   const POISON_INITIAL_TICK_DELAY = designerNumber("poisonInitialTickDelay", 1.4, 0.05, 30);
   const POISON_TICK_INTERVAL = designerNumber("poisonTickInterval", 2.3, 0.05, 30);
-  const ACTIVE_SKILL_BASE_COOLDOWN = designerNumber("activeSkillBaseCooldown", 3, 0.05, 30);
   const XP_REQUIREMENT_BASE = designerNumber("xpRequirementBase", 5, 1, 100, true);
   const XP_REQUIREMENT_PER_LEVEL = designerNumber("xpRequirementPerLevel", 2, 0, 20, true);
 
@@ -109,14 +107,8 @@
     return XP_REQUIREMENT_BASE + Math.max(0, Math.floor(currentLevel)) * XP_REQUIREMENT_PER_LEVEL;
   }
 
-  function moduleCooldownPercent(moduleId) {
-    const candidate = MODULE_COOLDOWN_PERCENTAGES[moduleId];
-    if (!Number.isFinite(candidate)) throw new Error(`PROJECT GSS0 机体 ${moduleId} 缺少冷却百分比`);
-    return clamp(candidate, 0, 1000);
-  }
-
-  function moduleCooldownSeconds(moduleId) {
-    return ACTIVE_SKILL_BASE_COOLDOWN * moduleCooldownPercent(moduleId) / 100;
+  function moduleCooldownSeconds(moduleId, moduleLevel = 1, cooldownRateBonus = 0) {
+    return MODULE_PROGRESSION.activeCooldownSeconds(moduleId, moduleLevel, cooldownRateBonus);
   }
 
   function formatCooldownSeconds(seconds) {
@@ -127,35 +119,12 @@
     return `${formatCooldownSeconds(moduleCooldownSeconds(moduleId))}${perTarget ? "/目标" : ""}`;
   }
 
-  const MODULE_TUNING = Object.freeze({
-    armor: { cooldownMultiplierPerStack: 0.82 },
-    stabilizer: { slowMultiplierPerStack: 0.75, lockMultiplierPerStack: 0.8 },
-    magnet: { pickupRangeCellsPerStack: 0.55 },
-    haste: { speedPerStack: 0.045, turnRatePerStack: 0.18 },
-    chronos: { enemySpeedMultiplierPerStack: 0.92 },
-    tractor: { baseRangeCells: 3.5, rangeCellsPerExtraStack: 1.1, basePullSpeed: 1.8, pullSpeedPerExtraStack: 0.45 },
-    fortune: { chancePerStack: 0.18, maxChance: 0.85, extraDropEveryStacks: 3 },
-    guidance: { projectileSpeedPerStack: 0.12, homingPerStack: 0.35 },
-    feast: { duration: 2.5, speedPerStack: 0.12 },
-    salvage: { chancePerStack: 0.14, maxChance: 0.72 },
-    amplifier: { cooldownMultiplierPerStack: 0.86 },
-    buffer: { knockbackMultiplierPerStack: 0.82 },
-    decoy: { avoidanceReductionPerStack: 0.12, minimumAvoidanceMultiplier: 0.45 },
-    emergency: { baseDuration: 0.25, durationPerStack: 0.12, maxDuration: 0.9 },
-    collector: { pickupRadiusCellsPerStack: 0.09 },
-    beacon: { waveRatePerStack: 0.07 },
-    momentum: { enemyKnockbackPerStack: 0.18 },
-    progressor: { maxSpeedPerStack: 0.08 },
-    repulse: { baseRangePixels: 90, rangePixelsPerStack: 20 },
-    thorns: { extraStackMultiplier: 0.85, baseShots: 6, shotsPerExtraStack: 2, maxBonusShots: 10 },
-    bloom: { extraStackMultiplier: 0.88 },
-    cache: { baseKills: 6, killsReducedPerStack: 1, minimumKills: 2 },
-    ram: { extraStackMultiplier: 0.86 }
-  });
   const MODULE_CATALOG = globalThis.GSS0ModuleCatalog;
-  if (!Array.isArray(MODULE_CATALOG) || MODULE_CATALOG.length === 0) {
+  const MODULE_PROGRESSION = globalThis.GSS0ModuleProgression;
+  if (!Array.isArray(MODULE_CATALOG) || MODULE_CATALOG.length === 0 || !MODULE_PROGRESSION) {
     throw new Error("PROJECT GSS0 机体目录加载失败");
   }
+  const MODULE_EFFECTS = MODULE_PROGRESSION.effects;
   const MODULES = MODULE_CATALOG.map((module) => Object.freeze({
     ...module,
     cooldown: module.activeCooldown
@@ -302,6 +271,12 @@
   const ENEMY_DEATH_HEAD_PARTICLE_SPEED = designerNumber("enemyDeathHeadParticleSpeed", 185, 10, 500);
   const ENEMY_DEATH_BODY_PARTICLE_SPEED = designerNumber("enemyDeathBodyParticleSpeed", 105, 10, 400);
   const ENEMY_BODY_RECONNECT_DURATION = designerNumber("enemyBodyReconnectDuration", 0.28, 0.05, 2);
+  const EXPERIENCE_COMPRESSION_DURATION = designerNumber("experienceCompressionDuration", 0.42, 0.05, 3);
+  const EXPERIENCE_COMPRESSION_CASCADE_DELAY = designerNumber("experienceCompressionCascadeDelay", 0.18, 0, 2);
+  const EXPERIENCE_COMPRESSION_GRAY_PARTICLES = designerNumber("experienceCompressionGrayParticles", 24, 1, 100, true);
+  const EXPERIENCE_COMPRESSION_GOLD_PARTICLES = designerNumber("experienceCompressionGoldParticles", 42, 1, 160, true);
+  const EXPERIENCE_COMPRESSION_GRAY_SHAKE = designerNumber("experienceCompressionGrayShake", 1.8, 0, 12);
+  const EXPERIENCE_COMPRESSION_GOLD_SHAKE = designerNumber("experienceCompressionGoldShake", 5.2, 0, 16);
   const MAX_RENDER_FPS = designerNumber("maxRenderFps", 60, 30, 240, true);
   const MAX_RENDER_DPR = designerNumber("maxRenderDpr", 1.25, 1, 2);
   const MIN_RENDER_DPR = 1;
@@ -380,7 +355,6 @@
 
   const network = {
     enabled: false,
-    multiplayer: false,
     connecting: false,
     socket: null,
     selfEntityId: null,
@@ -1034,9 +1008,9 @@
   }
 
   function playerBaseSpeed() {
-    const hasteMultiplier = 1 + moduleCount("haste") * MODULE_TUNING.haste.speedPerStack;
+    const hasteMultiplier = 1 + MODULE_EFFECTS.hasteSpeedBonus(moduleCount("haste"));
     const progress = xpNeeded > 0 ? clamp(xp / xpNeeded, 0, 1) : 0;
-    const progressMultiplier = 1 + moduleCount("progressor") * progress * MODULE_TUNING.progressor.maxSpeedPerStack;
+    const progressMultiplier = 1 + MODULE_EFFECTS.progressorMaxSpeedBonus(moduleCount("progressor")) * progress;
     return PLAYER_BASE_SPEED * (1 + level * PLAYER_SPEED_PER_LEVEL) * hasteMultiplier * progressMultiplier;
   }
 
@@ -1057,7 +1031,9 @@
       row: cell.row,
       angle: 0,
       module: options.module || null,
+      moduleLevel: options.moduleLevel ?? (options.module ? 1 : 0),
       neutral: Boolean(options.neutral),
+      experienceTier: options.experienceTier ?? 0,
       base: Boolean(options.base),
       timer: options.timer || 0,
       ready: true,
@@ -1378,10 +1354,8 @@
       const stateItem = stateByEntity.get(item.entityId);
       if (stateItem?.connected ?? item.connected) connected.push(item);
     }
-    const multiplayer = connected.length > 1;
-    network.multiplayer = multiplayer;
-    ui.shell.classList.toggle("is-multiplayer", multiplayer);
-    ui.scoreboard.setAttribute("aria-hidden", String(!multiplayer));
+    ui.shell.classList.toggle("is-multiplayer", network.enabled);
+    ui.scoreboard.setAttribute("aria-hidden", String(!network.enabled));
     ui.scoreboardCount.textContent = `${connected.length}P`;
     connected.sort((left, right) => {
       const leftState = stateByEntity.get(left.entityId) || left;
@@ -1535,6 +1509,20 @@
           rewardSelf: item.ownerEntityId === network.selfEntityId,
           soundSourceEntityId: item.ownerEntityId
         });
+        continue;
+      }
+      if (item.type === "experienceCompress") {
+        const sources = item.sources.map((source) => cellCenter(source.col, source.row));
+        const target = cellCenter(item.target.col, item.target.row);
+        queueExperienceCompression(
+          sources,
+          target,
+          item.fromTier,
+          item.toTier,
+          item.delay || 0,
+          item.ownerEntityId,
+          item.ownerEntityId === network.selfEntityId
+        );
         continue;
       }
       const from = cellCenter(item.col, item.row);
@@ -1858,7 +1846,8 @@
     const moduleIds = network.moduleIds;
     let changed = !view.networkModuleCounts || moduleIds.length !== segments.length;
     for (let index = 0; index < segments.length && !changed; index += 1) {
-      if (moduleIds[index] !== segments[index].module) changed = true;
+      const signature = segments[index].module ? `${segments[index].module}:${segments[index].moduleLevel || 1}` : null;
+      if (moduleIds[index] !== signature) changed = true;
     }
     if (!changed) return false;
     const counts = view.networkModuleCounts || Object.create(null);
@@ -1866,8 +1855,9 @@
     moduleIds.length = segments.length;
     for (let index = 0; index < segments.length; index += 1) {
       const id = segments[index].module;
-      moduleIds[index] = id;
-      if (id) counts[id] = (counts[id] || 0) + 1;
+      const segmentLevel = id ? Math.max(1, segments[index].moduleLevel || 1) : 0;
+      moduleIds[index] = id ? `${id}:${segmentLevel}` : null;
+      if (id) counts[id] = (counts[id] || 0) + segmentLevel;
     }
     view.networkModuleCounts = counts;
     return true;
@@ -2138,10 +2128,10 @@
       if (!automaticModeEnabled) {
         updateInput(dt, false);
         network.localDesiredAngle = player.desiredAngle;
-        const turnRate = PLAYER_TURN_RATE + moduleCount("haste") * MODULE_TUNING.haste.turnRatePerStack;
+        const turnRate = PLAYER_TURN_RATE + MODULE_EFFECTS.hasteTurnRateBonus(moduleCount("haste"));
         const predictedState = networkPlayerPredictionRuntime.state;
         const slowMultiplier = predictedState.slow > 0 ? 0.48 : 1;
-        const feastMultiplier = predictedState.foodBoost > 0 ? 1 + moduleCount("feast") * MODULE_TUNING.feast.speedPerStack : 1;
+        const feastMultiplier = predictedState.foodBoost > 0 ? 1 + MODULE_EFFECTS.feastSpeedBonus(moduleCount("feast")) : 1;
         networkPlayerPredictionRuntime.update(dt, network.localDesiredAngle, turnRate, playerBaseSpeed() * slowMultiplier * feastMultiplier);
         applyNetworkSelfPrediction(player);
         stabilizeNetworkPlayerHeadSeparation(dt, now);
@@ -2345,8 +2335,8 @@
     const now = performance.now();
     if (now - network.lastFoodContactAt < NETWORK_FOOD_CONTACT_INTERVAL_MS) return;
     network.lastFoodContactAt = now;
-    const headRange = 18 / 34 + 0.13 + moduleCount("magnet") * 0.55;
-    const bodyRange = 0.42 + moduleCount("collector") * 0.09;
+    const headRange = 18 / 34 + 0.13 + MODULE_EFFECTS.magnetPickupRangeCells(moduleCount("magnet"));
+    const bodyRange = 0.42 + MODULE_EFFECTS.collectorPickupRadiusCells(moduleCount("collector"));
     const requestedFoodIds = networkFoodClaimRuntime.detect(player, headRange, bodyRange, now);
     if (requestedFoodIds.length === 0) return;
     syncNetworkFoodVisibility(requestedFoodIds);
@@ -2710,7 +2700,7 @@
   }
 
   function waveCountdownRate() {
-    return 1 + moduleCount("beacon") * MODULE_TUNING.beacon.waveRatePerStack;
+    return 1 + MODULE_EFFECTS.beaconWaveRateBonus(moduleCount("beacon"));
   }
 
   function fieldPopulationCount() {
@@ -2769,7 +2759,6 @@
     const socket = network.socket;
     network.enabled = false;
     network.connecting = false;
-    network.multiplayer = false;
     network.socket = null;
     network.selfEntityId = null;
     network.principal = null;
@@ -3026,6 +3015,8 @@
       hit: [150, 90, 0.08, "square", 0.025],
       kill: [180, 560, 0.18, "sawtooth", 0.045, 840],
       level: [330, 880, 0.3, "triangle", 0.06, 1320],
+      compress: [260, 760, 0.18, "triangle", 0.04, 1040],
+      compressGold: [125, 690, 0.34, "sawtooth", 0.058, 980],
       select: [480, 760, 0.13, "sine", 0.042],
       shield: [760, 240, 0.2, "sine", 0.05, 1040],
       death: [170, 45, 0.48, "sawtooth", 0.065, 75]
@@ -3064,12 +3055,22 @@
   function moduleCount(id) {
     if (network.enabled && player?.networkModuleCounts) return player.networkModuleCounts[id] || 0;
     let count = 0;
-    for (const segment of player.segments) if (segment.module === id) count += 1;
+    for (const segment of player.segments) {
+      if (segment.module === id) count += Math.max(1, segment.moduleLevel || 1);
+    }
     return count;
   }
 
   function outputRateMultiplier() {
-    return Math.pow(MODULE_TUNING.amplifier.cooldownMultiplierPerStack, moduleCount("amplifier"));
+    return 1 / (1 + MODULE_EFFECTS.amplifierCooldownRateBonus(moduleCount("amplifier")));
+  }
+
+  function activeModuleCooldown(moduleId, moduleLevel = moduleCount(moduleId), extraCooldownRateBonus = 0) {
+    return moduleCooldownSeconds(
+      moduleId,
+      Math.max(1, moduleLevel || 1),
+      MODULE_EFFECTS.amplifierCooldownRateBonus(moduleCount("amplifier")) + extraCooldownRateBonus
+    );
   }
 
   function bladeOrbitRadius() {
@@ -3078,9 +3079,7 @@
 
   function repulseRangePixels() {
     const count = moduleCount("repulse");
-    return count > 0
-      ? MODULE_TUNING.repulse.baseRangePixels + count * MODULE_TUNING.repulse.rangePixelsPerStack
-      : 0;
+    return count > 0 ? MODULE_EFFECTS.repulseRangePixels(count) : 0;
   }
 
   function resetModuleCardMotion(card) {
@@ -3118,12 +3117,17 @@
     card.className = "upgrade-card module-card";
     card.dataset.moduleId = module.id;
     card.style.setProperty("--module-color", module.color);
+    const progression = options.progression;
+    const progressionMarkup = progression
+      ? `<div class="card-progression"><strong>${progression.levelLabel}</strong>${progression.lines.map((line) => `<span>${line.text}</span>`).join("")}</div>`
+      : "";
     card.innerHTML = `
       <div class="card-top">
         <span class="module-swatch shape-${module.shape}" aria-hidden="true"><i></i></span>
         <div class="card-heading"><span>${module.category}型模块</span><h3>${module.name}</h3><small class="card-cooldown">${module.activeCooldown ? `冷却 · ${module.cooldown}` : module.cooldown}</small></div>
       </div>
       <p>${module.desc}</p>
+      ${progressionMarkup}
       <span class="card-action">${options.actionLabel || "机体档案"} <b aria-hidden="true">${options.actionSymbol || "+"}</b></span>
     `;
     card.addEventListener("pointermove", (event) => updateModuleCardMotion(card, event));
@@ -3230,27 +3234,9 @@
   }
 
   function chooseUpgradeOptions() {
-    const output = UPGRADE_MODULES.filter((item) => item.category === "输出" && !recentPicks.includes(item.id));
-    const utility = UPGRADE_MODULES.filter((item) => item.category !== "输出" && !recentPicks.includes(item.id));
-    const allFresh = UPGRADE_MODULES.filter((item) => !recentPicks.includes(item.id));
-    const choices = [];
-
-    function take(list) {
-      const candidates = list.filter((item) => !choices.includes(item));
-      if (!candidates.length) return;
-      choices.push(candidates[Math.floor(Math.random() * candidates.length)]);
-    }
-
-    take(output.length ? output : UPGRADE_MODULES.filter((item) => item.category === "输出"));
-    take(utility.length ? utility : UPGRADE_MODULES.filter((item) => item.category !== "输出"));
-    const targetCount = Math.min(3, UPGRADE_MODULES.length);
-    while (choices.length < targetCount) take(allFresh.length ? allFresh : UPGRADE_MODULES);
-
-    for (let index = choices.length - 1; index > 0; index -= 1) {
-      const swap = Math.floor(Math.random() * (index + 1));
-      [choices[index], choices[swap]] = [choices[swap], choices[index]];
-    }
-    return choices;
+    return MODULE_PROGRESSION.chooseUpgradeIds(UPGRADE_MODULES, player.segments, level + 1, Math.random, 3)
+      .map((id) => MODULE_BY_ID[id])
+      .filter(Boolean);
   }
 
   function scheduleAutomaticUpgrade() {
@@ -3272,11 +3258,16 @@
     ui.options.replaceChildren();
 
     const choices = networkChoices || chooseUpgradeOptions();
-    ui.options.append(...choices.map((module) => createModuleCard(module, {
-      actionLabel: "装载到尾部",
-      actionSymbol: "+",
-      onSelect: () => selectUpgrade(module)
-    })));
+    const moduleLevels = MODULE_PROGRESSION.moduleLevelsFromSegments(player?.segments || []);
+    ui.options.append(...choices.map((module) => {
+      const progression = MODULE_PROGRESSION.moduleUpgradePreview(module.id, moduleLevels[module.id] || 0);
+      return createModuleCard(module, {
+        progression,
+        actionLabel: progression.kind === "new" ? "装载新机体" : "强化现有机体",
+        actionSymbol: progression.kind === "new" ? "+" : "↑",
+        onSelect: () => selectUpgrade(module)
+      });
+    }));
     ui.upgrade.classList.add("is-visible");
 
     scheduleAutomaticUpgrade();
@@ -3294,22 +3285,21 @@
       });
       return;
     }
-    const required = xpNeeded;
-    let removed = 0;
-    player.segments = player.segments.filter((segment) => {
-      if (segment.neutral && removed < required) {
-        removed += 1;
-        return false;
-      }
-      return true;
-    });
-
+    const existing = player.segments.find((segment) => segment.module === module.id) || null;
+    const consumedExperience = player.segments.filter((segment) => segment.neutral);
+    player.segments = player.segments.filter((segment) => !segment.neutral);
     level += 1;
     xp = 0;
     xpNeeded = experienceRequiredForLevel(level);
-    const tail = player.segments[player.segments.length - 1] || player;
-    const initialTimer = random(0.2, 0.8);
-    player.segments.push(makeSegmentAtCell(tail.col, tail.row, { module: module.id, timer: initialTimer }));
+    let upgradedSegment = existing;
+    if (upgradedSegment) {
+      upgradedSegment.moduleLevel = Math.max(1, upgradedSegment.moduleLevel || 1) + 1;
+    } else {
+      const tail = player.segments[player.segments.length - 1] || player;
+      const initialTimer = random(0.2, 0.8);
+      upgradedSegment = makeSegmentAtCell(tail.col, tail.row, { module: module.id, moduleLevel: 1, timer: initialTimer });
+      player.segments.push(upgradedSegment);
+    }
     recentPicks.push(module.id);
     if (recentPicks.length > 6) recentPicks.shift();
     score += 250 * level;
@@ -3317,22 +3307,77 @@
     enterRunningState();
     player.invulnerable = Math.max(player.invulnerable, UPGRADE_INVULNERABILITY_DURATION);
     sound("select");
-    burst(tail.x, tail.y, module.color, 22, 130);
-    effects.push({ type: "ring", x: tail.x, y: tail.y, color: module.color, life: 0.7, maxLife: 0.7, radius: 12 });
+    for (const segment of consumedExperience) {
+      effects.push({ type: "beam", x: segment.x, y: segment.y, x2: upgradedSegment.x, y2: upgradedSegment.y, color: module.color, life: 0.34, maxLife: 0.34, width: 2.4 });
+    }
+    burst(upgradedSegment.x, upgradedSegment.y, module.color, existing ? 30 : 22, existing ? 165 : 130);
+    effects.push({ type: "ring", x: upgradedSegment.x, y: upgradedSegment.y, color: module.color, life: 0.7, maxLife: 0.7, radius: 12, endRadius: arena.cellSize * (existing ? 1.9 : 1.5) });
     renderModuleRack();
     updateHud(true);
   }
 
-  function addNeutralSegment(animate = false) {
+  function addNeutralSegment(animate = false, experienceTier = 0) {
     const tail = player.segments[player.segments.length - 1] || player;
-    const segment = makeSegmentAtCell(tail.col, tail.row, { neutral: true, birthAge: animate ? 0 : null });
+    const segment = makeSegmentAtCell(tail.col, tail.row, { neutral: true, experienceTier, birthAge: animate ? 0 : null });
     player.segments.push(segment);
     return segment;
   }
 
   function storedNeutralCount() {
-    const grown = player.segments.reduce((total, segment) => total + (segment.neutral ? 1 : 0), 0);
+    const grown = player.segments.reduce((total, segment) => total + (segment.neutral ? MODULE_PROGRESSION.experienceValue(segment.experienceTier || 0) : 0), 0);
     return grown + growthQueue.length + (activeGrowth ? 1 : 0);
+  }
+
+  function activateExperienceCompression(effect) {
+    if (effect.started) return;
+    effect.started = true;
+    const tier = MODULE_PROGRESSION.experienceTier(effect.toTier);
+    const gold = effect.toTier >= 2;
+    burst(effect.x, effect.y, tier.color, gold ? EXPERIENCE_COMPRESSION_GOLD_PARTICLES : EXPERIENCE_COMPRESSION_GRAY_PARTICLES, gold ? 235 : 165);
+    burst(effect.x, effect.y, tier.accent, gold ? 24 : 12, gold ? 175 : 115);
+    sound(gold ? "compressGold" : "compress", 0, effect.ownerEntityId ?? null);
+    if (effect.isLocal) shake = Math.max(shake, gold ? EXPERIENCE_COMPRESSION_GOLD_SHAKE : EXPERIENCE_COMPRESSION_GRAY_SHAKE);
+  }
+
+  function queueExperienceCompression(sources, target, fromTier, toTier, delay = 0, ownerEntityId = null, isLocal = true) {
+    const tier = MODULE_PROGRESSION.experienceTier(toTier);
+    const effect = {
+      type: "experienceCompress",
+      sources: sources.map((source) => ({ x: source.x, y: source.y })),
+      x: target.x,
+      y: target.y,
+      color: tier.color,
+      accent: tier.accent,
+      fromTier,
+      toTier,
+      delay: Math.max(0, delay),
+      life: EXPERIENCE_COMPRESSION_DURATION,
+      maxLife: EXPERIENCE_COMPRESSION_DURATION,
+      ownerEntityId,
+      isLocal,
+      started: false
+    };
+    effects.push(effect);
+    if (effect.delay <= 0) activateExperienceCompression(effect);
+  }
+
+  function compressExperienceSegments() {
+    let cascade = 0;
+    for (let tier = 0; tier < MODULE_PROGRESSION.experienceTiers.length - 1; tier += 1) {
+      while (true) {
+        const indexes = MODULE_PROGRESSION.findCompressionIndexes(player.segments, tier);
+        if (!indexes.length) break;
+        const sources = indexes.map((index) => player.segments[index]);
+        const insertionIndex = indexes[0];
+        for (let index = indexes.length - 1; index >= 0; index -= 1) player.segments.splice(indexes[index], 1);
+        const target = sources[0] || player.segments[player.segments.length - 1] || player;
+        const compressed = makeSegmentAtCell(target.col, target.row, { neutral: true, experienceTier: tier + 1, birthAge: 0 });
+        player.segments.splice(Math.min(insertionIndex, player.segments.length), 0, compressed);
+        queueExperienceCompression(sources, compressed, tier, tier + 1, cascade * EXPERIENCE_COMPRESSION_CASCADE_DELAY, null, true);
+        cascade += 1;
+      }
+    }
+    return cascade;
   }
 
   function materializePendingGrowth() {
@@ -3340,6 +3385,7 @@
     activeGrowth = null;
     growthQueue.length = 0;
     for (let index = 0; index < pendingCount; index += 1) addNeutralSegment();
+    compressExperienceSegments();
   }
 
   function startNextGrowthAnimation() {
@@ -3419,6 +3465,7 @@
     const color = activeGrowth.color;
     const special = activeGrowth.special;
     const segment = addNeutralSegment(true);
+    compressExperienceSegments();
     burst(segment.x, segment.y, color, special ? 28 : 22, special ? 175 : 145);
     burst(segment.x, segment.y, "#eef5ff", special ? 18 : 12, special ? 135 : 105);
     effects.push({ type: "ring", x: segment.x, y: segment.y, color, life: 0.46, maxLife: 0.46, radius: 3, endRadius: arena.cellSize * 0.78 });
@@ -3447,14 +3494,10 @@
     } else {
       startNextGrowthAnimation();
     }
-    if (moduleCount("feast") > 0) player.foodBoost = MODULE_TUNING.feast.duration;
+    if (moduleCount("feast") > 0) player.foodBoost = MODULE_EFFECTS.feastDuration();
     const emergency = moduleCount("emergency");
     if (emergency > 0) {
-      const duration = Math.min(
-        MODULE_TUNING.emergency.maxDuration,
-        MODULE_TUNING.emergency.baseDuration + emergency * MODULE_TUNING.emergency.durationPerStack
-      );
-      player.invulnerable = Math.max(player.invulnerable, duration);
+      player.invulnerable = Math.max(player.invulnerable, MODULE_EFFECTS.emergencyDuration(emergency));
       effects.push({ type: "ring", x: collector.x, y: collector.y, color: MODULE_BY_ID.emergency.color, life: 0.38, maxLife: 0.38, radius: 7, endRadius: arena.cellSize * 0.72 });
     }
     burst(collector.x, collector.y, food.color, food.special ? 34 : 28, food.special ? 210 : 180);
@@ -3472,16 +3515,18 @@
     if (!player) return;
     const counts = new Map();
     for (const segment of player.segments) {
-      if (segment.module) counts.set(segment.module, (counts.get(segment.module) || 0) + 1);
+      if (segment.module) counts.set(segment.module, (counts.get(segment.module) || 0) + Math.max(1, segment.moduleLevel || 1));
     }
+    ui.rack.dataset.capacity = `${counts.size}/${MODULE_PROGRESSION.moduleSlotCapacity(level)}`;
+    ui.rack.setAttribute("aria-label", `已装载身体模块，槽位 ${counts.size}/${MODULE_PROGRESSION.moduleSlotCapacity(level)}`);
     for (const [id, count] of counts) {
       const module = MODULE_BY_ID[id];
       const item = document.createElement("span");
       item.className = `rack-module shape-${module.shape}`;
       item.style.setProperty("--module-color", module.color);
       item.title = `${module.name}：${module.desc}`;
-      item.setAttribute("aria-label", `${module.name}，数量 ${count}`);
-      item.innerHTML = `<i aria-hidden="true"></i>${count > 1 ? `<b>${count}</b>` : ""}`;
+      item.setAttribute("aria-label", `${module.name}，等级 ${count}`);
+      item.innerHTML = `<i aria-hidden="true"></i><b>${count}</b>`;
       ui.rack.append(item);
     }
   }
@@ -3593,7 +3638,7 @@
       const py = pointerWorld.y - player.y;
       if (px * px + py * py > 16) player.desiredAngle = Math.atan2(py, px);
     }
-    const turnRate = PLAYER_TURN_RATE + moduleCount("haste") * MODULE_TUNING.haste.turnRatePerStack;
+    const turnRate = PLAYER_TURN_RATE + MODULE_EFFECTS.hasteTurnRateBonus(moduleCount("haste"));
     if (applyTurn) player.angle = rotateToward(player.angle, player.desiredAngle, turnRate * dt);
   }
 
@@ -3674,15 +3719,15 @@
     const bounceAngle = Math.atan2(bounceY / bounceLength, bounceX / bounceLength);
 
     const impulseMultiplier = entity === player
-      ? Math.pow(MODULE_TUNING.buffer.knockbackMultiplierPerStack, moduleCount("buffer")) * extraImpulseMultiplier
-      : 1 + moduleCount("momentum") * MODULE_TUNING.momentum.enemyKnockbackPerStack;
+      ? (1 - MODULE_EFFECTS.bufferKnockbackReduction(moduleCount("buffer"))) * extraImpulseMultiplier
+      : 1 + MODULE_EFFECTS.momentumKnockbackBonus(moduleCount("momentum"));
     entity.knockbackX = nx * KNOCKBACK_INITIAL_SPEED * impulseMultiplier;
     entity.knockbackY = ny * KNOCKBACK_INITIAL_SPEED * impulseMultiplier;
     entity.angle = bounceAngle;
     entity.desiredAngle = bounceAngle;
     const stabilization = entity === player ? moduleCount("stabilizer") : 0;
-    const slowDuration = BOUNCE_SLOW_TIME * Math.pow(MODULE_TUNING.stabilizer.slowMultiplierPerStack, stabilization);
-    const lockDuration = BOUNCE_LOCK_TIME * Math.pow(MODULE_TUNING.stabilizer.lockMultiplierPerStack, stabilization);
+    const slowDuration = BOUNCE_SLOW_TIME * (1 - MODULE_EFFECTS.stabilizerSlowReduction(stabilization));
+    const lockDuration = BOUNCE_LOCK_TIME * (1 - MODULE_EFFECTS.stabilizerLockReduction(stabilization));
     entity.slow = Math.max(entity.slow || 0, slowDuration);
     entity.collisionCooldown = lockDuration;
     if (entity !== player && entity.archetype === "charger" && (entity.behaviorState === "telegraph" || entity.behaviorState === "charge")) {
@@ -3740,7 +3785,7 @@
     player.ramCooldown = Math.max(0, player.ramCooldown - dt);
     player.bloomCooldown = Math.max(0, player.bloomCooldown - dt);
     const slowMultiplier = player.slow > 0 ? 0.48 : 1;
-    const feastMultiplier = player.foodBoost > 0 ? 1 + moduleCount("feast") * MODULE_TUNING.feast.speedPerStack : 1;
+    const feastMultiplier = player.foodBoost > 0 ? 1 + MODULE_EFFECTS.feastSpeedBonus(moduleCount("feast")) : 1;
     player.speed = playerBaseSpeed() * slowMultiplier * feastMultiplier;
     player.col += (Math.cos(player.angle) * player.speed + player.knockbackX) * dt;
     player.row += (Math.sin(player.angle) * player.speed + player.knockbackY) * dt;
@@ -3784,8 +3829,8 @@
 
   function updateFood(dt) {
     const tractor = moduleCount("tractor");
-    const tractorRange = MODULE_TUNING.tractor.baseRangeCells + Math.max(0, tractor - 1) * MODULE_TUNING.tractor.rangeCellsPerExtraStack;
-    const tractorSpeed = MODULE_TUNING.tractor.basePullSpeed + Math.max(0, tractor - 1) * MODULE_TUNING.tractor.pullSpeedPerExtraStack;
+    const tractorRange = MODULE_EFFECTS.tractorRangeCells(tractor);
+    const tractorSpeed = MODULE_EFFECTS.tractorPullSpeed(tractor);
     for (const food of locallyPulledFoods) food.isPulled = false;
     locallyPulledFoods.clear();
     if (tractor > 0) {
@@ -3806,10 +3851,10 @@
 
     localFoodContacts.clear();
     if (upgradePending) return;
-    const magnetRange = moduleCount("magnet") * MODULE_TUNING.magnet.pickupRangeCellsPerStack;
+    const magnetRange = MODULE_EFFECTS.magnetPickupRangeCells(moduleCount("magnet"));
     const pieceScale = arenaPieceScale();
     const foodRadiusCells = 0.13;
-    const collectorBonusCells = moduleCount("collector") * MODULE_TUNING.collector.pickupRadiusCellsPerStack;
+    const collectorBonusCells = MODULE_EFFECTS.collectorPickupRadiusCells(moduleCount("collector"));
     registerLocalFoodContacts(player, player.radius / arena.cellSize + foodRadiusCells + magnetRange);
     for (const segment of player.segments) {
       const visualRadiusCells = (segment.module ? 11 : segment.neutral ? 10 : 8) * pieceScale / arena.cellSize;
@@ -3869,10 +3914,10 @@
 
   function createPlayerProjectile(origin, angle, options = {}) {
     const guidance = moduleCount("guidance");
-    const guidanceMultiplier = 1 + guidance * MODULE_TUNING.guidance.projectileSpeedPerStack;
+    const guidanceMultiplier = 1 + MODULE_EFFECTS.guidanceProjectileSpeedBonus(guidance);
     const scale = arenaVisualScale();
     const speed = (options.speed || 300) * guidanceMultiplier * PROJECTILE_SPEED_SCALE * scale;
-    const homing = (options.homing || 0) + guidance * MODULE_TUNING.guidance.homingPerStack;
+    const homing = (options.homing || 0) + MODULE_EFFECTS.guidanceHomingBonus(guidance);
     const targetSelection = options.target;
     const target = targetSelection?.enemy && !targetSelection.enemy.dead ? targetSelection.enemy : null;
     const projectile = {
@@ -3946,8 +3991,6 @@
   }
 
   function updateModules(dt) {
-    const rate = outputRateMultiplier();
-
     for (const segment of player.segments) {
       if (!segment.module) continue;
       segment.timer -= dt;
@@ -3971,7 +4014,7 @@
         for (const enemy of enemies) {
           if (enemy.dead || enemy.bladeCooldown > 0) continue;
           if (pointHitsEnemy(bladeX, bladeY, 10 * arenaVisualScale(), enemy)) {
-            enemy.bladeCooldown = moduleCooldownSeconds("blade");
+            enemy.bladeCooldown = activeModuleCooldown("blade", segment.moduleLevel);
             damageEnemy(enemy, 1, bladeX, bladeY, MODULE_BY_ID.blade.color);
           }
         }
@@ -3983,7 +4026,7 @@
         for (const enemy of enemies) {
           if (enemy.dead || enemy.sawCooldown > 0) continue;
           if (pointHitsEnemy(segment.x, segment.y, contactRadius, enemy)) {
-            enemy.sawCooldown = moduleCooldownSeconds("saw");
+            enemy.sawCooldown = activeModuleCooldown("saw", segment.moduleLevel);
             damageEnemy(enemy, 1, segment.x, segment.y, MODULE_BY_ID.saw.color);
             effects.push({ type: "ring", x: segment.x, y: segment.y, color: MODULE_BY_ID.saw.color, life: 0.3, maxLife: 0.3, radius: 5, endRadius: contactRadius });
             playSkillSound("saw");
@@ -3999,7 +4042,7 @@
         spawnFood(x, y, true);
         playSkillSound("regen");
         effects.push({ type: "ring", x, y, color: MODULE_BY_ID.regen.color, life: 0.9, maxLife: 0.9, radius: 8 });
-        segment.timer = moduleCooldownSeconds("regen");
+        segment.timer = activeModuleCooldown("regen", segment.moduleLevel);
         continue;
       }
 
@@ -4008,7 +4051,7 @@
         spawnFood(tail.x, tail.y, true);
         playSkillSound("regen");
         effects.push({ type: "ring", x: tail.x, y: tail.y, color: MODULE_BY_ID.nursery.color, life: 0.75, maxLife: 0.75, radius: 6, endRadius: arena.cellSize * 0.9 });
-        segment.timer = moduleCooldownSeconds("nursery");
+        segment.timer = activeModuleCooldown("nursery", segment.moduleLevel);
         continue;
       }
 
@@ -4022,18 +4065,18 @@
       switch (segment.module) {
         case "spark":
           if (spawnShot(segment, target, { color: MODULE_BY_ID.spark.color, speed: 390, size: 4.5 })) playSkillSound("spark");
-          segment.timer = moduleCooldownSeconds("spark") * rate;
+          segment.timer = activeModuleCooldown("spark", segment.moduleLevel);
           break;
         case "frost":
           if (spawnShot(segment, target, { color: MODULE_BY_ID.frost.color, speed: 310, size: 5, slow: 2.6 })) playSkillSound("frost");
-          segment.timer = moduleCooldownSeconds("frost") * rate;
+          segment.timer = activeModuleCooldown("frost", segment.moduleLevel);
           break;
         case "prism":
           if (target) {
             for (const offset of [-0.17, 0, 0.17]) spawnShot(segment, target, { color: MODULE_BY_ID.prism.color, speed: 330, angleOffset: offset });
             playSkillSound("prism");
           }
-          segment.timer = moduleCooldownSeconds("prism") * rate;
+          segment.timer = activeModuleCooldown("prism", segment.moduleLevel);
           break;
         case "nova":
           for (let index = 0; index < 8; index += 1) {
@@ -4042,14 +4085,14 @@
           }
           playSkillSound("nova");
           effects.push({ type: "ring", x: segment.x, y: segment.y, color: MODULE_BY_ID.nova.color, life: 0.45, maxLife: 0.45, radius: 8 });
-          segment.timer = moduleCooldownSeconds("nova") * rate;
+          segment.timer = activeModuleCooldown("nova", segment.moduleLevel);
           break;
         case "tesla":
           if (target) {
             fireTesla(segment, target);
             playSkillSound("tesla");
           }
-          segment.timer = moduleCooldownSeconds("tesla") * rate;
+          segment.timer = activeModuleCooldown("tesla", segment.moduleLevel);
           break;
         case "laser":
           if (target) {
@@ -4057,37 +4100,37 @@
             effects.push({ type: "beam", x: segment.x, y: segment.y, x2: target.node.x, y2: target.node.y, color: MODULE_BY_ID.laser.color, life: 0.2, maxLife: 0.2 });
             playSkillSound("laser");
           }
-          segment.timer = moduleCooldownSeconds("laser") * rate;
+          segment.timer = activeModuleCooldown("laser", segment.moduleLevel);
           break;
         case "missile":
           if (spawnShot(segment, target, { color: MODULE_BY_ID.missile.color, speed: 230, size: 6, homing: 4.2 })) playSkillSound("missile");
-          segment.timer = moduleCooldownSeconds("missile") * rate;
+          segment.timer = activeModuleCooldown("missile", segment.moduleLevel);
           break;
         case "mine":
           hazards.push({ kind: "mine", x: segment.x, y: segment.y, col: segment.col, row: segment.row, life: Infinity, arm: 0.55, radius: 62 * arenaVisualScale(), color: MODULE_BY_ID.mine.color, phase: random(0, TAU) });
           playSkillSound("mine");
-          segment.timer = moduleCooldownSeconds("mine") * rate;
+          segment.timer = activeModuleCooldown("mine", segment.moduleLevel);
           break;
         case "pulse":
           firePulse(segment);
           playSkillSound("pulse");
-          segment.timer = moduleCooldownSeconds("pulse") * rate;
+          segment.timer = activeModuleCooldown("pulse", segment.moduleLevel);
           break;
         case "venom":
           if (spawnShot(segment, target, { color: MODULE_BY_ID.venom.color, speed: 285, size: 5.5, poison: 2 })) playSkillSound("venom");
-          segment.timer = moduleCooldownSeconds("venom") * rate;
+          segment.timer = activeModuleCooldown("venom", segment.moduleLevel);
           break;
         case "rail":
           if (spawnShot(segment, target, { color: MODULE_BY_ID.rail.color, speed: 520, size: 4.8, pierce: 3 })) playSkillSound("rail");
-          segment.timer = moduleCooldownSeconds("rail") * rate;
+          segment.timer = activeModuleCooldown("rail", segment.moduleLevel);
           break;
         case "ricochet":
           if (spawnShot(segment, target, { color: MODULE_BY_ID.ricochet.color, speed: 340, size: 5.2, pierce: 2, bounces: 2 })) playSkillSound("ricochet");
-          segment.timer = moduleCooldownSeconds("ricochet") * rate;
+          segment.timer = activeModuleCooldown("ricochet", segment.moduleLevel);
           break;
         case "cluster":
           if (spawnShot(segment, target, { color: MODULE_BY_ID.cluster.color, speed: 245, size: 7, homing: 3.6, blastRadius: 72 })) playSkillSound("cluster");
-          segment.timer = moduleCooldownSeconds("cluster") * rate;
+          segment.timer = activeModuleCooldown("cluster", segment.moduleLevel);
           break;
         case "fan":
           if (target) {
@@ -4096,7 +4139,7 @@
             }
             playSkillSound("fan");
           }
-          segment.timer = moduleCooldownSeconds("fan") * rate;
+          segment.timer = activeModuleCooldown("fan", segment.moduleLevel);
           break;
         case "gravity":
           if (target) {
@@ -4107,19 +4150,19 @@
             }
             playSkillSound("gravity");
           }
-          segment.timer = moduleCooldownSeconds("gravity") * rate;
+          segment.timer = activeModuleCooldown("gravity", segment.moduleLevel);
           break;
         case "needle":
           if (spawnShot(segment, target, { color: MODULE_BY_ID.needle.color, speed: 560, size: 3.8, pierce: 1 })) playSkillSound("needle");
-          segment.timer = moduleCooldownSeconds("needle") * rate;
+          segment.timer = activeModuleCooldown("needle", segment.moduleLevel);
           break;
         case "mortar":
           if (spawnShot(segment, target, { color: MODULE_BY_ID.mortar.color, speed: 205, size: 8, homing: 3.2, blastRadius: 92 })) playSkillSound("mortar");
-          segment.timer = moduleCooldownSeconds("mortar") * rate;
+          segment.timer = activeModuleCooldown("mortar", segment.moduleLevel);
           break;
         case "sweep":
           if (target && fireSweepBeam(segment, target)) playSkillSound("sweep");
-          segment.timer = moduleCooldownSeconds("sweep") * rate;
+          segment.timer = activeModuleCooldown("sweep", segment.moduleLevel);
           break;
         case "sniper":
           if (target) {
@@ -4127,11 +4170,11 @@
             effects.push({ type: "beam", x: segment.x, y: segment.y, x2: target.node.x, y2: target.node.y, color: MODULE_BY_ID.sniper.color, life: 0.28, maxLife: 0.28 });
             playSkillSound("sniper");
           }
-          segment.timer = moduleCooldownSeconds("sniper") * rate;
+          segment.timer = activeModuleCooldown("sniper", segment.moduleLevel);
           break;
         case "flak":
           if (target && fireFlakBurst(target)) playSkillSound("flak");
-          segment.timer = moduleCooldownSeconds("flak") * rate;
+          segment.timer = activeModuleCooldown("flak", segment.moduleLevel);
           break;
         case "fork":
           if (target) {
@@ -4139,15 +4182,15 @@
             spawnShot(segment, target, { color: MODULE_BY_ID.fork.color, speed: 300, size: 5, angleOffset: 0.24, homing: 2.5 });
             playSkillSound("fork");
           }
-          segment.timer = moduleCooldownSeconds("fork") * rate;
+          segment.timer = activeModuleCooldown("fork", segment.moduleLevel);
           break;
         case "anchor":
           if (spawnShot(segment, target, { color: MODULE_BY_ID.anchor.color, speed: 180, size: 8.5, homing: 2, slow: 4.2 })) playSkillSound("anchor");
-          segment.timer = moduleCooldownSeconds("anchor") * rate;
+          segment.timer = activeModuleCooldown("anchor", segment.moduleLevel);
           break;
         case "flare":
           if (spawnShot(segment, target, { color: MODULE_BY_ID.flare.color, speed: 270, size: 5.8, poison: 4 })) playSkillSound("flare");
-          segment.timer = moduleCooldownSeconds("flare") * rate;
+          segment.timer = activeModuleCooldown("flare", segment.moduleLevel);
           break;
         case "scatter":
           if (target) {
@@ -4156,11 +4199,11 @@
             }
             playSkillSound("scatter");
           }
-          segment.timer = moduleCooldownSeconds("scatter") * rate;
+          segment.timer = activeModuleCooldown("scatter", segment.moduleLevel);
           break;
         case "lance":
           if (spawnShot(segment, target, { color: MODULE_BY_ID.lance.color, speed: 590, size: 7, pierce: 5 })) playSkillSound("lance");
-          segment.timer = moduleCooldownSeconds("lance") * rate;
+          segment.timer = activeModuleCooldown("lance", segment.moduleLevel);
           break;
         case "execute":
           if (target) {
@@ -4169,15 +4212,15 @@
             effects.push({ type: "beam", x: segment.x, y: segment.y, x2: target.node.x, y2: target.node.y, color: MODULE_BY_ID.execute.color, life: 0.2, maxLife: 0.2 });
             playSkillSound("execute");
           }
-          segment.timer = moduleCooldownSeconds("execute") * rate;
+          segment.timer = activeModuleCooldown("execute", segment.moduleLevel);
           break;
         case "crossfire":
           if (target && fireCrossfire(segment, target)) playSkillSound("crossfire");
-          segment.timer = moduleCooldownSeconds("crossfire") * rate;
+          segment.timer = activeModuleCooldown("crossfire", segment.moduleLevel);
           break;
         case "phasebolt":
           if (spawnShot(segment, target, { color: MODULE_BY_ID.phasebolt.color, speed: 320, size: 6, bounces: 4, homing: 1.6 })) playSkillSound("phasebolt");
-          segment.timer = moduleCooldownSeconds("phasebolt") * rate;
+          segment.timer = activeModuleCooldown("phasebolt", segment.moduleLevel);
           break;
         default:
           break;
@@ -4299,9 +4342,8 @@
     return true;
   }
 
-  function triggerBodyIntercept(enemy, collisionPoint, stacks) {
-    const tuning = MODULE_TUNING.thorns;
-    const shotCount = tuning.baseShots + Math.min(tuning.maxBonusShots, Math.max(0, stacks - 1) * tuning.shotsPerExtraStack);
+  function triggerBodyIntercept(enemy, collisionPoint) {
+    const shotCount = MODULE_EFFECTS.thornsProjectileCount();
     const startAngle = random(0, TAU);
     const target = nearestEnemyJoint(collisionPoint);
     for (let index = 0; index < shotCount; index += 1) {
@@ -4345,10 +4387,7 @@
     }
 
     if (totalWeight < 0.02) return null;
-    const decoyMultiplier = Math.max(
-      MODULE_TUNING.decoy.minimumAvoidanceMultiplier,
-      1 - moduleCount("decoy") * MODULE_TUNING.decoy.avoidanceReductionPerStack
-    );
+    const decoyMultiplier = 1 - MODULE_EFFECTS.decoyAvoidanceReduction(moduleCount("decoy"));
     return {
       angle: Math.atan2(awayY, awayX),
       strength: clamp(totalWeight * 1.85, 0.28, 0.96) * decoyMultiplier
@@ -4590,7 +4629,7 @@
   }
 
   function updateEnemies(dt) {
-    const chronosMultiplier = Math.pow(MODULE_TUNING.chronos.enemySpeedMultiplierPerStack, moduleCount("chronos"));
+    const chronosMultiplier = 1 - MODULE_EFFECTS.chronosSlowReduction(moduleCount("chronos"));
     const timeSpeedMultiplier = Math.min(ENEMY_SPEED_MAX_MULTIPLIER, 1 + gameTime / 60 * ENEMY_SPEED_PER_MINUTE);
     const repulseRange = repulseRangePixels();
     const activeFoods = new Set(foods);
@@ -4677,9 +4716,8 @@
           const thornsReady = thorns > 0 && player.thornsCooldown <= 0;
           killEnemy(enemy);
           if (thornsReady) {
-            triggerBodyIntercept(enemy, playerCollision.segment, thorns);
-            player.thornsCooldown = moduleCooldownSeconds("thorns")
-              * Math.pow(MODULE_TUNING.thorns.extraStackMultiplier, thorns - 1);
+            triggerBodyIntercept(enemy, playerCollision.segment);
+            player.thornsCooldown = activeModuleCooldown("thorns", thorns);
           }
         } else {
           let normalX = player.col - enemy.col;
@@ -4695,7 +4733,7 @@
           const ram = moduleCount("ram");
           if (ram > 0 && player.ramCooldown <= 0) {
             damageEnemy(enemy, 1, enemy.x, enemy.y, MODULE_BY_ID.ram.color);
-            player.ramCooldown = moduleCooldownSeconds("ram") * Math.pow(MODULE_TUNING.ram.extraStackMultiplier, ram - 1);
+            player.ramCooldown = activeModuleCooldown("ram", ram);
             effects.push({ type: "ring", x: player.x, y: player.y, color: MODULE_BY_ID.ram.color, life: 0.42, maxLife: 0.42, radius: 6, endRadius: arena.cellSize });
             playSkillSound("ram");
           }
@@ -4951,11 +4989,13 @@
     if (!destroysHead) startEnemyReconnect(enemy, reconnectIndex);
     for (const segment of removed) {
       burst(segment.x, segment.y, impactColor, 7, 95);
-      const salvageChance = Math.min(
-        MODULE_TUNING.salvage.maxChance,
-        moduleCount("salvage") * MODULE_TUNING.salvage.chancePerStack
+      const salvageDrops = MODULE_PROGRESSION.rollLinearRewards(
+        MODULE_EFFECTS.salvageExpectedDrops(moduleCount("salvage")),
+        Math.random
       );
-      if (salvageChance > 0 && Math.random() < salvageChance) spawnFood(segment.x + random(-10, 10), segment.y + random(-10, 10), true);
+      for (let index = 0; index < salvageDrops; index += 1) {
+        spawnFood(segment.x + random(-10, 10), segment.y + random(-10, 10), true);
+      }
     }
     updateEnemyHitBounds(enemy);
     burst(impactX, impactY, impactColor, 8, 115);
@@ -4978,13 +5018,10 @@
     const cache = moduleCount("cache");
     if (cache > 0) {
       player.cacheKills += 1;
-      const cacheThreshold = Math.max(
-        MODULE_TUNING.cache.minimumKills,
-        MODULE_TUNING.cache.baseKills - cache * MODULE_TUNING.cache.killsReducedPerStack
-      );
+      const cacheThreshold = MODULE_EFFECTS.cacheKillsPerTrigger();
       if (player.cacheKills >= cacheThreshold) {
-        player.cacheKills = 0;
-        spawnFood(enemy.x, enemy.y, true, dropOccupied);
+        player.cacheKills -= cacheThreshold;
+        for (let index = 0; index < cache; index += 1) spawnFood(enemy.x, enemy.y, true, dropOccupied);
         effects.push({ type: "ring", x: enemy.x, y: enemy.y, color: MODULE_BY_ID.cache.color, life: 0.65, maxLife: 0.65, radius: 8, endRadius: arena.cellSize });
       }
     }
@@ -4992,18 +5029,15 @@
     const bloom = moduleCount("bloom");
     if (bloom > 0 && player.bloomCooldown <= 0) {
       spawnFood(enemy.x, enemy.y, true, dropOccupied);
-      player.bloomCooldown = moduleCooldownSeconds("bloom") * Math.pow(MODULE_TUNING.bloom.extraStackMultiplier, bloom - 1);
+      player.bloomCooldown = activeModuleCooldown("bloom", bloom);
     }
 
     let dropCount = enemy.captured;
     enemy.captured = 0;
-    const fortuneChance = Math.min(
-      MODULE_TUNING.fortune.maxChance,
-      moduleCount("fortune") * MODULE_TUNING.fortune.chancePerStack
+    dropCount += MODULE_PROGRESSION.rollLinearRewards(
+      MODULE_EFFECTS.fortuneExpectedDrops(moduleCount("fortune")),
+      Math.random
     );
-    if (Math.random() < fortuneChance) {
-      dropCount += 1 + Math.floor(moduleCount("fortune") / MODULE_TUNING.fortune.extraDropEveryStacks);
-    }
     for (let index = 0; index < dropCount; index += 1) {
       const angle = index * 2.4 + random(-0.25, 0.25);
       const distance = 22 + Math.sqrt(index + 1) * 12;
@@ -5029,15 +5063,14 @@
   }
 
   function consumeDefense(enemy = null) {
-    const armor = moduleCount("armor");
+    const armorRateBonus = MODULE_EFFECTS.armorCooldownRateBonus(moduleCount("armor"));
     const shield = player.segments.find((segment) => segment.module === "shield" && segment.ready);
     const phase = player.segments.find((segment) => segment.module === "phase" && segment.ready);
     const defense = shield || phase;
     if (!defense) return false;
 
     defense.ready = false;
-    const baseCooldown = moduleCooldownSeconds(defense.module);
-    defense.cooldown = baseCooldown * Math.pow(MODULE_TUNING.armor.cooldownMultiplierPerStack, armor);
+    defense.cooldown = activeModuleCooldown(defense.module, defense.moduleLevel, armorRateBonus);
     player.invulnerable = defense.module === "phase" ? 1.55 : 1.05;
     sound("shield");
     effects.push({ type: "ring", x: player.x, y: player.y, color: MODULE_BY_ID[defense.module].color, life: 0.7, maxLife: 0.7, radius: 18, endRadius: 76 });
@@ -5096,7 +5129,7 @@
       const ram = moduleCount("ram");
       if (ram > 0 && player.ramCooldown <= 0) {
         damageEnemy(enemy, 1, enemy.x, enemy.y, MODULE_BY_ID.ram.color);
-        player.ramCooldown = moduleCooldownSeconds("ram") * Math.pow(MODULE_TUNING.ram.extraStackMultiplier, ram - 1);
+        player.ramCooldown = activeModuleCooldown("ram", ram);
         effects.push({ type: "ring", x: player.x, y: player.y, color: MODULE_BY_ID.ram.color, life: 0.42, maxLife: 0.42, radius: 6, endRadius: arena.cellSize });
         playSkillSound("ram");
       }
@@ -5144,7 +5177,14 @@
     retainInPlace(particles, (particle) => particle.life > 0);
     if (particles.length < MAX_DECORATIVE_PARTICLES) nextParticleSlot %= Math.max(1, particles.length);
 
-    for (const effect of effects) effect.life -= dt;
+    for (const effect of effects) {
+      if ((effect.delay || 0) > 0) {
+        effect.delay -= dt;
+        if (effect.delay > 0) continue;
+      }
+      if (effect.type === "experienceCompress" && !effect.started) activateExperienceCompression(effect);
+      effect.life -= dt;
+    }
     retainInPlace(effects, (effect) => effect.life > 0);
     if (effects.length > MAX_DECORATIVE_EFFECTS) effects.splice(0, effects.length - MAX_DECORATIVE_EFFECTS);
     shake = Math.max(0, shake - dt * 28);
@@ -5901,7 +5941,8 @@
     let previous = player;
     for (const segment of player.segments) {
       const module = segment.module ? MODULE_BY_ID[segment.module] : null;
-      const color = module?.color || (segment.neutral ? "rgba(222, 226, 226, 0.8)" : "rgba(116, 124, 127, 0.72)");
+      const experience = segment.neutral ? MODULE_PROGRESSION.experienceTier(segment.experienceTier || 0) : null;
+      const color = module?.color || experience?.color || "rgba(116, 124, 127, 0.72)";
       drawLink(previous, segment, "rgba(5, 7, 8, 0.9)", (module ? 10 : 9) * pieceScale, 0.82);
       drawLink(previous, segment, color, 2.1 * pieceScale, 0.78);
       previous = segment;
@@ -5948,8 +5989,27 @@
           ctx.fill();
         }
 
+        const moduleLevel = Math.max(1, segment.moduleLevel || 1);
+        if (moduleLevel > 1) {
+          ctx.shadowBlur = 0;
+          ctx.fillStyle = "#f3c600";
+          ctx.strokeStyle = "#ffffff";
+          ctx.lineWidth = 0.8;
+          ctx.fillRect(4, -13, 11, 9);
+          ctx.strokeRect(4, -13, 11, 9);
+          ctx.fillStyle = "#111518";
+          ctx.font = "900 7px Bahnschrift, Arial Narrow, sans-serif";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(String(moduleLevel), 9.5, -8.5);
+        }
+
         if ((segment.module === "shield" || segment.module === "phase") && !segment.ready) {
-          const total = moduleCooldownSeconds(segment.module) * Math.pow(MODULE_TUNING.armor.cooldownMultiplierPerStack, moduleCount("armor"));
+          const total = activeModuleCooldown(
+            segment.module,
+            segment.moduleLevel,
+            MODULE_EFFECTS.armorCooldownRateBonus(moduleCount("armor"))
+          );
           const progress = 1 - clamp(segment.cooldown / total, 0, 1);
           ctx.shadowBlur = 0;
           ctx.strokeStyle = "rgba(255,255,255,0.65)";
@@ -5959,9 +6019,14 @@
           ctx.stroke();
         }
       } else if (segment.neutral) {
-        ctx.fillStyle = "rgba(184, 190, 191, 0.74)";
-        ctx.strokeStyle = "rgba(246, 247, 246, 0.9)";
-        ctx.lineWidth = 1.2;
+        const experience = MODULE_PROGRESSION.experienceTier(segment.experienceTier || 0);
+        const experienceBaseAlpha = ctx.globalAlpha;
+        ctx.shadowColor = experience.color;
+        ctx.shadowBlur = segment.experienceTier > 0 ? 13 : 5;
+        ctx.fillStyle = experience.color;
+        ctx.globalAlpha = experienceBaseAlpha * (segment.experienceTier > 0 ? 0.92 : 0.78);
+        ctx.strokeStyle = experience.accent;
+        ctx.lineWidth = segment.experienceTier >= 2 ? 2.2 : 1.2;
         ctx.beginPath();
         ctx.moveTo(10, 0);
         ctx.lineTo(4, 8);
@@ -5972,8 +6037,19 @@
         ctx.closePath();
         ctx.fill();
         ctx.stroke();
-        ctx.fillStyle = "rgba(32, 37, 39, 0.76)";
-        ctx.fillRect(-5, -1.5, 10, 3);
+        ctx.globalAlpha = experienceBaseAlpha;
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = segment.experienceTier >= 2 ? "#4e3f00" : "rgba(32, 37, 39, 0.76)";
+        if ((segment.experienceTier || 0) === 0) {
+          ctx.fillRect(-5, -1.5, 10, 3);
+        } else {
+          ctx.beginPath();
+          ctx.arc(0, 0, segment.experienceTier >= 2 ? 4.2 : 3.6, 0, TAU);
+          ctx.fill();
+          ctx.strokeStyle = experience.accent;
+          ctx.lineWidth = 1;
+          ctx.stroke();
+        }
       } else {
         ctx.fillStyle = "#343b3e";
         ctx.strokeStyle = "#a9afb1";
@@ -6047,7 +6123,7 @@
     ctx.fillRect(-5, -10, 8, 2);
     ctx.restore();
     ctx.restore();
-    if (network.multiplayer) drawPlayerIdLabel(player, pieceScale);
+    if (network.enabled) drawPlayerIdLabel(player, pieceScale);
     player = previousPlayer;
     activeGrowth = previousGrowth;
   }
@@ -6149,11 +6225,31 @@
     ctx.globalAlpha = 1;
 
     for (const effect of effects) {
+      if ((effect.delay || 0) > 0) continue;
       const progress = 1 - effect.life / effect.maxLife;
       const alpha = clamp(effect.life / effect.maxLife, 0, 1);
       ctx.save();
       ctx.globalAlpha = alpha;
-      if (effect.type === "ring") {
+      if (effect.type === "experienceCompress") {
+        const eased = 1 - Math.pow(1 - progress, 3);
+        const sourceTier = MODULE_PROGRESSION.experienceTier(effect.fromTier);
+        for (const source of effect.sources) {
+          const x = source.x + (effect.x - source.x) * eased;
+          const y = source.y + (effect.y - source.y) * eased;
+          ctx.fillStyle = progress < 0.58 ? sourceTier.color : effect.color;
+          ctx.shadowColor = effect.color;
+          ctx.shadowBlur = 8 + progress * 12;
+          drawPolygonPath(x, y, Math.max(1.5, 5.5 * (1 - progress)), 6, progress * 0.8);
+          ctx.fill();
+        }
+        ctx.globalAlpha = alpha * (0.72 + Math.sin(progress * Math.PI) * 0.28);
+        ctx.strokeStyle = effect.accent;
+        ctx.shadowColor = effect.color;
+        ctx.shadowBlur = 15;
+        ctx.lineWidth = 3 * (1 - progress) + 0.8;
+        drawPolygonPath(effect.x, effect.y, 8 + progress * (effect.toTier >= 2 ? 58 : 38), 8, Math.PI / 8 + progress * 0.4);
+        ctx.stroke();
+      } else if (effect.type === "ring") {
         const end = effect.endRadius || effect.radius + 45;
         const radius = effect.radius + (end - effect.radius) * progress;
         ctx.strokeStyle = effect.color;

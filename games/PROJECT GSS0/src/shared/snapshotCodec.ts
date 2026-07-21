@@ -14,7 +14,7 @@ import type {
 } from './protocol';
 
 const MAGIC = 0x5553_4e50;
-export const SNAPSHOT_PROTOCOL_VERSION = 6;
+export const SNAPSHOT_PROTOCOL_VERSION = 7;
 const COORDINATE_SCALE = 65_535;
 const COORDINATE_PADDING = 2;
 const VELOCITY_SCALE = 64;
@@ -153,6 +153,8 @@ function writeSegment(writer: BinaryWriter, segment: UltraSegment, arenaSize: nu
   const hasCooldown = (segment.module === 'shield' || segment.module === 'phase') && !segment.ready;
   writer.u8(moduleIndex ?? 0);
   writer.u8(Number(segment.neutral) | Number(segment.ready) << 1 | Number(hasOrbit) << 2 | Number(hasCooldown) << 3);
+  writer.u16(Math.max(0, Math.min(65_535, Math.round(segment.moduleLevel))));
+  writer.u8(Math.max(0, Math.min(2, Math.round(segment.experienceTier))));
   writeCoordinate(writer, segment.col, arenaSize); writeCoordinate(writer, segment.row, arenaSize);
   if (hasOrbit) writeAngle(writer, segment.orbit);
   if (hasCooldown) writer.f32(segment.cooldown);
@@ -165,7 +167,9 @@ function readSegment(reader: BinaryReader, arenaSize: number): UltraSegment {
   if (moduleIndex !== 0 && !module) throw new Error('Ultra 快照包含未知模块');
   const segment: UltraSegment = {
     module,
+    moduleLevel: reader.u16(),
     neutral: Boolean(flags & 1),
+    experienceTier: reader.u8(),
     ready: Boolean(flags & 2),
     col: readCoordinate(reader, arenaSize), row: readCoordinate(reader, arenaSize), angle: 0,
     timer: 0, cooldown: 0, orbit: flags & 4 ? readAngle(reader) : 0,

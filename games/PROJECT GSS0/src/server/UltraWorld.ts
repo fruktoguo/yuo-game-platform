@@ -25,7 +25,6 @@ import {
   experienceRequiredForLevel,
   KNOCKBACK_DECAY,
   KNOCKBACK_INITIAL_SPEED,
-  LEVEL_UP_TIME_SCALE,
   LEVEL_UP_TRANSITION_DURATION,
   MAX_PLAYERS,
   NETWORK_COLLISION_CLAIM_COOLDOWN_MS,
@@ -46,9 +45,10 @@ import {
   UPGRADE_INVULNERABILITY_DURATION,
   WAVE_BASE_INTERVAL,
 } from '../shared/constants';
-import { DESIGNER_BALANCE, moduleCooldownSeconds } from '../shared/designerConfig';
+import { DESIGNER_BALANCE } from '../shared/designerConfig';
 import { ENEMY_ARCHETYPES, ENEMY_ARCHETYPE_BY_ID, type EnemyArchetypeDefinition } from '../shared/enemyArchetypes';
 import { isModuleId, MODULE_BY_ID, UPGRADE_MODULES, type ModuleId } from '../shared/modules';
+import { MODULE_PROGRESSION } from '../shared/moduleProgression';
 import type { PlayerMovementState } from '../shared/playerStateCodec';
 import { chooseSerpentineSpawn } from '../shared/spawnPlanner';
 import { enemyWaveDirector } from '../shared/waveDirector';
@@ -496,7 +496,7 @@ export class UltraWorld {
         const ram = this.moduleCount(player, 'ram');
         if (ram > 0 && player.ramCooldown <= 0) {
           this.damageTarget(player, enemy, 1, enemy, MODULE_BY_ID.ram.color);
-          player.ramCooldown = moduleCooldownSeconds('ram') * Math.pow(0.86, ram - 1);
+          player.ramCooldown = this.activeModuleCooldown(player, 'ram', ram);
           this.ring(player.col, player.row, MODULE_BY_ID.ram.color, 0.42, 6, 1, player.entityId);
           this.playSkillSound(player, 'ram');
         }
@@ -518,8 +518,8 @@ export class UltraWorld {
     const thornsReady = thorns > 0 && player.thornsCooldown <= 0;
     this.killEnemy(enemy, player);
     if (thornsReady) {
-      this.triggerBodyIntercept(player, bodySegment, enemy, thorns);
-      player.thornsCooldown = moduleCooldownSeconds('thorns') * Math.pow(0.85, thorns - 1);
+      this.triggerBodyIntercept(player, bodySegment, enemy);
+      player.thornsCooldown = this.activeModuleCooldown(player, 'thorns', thorns);
     }
     return true;
   }
@@ -738,8 +738,7 @@ export class UltraWorld {
       return;
     }
 
-    const soloLevelTransition = present.length === 1 && present[0].upgradePending && present[0].upgradeRevealTimer > 0;
-    const worldDelta = soloLevelTransition ? delta * LEVEL_UP_TIME_SCALE : delta;
+    const worldDelta = delta;
     this.gameTime += worldDelta;
     for (const player of active) {
       player.survivalTime += worldDelta;
@@ -756,7 +755,7 @@ export class UltraWorld {
 
     this.updateEnemySpawnWarnings(worldDelta);
     this.updateSpawns(worldDelta, present, active);
-    this.enemyKnockbackMultiplier = 1 + this.maximumModuleCount('momentum', active) * 0.18;
+    this.enemyKnockbackMultiplier = 1 + MODULE_PROGRESSION.effects.momentumKnockbackBonus(this.maximumModuleCount('momentum', active));
     for (const player of active) if (player.autopilot && player.collisionCooldown <= 0) player.desiredAngle = this.autopilotAngle(player, present);
     for (const player of active) this.movePlayer(player, worldDelta);
     for (const player of active) this.recordPlayerMovement(player, now);
@@ -1103,15 +1102,17 @@ export class UltraWorld {
   }
 
   private playerBaseSpeed(player: PlayerEntity): number {
-    const hasteMultiplier = 1 + this.moduleCount(player, 'haste') * 0.045;
+    const hasteMultiplier = 1 + MODULE_PROGRESSION.effects.hasteSpeedBonus(this.moduleCount(player, 'haste'));
     const progress = player.xpNeeded > 0 ? clamp(player.xp / player.xpNeeded, 0, 1) : 0;
-    const progressMultiplier = 1 + this.moduleCount(player, 'progressor') * progress * 0.08;
+    const progressMultiplier = 1 + MODULE_PROGRESSION.effects.progressorMaxSpeedBonus(this.moduleCount(player, 'progressor')) * progress;
     return PLAYER_BASE_SPEED * (1 + player.level * PLAYER_SPEED_PER_LEVEL) * hasteMultiplier * progressMultiplier;
   }
 
   private moduleCount(player: PlayerEntity, id: ModuleId): number {
     let count = 0;
-    for (const segment of player.segments) if (segment.module === id) count += 1;
+    for (const segment of player.segments) {
+      if (segment.module === id) count += Math.max(1, segment.moduleLevel || 1);
+    }
     return count;
   }
 
@@ -1166,14 +1167,22 @@ export class UltraWorld {
   }
 
   private outputRateMultiplier(player: PlayerEntity): number {
-    return Math.pow(0.86, this.moduleCount(player, 'amplifier'));
+    return 1 / (1 + MODULE_PROGRESSION.effects.amplifierCooldownRateBonus(this.moduleCount(player, 'amplifier')));
+  }
+
+  private activeModuleCooldown(player: PlayerEntity, moduleId: ModuleId, moduleLevel = this.moduleCount(player, moduleId), extraCooldownRateBonus = 0): number {
+    return MODULE_PROGRESSION.activeCooldownSeconds(
+      moduleId,
+      Math.max(1, moduleLevel || 1),
+      MODULE_PROGRESSION.effects.amplifierCooldownRateBonus(this.moduleCount(player, 'amplifier')) + extraCooldownRateBonus,
+    );
   }
 
   private movePlayer(player: PlayerEntity, delta: number): void {
     if (player.collisionCooldown > 0) player.desiredAngle = player.angle;
-    else player.angle = rotateToward(player.angle, player.desiredAngle, (PLAYER_TURN_RATE + this.moduleCount(player, 'haste') * 0.18) * delta);
+    else player.angle = rotateToward(player.angle, player.desiredAngle, (PLAYER_TURN_RATE + MODULE_PROGRESSION.effects.hasteTurnRateBonus(this.moduleCount(player, 'haste'))) * delta);
     const slowMultiplier = player.slow > 0 ? 0.48 : 1;
-    const feastMultiplier = player.foodBoost > 0 ? 1 + this.moduleCount(player, 'feast') * 0.12 : 1;
+    const feastMultiplier = player.foodBoost > 0 ? 1 + MODULE_PROGRESSION.effects.feastSpeedBonus(this.moduleCount(player, 'feast')) : 1;
     player.speed = this.playerBaseSpeed(player) * slowMultiplier * feastMultiplier;
     player.col += (Math.cos(player.angle) * player.speed + player.knockbackX) * delta;
     player.row += (Math.sin(player.angle) * player.speed + player.knockbackY) * delta;
@@ -1206,7 +1215,8 @@ export class UltraWorld {
     if (player.growth.elapsed < totalDuration) return;
     const completed = player.growth;
     const tail = player.segments.at(-1) ?? player;
-    player.segments.push(makeSegment(tail.col, tail.row, { neutral: true }, this.randomSource));
+    player.segments.push(makeSegment(tail.col, tail.row, { neutral: true, experienceTier: 0 }, this.randomSource));
+    this.compressExperienceSegments(player);
     this.burst(tail.col, tail.row, completed.color, completed.special ? 28 : 22, completed.special ? 175 : 145, player.entityId);
     this.burst(tail.col, tail.row, '#eef5ff', completed.special ? 18 : 12, completed.special ? 135 : 105, player.entityId);
     this.ring(tail.col, tail.row, completed.color, 0.46, 3, 0.78, player.entityId);
@@ -1226,8 +1236,41 @@ export class UltraWorld {
     player.growthQueue.length = 0;
     for (let index = 0; index < pendingCount; index += 1) {
       const tail = player.segments.at(-1) ?? player;
-      player.segments.push(makeSegment(tail.col, tail.row, { neutral: true }, this.randomSource));
+      player.segments.push(makeSegment(tail.col, tail.row, { neutral: true, experienceTier: 0 }, this.randomSource));
     }
+    this.compressExperienceSegments(player);
+  }
+
+  private compressExperienceSegments(player: PlayerEntity): number {
+    let cascade = 0;
+    for (let tier = 0; tier < MODULE_PROGRESSION.experienceTiers.length - 1; tier += 1) {
+      while (true) {
+        const indexes = MODULE_PROGRESSION.findCompressionIndexes(player.segments, tier);
+        if (indexes.length === 0) break;
+        const sources = indexes.map((index) => player.segments[index]);
+        const insertionIndex = indexes[0];
+        for (let index = indexes.length - 1; index >= 0; index -= 1) player.segments.splice(indexes[index], 1);
+        const target = sources[0] ?? (player.segments.at(-1) ?? player);
+        const compressed = makeSegment(target.col, target.row, {
+          neutral: true,
+          experienceTier: tier + 1,
+          birthAge: 0,
+        }, this.randomSource);
+        player.segments.splice(Math.min(insertionIndex, player.segments.length), 0, compressed);
+        this.pendingEffects.push({
+          id: this.effectId(),
+          type: 'experienceCompress',
+          sources: sources.map((segment) => ({ col: segment.col, row: segment.row })),
+          target: { col: compressed.col, row: compressed.row },
+          fromTier: tier,
+          toTier: tier + 1,
+          delay: cascade * DESIGNER_BALANCE.experienceCompressionCascadeDelay,
+          ownerEntityId: player.entityId,
+        });
+        cascade += 1;
+      }
+    }
+    return cascade;
   }
 
   private startLevelUpTransition(player: PlayerEntity): void {
@@ -1262,42 +1305,26 @@ export class UltraWorld {
   }
 
   private chooseUpgradeOptions(player: PlayerEntity): ModuleId[] {
-    const fresh = UPGRADE_MODULES.filter((module) => !player.recentPicks.includes(module.id));
-    const output = fresh.filter((module) => module.category === '输出');
-    const utility = fresh.filter((module) => module.category !== '输出');
-    const choices: ModuleId[] = [];
-    const take = (pool: readonly (typeof UPGRADE_MODULES)[number][]) => {
-      const candidates = pool.filter((module) => !choices.includes(module.id));
-      if (candidates.length > 0) choices.push(candidates[Math.floor(this.random() * candidates.length)].id);
-    };
-    take(output.length > 0 ? output : UPGRADE_MODULES.filter((module) => module.category === '输出'));
-    take(utility.length > 0 ? utility : UPGRADE_MODULES.filter((module) => module.category !== '输出'));
-    const targetCount = Math.min(3, UPGRADE_MODULES.length);
-    while (choices.length < targetCount) take(fresh.length > 0 ? fresh : UPGRADE_MODULES);
-    for (let index = choices.length - 1; index > 0; index -= 1) {
-      const swap = Math.floor(this.random() * (index + 1));
-      [choices[index], choices[swap]] = [choices[swap], choices[index]];
-    }
-    return choices;
+    return MODULE_PROGRESSION.chooseUpgradeIds(UPGRADE_MODULES, player.segments, player.level + 1, () => this.random(), 3);
   }
 
   private applyUpgrade(player: PlayerEntity, moduleId: ModuleId, _now: number): void {
-    const required = player.xpNeeded;
-    let removed = 0;
-    player.segments = player.segments.filter((segment) => {
-      if (segment.neutral && removed < required) {
-        removed += 1;
-        return false;
-      }
-      return true;
-    });
+    const existing = player.segments.find((segment) => segment.module === moduleId) ?? null;
+    const consumedExperience = player.segments.filter((segment) => segment.neutral);
+    player.segments = player.segments.filter((segment) => !segment.neutral);
     player.level += 1;
     player.xp = 0;
     player.xpNeeded = experienceRequiredForLevel(player.level);
-    const tail = player.segments.at(-1) ?? player;
     const definition = MODULE_BY_ID[moduleId];
-    const initialTimer = this.randomBetween(0.2, 0.8);
-    player.segments.push(makeSegment(tail.col, tail.row, { module: moduleId, timer: initialTimer }, this.randomSource));
+    let upgradedSegment = existing;
+    if (upgradedSegment) {
+      upgradedSegment.moduleLevel = Math.max(1, upgradedSegment.moduleLevel || 1) + 1;
+    } else {
+      const tail = player.segments.at(-1) ?? player;
+      const initialTimer = this.randomBetween(0.2, 0.8);
+      upgradedSegment = makeSegment(tail.col, tail.row, { module: moduleId, moduleLevel: 1, timer: initialTimer }, this.randomSource);
+      player.segments.push(upgradedSegment);
+    }
     player.recentPicks.push(moduleId);
     if (player.recentPicks.length > 6) player.recentPicks.shift();
     player.score += 250 * player.level;
@@ -1307,8 +1334,9 @@ export class UltraWorld {
     this.callbacks.onUpgrade?.(player.entityId, null);
     player.invulnerable = Math.max(player.invulnerable, UPGRADE_INVULNERABILITY_DURATION);
     this.effectSound('select', player.entityId);
-    this.burst(tail.col, tail.row, definition.color, 22, 130, player.entityId);
-    this.ring(tail.col, tail.row, definition.color, 0.7, 12, 57, player.entityId, 'pixels');
+    for (const segment of consumedExperience) this.beam('beam', segment, upgradedSegment, definition.color, 0.34, player.entityId);
+    this.burst(upgradedSegment.col, upgradedSegment.row, definition.color, existing ? 30 : 22, existing ? 165 : 130, player.entityId);
+    this.ring(upgradedSegment.col, upgradedSegment.row, definition.color, 0.7, 12, existing ? 72 : 57, player.entityId, 'pixels');
   }
 
   private collectFood(player: PlayerEntity, foodIndex: number, collector: GridPoint): void {
@@ -1324,17 +1352,17 @@ export class UltraWorld {
     } else if (!player.growth) {
       player.growth = { ...player.growthQueue.shift()!, elapsed: 0, nodeCount: player.segments.length + 1 };
     }
-    if (this.moduleCount(player, 'feast') > 0) player.foodBoost = 2.5;
+    if (this.moduleCount(player, 'feast') > 0) player.foodBoost = MODULE_PROGRESSION.effects.feastDuration();
     const emergency = this.moduleCount(player, 'emergency');
     if (emergency > 0) {
-      player.invulnerable = Math.max(player.invulnerable, Math.min(0.9, 0.25 + emergency * 0.12));
+      player.invulnerable = Math.max(player.invulnerable, MODULE_PROGRESSION.effects.emergencyDuration(emergency));
       this.ring(collector.col, collector.row, MODULE_BY_ID.emergency.color, 0.38, 7, 0.72, player.entityId);
     }
     this.burst(collector.col, collector.row, food.color, food.special ? 34 : 28, food.special ? 210 : 180, player.entityId);
     this.ring(collector.col, collector.row, food.color, 0.58, 5, 1.5, player.entityId);
     this.ring(collector.col, collector.row, '#ffffff', 0.32, 4, 0.82, player.entityId);
     this.textEffect(collector.col, collector.row, '+1', food.color, 0.72, player.entityId);
-    this.effectSound('eat', player.entityId, player.segments.filter((segment) => segment.neutral).length + player.growthQueue.length + (player.growth ? 1 : 0));
+    this.effectSound('eat', player.entityId, player.xp);
     this.feedback(food.special ? 'food-special' : 'food', player.entityId);
     if (completesLevel) this.startLevelUpTransition(player);
   }
@@ -1345,10 +1373,10 @@ export class UltraWorld {
       return {
         player,
         tractor,
-        tractorRange: 3.5 + Math.max(0, tractor - 1) * 1.1,
-        tractorSpeed: 1.8 + Math.max(0, tractor - 1) * 0.45,
-        headRange: this.playerHeadRadiusCells() + 0.13 + this.moduleCount(player, 'magnet') * 0.55,
-        bodyRange: 0.42 + this.moduleCount(player, 'collector') * 0.09,
+        tractorRange: MODULE_PROGRESSION.effects.tractorRangeCells(tractor),
+        tractorSpeed: MODULE_PROGRESSION.effects.tractorPullSpeed(tractor),
+        headRange: this.playerHeadRadiusCells() + 0.13 + MODULE_PROGRESSION.effects.magnetPickupRangeCells(this.moduleCount(player, 'magnet')),
+        bodyRange: 0.42 + MODULE_PROGRESSION.effects.collectorPickupRadiusCells(this.moduleCount(player, 'collector')),
       };
     });
     const tractorProfiles = profiles.filter((profile) => profile.tractor > 0);
@@ -1424,8 +1452,8 @@ export class UltraWorld {
   }
 
   private findFoodCollector(player: PlayerEntity, food: FoodEntity, extraRange = 0): { collector: GridPoint; distance: number } | null {
-    const headRange = this.playerHeadRadiusCells() + 0.13 + this.moduleCount(player, 'magnet') * 0.55 + extraRange;
-    const bodyRange = 0.42 + this.moduleCount(player, 'collector') * 0.09 + extraRange;
+    const headRange = this.playerHeadRadiusCells() + 0.13 + MODULE_PROGRESSION.effects.magnetPickupRangeCells(this.moduleCount(player, 'magnet')) + extraRange;
+    const bodyRange = 0.42 + MODULE_PROGRESSION.effects.collectorPickupRadiusCells(this.moduleCount(player, 'collector')) + extraRange;
     return this.findFoodCollectorWithin(player, food, headRange, bodyRange);
   }
 
@@ -1445,7 +1473,7 @@ export class UltraWorld {
     const candidates = players ?? this.playersByEntity.values();
     for (const player of candidates) {
       if (!players && (!player.alive || !player.connected || player.paused || player.choosingUpgrade)) continue;
-      best = Math.max(best, 1 + this.moduleCount(player, 'beacon') * 0.07);
+      best = Math.max(best, 1 + MODULE_PROGRESSION.effects.beaconWaveRateBonus(this.moduleCount(player, 'beacon')));
     }
     return best;
   }
@@ -2008,7 +2036,6 @@ export class UltraWorld {
   }
 
   private updateModules(player: PlayerEntity, delta: number): void {
-    const rate = this.outputRateMultiplier(player);
     for (const segment of player.segments) {
       if (!segment.module) continue;
       segment.timer -= delta;
@@ -2032,7 +2059,7 @@ export class UltraWorld {
         };
         for (const target of this.enemies) {
           if (target.dead || target.bladeCooldown > 0 || !this.pointHitsTarget(blade, this.pixelsToCells(10), target)) continue;
-          target.bladeCooldown = moduleCooldownSeconds('blade');
+          target.bladeCooldown = this.activeModuleCooldown(player, 'blade', segment.moduleLevel);
           this.damageTarget(player, target, 1, blade, MODULE_BY_ID.blade.color);
         }
         continue;
@@ -2041,7 +2068,7 @@ export class UltraWorld {
       if (segment.module === 'saw') {
         for (const target of this.enemies) {
           if (target.dead || target.sawCooldown > 0 || !this.pointHitsTarget(segment, 0.82, target)) continue;
-          target.sawCooldown = moduleCooldownSeconds('saw');
+          target.sawCooldown = this.activeModuleCooldown(player, 'saw', segment.moduleLevel);
           this.damageTarget(player, target, 1, segment, MODULE_BY_ID.saw.color);
           this.ring(segment.col, segment.row, MODULE_BY_ID.saw.color, 0.3, 5, 0.82, player.entityId);
           this.playSkillSound(player, 'saw');
@@ -2055,7 +2082,7 @@ export class UltraWorld {
         this.spawnFood(point, true);
         this.playSkillSound(player, 'regen');
         this.ring(point.col, point.row, MODULE_BY_ID.regen.color, 0.9, 8, 53, player.entityId, 'pixels');
-        segment.timer = moduleCooldownSeconds('regen');
+        segment.timer = this.activeModuleCooldown(player, 'regen', segment.moduleLevel);
         continue;
       }
 
@@ -2064,7 +2091,7 @@ export class UltraWorld {
         this.spawnFood(tail, true);
         this.playSkillSound(player, 'regen');
         this.ring(tail.col, tail.row, MODULE_BY_ID.nursery.color, 0.75, 6, 0.9, player.entityId);
-        segment.timer = moduleCooldownSeconds('nursery');
+        segment.timer = this.activeModuleCooldown(player, 'nursery', segment.moduleLevel);
         continue;
       }
 
@@ -2077,18 +2104,18 @@ export class UltraWorld {
       switch (segment.module) {
         case 'spark':
           if (this.spawnShot(player, segment, target, { color: MODULE_BY_ID.spark.color, speed: 390, size: 4.5 })) this.playSkillSound(player, 'spark');
-          segment.timer = moduleCooldownSeconds('spark') * rate;
+          segment.timer = this.activeModuleCooldown(player, 'spark', segment.moduleLevel);
           break;
         case 'frost':
           if (this.spawnShot(player, segment, target, { color: MODULE_BY_ID.frost.color, speed: 310, size: 5, slow: 2.6 })) this.playSkillSound(player, 'frost');
-          segment.timer = moduleCooldownSeconds('frost') * rate;
+          segment.timer = this.activeModuleCooldown(player, 'frost', segment.moduleLevel);
           break;
         case 'prism':
           if (target) {
             for (const offset of [-0.17, 0, 0.17]) this.spawnShot(player, segment, target, { color: MODULE_BY_ID.prism.color, speed: 330, angleOffset: offset });
             this.playSkillSound(player, 'prism');
           }
-          segment.timer = moduleCooldownSeconds('prism') * rate;
+          segment.timer = this.activeModuleCooldown(player, 'prism', segment.moduleLevel);
           break;
         case 'nova':
           {
@@ -2099,7 +2126,7 @@ export class UltraWorld {
             }
             this.playSkillSound(player, 'nova');
             this.ring(segment.col, segment.row, MODULE_BY_ID.nova.color, 0.45, 8, 53, player.entityId, 'pixels');
-            segment.timer = moduleCooldownSeconds('nova') * rate;
+            segment.timer = this.activeModuleCooldown(player, 'nova', segment.moduleLevel);
             break;
           }
         case 'tesla':
@@ -2107,7 +2134,7 @@ export class UltraWorld {
             this.fireTesla(player, segment, target);
             this.playSkillSound(player, 'tesla');
           }
-          segment.timer = moduleCooldownSeconds('tesla') * rate;
+          segment.timer = this.activeModuleCooldown(player, 'tesla', segment.moduleLevel);
           break;
         case 'laser':
           if (target) {
@@ -2115,44 +2142,44 @@ export class UltraWorld {
             this.beam('beam', segment, target.node, MODULE_BY_ID.laser.color, 0.2, player.entityId);
             this.playSkillSound(player, 'laser');
           }
-          segment.timer = moduleCooldownSeconds('laser') * rate;
+          segment.timer = this.activeModuleCooldown(player, 'laser', segment.moduleLevel);
           break;
         case 'missile':
           if (this.spawnShot(player, segment, target, { color: MODULE_BY_ID.missile.color, speed: 230, size: 6, homing: 4.2 })) this.playSkillSound(player, 'missile');
-          segment.timer = moduleCooldownSeconds('missile') * rate;
+          segment.timer = this.activeModuleCooldown(player, 'missile', segment.moduleLevel);
           break;
         case 'mine':
           this.hazards.push({ id: this.allocateHazardId(), ownerEntityId: player.entityId, kind: 'mine', col: segment.col, row: segment.row, life: Number.POSITIVE_INFINITY, arm: 0.55, radius: this.pixelsToCells(62), color: MODULE_BY_ID.mine.color, phase: this.randomBetween(0, TAU) });
           this.playSkillSound(player, 'mine');
-          segment.timer = moduleCooldownSeconds('mine') * rate;
+          segment.timer = this.activeModuleCooldown(player, 'mine', segment.moduleLevel);
           break;
         case 'pulse':
           this.firePulse(player, segment);
           this.playSkillSound(player, 'pulse');
-          segment.timer = moduleCooldownSeconds('pulse') * rate;
+          segment.timer = this.activeModuleCooldown(player, 'pulse', segment.moduleLevel);
           break;
         case 'venom':
           if (this.spawnShot(player, segment, target, { color: MODULE_BY_ID.venom.color, speed: 285, size: 5.5, poison: 2 })) this.playSkillSound(player, 'venom');
-          segment.timer = moduleCooldownSeconds('venom') * rate;
+          segment.timer = this.activeModuleCooldown(player, 'venom', segment.moduleLevel);
           break;
         case 'rail':
           if (this.spawnShot(player, segment, target, { color: MODULE_BY_ID.rail.color, speed: 520, size: 4.8, pierce: 3 })) this.playSkillSound(player, 'rail');
-          segment.timer = moduleCooldownSeconds('rail') * rate;
+          segment.timer = this.activeModuleCooldown(player, 'rail', segment.moduleLevel);
           break;
         case 'ricochet':
           if (this.spawnShot(player, segment, target, { color: MODULE_BY_ID.ricochet.color, speed: 340, size: 5.2, pierce: 2, bounces: 2 })) this.playSkillSound(player, 'ricochet');
-          segment.timer = moduleCooldownSeconds('ricochet') * rate;
+          segment.timer = this.activeModuleCooldown(player, 'ricochet', segment.moduleLevel);
           break;
         case 'cluster':
           if (this.spawnShot(player, segment, target, { color: MODULE_BY_ID.cluster.color, speed: 245, size: 7, homing: 3.6, blastRadius: 72 })) this.playSkillSound(player, 'cluster');
-          segment.timer = moduleCooldownSeconds('cluster') * rate;
+          segment.timer = this.activeModuleCooldown(player, 'cluster', segment.moduleLevel);
           break;
         case 'fan':
           if (target) {
             for (const offset of [-0.34, -0.17, 0, 0.17, 0.34]) this.spawnShot(player, segment, target, { color: MODULE_BY_ID.fan.color, speed: 300, size: 4.6, angleOffset: offset });
             this.playSkillSound(player, 'fan');
           }
-          segment.timer = moduleCooldownSeconds('fan') * rate;
+          segment.timer = this.activeModuleCooldown(player, 'fan', segment.moduleLevel);
           break;
         case 'gravity':
           if (target) {
@@ -2163,19 +2190,19 @@ export class UltraWorld {
             }
             this.playSkillSound(player, 'gravity');
           }
-          segment.timer = moduleCooldownSeconds('gravity') * rate;
+          segment.timer = this.activeModuleCooldown(player, 'gravity', segment.moduleLevel);
           break;
         case 'needle':
           if (this.spawnShot(player, segment, target, { color: MODULE_BY_ID.needle.color, speed: 560, size: 3.8, pierce: 1 })) this.playSkillSound(player, 'needle');
-          segment.timer = moduleCooldownSeconds('needle') * rate;
+          segment.timer = this.activeModuleCooldown(player, 'needle', segment.moduleLevel);
           break;
         case 'mortar':
           if (this.spawnShot(player, segment, target, { color: MODULE_BY_ID.mortar.color, speed: 205, size: 8, homing: 3.2, blastRadius: 92 })) this.playSkillSound(player, 'mortar');
-          segment.timer = moduleCooldownSeconds('mortar') * rate;
+          segment.timer = this.activeModuleCooldown(player, 'mortar', segment.moduleLevel);
           break;
         case 'sweep':
           if (target && this.fireSweepBeam(player, segment, target)) this.playSkillSound(player, 'sweep');
-          segment.timer = moduleCooldownSeconds('sweep') * rate;
+          segment.timer = this.activeModuleCooldown(player, 'sweep', segment.moduleLevel);
           break;
         case 'sniper':
           if (target) {
@@ -2183,11 +2210,11 @@ export class UltraWorld {
             this.beam('beam', segment, target.node, MODULE_BY_ID.sniper.color, 0.28, player.entityId);
             this.playSkillSound(player, 'sniper');
           }
-          segment.timer = moduleCooldownSeconds('sniper') * rate;
+          segment.timer = this.activeModuleCooldown(player, 'sniper', segment.moduleLevel);
           break;
         case 'flak':
           if (target && this.fireFlakBurst(player, target)) this.playSkillSound(player, 'flak');
-          segment.timer = moduleCooldownSeconds('flak') * rate;
+          segment.timer = this.activeModuleCooldown(player, 'flak', segment.moduleLevel);
           break;
         case 'fork':
           if (target) {
@@ -2195,26 +2222,26 @@ export class UltraWorld {
             this.spawnShot(player, segment, target, { color: MODULE_BY_ID.fork.color, speed: 300, size: 5, angleOffset: 0.24, homing: 2.5 });
             this.playSkillSound(player, 'fork');
           }
-          segment.timer = moduleCooldownSeconds('fork') * rate;
+          segment.timer = this.activeModuleCooldown(player, 'fork', segment.moduleLevel);
           break;
         case 'anchor':
           if (this.spawnShot(player, segment, target, { color: MODULE_BY_ID.anchor.color, speed: 180, size: 8.5, homing: 2, slow: 4.2 })) this.playSkillSound(player, 'anchor');
-          segment.timer = moduleCooldownSeconds('anchor') * rate;
+          segment.timer = this.activeModuleCooldown(player, 'anchor', segment.moduleLevel);
           break;
         case 'flare':
           if (this.spawnShot(player, segment, target, { color: MODULE_BY_ID.flare.color, speed: 270, size: 5.8, poison: 4 })) this.playSkillSound(player, 'flare');
-          segment.timer = moduleCooldownSeconds('flare') * rate;
+          segment.timer = this.activeModuleCooldown(player, 'flare', segment.moduleLevel);
           break;
         case 'scatter':
           if (target) {
             for (const offset of [-0.42, -0.28, -0.14, 0, 0.14, 0.28, 0.42]) this.spawnShot(player, segment, target, { color: MODULE_BY_ID.scatter.color, speed: 305, size: 4.2, angleOffset: offset });
             this.playSkillSound(player, 'scatter');
           }
-          segment.timer = moduleCooldownSeconds('scatter') * rate;
+          segment.timer = this.activeModuleCooldown(player, 'scatter', segment.moduleLevel);
           break;
         case 'lance':
           if (this.spawnShot(player, segment, target, { color: MODULE_BY_ID.lance.color, speed: 590, size: 7, pierce: 5 })) this.playSkillSound(player, 'lance');
-          segment.timer = moduleCooldownSeconds('lance') * rate;
+          segment.timer = this.activeModuleCooldown(player, 'lance', segment.moduleLevel);
           break;
         case 'execute':
           if (target) {
@@ -2223,18 +2250,18 @@ export class UltraWorld {
             this.beam('beam', segment, target.node, MODULE_BY_ID.execute.color, 0.2, player.entityId);
             this.playSkillSound(player, 'execute');
           }
-          segment.timer = moduleCooldownSeconds('execute') * rate;
+          segment.timer = this.activeModuleCooldown(player, 'execute', segment.moduleLevel);
           break;
         case 'crossfire':
           if (target) {
             this.fireCrossfire(player, segment, target);
             this.playSkillSound(player, 'crossfire');
           }
-          segment.timer = moduleCooldownSeconds('crossfire') * rate;
+          segment.timer = this.activeModuleCooldown(player, 'crossfire', segment.moduleLevel);
           break;
         case 'phasebolt':
           if (this.spawnShot(player, segment, target, { color: MODULE_BY_ID.phasebolt.color, speed: 320, size: 6, bounces: 4, homing: 1.6 })) this.playSkillSound(player, 'phasebolt');
-          segment.timer = moduleCooldownSeconds('phasebolt') * rate;
+          segment.timer = this.activeModuleCooldown(player, 'phasebolt', segment.moduleLevel);
           break;
         default:
           break;
@@ -2243,7 +2270,7 @@ export class UltraWorld {
 
     const repulse = this.moduleCount(player, 'repulse');
     if (repulse > 0) {
-      const range = this.pixelsToCells(90 + repulse * 20);
+      const range = this.pixelsToCells(MODULE_PROGRESSION.effects.repulseRangePixels(repulse));
       for (const target of this.enemies) {
         if (!target.dead && Math.sqrt(distanceSquared(player, target)) < range) target.desiredAngle = Math.atan2(target.row - player.row, target.col - player.col);
       }
@@ -2266,7 +2293,7 @@ export class UltraWorld {
 
   private createProjectile(player: PlayerEntity, origin: GridPoint, angle: number, options: ShotOptions, target: TargetRef | null = null): void {
     const guidance = this.moduleCount(player, 'guidance');
-    const guidanceMultiplier = 1 + guidance * 0.12;
+    const guidanceMultiplier = 1 + MODULE_PROGRESSION.effects.guidanceProjectileSpeedBonus(guidance);
     const speed = this.pixelsToCells((options.speed ?? 300) * guidanceMultiplier * PROJECTILE_SPEED_SCALE);
     const projectile: ProjectileEntity = {
       id: this.allocateProjectileId(),
@@ -2284,7 +2311,7 @@ export class UltraWorld {
       blastRadius: options.blastRadius ? this.pixelsToCells(options.blastRadius) : 0,
       slow: options.slow ?? 0,
       poison: options.poison ?? 0,
-      homing: (options.homing ?? 0) + guidance * 0.35,
+      homing: (options.homing ?? 0) + MODULE_PROGRESSION.effects.guidanceHomingBonus(guidance),
       target: options.homing || guidance ? target : null,
       hitIds: [],
     };
@@ -2559,7 +2586,7 @@ export class UltraWorld {
   }
 
   private updateEnemies(delta: number, activePlayers: PlayerEntity[], presentPlayers: PlayerEntity[]): void {
-    const chronosMultiplier = Math.pow(0.92, this.maximumModuleCount('chronos', activePlayers));
+    const chronosMultiplier = 1 - MODULE_PROGRESSION.effects.chronosSlowReduction(this.maximumModuleCount('chronos', activePlayers));
     const timeSpeedMultiplier = Math.min(ENEMY_SPEED_MAX_MULTIPLIER, 1 + this.gameTime / 60 * ENEMY_SPEED_PER_MINUTE);
     const collisionPlayers = presentPlayers.filter((player) => player.autopilot || player.paused || player.choosingUpgrade);
     this.ensureFoodIndexes();
@@ -2614,15 +2641,15 @@ export class UltraWorld {
           const thornsReady = thorns > 0 && playerCollision.player.thornsCooldown <= 0;
           this.killEnemy(enemy, playerCollision.player);
           if (thornsReady) {
-            this.triggerBodyIntercept(playerCollision.player, playerCollision.segment, enemy, thorns);
-            playerCollision.player.thornsCooldown = moduleCooldownSeconds('thorns') * Math.pow(0.85, thorns - 1);
+            this.triggerBodyIntercept(playerCollision.player, playerCollision.segment, enemy);
+            playerCollision.player.thornsCooldown = this.activeModuleCooldown(playerCollision.player, 'thorns', thorns);
           }
         } else {
           const normal = collisionNormal(playerCollision.player, enemy);
           const ram = this.moduleCount(playerCollision.player, 'ram');
           if (ram > 0 && playerCollision.player.ramCooldown <= 0) {
             this.damageTarget(playerCollision.player, enemy, 1, enemy, MODULE_BY_ID.ram.color);
-            playerCollision.player.ramCooldown = moduleCooldownSeconds('ram') * Math.pow(0.86, ram - 1);
+            playerCollision.player.ramCooldown = this.activeModuleCooldown(playerCollision.player, 'ram', ram);
             this.ring(playerCollision.player.col, playerCollision.player.row, MODULE_BY_ID.ram.color, 0.42, 6, 1, playerCollision.player.entityId);
             this.playSkillSound(playerCollision.player, 'ram');
           }
@@ -2791,7 +2818,7 @@ export class UltraWorld {
         totalWeight += weight;
       }
       if (totalWeight < 0.02) continue;
-      const decoyMultiplier = Math.max(0.45, 1 - this.moduleCount(player, 'decoy') * 0.12);
+      const decoyMultiplier = 1 - MODULE_PROGRESSION.effects.decoyAvoidanceReduction(this.moduleCount(player, 'decoy'));
       combinedX += awayX * decoyMultiplier;
       combinedY += awayY * decoyMultiplier;
       combinedWeight += totalWeight * decoyMultiplier;
@@ -2997,7 +3024,7 @@ export class UltraWorld {
         const ram = this.moduleCount(player, 'ram');
         if (ram > 0 && player.ramCooldown <= 0) {
           this.damageTarget(player, enemy, 1, enemy, MODULE_BY_ID.ram.color);
-          player.ramCooldown = moduleCooldownSeconds('ram') * Math.pow(0.86, ram - 1);
+          player.ramCooldown = this.activeModuleCooldown(player, 'ram', ram);
           this.ring(player.col, player.row, MODULE_BY_ID.ram.color, 0.42, 6, 1, player.entityId);
           this.playSkillSound(player, 'ram');
         }
@@ -3087,7 +3114,12 @@ export class UltraWorld {
     const defense = player.segments.find((segment) => (segment.module === 'shield' || segment.module === 'phase') && segment.ready);
     if (!defense?.module) return false;
     defense.ready = false;
-    defense.cooldown = moduleCooldownSeconds(defense.module) * Math.pow(0.82, this.moduleCount(player, 'armor'));
+    defense.cooldown = this.activeModuleCooldown(
+      player,
+      defense.module,
+      defense.moduleLevel,
+      MODULE_PROGRESSION.effects.armorCooldownRateBonus(this.moduleCount(player, 'armor')),
+    );
     player.invulnerable = defense.module === 'phase' ? 1.55 : 1.05;
     this.effectSound('shield', player.entityId);
     this.ring(player.col, player.row, MODULE_BY_ID[defense.module].color, 0.7, 18, 76, player.entityId, 'pixels');
@@ -3122,8 +3154,13 @@ export class UltraWorld {
     }
     for (const segment of removed) {
       this.burst(segment.col, segment.row, color, 7, 95, owner.entityId);
-      const salvageChance = Math.min(0.72, this.moduleCount(owner, 'salvage') * 0.14);
-      if (salvageChance > 0 && this.random() < salvageChance) this.spawnFood({ col: segment.col + this.randomBetween(-0.3, 0.3), row: segment.row + this.randomBetween(-0.3, 0.3) }, true);
+      const salvageDrops = MODULE_PROGRESSION.rollLinearRewards(
+        MODULE_PROGRESSION.effects.salvageExpectedDrops(this.moduleCount(owner, 'salvage')),
+        () => this.random(),
+      );
+      for (let index = 0; index < salvageDrops; index += 1) {
+        this.spawnFood({ col: segment.col + this.randomBetween(-0.3, 0.3), row: segment.row + this.randomBetween(-0.3, 0.3) }, true);
+      }
     }
     this.ring(point.col, point.row, color, 0.34, 3, 0.48, owner.entityId);
     this.textEffect(point.col, point.row - 0.35, `-${applied}`, color, 0.62, owner.entityId);
@@ -3144,20 +3181,24 @@ export class UltraWorld {
       const cache = this.moduleCount(owner, 'cache');
       if (cache > 0) {
         owner.cacheKills += 1;
-        if (owner.cacheKills >= Math.max(2, 6 - cache)) {
-          owner.cacheKills = 0;
-          this.spawnFood(enemy, true, dropOccupied);
+        const cacheThreshold = MODULE_PROGRESSION.effects.cacheKillsPerTrigger();
+        if (owner.cacheKills >= cacheThreshold) {
+          owner.cacheKills -= cacheThreshold;
+          for (let index = 0; index < cache; index += 1) this.spawnFood(enemy, true, dropOccupied);
           this.ring(enemy.col, enemy.row, MODULE_BY_ID.cache.color, 0.65, 8, 1, owner.entityId);
         }
       }
       const bloom = this.moduleCount(owner, 'bloom');
       if (bloom > 0 && owner.bloomCooldown <= 0) {
         this.spawnFood(enemy, true, dropOccupied);
-        owner.bloomCooldown = moduleCooldownSeconds('bloom') * Math.pow(0.88, bloom - 1);
+        owner.bloomCooldown = this.activeModuleCooldown(owner, 'bloom', bloom);
       }
       let dropCount = enemy.captured;
       const fortune = this.moduleCount(owner, 'fortune');
-      if (this.random() < Math.min(0.85, fortune * 0.18)) dropCount += 1 + Math.floor(fortune / 3);
+      dropCount += MODULE_PROGRESSION.rollLinearRewards(
+        MODULE_PROGRESSION.effects.fortuneExpectedDrops(fortune),
+        () => this.random(),
+      );
       for (let index = 0; index < dropCount; index += 1) {
         const angle = index * 2.4 + this.randomBetween(-0.25, 0.25);
         const distance = this.pixelsToCells(22 + Math.sqrt(index + 1) * 12);
@@ -3178,8 +3219,8 @@ export class UltraWorld {
     this.spawnFood(enemy, false, dropOccupied);
   }
 
-  private triggerBodyIntercept(player: PlayerEntity, point: GridPoint, defeatedAt: GridPoint, stacks: number): void {
-    const shotCount = 6 + Math.min(10, Math.max(0, stacks - 1) * 2);
+  private triggerBodyIntercept(player: PlayerEntity, point: GridPoint, defeatedAt: GridPoint): void {
+    const shotCount = MODULE_PROGRESSION.effects.thornsProjectileCount();
     const startAngle = this.randomBetween(0, TAU);
     const target = this.nearestTarget(player, point, Number.POSITIVE_INFINITY);
     const targetRef = target ? this.targetRef(target) : null;
@@ -3356,16 +3397,17 @@ export class UltraWorld {
       const cache = this.moduleCount(killer, 'cache');
       if (cache > 0) {
         killer.cacheKills += 1;
-        if (killer.cacheKills >= Math.max(2, 6 - cache)) {
-          killer.cacheKills = 0;
-          this.spawnFood(victim, true, dropOccupied);
+        const cacheThreshold = MODULE_PROGRESSION.effects.cacheKillsPerTrigger();
+        if (killer.cacheKills >= cacheThreshold) {
+          killer.cacheKills -= cacheThreshold;
+          for (let index = 0; index < cache; index += 1) this.spawnFood(victim, true, dropOccupied);
           this.ring(victim.col, victim.row, MODULE_BY_ID.cache.color, 0.65, 8, 1, killer.entityId);
         }
       }
       const bloom = this.moduleCount(killer, 'bloom');
       if (bloom > 0 && killer.bloomCooldown <= 0) {
         this.spawnFood(victim, true, dropOccupied);
-        killer.bloomCooldown = moduleCooldownSeconds('bloom') * Math.pow(0.88, bloom - 1);
+        killer.bloomCooldown = this.activeModuleCooldown(killer, 'bloom', bloom);
       }
       this.emitEvent('pvp-kill', `${killer.name} 截停了 ${victim.name}`, now, killer.entityId);
     } else {
@@ -3374,7 +3416,10 @@ export class UltraWorld {
     let dropCount = Math.min(12, victim.segments.length);
     if (killer) {
       const fortune = this.moduleCount(killer, 'fortune');
-      if (this.random() < Math.min(0.85, fortune * 0.18)) dropCount += 1 + Math.floor(fortune / 3);
+      dropCount += MODULE_PROGRESSION.rollLinearRewards(
+        MODULE_PROGRESSION.effects.fortuneExpectedDrops(fortune),
+        () => this.random(),
+      );
     }
     for (let index = 0; index < dropCount; index += 1) {
       const angle = index * 2.4 + this.randomBetween(-0.25, 0.25);
@@ -3429,15 +3474,15 @@ export class UltraWorld {
     const bounceAngle = Math.atan2(bounceY, bounceX);
     const isPlayer = 'accountId' in entity;
     const impulseMultiplier = isPlayer
-      ? Math.pow(0.82, this.moduleCount(entity, 'buffer')) * extraImpulseMultiplier
+      ? (1 - MODULE_PROGRESSION.effects.bufferKnockbackReduction(this.moduleCount(entity, 'buffer'))) * extraImpulseMultiplier
       : this.enemyKnockbackMultiplier;
     entity.knockbackX = nx * KNOCKBACK_INITIAL_SPEED * impulseMultiplier;
     entity.knockbackY = ny * KNOCKBACK_INITIAL_SPEED * impulseMultiplier;
     entity.angle = bounceAngle;
     entity.desiredAngle = bounceAngle;
     const stabilization = isPlayer ? this.moduleCount(entity, 'stabilizer') : 0;
-    entity.slow = Math.max(entity.slow, BOUNCE_SLOW_TIME * Math.pow(0.75, stabilization));
-    entity.collisionCooldown = BOUNCE_LOCK_TIME * Math.pow(0.8, stabilization);
+    entity.slow = Math.max(entity.slow, BOUNCE_SLOW_TIME * (1 - MODULE_PROGRESSION.effects.stabilizerSlowReduction(stabilization)));
+    entity.collisionCooldown = BOUNCE_LOCK_TIME * (1 - MODULE_PROGRESSION.effects.stabilizerLockReduction(stabilization));
     if (!isPlayer && entity.archetype === 'charger' && (entity.behaviorState === 'telegraph' || entity.behaviorState === 'charge')) {
       entity.behaviorState = 'roam';
       entity.behaviorPhase = 0;
@@ -3579,7 +3624,9 @@ function makeSegment(col: number, row: number, options: Partial<UltraSegment>, r
     row,
     angle: 0,
     module: options.module ?? null,
+    moduleLevel: options.moduleLevel ?? (options.module ? 1 : 0),
     neutral: options.neutral ?? false,
+    experienceTier: options.experienceTier ?? 0,
     timer: options.timer ?? 0,
     ready: options.ready ?? true,
     cooldown: options.cooldown ?? 0,

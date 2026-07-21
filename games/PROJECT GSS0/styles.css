@@ -1276,6 +1276,20 @@ input:focus-visible {
   line-height: 1.75;
 }
 
+.module-rack::before {
+  content: "槽位 " attr(data-capacity);
+  display: grid;
+  min-width: 58px;
+  height: 32px;
+  place-items: center;
+  border-left: 3px solid var(--yellow);
+  background: rgba(15, 19, 21, 0.86);
+  color: #f5f6f5;
+  font-size: calc(9px * var(--font-scale));
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+
 .start-guide section p span {
   display: block;
 }
@@ -1756,7 +1770,6 @@ input:focus-visible {
 }
 
 .upgrade-card p {
-  flex: 1;
   margin: 0;
   padding: 0 20px 21px;
   color: #5d6568;
@@ -1914,6 +1927,31 @@ input:focus-visible {
 
 .codex-list .upgrade-card {
   width: 100%;
+}
+
+.card-progression {
+  display: grid;
+  flex: 1;
+  align-content: start;
+  gap: 5px;
+  margin: 0 20px 18px;
+  padding: 10px 12px;
+  border-left: 3px solid var(--module-color);
+  background: #252b2e;
+  color: #f4f6f5;
+  font-variant-numeric: tabular-nums;
+}
+
+.card-progression strong {
+  color: var(--yellow);
+  font-size: calc(11px * var(--font-scale));
+}
+
+.card-progression span {
+  overflow-wrap: anywhere;
+  font-size: calc(10px * var(--font-scale));
+  font-weight: 750;
+  line-height: 1.35;
 }
 
 .enemy-codex-shell {

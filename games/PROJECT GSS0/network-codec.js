@@ -2,7 +2,7 @@
   "use strict";
 
   const MAGIC = 0x55534e50;
-  const VERSION = 6;
+  const VERSION = 7;
   const GRID_SIZE = 24;
   const COORDINATE_PADDING = 2;
   const TAU = Math.PI * 2;
@@ -58,6 +58,8 @@
     result.module = typeof definition === "string" ? definition : definition?.id || null;
     result.neutral = Boolean(flags & 1);
     result.ready = Boolean(flags & 2);
+    result.moduleLevel = reader.u16();
+    result.experienceTier = reader.u8();
     result.col = reader.coordinate();
     result.row = reader.coordinate();
     result.angle = 0;

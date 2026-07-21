@@ -199,6 +199,14 @@
     .cooldown-control strong { display: block; color: #fff; font-size: 11px; }
     .cooldown-control span { display: block; margin-top: 3px; color: var(--muted); font-size: 9px; }
     .cooldown-control output { color: var(--yellow); text-align: right; font-size: 11px; font-weight: 900; font-variant-numeric: tabular-nums; }
+    .module-parameter-list {
+      grid-column: 3 / -1;
+      padding: 0 12px;
+      border-left: 3px solid var(--module-color);
+      background: #101518;
+    }
+    .module-parameter-list .parameter-row { padding: 10px 0; }
+    .module-parameter-list .parameter-row:last-child { border-bottom: 0; }
     .status-control { display: grid; grid-template-columns: repeat(4, minmax(64px, 1fr)); border: 1px solid var(--line); }
     .status-control button { min-height: 34px; padding: 0 7px; border: 0; border-right: 1px solid var(--line); background: #101518; color: #9ba7ac; font-size: 10px; font-weight: 900; }
     .status-control button:last-child { border-right: 0; }
@@ -265,7 +273,7 @@
       .module-toolbar { grid-template-columns: 1fr 1fr; }
       .filter-input { grid-column: 1 / -1; }
       .module-row { grid-template-columns: 34px 1fr; }
-      .module-desc, .status-control, .cooldown-control { grid-column: 1 / -1; }
+      .module-desc, .status-control, .cooldown-control, .module-parameter-list { grid-column: 1 / -1; }
       .cooldown-control { grid-template-columns: 1fr; gap: 8px; }
       .cooldown-control output { text-align: left; }
       .status-control { grid-template-columns: repeat(2, 1fr); }
@@ -352,10 +360,11 @@
     </div>
   </main>
 
-  <script src="enemy-codex.js?v=52"></script>
-  <script src="wave-director.js?v=52"></script>
-  <script src="designer-config.js?v=52"></script>
-  <script src="module-catalog.js?v=52"></script>
+  <script src="enemy-codex.js?v=55"></script>
+  <script src="wave-director.js?v=55"></script>
+  <script src="designer-config.js?v=55"></script>
+  <script src="module-catalog.js?v=55"></script>
+  <script src="module-progression.js?v=55"></script>
   <script>
     (() => {
       "use strict";
@@ -363,7 +372,9 @@
       const enemyCodex = globalThis.GSS0EnemyCodex;
       const waveDirectorApi = globalThis.GSS0WaveDirector;
       const moduleCatalog = globalThis.GSS0ModuleCatalog;
-      if (!enemyCodex || !waveDirectorApi || !Array.isArray(moduleCatalog) || moduleCatalog.length === 0) {
+      const moduleProgression = globalThis.GSS0ModuleProgression;
+      const describeModule = globalThis.GSS0DescribeModule;
+      if (!enemyCodex || !waveDirectorApi || !moduleProgression || typeof describeModule !== "function" || !Array.isArray(moduleCatalog) || moduleCatalog.length === 0) {
         const fileState = document.querySelector("#file-state");
         fileState.textContent = "设计控制台依赖加载失败 · 请关闭并重启本地启动器";
         fileState.className = "file-state is-dirty";
@@ -375,6 +386,13 @@
         { key: "playerSpeedPerLevel", group: "玩家", label: "玩家每级速度成长", hint: "每级附加的基础速度倍率；0.1 表示每级提高 10%", min: 0, max: 0.5, step: 0.005, unit: "倍率/级" },
         { key: "xpRequirementBase", group: "玩家", label: "升级基础经验需求", hint: "0 级升到 1 级所需的经验球数量", min: 1, max: 100, step: 1, unit: "球" },
         { key: "xpRequirementPerLevel", group: "玩家", label: "升级每级经验增长", hint: "需求公式为：基础需求 + 当前等级 × 此数值", min: 0, max: 20, step: 1, unit: "球/级" },
+        { key: "experienceCompressionBase", group: "成长系统", label: "经验压缩进位数", hint: "达到该数量的同级经验机体后，自动压缩成一节高一级经验机体", min: 2, max: 10, step: 1, unit: "节" },
+        { key: "initialModuleSlots", group: "成长系统", label: "初始机体槽位", hint: "不含蛇头与经验机体的初始功能机体容量", min: 1, max: 20, step: 1, unit: "槽" },
+        { key: "moduleSlotUnlockLevel1", group: "成长系统", label: "第 1 次扩容等级", hint: "到达该等级后增加 1 个机体槽位，并在扩容后生成升级选项", min: 1, max: 100, step: 1, unit: "级" },
+        { key: "moduleSlotUnlockLevel2", group: "成长系统", label: "第 2 次扩容等级", hint: "到达该等级后增加 1 个机体槽位", min: 1, max: 100, step: 1, unit: "级" },
+        { key: "moduleSlotUnlockLevel3", group: "成长系统", label: "第 3 次扩容等级", hint: "到达该等级后增加 1 个机体槽位", min: 1, max: 100, step: 1, unit: "级" },
+        { key: "moduleSlotUnlockLevel4", group: "成长系统", label: "第 4 次扩容等级", hint: "到达该等级后增加最后 1 个机体槽位", min: 1, max: 100, step: 1, unit: "级" },
+        { key: "newModuleOfferChance", group: "成长系统", label: "新机体选项概率", hint: "容量未满时，每张升级卡独立成为新机体的概率；候选池为空时自动回退", min: 0, max: 1, step: 0.01, unit: "概率" },
         { key: "playerTurnRate", group: "玩家", label: "玩家基础转向", hint: "不含涡轮节加成的基础转向速度", min: 0.5, max: 12, step: 0.05, unit: "弧度/秒" },
         { key: "upgradeInvulnerabilityDuration", group: "玩家", label: "升级后无敌时间", hint: "选择机体并恢复移动后的全身保护时间", min: 0, max: 10, step: 0.05, unit: "秒" },
         { key: "respawnLocatorConvergeDuration", group: "表现", label: "复活定位收束时长", hint: "双层外框从屏幕外缩小到玩家蛇头所需的时间", min: 0.1, max: 10, step: 0.1, unit: "秒" },
@@ -453,6 +471,35 @@
         { key: "poisonInitialTickDelay", group: "战斗", label: "毒伤首次生效延迟", hint: "毒弹命中后到第一次持续伤害生效的等待时间", min: 0.05, max: 30, step: 0.05, unit: "秒" },
         { key: "poisonTickInterval", group: "战斗", label: "毒伤后续间隔", hint: "第一次毒伤生效后，每次持续伤害之间的间隔", min: 0.05, max: 30, step: 0.05, unit: "秒" },
         { key: "activeSkillBaseCooldown", group: "战斗", label: "主动技能基础冷却", hint: "第二页各机体的冷却百分比均以此时间为 100%", min: 0.05, max: 30, step: 0.05, unit: "秒" },
+        { key: "moduleEffectReductionMaximum", group: "成长系统", label: "被动减免效果上限", hint: "平衡陀螺、时缓晶节和动能缓冲节等减免类被动的共同安全上限", min: 0, max: 0.99, step: 0.01, unit: "比例" },
+        { key: "moduleRepulseRangePerLevelPixels", moduleId: "repulse", group: "斥力环节", label: "每级作用半径", hint: "每一级提供的蛇头斥力作用半径", min: 1, max: 1000, step: 5, unit: "px/级" },
+        { key: "moduleArmorCooldownRatePerLevel", moduleId: "armor", group: "黑曜装甲", label: "每级冷却速度", hint: "每一级为护盾与相位提供的额外冷却速度", min: 0, max: 5, step: 0.01, unit: "倍率/级" },
+        { key: "moduleStabilizerSlowReductionPerLevel", moduleId: "stabilizer", group: "平衡陀螺", label: "每级减速时间减免", hint: "每一级减少的反弹减速持续时间", min: 0, max: 1, step: 0.01, unit: "比例/级" },
+        { key: "moduleStabilizerLockReductionPerLevel", moduleId: "stabilizer", group: "平衡陀螺", label: "每级转向锁定减免", hint: "每一级减少的反弹转向锁定时间", min: 0, max: 1, step: 0.01, unit: "比例/级" },
+        { key: "moduleMagnetPickupRangePerLevel", moduleId: "magnet", group: "磁吸环节", label: "每级吃球范围", hint: "每一级增加的蛇头吃球半径", min: 0, max: 20, step: 0.05, unit: "格/级" },
+        { key: "moduleHasteSpeedPerLevel", moduleId: "haste", group: "涡轮节", label: "每级移动速度", hint: "每一级增加的移动速度倍率", min: 0, max: 2, step: 0.005, unit: "倍率/级" },
+        { key: "moduleHasteTurnRatePerLevel", moduleId: "haste", group: "涡轮节", label: "每级转向速度", hint: "每一级增加的转向速度", min: 0, max: 10, step: 0.01, unit: "弧度/秒/级" },
+        { key: "moduleChronosSlowPerLevel", moduleId: "chronos", group: "时缓晶节", label: "每级敌人减速", hint: "每一级减少的全场敌蛇移动速度", min: 0, max: 1, step: 0.01, unit: "比例/级" },
+        { key: "moduleTractorRangePerLevel", moduleId: "tractor", group: "引力环节", label: "每级牵引范围", hint: "每一级提供的球牵引范围", min: 0, max: 30, step: 0.1, unit: "格/级" },
+        { key: "moduleTractorPullSpeedPerLevel", moduleId: "tractor", group: "引力环节", label: "每级牵引速度", hint: "每一级提供的球牵引速度", min: 0, max: 30, step: 0.1, unit: "格/秒/级" },
+        { key: "moduleFortuneExpectedDropsPerLevel", moduleId: "fortune", group: "幸运星节", label: "每级额外掉落期望", hint: "每次击破时，每一级增加的额外掉落球期望", min: 0, max: 10, step: 0.01, unit: "球/级" },
+        { key: "moduleGuidanceProjectileSpeedPerLevel", moduleId: "guidance", group: "弹道校准节", label: "每级子弹速度", hint: "每一级增加的所有子弹飞行速度倍率", min: 0, max: 5, step: 0.01, unit: "倍率/级" },
+        { key: "moduleGuidanceHomingPerLevel", moduleId: "guidance", group: "弹道校准节", label: "每级追踪转向", hint: "每一级增加的追踪子弹转向速度", min: 0, max: 20, step: 0.05, unit: "弧度/秒/级" },
+        { key: "moduleFeastDuration", moduleId: "feast", group: "吞噬涡轮", label: "吃球增益时长", hint: "吃球后移动速度增益的持续时间，再次吃球会刷新", min: 0.05, max: 30, step: 0.05, unit: "秒" },
+        { key: "moduleFeastSpeedPerLevel", moduleId: "feast", group: "吞噬涡轮", label: "每级增益速度", hint: "增益期间每一级增加的移动速度倍率", min: 0, max: 5, step: 0.01, unit: "倍率/级" },
+        { key: "moduleSalvageExpectedDropsPerLevel", moduleId: "salvage", group: "回收炉节", label: "每级回收期望", hint: "每节敌蛇身体受损时，每一级增加的回收球期望", min: 0, max: 10, step: 0.01, unit: "球/级" },
+        { key: "moduleAmplifierCooldownRatePerLevel", moduleId: "amplifier", group: "超频增幅节", label: "每级冷却速度", hint: "每一级为蛇头与所有主动技能增加的冷却速度", min: 0, max: 5, step: 0.01, unit: "倍率/级" },
+        { key: "moduleBufferKnockbackReductionPerLevel", moduleId: "buffer", group: "动能缓冲节", label: "每级击退减免", hint: "每一级减少的玩家物理击退力度", min: 0, max: 1, step: 0.01, unit: "比例/级" },
+        { key: "moduleDecoyAvoidanceReductionPerLevel", moduleId: "decoy", group: "诱导涂层", label: "每级避让削弱", hint: "每一级减少的敌蛇身体避让强度", min: 0, max: 1, step: 0.01, unit: "比例/级" },
+        { key: "moduleDecoyMaxAvoidanceReduction", moduleId: "decoy", group: "诱导涂层", label: "避让削弱上限", hint: "诱导涂层最多能够削弱的敌蛇避让强度", min: 0, max: 1, step: 0.01, unit: "比例" },
+        { key: "moduleEmergencyDurationPerLevel", moduleId: "emergency", group: "应急屏障节", label: "每级无敌时间", hint: "身体吃球后，每一级提供的无敌时间", min: 0, max: 30, step: 0.01, unit: "秒/级" },
+        { key: "moduleEmergencyMaxDuration", moduleId: "emergency", group: "应急屏障节", label: "无敌时间上限", hint: "身体吃球触发的无敌持续时间上限", min: 0, max: 30, step: 0.05, unit: "秒" },
+        { key: "moduleCollectorPickupRadiusPerLevel", moduleId: "collector", group: "全身采集节", label: "每级身体吃球半径", hint: "每一级为所有身体节增加的吃球半径", min: 0, max: 10, step: 0.01, unit: "格/级" },
+        { key: "moduleBeaconWaveRatePerLevel", moduleId: "beacon", group: "增压信标", label: "每级波次速度", hint: "每一级增加的波次倒计时速度倍率", min: 0, max: 5, step: 0.01, unit: "倍率/级" },
+        { key: "moduleMomentumKnockbackPerLevel", moduleId: "momentum", group: "冲量增幅器", label: "每级敌人击退", hint: "每一级增加的敌蛇物理击退力度", min: 0, max: 5, step: 0.01, unit: "倍率/级" },
+        { key: "moduleProgressorMaxSpeedPerLevel", moduleId: "progressor", group: "临界推进节", label: "每级满经验速度", hint: "经验进度满时，每一级最多增加的移动速度倍率", min: 0, max: 5, step: 0.01, unit: "倍率/级" },
+        { key: "moduleCacheKillsPerTrigger", moduleId: "cache", group: "战果缓存节", label: "触发所需击破数", hint: "累计击破达到该数量后，按机体等级生成等量球", min: 1, max: 100, step: 1, unit: "次" },
+        { key: "moduleThornsProjectileCount", moduleId: "thorns", group: "截击反应节", label: "截击弹数量", hint: "截击反应触发时固定发射的环形子弹数量", min: 1, max: 100, step: 1, unit: "枚" },
         { key: "arenaAreaPerLevel", group: "场地", label: "每级场地面积成长", hint: "按场上最高玩家等级增加的场地面积倍率", min: 0, max: 0.5, step: 0.005, unit: "倍率/级" },
         { key: "arenaResizeRate", group: "场地", label: "场地缩放速度", hint: "场地面积目标变化后的平滑追随速度", min: 0.1, max: 10, step: 0.1, unit: "速率" },
         { key: "maxRenderFps", group: "性能", label: "最高绘制帧率", hint: "只限制 Canvas 和界面动效绘制，不降低逻辑与网络输入频率", min: 30, max: 240, step: 1, unit: "FPS" },
@@ -473,6 +520,12 @@
         { key: "enemyDeathHeadParticleSpeed", group: "表现", label: "敌蛇死亡头部粒子速度", hint: "头部爆散粒子的基础速度", min: 10, max: 500, step: 5, unit: "速度" },
         { key: "enemyDeathBodyParticleSpeed", group: "表现", label: "敌蛇死亡身体粒子速度", hint: "身体爆散粒子的基础速度", min: 10, max: 400, step: 5, unit: "速度" },
         { key: "enemyBodyReconnectDuration", group: "表现", label: "敌蛇断体衔接时间", hint: "中段机体被摧毁后，后段身体追上前段并重新衔接所需的时间", min: 0.05, max: 2, step: 0.01, unit: "秒" },
+        { key: "experienceCompressionDuration", group: "表现", label: "经验压缩动画时长", hint: "同级经验机体吸附并压缩成高阶机体的动画时间", min: 0.05, max: 3, step: 0.01, unit: "秒" },
+        { key: "experienceCompressionCascadeDelay", group: "表现", label: "连续压缩间隔", hint: "一次大量吃球触发多次进位时，相邻压缩反馈的错峰时间", min: 0, max: 2, step: 0.01, unit: "秒" },
+        { key: "experienceCompressionGrayParticles", group: "表现", label: "灰转蓝粒子数", hint: "灰色经验机体压缩为蓝色时的粒子数量", min: 1, max: 100, step: 1, unit: "个" },
+        { key: "experienceCompressionGoldParticles", group: "表现", label: "蓝转金粒子数", hint: "蓝色经验机体压缩为金色时的粒子数量", min: 1, max: 160, step: 1, unit: "个" },
+        { key: "experienceCompressionGrayShake", group: "表现", label: "灰转蓝震屏强度", hint: "仅本地所属玩家触发的轻度镜头震动", min: 0, max: 12, step: 0.1, unit: "强度" },
+        { key: "experienceCompressionGoldShake", group: "表现", label: "蓝转金震屏强度", hint: "仅本地所属玩家触发的重度镜头震动", min: 0, max: 16, step: 0.1, unit: "强度" },
         { key: "profileSaveDelaySeconds", group: "性能", label: "联机战绩批量保存间隔", hint: "玩家结算后合并等待写盘的时间，减少频繁存档尖峰", min: 1, max: 300, step: 1, unit: "秒" }
       ];
 
@@ -480,7 +533,8 @@
       const WAVE_PARAMETER_GROUP = "波次曲线";
       const ENEMY_PARAMETER_DEFINITIONS = ALL_PARAMETER_DEFINITIONS.filter((definition) => ENEMY_PARAMETER_GROUPS.has(definition.group));
       const WAVE_PARAMETER_DEFINITIONS = ALL_PARAMETER_DEFINITIONS.filter((definition) => definition.group === WAVE_PARAMETER_GROUP);
-      const PARAMETER_DEFINITIONS = ALL_PARAMETER_DEFINITIONS.filter((definition) => !ENEMY_PARAMETER_GROUPS.has(definition.group) && definition.group !== WAVE_PARAMETER_GROUP);
+      const MODULE_PARAMETER_DEFINITIONS = ALL_PARAMETER_DEFINITIONS.filter((definition) => definition.moduleId);
+      const PARAMETER_DEFINITIONS = ALL_PARAMETER_DEFINITIONS.filter((definition) => !definition.moduleId && !ENEMY_PARAMETER_GROUPS.has(definition.group) && definition.group !== WAVE_PARAMETER_GROUP);
       const WAVE_PREVIEW_PARAMETER_KEYS = new Set([
         ...WAVE_PARAMETER_DEFINITIONS.map((definition) => definition.key),
         "xpRequirementBase",
@@ -531,7 +585,7 @@
       const filePickerSupported = typeof window.showOpenFilePicker === "function";
 
       function normalizeConfig(value) {
-        const config = { schemaVersion: 7, balance: {}, waveEnemyCountSchedule: [], moduleCooldownPercentages: {}, moduleStates: {} };
+        const config = { schemaVersion: 8, balance: {}, waveEnemyCountSchedule: [], moduleCooldownPercentages: {}, moduleStates: {} };
         for (const definition of ALL_PARAMETER_DEFINITIONS) {
           const candidate = Number(value?.balance?.[definition.key]);
           config.balance[definition.key] = Number.isFinite(candidate) ? Math.max(definition.min, Math.min(definition.max, candidate)) : definition.min;
@@ -567,7 +621,7 @@
         const end = text.lastIndexOf("}");
         if (start < 0 || end <= start) throw new Error("配置内容不完整");
         const parsed = JSON.parse(text.slice(start, end + 1));
-        if (parsed?.schemaVersion !== 7) throw new Error("配置版本无效，需要 schemaVersion 7");
+        if (parsed?.schemaVersion !== 8) throw new Error("配置版本无效，需要 schemaVersion 8");
         return normalizeConfig(parsed);
       }
 
@@ -748,6 +802,11 @@
           : module.cooldown;
       }
 
+      function refreshModuleDescription(moduleId) {
+        const description = ui.moduleList.querySelector(`[data-module-id="${moduleId}"] .module-description-text`);
+        if (description) description.textContent = describeModule(moduleId, draft.balance);
+      }
+
       function createParameterRow(definition) {
         const row = document.createElement("div");
         row.className = "parameter-row";
@@ -780,7 +839,8 @@
           draft.balance[definition.key] = next;
           range.value = next;
           number.value = next;
-          if (["activeSkillBaseCooldown", "headAttackInterval"].includes(definition.key)) renderModules();
+          if (["activeSkillBaseCooldown", "headAttackInterval", "moduleEffectReductionMaximum"].includes(definition.key)) renderModules();
+          if (definition.moduleId) refreshModuleDescription(definition.moduleId);
           if (WAVE_PREVIEW_PARAMETER_KEYS.has(definition.key)) renderWavePreview();
           scheduleAutoSave();
         };
@@ -1007,6 +1067,7 @@
           ui.moduleList.replaceChildren(...modules.map((module) => {
             const row = document.createElement("article");
             row.className = "module-row";
+            row.dataset.moduleId = module.id;
             row.style.setProperty("--module-color", module.color);
             const swatch = document.createElement("span");
             swatch.className = "swatch";
@@ -1016,10 +1077,12 @@
             name.innerHTML = `<strong>${module.name}</strong><span>${module.category} / ${module.id}</span>`;
             const description = document.createElement("div");
             description.className = "module-desc";
-            description.textContent = module.desc;
+            const descriptionText = document.createElement("span");
+            descriptionText.className = "module-description-text";
+            descriptionText.textContent = describeModule(module.id, draft.balance);
             const cooldownSummary = document.createElement("small");
             cooldownSummary.textContent = moduleUsageLabel(module);
-            description.append(cooldownSummary);
+            description.append(descriptionText, cooldownSummary);
             const control = document.createElement("div");
             control.className = "status-control";
             control.setAttribute("role", "group");
@@ -1066,6 +1129,14 @@
               });
               cooldownControl.append(copy, range, actual);
               row.append(cooldownControl);
+            }
+            const moduleParameters = MODULE_PARAMETER_DEFINITIONS.filter((definition) => definition.moduleId === module.id);
+            if (moduleParameters.length > 0) {
+              const parameterList = document.createElement("section");
+              parameterList.className = "module-parameter-list";
+              parameterList.setAttribute("aria-label", `${module.name}配置参数`);
+              parameterList.append(...moduleParameters.map(createParameterRow));
+              row.append(parameterList);
             }
             return row;
           }));

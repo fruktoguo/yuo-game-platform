@@ -25,6 +25,13 @@ describe('设计配置', () => {
       playerSpeedPerLevel: 0,
       xpRequirementBase: 5,
       xpRequirementPerLevel: 2,
+      experienceCompressionBase: 5,
+      initialModuleSlots: 5,
+      moduleSlotUnlockLevel1: 8,
+      moduleSlotUnlockLevel2: 12,
+      moduleSlotUnlockLevel3: 18,
+      moduleSlotUnlockLevel4: 25,
+      newModuleOfferChance: 0.5,
       playerTurnRate: 4.2,
       enemyBaseSpeed: 4,
       enemySpeedPerMinute: 0.01,
@@ -58,6 +65,9 @@ describe('设计配置', () => {
       poisonInitialTickDelay: 1.4,
       poisonTickInterval: 2.3,
       activeSkillBaseCooldown: 6,
+      moduleRepulseRangePerLevelPixels: 110,
+      moduleHasteSpeedPerLevel: 0.045,
+      moduleCacheKillsPerTrigger: 5,
       arenaAreaPerLevel: 0.05,
       upgradeInvulnerabilityDuration: 1,
       respawnLocatorConvergeDuration: 1,
@@ -80,6 +90,8 @@ describe('设计配置', () => {
       enemyDeathHeadParticleSpeed: 185,
       enemyDeathBodyParticleSpeed: 105,
       enemyBodyReconnectDuration: 0.28,
+      experienceCompressionDuration: 0.42,
+      experienceCompressionCascadeDelay: 0.18,
       profileSaveDelaySeconds: 30,
     });
     expect(DESIGNER_WAVE_ENEMY_COUNT_SCHEDULE).toEqual([
@@ -121,16 +133,19 @@ describe('设计配置', () => {
     expect(ACTIVE_SKILL_MODULES.some((module) => module.id === 'echo')).toBe(false);
     expect(ACTIVE_SKILL_MODULES.some((module) => module.id === 'emergency')).toBe(false);
     expect(ACTIVE_SKILL_MODULES.some((module) => module.id === 'feast')).toBe(false);
-    expect(feast?.desc).toContain('每次吃球后2.5秒内');
+    expect(feast?.desc).toContain('吃球后2.5秒内');
     expect(moduleCatalogSource).not.toMatch(/cooldown: "(?:常驻|吃球触发|击破触发|伤害触发|每\d+次击破)/u);
     expect(editorHtml).toContain('cooldownSummary.textContent = moduleUsageLabel(module);');
   });
 
-  it('全部现有机体都有状态且默认进入升级池', () => {
+  it('全部现有机体都有审查状态且禁用项不会进入升级池', () => {
     const source = (globalThis as typeof globalThis & { GSS0_DESIGNER_CONFIG: { moduleStates: Record<string, string> } }).GSS0_DESIGNER_CONFIG;
     expect(Object.keys(source.moduleStates).sort()).toEqual(MODULES.map((module) => module.id).sort());
-    expect(MODULES.every((module) => moduleDesignState(module.id) === 'normal')).toBe(true);
-    expect(UPGRADE_MODULES.map((module) => module.id)).toEqual(MODULES.map((module) => module.id));
+    expect(Object.values(source.moduleStates).filter((state) => state === 'normal')).toHaveLength(33);
+    expect(Object.values(source.moduleStates).filter((state) => state === 'tune')).toHaveLength(12);
+    expect(Object.values(source.moduleStates).filter((state) => state === 'rework')).toHaveLength(6);
+    expect(Object.values(source.moduleStates).filter((state) => state === 'disabled')).toHaveLength(7);
+    expect(UPGRADE_MODULES.map((module) => module.id)).toEqual(MODULES.filter((module) => moduleDesignState(module.id) !== 'disabled').map((module) => module.id));
   });
 
   it('本地编辑器与运行时配置使用完全相同的参数和机体 ID', () => {
@@ -139,7 +154,7 @@ describe('设计配置', () => {
 
     expect(parameterKeys.sort()).toEqual(Object.keys(DESIGNER_BALANCE).sort());
     expect(moduleIds.sort()).toEqual(MODULES.map((module) => module.id).sort());
-    expect(new Set(parameterKeys).size).toBe(103);
+    expect(new Set(parameterKeys).size).toBe(145);
     expect(new Set(moduleIds).size).toBe(58);
   });
 
@@ -150,9 +165,10 @@ describe('设计配置', () => {
     expect(MODULES.find((module) => module.id === 'spark')?.desc).toBe('发射1枚高速焰弹，造成1伤害。');
     expect(MODULES.find((module) => module.id === 'haste')?.desc).toContain('4.5%移动速度');
     expect(MODULES.find((module) => module.id === 'haste')?.desc).toContain('0.18弧度/秒转向速度');
-    expect(editorHtml).toContain('src="module-catalog.js?v=52"');
+    expect(editorHtml).toContain('src="module-catalog.js?v=55"');
+    expect(editorHtml).toContain('src="module-progression.js?v=55"');
     expect(editorHtml).toContain('const MODULES = moduleCatalog;');
-    expect(editorHtml).toContain('description.textContent = module.desc;');
+    expect(editorHtml).toContain('descriptionText.textContent = describeModule(module.id, draft.balance);');
   });
 
   it('本地编辑器默认加载配置、自动保存且不存在缺失控件', () => {
@@ -181,6 +197,8 @@ describe('设计配置', () => {
     expect(editorHtml).toContain('waveDirectorApi.create({');
     expect(editorHtml).toContain('const ENEMY_PARAMETER_DEFINITIONS = ALL_PARAMETER_DEFINITIONS.filter');
     expect(editorHtml).toContain('const PARAMETER_DEFINITIONS = ALL_PARAMETER_DEFINITIONS.filter');
+    expect(editorHtml).toContain('const MODULE_PARAMETER_DEFINITIONS = ALL_PARAMETER_DEFINITIONS.filter');
+    expect(editorHtml).toContain('parameterList.append(...moduleParameters.map(createParameterRow));');
     expect(editorHtml).toContain('parameters.append(...ENEMY_PARAMETER_DEFINITIONS.filter');
     expect(editorHtml).not.toContain('id="save-config"');
   });
@@ -195,6 +213,8 @@ describe('设计配置', () => {
     expect(launcherServer).toContain('"designer-config.js"');
     expect(launcherServer).toContain('"/enemy-codex.js"');
     expect(launcherServer).toContain('"/wave-director.js"');
+    expect(launcherServer).toContain('"/module-catalog.js"');
+    expect(launcherServer).toContain('"/module-progression.js"');
     expect(launcherServer).toContain('Editor dependency is not served');
     expect(editorHtml).toContain('"X-GSS0-Editor-Token": helperToken');
     expect(editorHtml).toContain('await requestHelper({');

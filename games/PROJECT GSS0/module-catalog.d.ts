@@ -24,4 +24,5 @@ export interface GSS0ModuleCatalogEntry {
 
 declare global {
   var GSS0ModuleCatalog: readonly GSS0ModuleCatalogEntry[];
+  var GSS0DescribeModule: (moduleId: GSS0ModuleId, balance?: Record<string, unknown>) => string;
 }

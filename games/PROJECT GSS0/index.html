@@ -19,7 +19,7 @@
           <strong>代号：几何贪吃蛇</strong>
         </div>
         <span class="signature">by 四季鸽</span>
-        <span class="brand-version" aria-label="游戏版本 V52">V52</span>
+        <span class="brand-version" aria-label="游戏版本 V55">V55</span>
       </div>
 
       <div class="run-stats">
@@ -145,7 +145,7 @@
 
     <section id="start-screen" class="modal-layer start-screen is-visible" aria-labelledby="game-title">
       <div class="start-glow" aria-hidden="true"></div>
-      <div class="start-version" aria-label="游戏版本 V52"><span>BUILD</span><strong>V52</strong></div>
+      <div class="start-version" aria-label="游戏版本 V55"><span>BUILD</span><strong>V55</strong></div>
       <div class="start-layout">
         <div class="start-content">
           <div id="network-status" class="title-kicker">TACTICAL SURVIVAL / LOCAL</div>
@@ -189,7 +189,7 @@
           </section>
           <section>
             <strong><span>02</span> 多人共斗</strong>
-            <p><span>第二名玩家加入后自动切换多人模式</span><span>波次规模随人数增加</span><span>玩家技能不会误伤其他玩家</span><span>但蛇头撞上其他玩家的身体仍会死亡</span><span>只要仍有人存活，其他玩家可无限复活</span></p>
+            <p><span>进入多人模式即加入联机共享世界</span><span>波次规模随人数增加</span><span>玩家技能不会误伤其他玩家</span><span>但蛇头撞上其他玩家的身体仍会死亡</span><span>只要仍有人存活，其他玩家可无限复活</span></p>
           </section>
         </aside>
       </div>
@@ -236,6 +236,49 @@
           <button id="changelog-close-button" class="icon-button codex-close-button" type="button" aria-label="关闭更新日志" title="关闭更新日志">×</button>
         </header>
         <div class="changelog-list">
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V55</strong></div>
+              <time datetime="2026-07-21">2026.07.21</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">联机架构</span>
+              <h3>多人入口统一为共享世界</h3>
+              <ul>
+                <li>联机房间从第一名玩家加入起就始终使用多人记分板、头顶 ID 与共享世界规则，不再随人数隐式切换模式。</li>
+                <li>取消联机单人升级时的全世界慢动作；只有所有存活玩家都暂停或选模块时，共享世界才整体停止。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V54</strong></div>
+              <time datetime="2026-07-21">2026.07.21</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">设计审查</span>
+              <h3>完成首轮机体健康分级</h3>
+              <ul>
+                <li>逐项审查 58 个机体，标记为 33 个正常、12 个需调数值、6 个需大改与 7 个禁用。</li>
+                <li>禁用机体仅从局内升级池隐藏，目录、效果与设计记录继续保留，便于未来重做且避免重复设计。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V53</strong></div>
+              <time datetime="2026-07-21">2026.07.21</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">成长重构</span>
+              <h3>经验与机体可以持续压缩升级</h3>
+              <ul>
+                <li>经验身体采用灰、蓝、金三档进位压缩，并加入分级动画、音效、粒子与仅影响自己的镜头反馈。</li>
+                <li>功能机体改为槽位制；重复选择会升级原机体，主动技能按等级加快冷却，被动效果按等级线性成长。</li>
+                <li>升级卡显示等级与实际数值变化，设计控制台开放全部成长、压缩与机体专属参数。</li>
+              </ul>
+            </div>
+          </article>
           <article class="changelog-entry">
             <header>
               <div class="changelog-version"><span>BUILD</span><strong>V52</strong></div>
@@ -814,19 +857,20 @@
     </section>
   </main>
 
-  <script src="designer-config.js?v=52"></script>
-  <script src="module-catalog.js?v=52"></script>
-  <script src="wave-director.js?v=52"></script>
-  <script src="spawn-planner.js?v=52"></script>
-  <script src="network-codec.js?v=52"></script>
-  <script src="network-player-prediction.js?v=52"></script>
-  <script src="network-player-state-codec.js?v=52"></script>
-  <script src="network-player-collisions.js?v=52"></script>
-  <script src="network-head-collisions.js?v=52"></script>
-  <script src="network-food-claims.js?v=52"></script>
-  <script src="network-projectiles.js?v=52"></script>
-  <script src="lobby-navigation.js?v=52"></script>
-  <script src="enemy-codex.js?v=52"></script>
-  <script src="game.js?v=52"></script>
+  <script src="designer-config.js?v=55"></script>
+  <script src="module-catalog.js?v=55"></script>
+  <script src="module-progression.js?v=55"></script>
+  <script src="wave-director.js?v=55"></script>
+  <script src="spawn-planner.js?v=55"></script>
+  <script src="network-codec.js?v=55"></script>
+  <script src="network-player-prediction.js?v=55"></script>
+  <script src="network-player-state-codec.js?v=55"></script>
+  <script src="network-player-collisions.js?v=55"></script>
+  <script src="network-head-collisions.js?v=55"></script>
+  <script src="network-food-claims.js?v=55"></script>
+  <script src="network-projectiles.js?v=55"></script>
+  <script src="lobby-navigation.js?v=55"></script>
+  <script src="enemy-codex.js?v=55"></script>
+  <script src="game.js?v=55"></script>
 </body>
 </html>

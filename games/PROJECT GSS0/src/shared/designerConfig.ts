@@ -11,7 +11,7 @@ interface DesignerConfigSource {
 }
 
 const source = (globalThis as typeof globalThis & { GSS0_DESIGNER_CONFIG?: DesignerConfigSource }).GSS0_DESIGNER_CONFIG;
-if (source?.schemaVersion !== 7) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 7');
+if (source?.schemaVersion !== 8) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 8');
 
 function numberSetting(key: string, fallback: number, minimum: number, maximum: number, integer = false): number {
   const candidate = source?.balance?.[key];
@@ -50,6 +50,13 @@ export const DESIGNER_BALANCE = Object.freeze({
   playerSpeedPerLevel: numberSetting('playerSpeedPerLevel', 0, 0, 0.5),
   xpRequirementBase: numberSetting('xpRequirementBase', 5, 1, 100, true),
   xpRequirementPerLevel: numberSetting('xpRequirementPerLevel', 2, 0, 20, true),
+  experienceCompressionBase: numberSetting('experienceCompressionBase', 5, 2, 10, true),
+  initialModuleSlots: numberSetting('initialModuleSlots', 5, 1, 20, true),
+  moduleSlotUnlockLevel1: numberSetting('moduleSlotUnlockLevel1', 8, 1, 100, true),
+  moduleSlotUnlockLevel2: numberSetting('moduleSlotUnlockLevel2', 12, 1, 100, true),
+  moduleSlotUnlockLevel3: numberSetting('moduleSlotUnlockLevel3', 18, 1, 100, true),
+  moduleSlotUnlockLevel4: numberSetting('moduleSlotUnlockLevel4', 25, 1, 100, true),
+  newModuleOfferChance: numberSetting('newModuleOfferChance', 0.5, 0, 1),
   playerTurnRate: numberSetting('playerTurnRate', 4.2, 0.5, 12),
   enemyBaseSpeed: numberSetting('enemyBaseSpeed', 4, 0.5, 12),
   enemySpeedPerMinute: numberSetting('enemySpeedPerMinute', 0.01, 0, 0.2),
@@ -125,6 +132,35 @@ export const DESIGNER_BALANCE = Object.freeze({
   poisonInitialTickDelay: numberSetting('poisonInitialTickDelay', 1.4, 0.05, 30),
   poisonTickInterval: numberSetting('poisonTickInterval', 2.3, 0.05, 30),
   activeSkillBaseCooldown: numberSetting('activeSkillBaseCooldown', 3, 0.05, 30),
+  moduleRepulseRangePerLevelPixels: numberSetting('moduleRepulseRangePerLevelPixels', 110, 1, 1_000),
+  moduleArmorCooldownRatePerLevel: numberSetting('moduleArmorCooldownRatePerLevel', 0.18, 0, 5),
+  moduleStabilizerSlowReductionPerLevel: numberSetting('moduleStabilizerSlowReductionPerLevel', 0.25, 0, 1),
+  moduleStabilizerLockReductionPerLevel: numberSetting('moduleStabilizerLockReductionPerLevel', 0.2, 0, 1),
+  moduleMagnetPickupRangePerLevel: numberSetting('moduleMagnetPickupRangePerLevel', 0.55, 0, 20),
+  moduleHasteSpeedPerLevel: numberSetting('moduleHasteSpeedPerLevel', 0.045, 0, 2),
+  moduleHasteTurnRatePerLevel: numberSetting('moduleHasteTurnRatePerLevel', 0.18, 0, 10),
+  moduleChronosSlowPerLevel: numberSetting('moduleChronosSlowPerLevel', 0.08, 0, 1),
+  moduleTractorRangePerLevel: numberSetting('moduleTractorRangePerLevel', 3.5, 0, 30),
+  moduleTractorPullSpeedPerLevel: numberSetting('moduleTractorPullSpeedPerLevel', 1.8, 0, 30),
+  moduleFortuneExpectedDropsPerLevel: numberSetting('moduleFortuneExpectedDropsPerLevel', 0.18, 0, 10),
+  moduleGuidanceProjectileSpeedPerLevel: numberSetting('moduleGuidanceProjectileSpeedPerLevel', 0.12, 0, 5),
+  moduleGuidanceHomingPerLevel: numberSetting('moduleGuidanceHomingPerLevel', 0.35, 0, 20),
+  moduleFeastDuration: numberSetting('moduleFeastDuration', 2.5, 0.05, 30),
+  moduleFeastSpeedPerLevel: numberSetting('moduleFeastSpeedPerLevel', 0.12, 0, 5),
+  moduleSalvageExpectedDropsPerLevel: numberSetting('moduleSalvageExpectedDropsPerLevel', 0.14, 0, 10),
+  moduleAmplifierCooldownRatePerLevel: numberSetting('moduleAmplifierCooldownRatePerLevel', 0.14, 0, 5),
+  moduleBufferKnockbackReductionPerLevel: numberSetting('moduleBufferKnockbackReductionPerLevel', 0.18, 0, 1),
+  moduleDecoyAvoidanceReductionPerLevel: numberSetting('moduleDecoyAvoidanceReductionPerLevel', 0.12, 0, 1),
+  moduleDecoyMaxAvoidanceReduction: numberSetting('moduleDecoyMaxAvoidanceReduction', 0.55, 0, 1),
+  moduleEmergencyDurationPerLevel: numberSetting('moduleEmergencyDurationPerLevel', 0.37, 0, 30),
+  moduleEmergencyMaxDuration: numberSetting('moduleEmergencyMaxDuration', 0.9, 0, 30),
+  moduleCollectorPickupRadiusPerLevel: numberSetting('moduleCollectorPickupRadiusPerLevel', 0.09, 0, 10),
+  moduleBeaconWaveRatePerLevel: numberSetting('moduleBeaconWaveRatePerLevel', 0.07, 0, 5),
+  moduleMomentumKnockbackPerLevel: numberSetting('moduleMomentumKnockbackPerLevel', 0.18, 0, 5),
+  moduleProgressorMaxSpeedPerLevel: numberSetting('moduleProgressorMaxSpeedPerLevel', 0.08, 0, 5),
+  moduleCacheKillsPerTrigger: numberSetting('moduleCacheKillsPerTrigger', 5, 1, 100, true),
+  moduleThornsProjectileCount: numberSetting('moduleThornsProjectileCount', 6, 1, 100, true),
+  moduleEffectReductionMaximum: numberSetting('moduleEffectReductionMaximum', 0.9, 0, 0.99),
   arenaAreaPerLevel: numberSetting('arenaAreaPerLevel', 0.05, 0, 0.5),
   arenaResizeRate: numberSetting('arenaResizeRate', 2.4, 0.1, 10),
   upgradeInvulnerabilityDuration: numberSetting('upgradeInvulnerabilityDuration', 0.5, 0, 10),
@@ -148,6 +184,12 @@ export const DESIGNER_BALANCE = Object.freeze({
   enemyDeathHeadParticleSpeed: numberSetting('enemyDeathHeadParticleSpeed', 185, 10, 500),
   enemyDeathBodyParticleSpeed: numberSetting('enemyDeathBodyParticleSpeed', 105, 10, 400),
   enemyBodyReconnectDuration: numberSetting('enemyBodyReconnectDuration', 0.28, 0.05, 2),
+  experienceCompressionDuration: numberSetting('experienceCompressionDuration', 0.42, 0.05, 3),
+  experienceCompressionCascadeDelay: numberSetting('experienceCompressionCascadeDelay', 0.18, 0, 2),
+  experienceCompressionGrayParticles: numberSetting('experienceCompressionGrayParticles', 24, 1, 100, true),
+  experienceCompressionGoldParticles: numberSetting('experienceCompressionGoldParticles', 42, 1, 160, true),
+  experienceCompressionGrayShake: numberSetting('experienceCompressionGrayShake', 1.8, 0, 12),
+  experienceCompressionGoldShake: numberSetting('experienceCompressionGoldShake', 5.2, 0, 16),
   profileSaveDelaySeconds: numberSetting('profileSaveDelaySeconds', 30, 1, 300),
 });
 

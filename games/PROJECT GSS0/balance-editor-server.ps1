@@ -103,7 +103,7 @@ function Test-DesignerConfig {
   if (!$match.Success) { return $false }
   try {
     $config = $match.Groups["json"].Value | ConvertFrom-Json
-    return $config.schemaVersion -eq 7 -and $null -ne $config.balance -and $null -ne $config.waveEnemyCountSchedule -and $null -ne $config.moduleCooldownPercentages -and $null -ne $config.moduleStates
+    return $config.schemaVersion -eq 8 -and $null -ne $config.balance -and $null -ne $config.waveEnemyCountSchedule -and $null -ne $config.moduleCooldownPercentages -and $null -ne $config.moduleStates
   } catch {
     return $false
   }
@@ -135,6 +135,8 @@ $staticFiles = @{
   "/enemy-codex.js" = "enemy-codex.js"
   "/wave-director.js" = "wave-director.js"
   "/designer-config.js" = "designer-config.js"
+  "/module-catalog.js" = "module-catalog.js"
+  "/module-progression.js" = "module-progression.js"
 }
 
 if ($SelfTest) {
