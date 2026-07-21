@@ -9,7 +9,7 @@ describe('界面设置', () => {
   it('使用正式游戏名并在左上品牌卡显示当前版本', () => {
     expect(indexHtml).toContain('<title>代号：几何贪吃蛇</title>');
     expect(indexHtml).toContain('<h1 id="game-title"><span>代号：几何贪吃蛇</span></h1>');
-    expect(indexHtml).toContain('<span class="brand-version" aria-label="游戏版本 V76">V76</span>');
+    expect(indexHtml).toContain('<span class="brand-version" aria-label="游戏版本 V77">V77</span>');
     expect(styles).toContain('.brand-version');
     const brandTitleRule = styles.match(/\.brand-lockup strong\s*\{([^}]*)\}/)?.[1];
     const brandVersionRule = styles.match(/\.brand-version\s*\{([^}]*)\}/)?.[1];
@@ -33,13 +33,18 @@ describe('界面设置', () => {
     expect(gameSource).toContain('ctx.lineWidth = (target.isSelf ? 1.4 : 1) * labelScale;');
   });
 
+  it('机体视觉尺寸不设上下限并完整跟随场地格子缩放', () => {
+    expect(gameSource).toContain('return arena.baseCellSize / 34 * arenaVisualScale();');
+    expect(gameSource).not.toContain('clamp(arena.baseCellSize / 34, 0.55, 1)');
+  });
+
   it('机体卡片区分实际冷却与被动效果', () => {
     expect(gameSource).toContain('module.activeCooldown ? `冷却 · ${module.cooldown}` : module.cooldown');
     expect(gameSource).not.toContain('`随头部·${formatCooldownSeconds(HEAD_ATTACK_INTERVAL)}`');
   });
 
   it('升级卡展示机体等级变化且机体架显示槽位占用', () => {
-    expect(indexHtml).toContain('src="module-progression.js?v=76"');
+    expect(indexHtml).toContain('src="module-progression.js?v=77"');
     expect(gameSource).toContain('MODULE_PROGRESSION.moduleUpgradePreview');
     expect(gameSource).toContain('progression.levelLabel');
     expect(gameSource).toContain('ui.rack.dataset.capacity');
@@ -112,7 +117,7 @@ describe('界面设置', () => {
     expect(tooltipRule).not.toContain('transition');
     expect(indexHtml).not.toContain('id="description-button"');
     expect(indexHtml).not.toContain('id="description-toggle"');
-    expect(indexHtml).toContain('src="module-catalog.js?v=76"');
+    expect(indexHtml).toContain('src="module-catalog.js?v=77"');
     expect(gameSource).toContain('const MODULE_CATALOG = globalThis.GSS0ModuleCatalog;');
     expect(gameSource).not.toContain('SHORT_MODULE_DESCRIPTIONS');
     expect(gameSource).not.toContain('gss0-detailed-descriptions');

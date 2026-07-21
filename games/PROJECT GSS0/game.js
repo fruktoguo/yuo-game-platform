@@ -1045,7 +1045,7 @@
   }
 
   function arenaPieceScale() {
-    return clamp(arena.baseCellSize / 34, 0.55, 1) * arenaVisualScale();
+    return arena.baseCellSize / 34 * arenaVisualScale();
   }
 
   function missingHealthFraction(target = player) {
