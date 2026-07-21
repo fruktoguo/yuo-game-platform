@@ -62,6 +62,7 @@ import type {
   PlayerHeadCollisionEvent,
   RosterPlayer,
   UltraEffect,
+  UltraEffectAnchor,
   UltraEnemyView,
   UltraFeedbackKind,
   UltraFoodDelta,
@@ -315,6 +316,7 @@ export class UltraWorld {
   private readonly stepAlivePlayers: PlayerEntity[] = [];
   private readonly stepPresentPlayers: PlayerEntity[] = [];
   private readonly stepActivePlayers: PlayerEntity[] = [];
+  private readonly stepCollisionPlayers: PlayerEntity[] = [];
   private readonly networkPlayers: PlayerEntity[] = [];
   private readonly networkProjectiles: UltraProjectileView[] = [];
   private readonly foodInteractionProfiles: FoodInteractionProfile[] = [];
@@ -2773,7 +2775,9 @@ export class UltraWorld {
   private updateEnemies(delta: number, activePlayers: PlayerEntity[], presentPlayers: PlayerEntity[]): void {
     const chronosMultiplier = 1 - MODULE_PROGRESSION.effects.chronosSlowReduction(this.maximumModuleCount('chronos', activePlayers));
     const timeSpeedMultiplier = Math.min(ENEMY_SPEED_MAX_MULTIPLIER, 1 + this.gameTime / 60 * ENEMY_SPEED_PER_MINUTE);
-    const collisionPlayers = presentPlayers.filter((player) => player.autopilot || player.paused || player.choosingUpgrade);
+    const collisionPlayers = this.stepCollisionPlayers;
+    collisionPlayers.length = 0;
+    for (const player of presentPlayers) if (player.autopilot || player.paused || player.choosingUpgrade) collisionPlayers.push(player);
     this.ensureFoodIndexes();
     for (const enemy of this.enemies) {
       if (enemy.dead) continue;
@@ -3678,8 +3682,11 @@ export class UltraWorld {
     }
     if (isPlayer) followContinuousSegments(entity.col, entity.row, entity.segments, spacing);
     else followEnemySegments(entity, 0, spacing);
-    this.burst(entity.col, entity.row, color, 13, 135);
-    this.ring(entity.col, entity.row, color, 0.38, 5, 0.85);
+    const anchor: UltraEffectAnchor = isPlayer
+      ? { anchorKind: 'player', anchorId: entity.entityId }
+      : { anchorKind: 'enemy', anchorId: entity.id };
+    this.burst(entity.col, entity.row, color, 13, 135, undefined, anchor);
+    this.ring(entity.col, entity.row, color, 0.38, 5, 0.85, undefined, 'cells', anchor);
     if (isPlayer) this.feedback('bounce', entity.entityId);
     this.effectSound('bounce');
   }
@@ -3688,8 +3695,16 @@ export class UltraWorld {
     return players.reduce((maximum, player) => Math.max(maximum, this.moduleCount(player, id)), 0);
   }
 
-  private burst(col: number, row: number, color: string, count: number, speed: number, audienceEntityId?: number): void {
-    this.pendingEffects.push({ id: this.effectId(), type: 'burst', col, row, color, count, speed });
+  private burst(
+    col: number,
+    row: number,
+    color: string,
+    count: number,
+    speed: number,
+    audienceEntityId?: number,
+    anchor?: UltraEffectAnchor,
+  ): void {
+    this.pendingEffects.push({ id: this.effectId(), type: 'burst', col, row, color, count, speed, audienceEntityId, ...anchor });
   }
 
   private ring(
@@ -3701,8 +3716,9 @@ export class UltraWorld {
     endRadius: number,
     audienceEntityId?: number,
     endRadiusUnit: 'pixels' | 'cells' = 'cells',
+    anchor?: UltraEffectAnchor,
   ): void {
-    this.pendingEffects.push({ id: this.effectId(), type: 'ring', col, row, color, life, radius, endRadius, endRadiusUnit });
+    this.pendingEffects.push({ id: this.effectId(), type: 'ring', col, row, color, life, radius, endRadius, endRadiusUnit, audienceEntityId, ...anchor });
   }
 
   private feedback(kind: UltraFeedbackKind, audienceEntityId: number): void {
@@ -3710,11 +3726,11 @@ export class UltraWorld {
   }
 
   private beam(type: 'beam' | 'lightning', from: GridPoint, to: GridPoint, color: string, life: number, audienceEntityId?: number): void {
-    this.pendingEffects.push({ id: this.effectId(), type, col: from.col, row: from.row, col2: to.col, row2: to.row, color, life });
+    this.pendingEffects.push({ id: this.effectId(), type, col: from.col, row: from.row, col2: to.col, row2: to.row, color, life, audienceEntityId });
   }
 
   private textEffect(col: number, row: number, text: string, color: string, life: number, audienceEntityId?: number): void {
-    this.pendingEffects.push({ id: this.effectId(), type: 'text', col, row, text, color, life });
+    this.pendingEffects.push({ id: this.effectId(), type: 'text', col, row, text, color, life, audienceEntityId });
   }
 
   private effectSound(kind: Extract<UltraEffect, { type: 'sound' }>['kind'], audienceEntityId?: number, detail?: number): void {
@@ -3731,6 +3747,7 @@ export class UltraWorld {
 
   private flushEffects(): void {
     if (this.pendingEffects.length === 0) return;
+    for (const effect of this.pendingEffects) effect.serverTime = this.now;
     this.callbacks.onEffects?.(this.pendingEffects);
     this.pendingEffects.length = 0;
   }

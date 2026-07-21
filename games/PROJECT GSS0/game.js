@@ -9,6 +9,7 @@
   const arenaTextureCtx = arenaTextureCanvas.getContext("2d", { alpha: false });
   const arenaShadowCanvas = document.createElement("canvas");
   const arenaShadowCtx = arenaShadowCanvas.getContext("2d");
+  const enemySpriteCache = new Map();
   let localModeForced = false;
   const PLAYER_COLORS = ["#f3c600", "#08c7dc", "#ef3e4a", "#8be04e", "#b49cff", "#ff8a5b", "#70d6ff", "#ff88c7"];
 
@@ -343,6 +344,7 @@
   let projectiles = [];
   let hazards = [];
   let particles = [];
+  const particlePool = [];
   let nextParticleSlot = 0;
   let effects = [];
   let pendingEnemySpawns = [];
@@ -385,6 +387,7 @@
     collisionClaims: new Map(),
     localEnemyDeaths: new Map(),
     enemyBodyDamageOps: new Map(),
+    pendingVisualEffects: [],
     lastFoodContactAt: 0,
     playerViews: new Map(),
     enemyViews: new Map(),
@@ -1464,107 +1467,152 @@
     return applyEnemyBodyDamageOperationsInPlace(scratch, operations);
   }
 
-  function receiveNetworkEffects(items) {
-    if (localModeForced) return;
-    if (!Array.isArray(items)) return;
-    for (const item of items) {
-      if (item.audienceEntityId != null && item.audienceEntityId !== network.selfEntityId) continue;
-      if (item.type === "sound") {
-        if (item.kind === "levelCharge") {
+  function isSharedNetworkVisual(item) {
+    return item.audienceEntityId == null && (
+      item.type === "burst"
+      || item.type === "ring"
+      || item.type === "beam"
+      || item.type === "lightning"
+      || item.type === "text"
+    );
+  }
+
+  function networkEffectPoint(item, col = item.col, row = item.row) {
+    let anchor = null;
+    if (item.anchorKind === "enemy") anchor = network.enemyViews.get(item.anchorId);
+    else if (item.anchorKind === "player") anchor = network.playerViews.get(item.anchorId);
+    if (anchor && Number.isInteger(item.anchorSegmentIndex) && item.anchorSegmentIndex >= 0) {
+      anchor = anchor.segments?.[item.anchorSegmentIndex] || anchor;
+    }
+    return Number.isFinite(anchor?.x) && Number.isFinite(anchor?.y) ? anchor : cellCenter(col, row);
+  }
+
+  function applyNetworkEffect(item) {
+    if (item.type === "sound") {
+      if (item.kind === "levelCharge") {
+        ui.levelUpBanner.classList.remove("is-active");
+        ui.shell.classList.remove("is-leveling");
+        void ui.levelUpBanner.offsetWidth;
+        ui.levelUpBanner.classList.add("is-active");
+        ui.shell.classList.add("is-leveling");
+        window.setTimeout(() => {
           ui.levelUpBanner.classList.remove("is-active");
           ui.shell.classList.remove("is-leveling");
-          void ui.levelUpBanner.offsetWidth;
-          ui.levelUpBanner.classList.add("is-active");
-          ui.shell.classList.add("is-leveling");
-          window.setTimeout(() => {
-            ui.levelUpBanner.classList.remove("is-active");
-            ui.shell.classList.remove("is-leveling");
-          }, LEVEL_UP_TRANSITION_DURATION * 1000);
-        }
-        sound(item.kind, item.detail || 0, item.sourceEntityId);
+        }, LEVEL_UP_TRANSITION_DURATION * 1000);
+      }
+      sound(item.kind, item.detail || 0, item.sourceEntityId);
+      return;
+    }
+    if (item.type === "feedback") {
+      shake = Math.max(shake, NETWORK_SHAKE_BY_FEEDBACK[item.kind] || 0);
+      return;
+    }
+    if (item.type === "flash") {
+      flash = Math.max(flash, item.strength || 0);
+      return;
+    }
+    if (item.type === "enemyBodyHit") {
+      let operations = network.enemyBodyDamageOps.get(item.enemyId);
+      if (!operations) {
+        operations = [];
+        network.enemyBodyDamageOps.set(item.enemyId, operations);
+      }
+      if (operations.some((operation) => operation.id === item.id)) return;
+      const operation = {
+        id: item.id,
+        beforeCount: Math.max(0, Math.floor(item.beforeCount)),
+        start: Math.max(0, Math.floor(item.start)),
+        count: Math.max(0, Math.floor(item.count))
+      };
+      operations.push(operation);
+      const renderedEnemy = network.enemyViews.get(item.enemyId);
+      if (renderedEnemy) {
+        applyEnemyBodyDamageOperationsInPlace(renderedEnemy.segments, operations);
+        startEnemyReconnect(renderedEnemy, item.reconnectIndex, performance.now());
+      }
+      return;
+    }
+    if (item.type === "snakeDeath") {
+      if (network.localEnemyDeaths.has(item.enemyId)) return;
+      network.localEnemyDeaths.set(item.enemyId, performance.now());
+      const renderedEnemy = network.enemyViews.get(item.enemyId);
+      const head = renderedEnemy || cellCenter(item.head.col, item.head.row);
+      const segments = renderedEnemy?.segments?.length
+        ? renderedEnemy.segments
+        : item.segments.map((segment) => cellCenter(segment.col, segment.row));
+      if (renderedEnemy) renderedEnemy.dead = true;
+      playEnemyDeathPresentation(head, segments, item.color, {
+        playSound: item.ownerEntityId != null,
+        rewardSelf: item.ownerEntityId === network.selfEntityId,
+        soundSourceEntityId: item.ownerEntityId
+      });
+      return;
+    }
+    if (item.type === "experienceCompress") {
+      const sources = item.sources.map((source) => cellCenter(source.col, source.row));
+      const target = cellCenter(item.target.col, item.target.row);
+      queueExperienceCompression(
+        sources,
+        target,
+        item.fromTier,
+        item.toTier,
+        item.delay || 0,
+        item.ownerEntityId,
+        item.ownerEntityId === network.selfEntityId
+      );
+      return;
+    }
+    const from = networkEffectPoint(item);
+    if (item.type === "burst") {
+      burst(from.x, from.y, item.color, item.count, item.speed);
+    } else if (item.type === "ring") {
+      const scale = arenaVisualScale();
+      const endRadius = item.endRadiusUnit === "pixels" ? item.endRadius * scale : item.endRadius * arena.cellSize;
+      effects.push({ type: "ring", x: from.x, y: from.y, color: item.color, life: item.life, maxLife: item.life, radius: item.radius * scale, endRadius });
+    } else if (item.type === "beam" || item.type === "lightning") {
+      const to = cellCenter(item.col2, item.row2);
+      effects.push({ type: item.type, x: from.x, y: from.y, x2: to.x, y2: to.y, color: item.color, life: item.life, maxLife: item.life });
+    } else if (item.type === "text") {
+      effects.push({
+        type: "text",
+        x: from.x,
+        y: from.y,
+        text: item.text,
+        color: item.color,
+        life: item.life,
+        maxLife: item.life,
+        emphasis: item.text === "击破"
+      });
+    }
+  }
+
+  function flushPendingNetworkVisualEffects() {
+    if (!Number.isFinite(network.renderServerTime) || network.pendingVisualEffects.length === 0) return;
+    let writeIndex = 0;
+    for (const item of network.pendingVisualEffects) {
+      if (!Number.isFinite(item.serverTime) || item.serverTime <= network.renderServerTime + 4) applyNetworkEffect(item);
+      else network.pendingVisualEffects[writeIndex++] = item;
+    }
+    network.pendingVisualEffects.length = writeIndex;
+  }
+
+  function receiveNetworkEffects(items) {
+    if (localModeForced || !Array.isArray(items)) return;
+    for (const item of items) {
+      if (item.audienceEntityId != null && item.audienceEntityId !== network.selfEntityId) continue;
+      if (
+        isSharedNetworkVisual(item)
+        && Number.isFinite(item.serverTime)
+        && Number.isFinite(network.renderServerTime)
+        && item.serverTime > network.renderServerTime + 4
+      ) {
+        network.pendingVisualEffects.push(item);
         continue;
       }
-      if (item.type === "feedback") {
-        shake = Math.max(shake, NETWORK_SHAKE_BY_FEEDBACK[item.kind] || 0);
-        continue;
-      }
-      if (item.type === "flash") {
-        flash = Math.max(flash, item.strength || 0);
-        continue;
-      }
-      if (item.type === "enemyBodyHit") {
-        let operations = network.enemyBodyDamageOps.get(item.enemyId);
-        if (!operations) {
-          operations = [];
-          network.enemyBodyDamageOps.set(item.enemyId, operations);
-        }
-        if (operations.some((operation) => operation.id === item.id)) continue;
-        const operation = {
-          id: item.id,
-          beforeCount: Math.max(0, Math.floor(item.beforeCount)),
-          start: Math.max(0, Math.floor(item.start)),
-          count: Math.max(0, Math.floor(item.count))
-        };
-        operations.push(operation);
-        const renderedEnemy = network.enemyViews.get(item.enemyId);
-        if (renderedEnemy) {
-          applyEnemyBodyDamageOperationsInPlace(renderedEnemy.segments, operations);
-          startEnemyReconnect(renderedEnemy, item.reconnectIndex, performance.now());
-        }
-        continue;
-      }
-      if (item.type === "snakeDeath") {
-        if (network.localEnemyDeaths.has(item.enemyId)) continue;
-        network.localEnemyDeaths.set(item.enemyId, performance.now());
-        const renderedEnemy = network.enemyViews.get(item.enemyId);
-        const head = renderedEnemy || cellCenter(item.head.col, item.head.row);
-        const segments = renderedEnemy?.segments?.length
-          ? renderedEnemy.segments
-          : item.segments.map((segment) => cellCenter(segment.col, segment.row));
-        if (renderedEnemy) renderedEnemy.dead = true;
-        playEnemyDeathPresentation(head, segments, item.color, {
-          playSound: item.ownerEntityId != null,
-          rewardSelf: item.ownerEntityId === network.selfEntityId,
-          soundSourceEntityId: item.ownerEntityId
-        });
-        continue;
-      }
-      if (item.type === "experienceCompress") {
-        const sources = item.sources.map((source) => cellCenter(source.col, source.row));
-        const target = cellCenter(item.target.col, item.target.row);
-        queueExperienceCompression(
-          sources,
-          target,
-          item.fromTier,
-          item.toTier,
-          item.delay || 0,
-          item.ownerEntityId,
-          item.ownerEntityId === network.selfEntityId
-        );
-        continue;
-      }
-      const from = cellCenter(item.col, item.row);
-      if (item.type === "burst") {
-        burst(from.x, from.y, item.color, item.count, item.speed);
-      } else if (item.type === "ring") {
-        const scale = arenaVisualScale();
-        const endRadius = item.endRadiusUnit === "pixels" ? item.endRadius * scale : item.endRadius * arena.cellSize;
-        effects.push({ type: "ring", x: from.x, y: from.y, color: item.color, life: item.life, maxLife: item.life, radius: item.radius * scale, endRadius });
-      } else if (item.type === "beam" || item.type === "lightning") {
-        const to = cellCenter(item.col2, item.row2);
-        effects.push({ type: item.type, x: from.x, y: from.y, x2: to.x, y2: to.y, color: item.color, life: item.life, maxLife: item.life });
-      } else if (item.type === "text") {
-        effects.push({
-          type: "text",
-          x: from.x,
-          y: from.y,
-          text: item.text,
-          color: item.color,
-          life: item.life,
-          maxLife: item.life,
-          emphasis: item.text === "击破"
-        });
-      }
+      applyNetworkEffect(item);
+    }
+    if (network.pendingVisualEffects.length > MAX_DECORATIVE_EFFECTS) {
+      network.pendingVisualEffects.splice(0, network.pendingVisualEffects.length - MAX_DECORATIVE_EFFECTS);
     }
   }
 
@@ -1647,6 +1695,7 @@
     network.playerViews.clear();
     network.enemyViews.clear();
     network.enemyBodyDamageOps.clear();
+    network.pendingVisualEffects.length = 0;
     network.foodViews.clear();
     network.foodIndexes.clear();
     network.foodMotions.clear();
@@ -2132,7 +2181,7 @@
       const currentSegments = projectedEnemySegments(item.segments, damageOperations, enemy.currentSegmentScratch ||= []);
       const previousSegments = projectedEnemySegments(old?.segments, damageOperations, enemy.previousSegmentScratch ||= []);
       syncNetworkSegments(enemy.segments, currentSegments, previousSegments, amount);
-      if (enemy.segments.some((segment) => segment.reconnectGap > 0.54)) followEnemySegments(enemy, 0, performance.now());
+      if (enemy.reconnectActive) enemy.reconnectActive = followEnemySegments(enemy, 0, performance.now());
       let previousNode = enemy;
       for (const segment of enemy.segments) {
         segment.angle = Math.atan2(previousNode.row - segment.row, previousNode.col - segment.col);
@@ -2232,6 +2281,7 @@
       presentation.previous.indexes,
       presentation.amount
     );
+    flushPendingNetworkVisualEffects();
     processNetworkPlayerHeadCollisionEvents(now);
     networkProjectileRuntime.update(dt, (id) => network.enemyViews.get(id) || null, arena);
     projectiles = networkProjectileRuntime.items;
@@ -2503,7 +2553,7 @@
     network.lastSelfAlive = true;
     network.upgradeOffer = null;
     hideAllModals();
-    particles = [];
+    clearParticles();
     effects = [];
     startRespawnLocator();
     sound("start");
@@ -2554,7 +2604,7 @@
     enemies = [];
     projectiles = [];
     hazards = [];
-    particles = [];
+    clearParticles();
     effects = [];
     pendingEnemySpawns = [];
     growthQueue = [];
@@ -3846,10 +3896,12 @@
     segment.reconnectElapsed = 0;
     segment.reconnectGap = gap;
     segment.reconnectStartedAt = Number.isFinite(startedAt) ? startedAt : null;
+    enemy.reconnectActive = true;
   }
 
   function followEnemySegments(enemy, dt, now = null) {
     let previous = enemy;
+    let reconnectActive = false;
     for (const segment of enemy.segments) {
       let allowedDistance = 0.54;
       if (segment.reconnectGap > 0.54) {
@@ -3863,7 +3915,7 @@
           segment.reconnectElapsed = 0;
           segment.reconnectGap = 0;
           segment.reconnectStartedAt = null;
-        }
+        } else reconnectActive = true;
       }
       const dx = previous.col - segment.col;
       const dy = previous.row - segment.row;
@@ -3876,6 +3928,7 @@
       }
       previous = segment;
     }
+    return reconnectActive;
   }
 
   function bounceEntity(entity, normalX, normalY, color, segmentSpacing, extraImpulseMultiplier = 1) {
@@ -5327,33 +5380,46 @@
       const angle = random(0, TAU);
       const velocity = random(speed * 0.25, speed) * scale;
       const life = random(0.25, 0.75);
-      const particle = {
-        x,
-        y,
-        vx: Math.cos(angle) * velocity,
-        vy: Math.sin(angle) * velocity,
-        life,
-        maxLife: life,
-        color,
-        size: random(1.4, 3.6) * scale
-      };
-      if (particles.length < MAX_DECORATIVE_PARTICLES) particles.push(particle);
-      else {
-        particles[nextParticleSlot] = particle;
+      let particle;
+      if (particles.length < MAX_DECORATIVE_PARTICLES) {
+        particle = particlePool.pop() || {};
+        particles.push(particle);
+      } else {
+        particle = particles[nextParticleSlot];
         nextParticleSlot = (nextParticleSlot + 1) % MAX_DECORATIVE_PARTICLES;
       }
+      particle.x = x;
+      particle.y = y;
+      particle.vx = Math.cos(angle) * velocity;
+      particle.vy = Math.sin(angle) * velocity;
+      particle.life = life;
+      particle.maxLife = life;
+      particle.color = color;
+      particle.size = random(1.4, 3.6) * scale;
     }
   }
 
+  function clearParticles() {
+    for (const particle of particles) {
+      if (particlePool.length < MAX_DECORATIVE_PARTICLES) particlePool.push(particle);
+    }
+    particles.length = 0;
+    nextParticleSlot = 0;
+  }
+
   function updateEffects(dt) {
+    const damping = Math.pow(0.04, dt);
+    let liveParticleCount = 0;
     for (const particle of particles) {
       particle.life -= dt;
       particle.x += particle.vx * dt;
       particle.y += particle.vy * dt;
-      particle.vx *= Math.pow(0.04, dt);
-      particle.vy *= Math.pow(0.04, dt);
+      particle.vx *= damping;
+      particle.vy *= damping;
+      if (particle.life > 0) particles[liveParticleCount++] = particle;
+      else if (particlePool.length < MAX_DECORATIVE_PARTICLES) particlePool.push(particle);
     }
-    retainInPlace(particles, (particle) => particle.life > 0);
+    particles.length = liveParticleCount;
     if (particles.length < MAX_DECORATIVE_PARTICLES) nextParticleSlot %= Math.max(1, particles.length);
 
     for (const effect of effects) {
@@ -5781,19 +5847,23 @@
   }
 
   function roundedRectPath(x, y, widthValue, heightValue, radius) {
+    roundedRectPathOn(ctx, x, y, widthValue, heightValue, radius);
+  }
+
+  function roundedRectPathOn(context, x, y, widthValue, heightValue, radius) {
     const safeRadius = Math.min(Math.max(0, radius), Math.abs(widthValue) / 2, Math.abs(heightValue) / 2);
     const right = x + widthValue;
     const bottom = y + heightValue;
-    ctx.moveTo(x + safeRadius, y);
-    ctx.lineTo(right - safeRadius, y);
-    ctx.quadraticCurveTo(right, y, right, y + safeRadius);
-    ctx.lineTo(right, bottom - safeRadius);
-    ctx.quadraticCurveTo(right, bottom, right - safeRadius, bottom);
-    ctx.lineTo(x + safeRadius, bottom);
-    ctx.quadraticCurveTo(x, bottom, x, bottom - safeRadius);
-    ctx.lineTo(x, y + safeRadius);
-    ctx.quadraticCurveTo(x, y, x + safeRadius, y);
-    ctx.closePath();
+    context.moveTo(x + safeRadius, y);
+    context.lineTo(right - safeRadius, y);
+    context.quadraticCurveTo(right, y, right, y + safeRadius);
+    context.lineTo(right, bottom - safeRadius);
+    context.quadraticCurveTo(right, bottom, right - safeRadius, bottom);
+    context.lineTo(x + safeRadius, bottom);
+    context.quadraticCurveTo(x, bottom, x, bottom - safeRadius);
+    context.lineTo(x, y + safeRadius);
+    context.quadraticCurveTo(x, y, x + safeRadius, y);
+    context.closePath();
   }
 
   function drawEnemyBehaviorCue(enemy, pieceScale, time) {
@@ -5822,134 +5892,186 @@
     ctx.restore();
   }
 
+  function paintEnemySegmentSprite(context, enemy, renderScale) {
+    context.shadowColor = "rgba(0,0,0,0.8)";
+    context.shadowBlur = 6 * renderScale;
+    context.fillStyle = "#171b1e";
+    context.strokeStyle = enemy.color;
+    context.lineWidth = enemy.archetype === "warden" ? 2.5 : 1.8;
+    context.beginPath();
+    switch (enemy.archetype) {
+      case "scout":
+        context.moveTo(10, 0); context.lineTo(0, 6); context.lineTo(-9, 0); context.lineTo(0, -6); context.closePath();
+        break;
+      case "courier":
+        roundedRectPathOn(context, -11, -7, 22, 14, 3);
+        break;
+      case "charger":
+        context.moveTo(11, 0); context.lineTo(1, 9); context.lineTo(-9, 6); context.lineTo(-5, 0); context.lineTo(-9, -6); context.lineTo(1, -9); context.closePath();
+        break;
+      case "cutter":
+        context.moveTo(10, 0); context.lineTo(0, 11); context.lineTo(-5, 4); context.lineTo(-11, 0); context.lineTo(-5, -4); context.lineTo(0, -11); context.closePath();
+        break;
+      case "coiler":
+        context.arc(0, 0, 9, 0, TAU);
+        break;
+      case "warden":
+        context.moveTo(8, -9); context.lineTo(11, -4); context.lineTo(11, 4); context.lineTo(8, 9); context.lineTo(-8, 9); context.lineTo(-11, 4); context.lineTo(-11, -4); context.lineTo(-8, -9); context.closePath();
+        break;
+      default:
+        context.moveTo(10, 0); context.lineTo(4, 9); context.lineTo(-8, 7); context.lineTo(-11, 0); context.lineTo(-8, -7); context.lineTo(4, -9); context.closePath();
+        break;
+    }
+    context.fill();
+    context.stroke();
+    context.shadowBlur = 0;
+    context.fillStyle = enemy.color;
+    context.globalAlpha = 0.76;
+    if (enemy.archetype === "coiler") {
+      context.lineWidth = 2;
+      context.beginPath();
+      context.arc(0, 0, 4.5, 0.2, TAU * 0.86);
+      context.stroke();
+    } else if (enemy.archetype === "courier") {
+      context.fillRect(-5, -5, 9, 10);
+      context.fillStyle = "#f4f6f5";
+      context.fillRect(-2, -4, 2, 8);
+    } else if (enemy.archetype === "cutter") {
+      context.fillRect(-7, -1.5, 14, 3);
+    } else if (enemy.archetype === "warden") {
+      context.strokeStyle = "#ffffff";
+      context.lineWidth = 1;
+      context.strokeRect(-6, -5, 12, 10);
+    } else {
+      context.fillRect(-7, -2, 11, 4);
+    }
+  }
+
+  function paintEnemyHeadSprite(context, enemy, renderScale) {
+    context.shadowColor = enemy.color;
+    context.shadowBlur = (enemy.archetype === "warden" ? 19 : 14) * renderScale;
+    context.fillStyle = "#101416";
+    context.strokeStyle = enemy.archetype === "warden" ? enemy.color : "#eff1f0";
+    context.lineWidth = enemy.archetype === "warden" ? 3 : 1.7;
+    context.beginPath();
+    switch (enemy.archetype) {
+      case "scout":
+        context.moveTo(19, 0); context.lineTo(-8, 9); context.lineTo(-3, 0); context.lineTo(-8, -9); context.closePath();
+        break;
+      case "courier":
+        context.moveTo(18, 0); context.lineTo(9, 9); context.lineTo(-11, 9); context.lineTo(-16, 4); context.lineTo(-16, -4); context.lineTo(-11, -9); context.lineTo(9, -9); context.closePath();
+        break;
+      case "charger":
+        context.moveTo(21, 0); context.lineTo(8, 7); context.lineTo(3, 15); context.lineTo(-1, 9); context.lineTo(-14, 10); context.lineTo(-10, 0); context.lineTo(-14, -10); context.lineTo(-1, -9); context.lineTo(3, -15); context.lineTo(8, -7); context.closePath();
+        break;
+      case "cutter":
+        context.moveTo(18, 0); context.lineTo(2, 15); context.lineTo(-3, 9); context.lineTo(-15, 5); context.lineTo(-11, 0); context.lineTo(-15, -5); context.lineTo(-3, -9); context.lineTo(2, -15); context.closePath();
+        break;
+      case "coiler":
+        context.arc(0, 0, 14, 0, TAU);
+        break;
+      case "warden":
+        context.moveTo(16, 0); context.lineTo(10, 13); context.lineTo(-8, 15); context.lineTo(-17, 8); context.lineTo(-17, -8); context.lineTo(-8, -15); context.lineTo(10, -13); context.closePath();
+        break;
+      default:
+        context.moveTo(18, 0); context.lineTo(8, 12); context.lineTo(-7, 11); context.lineTo(-15, 5); context.lineTo(-12, 0); context.lineTo(-15, -5); context.lineTo(-7, -11); context.lineTo(8, -12); context.closePath();
+        break;
+    }
+    context.fill();
+    context.stroke();
+    context.shadowBlur = 0;
+    context.fillStyle = enemy.color;
+    context.beginPath();
+    if (enemy.archetype === "coiler") {
+      context.lineWidth = 3;
+      context.strokeStyle = enemy.color;
+      context.arc(0, 0, 8, 0.25, TAU * 0.9);
+      context.stroke();
+    } else if (enemy.archetype === "warden") {
+      context.strokeStyle = "#ffffff";
+      context.lineWidth = 1.4;
+      context.strokeRect(-10, -9, 18, 18);
+      context.fillRect(8, -8, 5, 16);
+    } else if (enemy.archetype === "cutter") {
+      context.fillRect(-8, -2, 24, 4);
+    } else if (enemy.archetype === "courier") {
+      context.fillRect(-12, -6, 10, 12);
+      context.fillStyle = "#ffffff";
+      context.fillRect(-8, -5, 2, 10);
+    } else {
+      context.moveTo(enemy.archetype === "charger" ? 21 : 18, 0);
+      context.lineTo(7, 6);
+      context.lineTo(7, -6);
+      context.closePath();
+      context.fill();
+    }
+    context.fillStyle = "#f7f8f7";
+    context.fillRect(2, -7, 5, 3);
+    context.fillRect(2, 4, 5, 3);
+    context.fillStyle = "#080a0b";
+    context.fillRect(4, -7, 2, 3);
+    context.fillRect(4, 4, 2, 3);
+  }
+
+  function enemySprite(kind, enemy) {
+    const key = `${kind}:${enemy.archetype}:${enemy.color}`;
+    let sprite = enemySpriteCache.get(key);
+    if (sprite) return sprite;
+    const size = kind === "head" ? 112 : 64;
+    const renderScale = 2;
+    const spriteCanvas = document.createElement("canvas");
+    spriteCanvas.width = size * renderScale;
+    spriteCanvas.height = size * renderScale;
+    const spriteContext = spriteCanvas.getContext("2d");
+    spriteContext.setTransform(renderScale, 0, 0, renderScale, size * renderScale / 2, size * renderScale / 2);
+    if (kind === "head") paintEnemyHeadSprite(spriteContext, enemy, renderScale);
+    else paintEnemySegmentSprite(spriteContext, enemy, renderScale);
+    sprite = { canvas: spriteCanvas, size };
+    enemySpriteCache.set(key, sprite);
+    return sprite;
+  }
+
+  function warmEnemySpriteCache() {
+    const variants = [];
+    for (const archetype of ENEMY_ARCHETYPES) {
+      for (const color of ENEMY_COLORS) {
+        variants.push({ kind: "segment", archetype: archetype.id, color });
+        variants.push({ kind: "head", archetype: archetype.id, color });
+      }
+    }
+    let index = 0;
+    const runBatch = (deadline = null) => {
+      let generated = 0;
+      while (index < variants.length && (generated < 2 || (deadline?.timeRemaining?.() || 0) > 3)) {
+        const variant = variants[index++];
+        enemySprite(variant.kind, variant);
+        generated += 1;
+      }
+      if (index >= variants.length) return;
+      if (typeof window.requestIdleCallback === "function") window.requestIdleCallback(runBatch, { timeout: 500 });
+      else window.setTimeout(runBatch, 0);
+    };
+    if (typeof window.requestIdleCallback === "function") window.requestIdleCallback(runBatch, { timeout: 500 });
+    else window.setTimeout(runBatch, 0);
+  }
+
   function drawEnemySegment(enemy, segment, pieceScale) {
+    const sprite = enemySprite("segment", enemy);
     ctx.save();
     ctx.translate(segment.x, segment.y);
     ctx.scale(pieceScale, pieceScale);
     ctx.rotate(segment.angle);
-    ctx.shadowColor = "rgba(0,0,0,0.8)";
-    ctx.shadowBlur = 6;
-    ctx.fillStyle = "#171b1e";
-    ctx.strokeStyle = enemy.color;
-    ctx.lineWidth = enemy.archetype === "warden" ? 2.5 : 1.8;
-    ctx.beginPath();
-    switch (enemy.archetype) {
-      case "scout":
-        ctx.moveTo(10, 0); ctx.lineTo(0, 6); ctx.lineTo(-9, 0); ctx.lineTo(0, -6); ctx.closePath();
-        break;
-      case "courier":
-        roundedRectPath(-11, -7, 22, 14, 3);
-        break;
-      case "charger":
-        ctx.moveTo(11, 0); ctx.lineTo(1, 9); ctx.lineTo(-9, 6); ctx.lineTo(-5, 0); ctx.lineTo(-9, -6); ctx.lineTo(1, -9); ctx.closePath();
-        break;
-      case "cutter":
-        ctx.moveTo(10, 0); ctx.lineTo(0, 11); ctx.lineTo(-5, 4); ctx.lineTo(-11, 0); ctx.lineTo(-5, -4); ctx.lineTo(0, -11); ctx.closePath();
-        break;
-      case "coiler":
-        ctx.arc(0, 0, 9, 0, TAU);
-        break;
-      case "warden":
-        ctx.moveTo(8, -9); ctx.lineTo(11, -4); ctx.lineTo(11, 4); ctx.lineTo(8, 9); ctx.lineTo(-8, 9); ctx.lineTo(-11, 4); ctx.lineTo(-11, -4); ctx.lineTo(-8, -9); ctx.closePath();
-        break;
-      default:
-        ctx.moveTo(10, 0); ctx.lineTo(4, 9); ctx.lineTo(-8, 7); ctx.lineTo(-11, 0); ctx.lineTo(-8, -7); ctx.lineTo(4, -9); ctx.closePath();
-        break;
-    }
-    ctx.fill();
-    ctx.stroke();
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = enemy.color;
-    ctx.globalAlpha = 0.76;
-    if (enemy.archetype === "coiler") {
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(0, 0, 4.5, 0.2, TAU * 0.86);
-      ctx.stroke();
-    } else if (enemy.archetype === "courier") {
-      ctx.fillRect(-5, -5, 9, 10);
-      ctx.fillStyle = "#f4f6f5";
-      ctx.fillRect(-2, -4, 2, 8);
-    } else if (enemy.archetype === "cutter") {
-      ctx.fillRect(-7, -1.5, 14, 3);
-    } else if (enemy.archetype === "warden") {
-      ctx.strokeStyle = "#ffffff";
-      ctx.lineWidth = 1;
-      ctx.strokeRect(-6, -5, 12, 10);
-    } else {
-      ctx.fillRect(-7, -2, 11, 4);
-    }
+    ctx.drawImage(sprite.canvas, -sprite.size / 2, -sprite.size / 2, sprite.size, sprite.size);
     ctx.restore();
   }
 
   function drawEnemyHead(enemy, pieceScale) {
+    const sprite = enemySprite("head", enemy);
     ctx.save();
     ctx.translate(enemy.x, enemy.y);
     ctx.scale(pieceScale, pieceScale);
     ctx.rotate(enemy.angle);
-    ctx.shadowColor = enemy.color;
-    ctx.shadowBlur = enemy.archetype === "warden" ? 19 : 14;
-    ctx.fillStyle = "#101416";
-    ctx.strokeStyle = enemy.archetype === "warden" ? enemy.color : "#eff1f0";
-    ctx.lineWidth = enemy.archetype === "warden" ? 3 : 1.7;
-    ctx.beginPath();
-    switch (enemy.archetype) {
-      case "scout":
-        ctx.moveTo(19, 0); ctx.lineTo(-8, 9); ctx.lineTo(-3, 0); ctx.lineTo(-8, -9); ctx.closePath();
-        break;
-      case "courier":
-        ctx.moveTo(18, 0); ctx.lineTo(9, 9); ctx.lineTo(-11, 9); ctx.lineTo(-16, 4); ctx.lineTo(-16, -4); ctx.lineTo(-11, -9); ctx.lineTo(9, -9); ctx.closePath();
-        break;
-      case "charger":
-        ctx.moveTo(21, 0); ctx.lineTo(8, 7); ctx.lineTo(3, 15); ctx.lineTo(-1, 9); ctx.lineTo(-14, 10); ctx.lineTo(-10, 0); ctx.lineTo(-14, -10); ctx.lineTo(-1, -9); ctx.lineTo(3, -15); ctx.lineTo(8, -7); ctx.closePath();
-        break;
-      case "cutter":
-        ctx.moveTo(18, 0); ctx.lineTo(2, 15); ctx.lineTo(-3, 9); ctx.lineTo(-15, 5); ctx.lineTo(-11, 0); ctx.lineTo(-15, -5); ctx.lineTo(-3, -9); ctx.lineTo(2, -15); ctx.closePath();
-        break;
-      case "coiler":
-        ctx.arc(0, 0, 14, 0, TAU);
-        break;
-      case "warden":
-        ctx.moveTo(16, 0); ctx.lineTo(10, 13); ctx.lineTo(-8, 15); ctx.lineTo(-17, 8); ctx.lineTo(-17, -8); ctx.lineTo(-8, -15); ctx.lineTo(10, -13); ctx.closePath();
-        break;
-      default:
-        ctx.moveTo(18, 0); ctx.lineTo(8, 12); ctx.lineTo(-7, 11); ctx.lineTo(-15, 5); ctx.lineTo(-12, 0); ctx.lineTo(-15, -5); ctx.lineTo(-7, -11); ctx.lineTo(8, -12); ctx.closePath();
-        break;
-    }
-    ctx.fill();
-    ctx.stroke();
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = enemy.color;
-    ctx.beginPath();
-    if (enemy.archetype === "coiler") {
-      ctx.lineWidth = 3;
-      ctx.strokeStyle = enemy.color;
-      ctx.arc(0, 0, 8, 0.25, TAU * 0.9);
-      ctx.stroke();
-    } else if (enemy.archetype === "warden") {
-      ctx.strokeStyle = "#ffffff";
-      ctx.lineWidth = 1.4;
-      ctx.strokeRect(-10, -9, 18, 18);
-      ctx.fillRect(8, -8, 5, 16);
-    } else if (enemy.archetype === "cutter") {
-      ctx.fillRect(-8, -2, 24, 4);
-    } else if (enemy.archetype === "courier") {
-      ctx.fillRect(-12, -6, 10, 12);
-      ctx.fillStyle = "#ffffff";
-      ctx.fillRect(-8, -5, 2, 10);
-    } else {
-      ctx.moveTo(enemy.archetype === "charger" ? 21 : 18, 0);
-      ctx.lineTo(7, 6);
-      ctx.lineTo(7, -6);
-      ctx.closePath();
-      ctx.fill();
-    }
-    ctx.fillStyle = "#f7f8f7";
-    ctx.fillRect(2, -7, 5, 3);
-    ctx.fillRect(2, 4, 5, 3);
-    ctx.fillStyle = "#080a0b";
-    ctx.fillRect(4, -7, 2, 3);
-    ctx.fillRect(4, 4, 2, 3);
+    ctx.drawImage(sprite.canvas, -sprite.size / 2, -sprite.size / 2, sprite.size, sprite.size);
     ctx.restore();
   }
 
@@ -6905,6 +7027,7 @@
   resize();
   resetGame();
   state = "menu";
+  warmEnemySpriteCache();
   void bootstrapNetwork();
   requestAnimationFrame(frame);
 })();

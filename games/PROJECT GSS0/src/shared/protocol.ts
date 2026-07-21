@@ -163,17 +163,30 @@ export type UltraSoundKind = 'ui' | 'start' | 'pause' | 'resume' | 'foodSpawn' |
 
 export type UltraFeedbackKind = 'growth' | 'growth-special' | 'level' | 'food' | 'food-special' | 'hit' | 'kill' | 'blast' | 'bounce';
 
-export type UltraEffect =
-  | { id: string; type: 'burst'; col: number; row: number; color: string; count: number; speed: number; audienceEntityId?: number }
-  | { id: string; type: 'ring'; col: number; row: number; color: string; life: number; radius: number; endRadius: number; endRadiusUnit: 'pixels' | 'cells'; audienceEntityId?: number }
-  | { id: string; type: 'beam' | 'lightning'; col: number; row: number; col2: number; row2: number; color: string; life: number; audienceEntityId?: number }
-  | { id: string; type: 'text'; col: number; row: number; text: string; color: string; life: number; audienceEntityId?: number }
+export interface UltraEffectBase {
+  id: string;
+  serverTime?: number;
+  audienceEntityId?: number;
+}
+
+export interface UltraEffectAnchor {
+  anchorKind?: 'player' | 'enemy';
+  anchorId?: number;
+  anchorSegmentIndex?: number;
+}
+
+export type UltraEffect = UltraEffectBase & (
+  | ({ type: 'burst'; col: number; row: number; color: string; count: number; speed: number } & UltraEffectAnchor)
+  | ({ type: 'ring'; col: number; row: number; color: string; life: number; radius: number; endRadius: number; endRadiusUnit: 'pixels' | 'cells' } & UltraEffectAnchor)
+  | ({ type: 'beam' | 'lightning'; col: number; row: number; col2: number; row2: number; color: string; life: number } & UltraEffectAnchor)
+  | ({ type: 'text'; col: number; row: number; text: string; color: string; life: number } & UltraEffectAnchor)
   | { id: string; type: 'experienceCompress'; sources: GridPoint[]; target: GridPoint; fromTier: number; toTier: number; delay: number; ownerEntityId: number; audienceEntityId?: number }
   | { id: string; type: 'enemyBodyHit'; enemyId: number; beforeCount: number; start: number; count: number; reconnectIndex: number; audienceEntityId?: number }
   | { id: string; type: 'sound'; kind: UltraSoundKind; detail?: number; sourceEntityId?: number; audienceEntityId?: number }
   | { id: string; type: 'feedback'; kind: UltraFeedbackKind; audienceEntityId: number }
   | { id: string; type: 'flash'; color: string; strength: number; audienceEntityId?: number }
-  | { id: string; type: 'snakeDeath'; enemyId: number; head: GridPoint; segments: GridPoint[]; color: string; ownerEntityId?: number; audienceEntityId?: number };
+  | { id: string; type: 'snakeDeath'; enemyId: number; head: GridPoint; segments: GridPoint[]; color: string; ownerEntityId?: number; audienceEntityId?: number }
+);
 
 export interface UpgradeOffer {
   level: number;

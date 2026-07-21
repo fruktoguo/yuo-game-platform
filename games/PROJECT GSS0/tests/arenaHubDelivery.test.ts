@@ -90,17 +90,18 @@ describe('ArenaHub 联机投递', () => {
     });
     Reflect.set(hub, 'socketsByEntity', new Map([[7, 'socket-a']]));
     Reflect.set(hub, 'socketsByAccount', new Map([['account-a', 'socket-a']]));
-    const shared: UltraEffect = { id: 'shared', type: 'burst', col: 1, row: 2, color: '#ffffff', count: 4, speed: 80 };
+    const sharedVisual: UltraEffect = { id: 'shared-visual', type: 'burst', col: 1, row: 2, color: '#ffffff', count: 4, speed: 80 };
+    const sharedState: UltraEffect = { id: 'shared-state', type: 'snakeDeath', enemyId: 3, head: { col: 1, row: 2 }, segments: [], color: '#ffffff' };
     const personal: UltraEffect = { id: 'personal', type: 'feedback', kind: 'hit', audienceEntityId: 7 };
     const offline: UltraEffect = { id: 'offline', type: 'feedback', kind: 'hit', audienceEntityId: 9 };
     const publishEffects = Reflect.get(hub, 'publishEffects') as (effects: UltraEffect[]) => void;
 
-    publishEffects.call(hub, [shared, personal, offline]);
+    publishEffects.call(hub, [sharedVisual, sharedState, personal, offline]);
 
-    expect(reliableEmit).toHaveBeenCalledWith('ultra:effects', [shared]);
+    expect(reliableEmit).toHaveBeenCalledWith('ultra:effects', [sharedState]);
     expect(personalEmit).toHaveBeenCalledWith('ultra:effects', [personal]);
     expect(personalEmit).toHaveBeenCalledTimes(1);
-    expect(globalEmit).not.toHaveBeenCalled();
+    expect(globalEmit).toHaveBeenCalledWith('ultra:effects', [sharedVisual]);
 
     const foodDelta: UltraFoodDelta = {
       revision: 3,

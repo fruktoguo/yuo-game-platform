@@ -167,8 +167,8 @@ describe('设计配置', () => {
     expect(MODULES.find((module) => module.id === 'haste')?.desc).toContain('0.18弧度/秒转向速度');
     expect(MODULES.some((module) => (module.category as string) === '恢复')).toBe(false);
     expect(MODULES.filter((module) => module.category === '发育')).toHaveLength(5);
-    expect(editorHtml).toContain('src="module-catalog.js?v=57"');
-    expect(editorHtml).toContain('src="module-progression.js?v=57"');
+    expect(editorHtml).toContain('src="module-catalog.js?v=58"');
+    expect(editorHtml).toContain('src="module-progression.js?v=58"');
     expect(editorHtml).toContain('const MODULES = moduleCatalog;');
     expect(editorHtml).toContain('descriptionText.textContent = describeModule(module.id, draft.balance);');
     expect(editorHtml).toContain('ID: ${module.id}');

@@ -43,6 +43,16 @@ const CONTROL_CHARACTER_PATTERN = /[\u0000-\u001f\u007f]/u;
 const SNAPSHOT_TICK_INTERVAL = Math.max(1, Math.round(SIMULATION_HZ / SNAPSHOT_HZ));
 const MAX_FOOD_CLAIMS_PER_BATCH = 32;
 const RESYNC_MIN_INTERVAL_MS = 500;
+const COALESCED_SOUND_KINDS = new Set(['shoot', 'skill', 'frost', 'electric', 'hit', 'foodSpawn', 'bounce']);
+
+function isDroppableSharedEffect(effect: UltraEffect): boolean {
+  return effect.type === 'burst'
+    || effect.type === 'ring'
+    || effect.type === 'beam'
+    || effect.type === 'lightning'
+    || effect.type === 'text'
+    || (effect.type === 'sound' && effect.kind === 'bounce');
+}
 
 export class ArenaHub {
   private readonly socketsByAccount = new Map<string, string>();
@@ -323,18 +333,35 @@ export class ArenaHub {
   }
 
   private publishEffects(effects: UltraEffect[]): void {
-    let shared: UltraEffect[] | null = null;
+    let sharedReliable: UltraEffect[] | null = null;
+    let sharedVolatile: UltraEffect[] | null = null;
+    let sharedBounceSoundQueued = false;
+    const sharedSoundKeys = new Set<string>();
     const targeted = new Map<number, UltraEffect[]>();
     for (const effect of effects) {
       if (effect.audienceEntityId === undefined) {
-        (shared ??= []).push(effect);
+        if (effect.type === 'sound' && COALESCED_SOUND_KINDS.has(effect.kind)) {
+          const soundKey = `${effect.kind}:${effect.sourceEntityId ?? 0}`;
+          if (sharedSoundKeys.has(soundKey)) continue;
+          sharedSoundKeys.add(soundKey);
+        }
+        if (isDroppableSharedEffect(effect)) {
+          if (effect.type === 'sound' && effect.kind === 'bounce') {
+            if (sharedBounceSoundQueued) continue;
+            sharedBounceSoundQueued = true;
+          }
+          (sharedVolatile ??= []).push(effect);
+        } else {
+          (sharedReliable ??= []).push(effect);
+        }
         continue;
       }
       const audience = targeted.get(effect.audienceEntityId);
       if (audience) audience.push(effect);
       else targeted.set(effect.audienceEntityId, [effect]);
     }
-    if (shared) this.io.emit('ultra:effects', shared);
+    if (sharedReliable) this.io.emit('ultra:effects', sharedReliable);
+    if (sharedVolatile) this.io.volatile.emit('ultra:effects', sharedVolatile);
     for (const [entityId, items] of targeted) {
       const socketId = this.socketsByEntity.get(entityId);
       if (socketId) this.io.sockets.sockets.get(socketId)?.emit('ultra:effects', items);
