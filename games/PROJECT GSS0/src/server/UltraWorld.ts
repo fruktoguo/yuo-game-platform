@@ -3650,12 +3650,13 @@ export class UltraWorld {
     }
     this.ring(point.col, point.row, color, 0.34, 3, 0.48, owner?.entityId);
     if (owner) {
-      this.textEffect(point.col, point.row - 0.35, `-${applied}`, color, ENEMY_DAMAGE_NUMBER_DURATION, owner.entityId, true, true);
       this.effectSound('hit', owner.entityId);
       this.feedback('hit', owner.entityId);
     }
-    if (!destroysHead) return;
-    this.killEnemy(target, owner);
+    if (destroysHead) this.killEnemy(target, owner);
+    if (owner) {
+      this.textEffect(point.col, point.row + (destroysHead ? 0.35 : -0.35), `-${applied}`, color, ENEMY_DAMAGE_NUMBER_DURATION, owner.entityId, true, true);
+    }
   }
 
   private killEnemy(enemy: EnemyEntity, owner: PlayerEntity | null): void {

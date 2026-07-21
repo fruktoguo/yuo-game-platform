@@ -5717,10 +5717,15 @@
     burst(impactX, impactY, impactColor, 8, 115);
     effects.push({ type: "ring", x: impactX, y: impactY, color: impactColor, life: 0.34, maxLife: 0.34, radius: 3, endRadius: 16 });
     if (causedByPlayer) {
+      sound("hit");
+      shake = Math.max(shake, 2.2);
+    }
+    if (destroysHead) killEnemy(enemy, options.rewardSelf !== false);
+    if (causedByPlayer) {
       effects.push({
         type: "text",
         x: impactX,
-        y: impactY - 12,
+        y: impactY + (destroysHead ? 18 : -12),
         text: `-${appliedDamage}`,
         color: impactColor,
         life: ENEMY_DAMAGE_NUMBER_DURATION,
@@ -5728,10 +5733,7 @@
         emphasis: true,
         damageNumber: true
       });
-      sound("hit");
-      shake = Math.max(shake, 2.2);
     }
-    if (destroysHead) killEnemy(enemy, options.rewardSelf !== false);
   }
 
   function killEnemy(enemy, rewardSelf = true) {
@@ -7228,9 +7230,9 @@
       } else if (effect.type === "text") {
         ctx.fillStyle = effect.color;
         ctx.strokeStyle = "rgba(4, 7, 8, 0.92)";
-        ctx.lineWidth = effect.damageNumber ? 5 : effect.emphasis ? 4 : 3;
+        ctx.lineWidth = effect.damageNumber ? 10 : effect.emphasis ? 4 : 3;
         ctx.lineJoin = "round";
-        ctx.font = `900 ${effect.damageNumber ? 19 : effect.emphasis ? 15 : 12}px Bahnschrift, Arial Narrow, sans-serif`;
+        ctx.font = `900 ${effect.damageNumber ? 38 : effect.emphasis ? 15 : 12}px Bahnschrift, Arial Narrow, sans-serif`;
         ctx.textAlign = "center";
         const textY = effect.y - progress * (effect.damageNumber ? 42 : effect.emphasis ? 32 : 24);
         ctx.strokeText(effect.text, effect.x, textY);
