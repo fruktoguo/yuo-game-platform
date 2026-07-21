@@ -19,7 +19,7 @@
           <strong>代号：几何贪吃蛇</strong>
         </div>
         <span class="signature">by 四季鸽</span>
-        <span class="brand-version" aria-label="游戏版本 V61">V61</span>
+        <span class="brand-version" aria-label="游戏版本 V62">V62</span>
       </div>
 
       <div class="run-stats">
@@ -156,7 +156,7 @@
 
     <section id="start-screen" class="modal-layer start-screen is-visible" aria-labelledby="game-title">
       <div class="start-glow" aria-hidden="true"></div>
-      <div class="start-version" aria-label="游戏版本 V61"><span>BUILD</span><strong>V61</strong></div>
+      <div class="start-version" aria-label="游戏版本 V62"><span>BUILD</span><strong>V62</strong></div>
       <div class="start-layout">
         <div class="start-content">
           <div id="network-status" class="title-kicker">TACTICAL SURVIVAL / LOCAL</div>
@@ -220,6 +220,16 @@
           </div>
           <button id="codex-close-button" class="icon-button codex-close-button" type="button" aria-label="关闭机体图鉴" title="关闭机体图鉴">×</button>
         </header>
+        <div class="codex-toolbar">
+          <div id="codex-category-filter" class="codex-category-filter" role="group" aria-label="按机体类型筛选">
+            <button class="is-active" type="button" data-category="all" aria-pressed="true">全部</button>
+            <button type="button" data-category="输出" aria-pressed="false">输出</button>
+            <button type="button" data-category="防御" aria-pressed="false">防御</button>
+            <button type="button" data-category="辅助" aria-pressed="false">辅助</button>
+            <button type="button" data-category="发育" aria-pressed="false">发育</button>
+          </div>
+          <output id="codex-count" class="codex-count" aria-live="polite"></output>
+        </div>
         <div id="codex-list" class="codex-list"></div>
       </div>
     </section>
@@ -247,6 +257,21 @@
           <button id="changelog-close-button" class="icon-button codex-close-button" type="button" aria-label="关闭更新日志" title="关闭更新日志">×</button>
         </header>
         <div class="changelog-list">
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V62</strong></div>
+              <time datetime="2026-07-21">2026.07.21</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">工具与图鉴</span>
+              <h3>可靠保存与机体筛选</h3>
+              <ul>
+                <li>设计控制台新增立即保存按钮，可强制把当前内存草稿写回配置文件。</li>
+                <li>机体状态切换不再跳回页面顶部，主动技能冷却百分比支持直接输入。</li>
+                <li>主菜单机体图鉴隐藏禁用机体，并支持按输出、防御、辅助与发育类型筛选。</li>
+              </ul>
+            </div>
+          </article>
           <article class="changelog-entry">
             <header>
               <div class="changelog-version"><span>BUILD</span><strong>V61</strong></div>
@@ -957,20 +982,20 @@
     </section>
   </main>
 
-  <script src="designer-config.js?v=61"></script>
-  <script src="module-catalog.js?v=61"></script>
-  <script src="module-progression.js?v=61"></script>
-  <script src="wave-director.js?v=61"></script>
-  <script src="spawn-planner.js?v=61"></script>
-  <script src="network-codec.js?v=61"></script>
-  <script src="network-player-prediction.js?v=61"></script>
-  <script src="network-player-state-codec.js?v=61"></script>
-  <script src="network-player-collisions.js?v=61"></script>
-  <script src="network-head-collisions.js?v=61"></script>
-  <script src="network-food-claims.js?v=61"></script>
-  <script src="network-projectiles.js?v=61"></script>
-  <script src="lobby-navigation.js?v=61"></script>
-  <script src="enemy-codex.js?v=61"></script>
-  <script src="game.js?v=61"></script>
+  <script src="designer-config.js?v=62"></script>
+  <script src="module-catalog.js?v=62"></script>
+  <script src="module-progression.js?v=62"></script>
+  <script src="wave-director.js?v=62"></script>
+  <script src="spawn-planner.js?v=62"></script>
+  <script src="network-codec.js?v=62"></script>
+  <script src="network-player-prediction.js?v=62"></script>
+  <script src="network-player-state-codec.js?v=62"></script>
+  <script src="network-player-collisions.js?v=62"></script>
+  <script src="network-head-collisions.js?v=62"></script>
+  <script src="network-food-claims.js?v=62"></script>
+  <script src="network-projectiles.js?v=62"></script>
+  <script src="lobby-navigation.js?v=62"></script>
+  <script src="enemy-codex.js?v=62"></script>
+  <script src="game.js?v=62"></script>
 </body>
 </html>

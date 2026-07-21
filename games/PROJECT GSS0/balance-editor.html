@@ -65,6 +65,7 @@
       font-weight: 900;
     }
     .command:hover:not(:disabled) { border-color: var(--cyan); }
+    .command:disabled { opacity: 0.48; cursor: not-allowed; }
     .command.primary { border-color: var(--yellow); background: var(--yellow); color: #080a0b; }
     .scale-control {
       display: grid;
@@ -199,7 +200,7 @@
     .cooldown-control {
       grid-column: 3 / -1;
       display: grid;
-      grid-template-columns: minmax(150px, 0.55fr) minmax(220px, 1fr) 110px;
+      grid-template-columns: minmax(150px, 0.55fr) minmax(200px, 1fr) 92px 110px;
       gap: 14px;
       align-items: center;
       padding: 10px 12px;
@@ -208,6 +209,7 @@
     }
     .cooldown-control strong { display: block; color: #fff; font-size: 11px; }
     .cooldown-control span { display: block; margin-top: 3px; color: var(--muted); font-size: 9px; }
+    .cooldown-number-input { min-width: 0; }
     .cooldown-control output { color: var(--yellow); text-align: right; font-size: 11px; font-weight: 900; font-variant-numeric: tabular-nums; }
     .module-parameter-list {
       grid-column: 3 / -1;
@@ -312,7 +314,8 @@
         <input id="interface-scale" type="range" min="80" max="160" step="10" value="100">
         <output id="interface-scale-output" for="interface-scale">100%</output>
       </label>
-      <button id="open-config" class="command primary" type="button">授权自动保存</button>
+      <button id="save-config" class="command primary" type="button" aria-keyshortcuts="Control+S Meta+S">立即保存</button>
+      <button id="open-config" class="command" type="button">授权自动保存</button>
       <button id="reload-config" class="command" type="button">重新加载</button>
     </div>
   </header>
@@ -382,11 +385,11 @@
     </div>
   </main>
 
-  <script src="enemy-codex.js?v=61"></script>
-  <script src="wave-director.js?v=61"></script>
-  <script src="designer-config.js?v=61"></script>
-  <script src="module-catalog.js?v=61"></script>
-  <script src="module-progression.js?v=61"></script>
+  <script src="enemy-codex.js?v=62"></script>
+  <script src="wave-director.js?v=62"></script>
+  <script src="designer-config.js?v=62"></script>
+  <script src="module-catalog.js?v=62"></script>
+  <script src="module-progression.js?v=62"></script>
   <script>
     (() => {
       "use strict";
@@ -589,7 +592,7 @@
       const helperToken = hashToken || sessionStorage.getItem("gss0-editor-helper-token") || "";
       const helperMode = location.protocol === "http:" && location.hostname === "127.0.0.1" && /^[a-f0-9]{64}$/.test(helperToken);
       const ui = {
-        fileState: document.querySelector("#file-state"), open: document.querySelector("#open-config"), reload: document.querySelector("#reload-config"),
+        fileState: document.querySelector("#file-state"), save: document.querySelector("#save-config"), open: document.querySelector("#open-config"), reload: document.querySelector("#reload-config"),
         tabs: [...document.querySelectorAll(".tab")], balanceView: document.querySelector("#balance-view"), modulesView: document.querySelector("#modules-view"), enemiesView: document.querySelector("#enemies-view"), wavesView: document.querySelector("#waves-view"),
         parameterGroups: document.querySelector("#parameter-groups"), parameterCount: document.querySelector("#parameter-count"), moduleList: document.querySelector("#module-list"), moduleCount: document.querySelector("#module-count"),
         enemyConfigList: document.querySelector("#enemy-config-list"), enemyCount: document.querySelector("#enemy-count"),
@@ -604,6 +607,7 @@
       let savedSnapshot = JSON.stringify(draft);
       let autoSaveTimer = 0;
       let saveInFlight = false;
+      let manualSaveActive = false;
       let saveQueued = false;
       let writePermissionReady = false;
       let helperReady = false;
@@ -659,11 +663,16 @@
         ui.fileState.textContent = message;
         ui.fileState.className = `file-state${state ? ` is-${state}` : ""}`;
       }
+      function refreshSaveButtonState() {
+        ui.save.disabled = saveInFlight || (!helperMode && !filePickerSupported);
+        ui.save.textContent = saveInFlight && manualSaveActive ? "正在保存" : "立即保存";
+      }
       function refreshDirtyState() {
+        refreshSaveButtonState();
         if (helperMode) {
           ui.open.hidden = true;
-          if (!helperReady) setFileState(`${CONFIG_FILE_NAME} · 正在连接本地启动器`, "dirty");
-          else if (saveInFlight) setFileState(`${CONFIG_FILE_NAME} · 正在自动保存`, "dirty");
+          if (saveInFlight) setFileState(`${CONFIG_FILE_NAME} · ${manualSaveActive ? "正在手动保存" : "正在自动保存"}`, "dirty");
+          else if (!helperReady) setFileState(`${CONFIG_FILE_NAME} · 正在连接本地启动器`, "dirty");
           else if (isDirty()) setFileState(`${CONFIG_FILE_NAME} · 等待自动保存`, "dirty");
           else setFileState(`${CONFIG_FILE_NAME} · 已自动同步`, "saved");
           return;
@@ -671,7 +680,7 @@
         ui.open.hidden = false;
         if (!filePickerSupported) setFileState(`${CONFIG_FILE_NAME} · 已自动加载 · 当前浏览器不支持写回文件`, "dirty");
         else if (fileHandle && !writePermissionReady) setFileState(`${CONFIG_FILE_NAME} · 已自动加载 · 点击恢复自动保存`, "dirty");
-        else if (saveInFlight) setFileState(`${CONFIG_FILE_NAME} · 正在自动保存`, "dirty");
+        else if (saveInFlight) setFileState(`${CONFIG_FILE_NAME} · ${manualSaveActive ? "正在手动保存" : "正在自动保存"}`, "dirty");
         else if (isDirty()) setFileState(fileHandle ? `${CONFIG_FILE_NAME} · 等待自动保存` : `${CONFIG_FILE_NAME} · 修改尚未写入`, "dirty");
         else setFileState(fileHandle ? `${CONFIG_FILE_NAME} · 已自动同步` : `${CONFIG_FILE_NAME} · 已自动加载 · 授权后可自动保存`, fileHandle ? "saved" : "");
         ui.open.textContent = fileHandle ? (writePermissionReady ? "更换绑定" : "恢复自动保存") : "授权自动保存";
@@ -762,13 +771,14 @@
         autoSaveTimer = window.setTimeout(() => void flushAutoSave(), AUTO_SAVE_DELAY_MS);
       }
 
-      async function flushAutoSave() {
+      async function flushAutoSave(force = false, manual = false) {
         window.clearTimeout(autoSaveTimer);
         autoSaveTimer = 0;
-        if (!autoSaveReady() || !isDirty()) return;
+        const saveReady = helperMode ? (helperReady || manual) : autoSaveReady();
+        if (!saveReady || (!force && !isDirty())) return false;
         if (saveInFlight) {
           saveQueued = true;
-          return;
+          return false;
         }
         const enabledCount = MODULES.reduce((count, module) => count + Number(draft.moduleStates[module.id] !== "disabled"), 0);
         if (enabledCount === 0) {
@@ -776,6 +786,7 @@
           return;
         }
         saveInFlight = true;
+        manualSaveActive = manual;
         refreshDirtyState();
         const persistedSnapshot = JSON.stringify(draft);
         let savedSuccessfully = false;
@@ -792,6 +803,7 @@
             await writable.write(serializeConfig(JSON.parse(persistedSnapshot)));
             await writable.close();
           }
+          if (helperMode) helperReady = true;
           savedConfig = JSON.parse(persistedSnapshot);
           savedSnapshot = persistedSnapshot;
           savedSuccessfully = true;
@@ -800,11 +812,15 @@
           setFileState(error instanceof Error ? error.message : "自动保存失败", "dirty");
         } finally {
           saveInFlight = false;
+          manualSaveActive = false;
+          refreshSaveButtonState();
           const shouldSaveAgain = saveQueued || (savedSuccessfully && isDirty());
           saveQueued = false;
           if (savedSuccessfully || !helperMode) refreshDirtyState();
+          if (manual && savedSuccessfully && !isDirty()) setFileState(`${CONFIG_FILE_NAME} · 已手动保存`, "saved");
           if (shouldSaveAgain && autoSaveReady()) scheduleAutoSave();
         }
+        return savedSuccessfully;
       }
 
       function formatCooldownSeconds(seconds) {
@@ -1085,10 +1101,17 @@
         });
       }
 
-      function renderModules() {
-        const modules = filteredModules();
+      function updateModuleListSummary(modules = filteredModules()) {
         ui.bulkCount.textContent = `当前筛选 ${modules.length} 个机体`;
         for (const button of ui.bulkButtons) button.disabled = modules.length === 0;
+        const disabledCount = MODULES.filter((module) => draft.moduleStates[module.id] === "disabled").length;
+        ui.moduleCount.textContent = `${modules.length}/${MODULES.length} · 禁用 ${disabledCount}`;
+      }
+
+      function renderModules(preserveScroll = false) {
+        const scrollPosition = preserveScroll ? { x: window.scrollX, y: window.scrollY } : null;
+        const modules = filteredModules();
+        updateModuleListSummary(modules);
         if (modules.length === 0) {
           const empty = document.createElement("div");
           empty.className = "empty";
@@ -1125,8 +1148,16 @@
               button.classList.toggle("is-active", draft.moduleStates[module.id] === state);
               button.textContent = label;
               button.addEventListener("click", () => {
+                if (draft.moduleStates[module.id] === state) return;
                 draft.moduleStates[module.id] = state;
-                renderModules();
+                if (ui.status.value !== "all" && ui.status.value !== state) {
+                  renderModules(true);
+                } else {
+                  for (const statusButton of control.querySelectorAll("button")) {
+                    statusButton.classList.toggle("is-active", statusButton.dataset.state === state);
+                  }
+                  updateModuleListSummary();
+                }
                 scheduleAutoSave();
               });
               control.append(button);
@@ -1148,17 +1179,29 @@
               range.step = "1";
               range.value = String(draft.moduleCooldownPercentages[module.id]);
               range.setAttribute("aria-label", `${module.name}冷却时间百分比`);
+              const number = document.createElement("input");
+              number.type = "number";
+              number.className = "number-input cooldown-number-input";
+              number.min = "0";
+              number.max = "1000";
+              number.step = "1";
+              number.value = String(draft.moduleCooldownPercentages[module.id]);
+              number.setAttribute("aria-label", `${module.name}冷却时间百分比数值`);
               const actual = document.createElement("output");
               actual.textContent = `实际 ${moduleCooldownLabel(module)}`;
-              range.addEventListener("input", () => {
-                const next = Math.max(0, Math.min(1000, Number(range.value) || 0));
+              const updateCooldown = (value) => {
+                const next = Math.max(0, Math.min(1000, Math.round(Number(value) || 0)));
                 draft.moduleCooldownPercentages[module.id] = next;
+                range.value = String(next);
+                number.value = String(next);
                 title.textContent = `冷却时间 · ${next}%`;
                 actual.textContent = `实际 ${moduleCooldownLabel(module)}`;
                 if (cooldownSummary) cooldownSummary.textContent = moduleUsageLabel(module);
                 scheduleAutoSave();
-              });
-              cooldownControl.append(copy, range, actual);
+              };
+              range.addEventListener("input", () => updateCooldown(range.value));
+              number.addEventListener("input", () => updateCooldown(number.value));
+              cooldownControl.append(copy, range, number, actual);
               row.append(cooldownControl);
             }
             const moduleParameters = MODULE_PARAMETER_DEFINITIONS.filter((definition) => definition.moduleId === module.id);
@@ -1172,8 +1215,11 @@
             return row;
           }));
         }
-        const disabledCount = MODULES.filter((module) => draft.moduleStates[module.id] === "disabled").length;
-        ui.moduleCount.textContent = `${modules.length}/${MODULES.length} · 禁用 ${disabledCount}`;
+        if (scrollPosition) {
+          const restoreScroll = () => window.scrollTo(scrollPosition.x, scrollPosition.y);
+          restoreScroll();
+          requestAnimationFrame(restoreScroll);
+        }
       }
 
       function bulkSetModuleStatus(state) {
@@ -1200,7 +1246,7 @@
               renderWaves();
               scheduleAutoSave();
             }
-            return;
+            return true;
           }
           const [handle] = await window.showOpenFilePicker({ id: "gss0-designer-config", multiple: false, types: [{ description: "GSS0 设计配置", accept: { "text/javascript": [".js"] } }] });
           if (handle.name !== CONFIG_FILE_NAME) throw new Error(`请选择 ${CONFIG_FILE_NAME}`);
@@ -1215,9 +1261,26 @@
             renderWaves();
             scheduleAutoSave();
           }
+          return true;
         } catch (error) {
           if (error?.name !== "AbortError") setFileState(error instanceof Error ? error.message : "读取配置失败", "dirty");
+          return false;
         }
+      }
+
+      async function saveConfigNow() {
+        if (saveInFlight) {
+          saveQueued = true;
+          return;
+        }
+        if (!helperMode && (!fileHandle || !writePermissionReady)) {
+          if (!filePickerSupported) {
+            setFileState("当前浏览器不支持直接写回配置文件", "dirty");
+            return;
+          }
+          if (!await openConfig()) return;
+        }
+        await flushAutoSave(true, true);
       }
 
       async function reloadConfig() {
@@ -1274,12 +1337,12 @@
         try { localStorage.setItem("gss0-editor-interface-scale", String(value)); } catch {}
       });
       ui.open.addEventListener("click", openConfig);
+      ui.save.addEventListener("click", () => void saveConfigNow());
       ui.reload.addEventListener("click", () => void reloadConfig());
       window.addEventListener("keydown", (event) => {
         if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
           event.preventDefault();
-          if (helperMode || fileHandle) void flushAutoSave();
-          else void openConfig();
+          void saveConfigNow();
         }
       });
       window.addEventListener("beforeunload", (event) => {

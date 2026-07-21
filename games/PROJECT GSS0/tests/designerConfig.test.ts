@@ -178,8 +178,8 @@ describe('设计配置', () => {
     expect(MODULES.find((module) => module.id === 'haste')?.desc).toContain('0.18弧度/秒转向速度');
     expect(MODULES.some((module) => (module.category as string) === '恢复')).toBe(false);
     expect(MODULES.filter((module) => module.category === '发育')).toHaveLength(5);
-    expect(editorHtml).toContain('src="module-catalog.js?v=61"');
-    expect(editorHtml).toContain('src="module-progression.js?v=61"');
+    expect(editorHtml).toContain('src="module-catalog.js?v=62"');
+    expect(editorHtml).toContain('src="module-progression.js?v=62"');
     expect(editorHtml).toContain('const MODULES = moduleCatalog;');
     expect(editorHtml).toContain('descriptionText.textContent = describeModule(module.id, draft.balance);');
     expect(editorHtml).toContain('ID: ${module.id}');
@@ -216,7 +216,14 @@ describe('设计配置', () => {
     expect(editorHtml).toContain('const MODULE_PARAMETER_DEFINITIONS = ALL_PARAMETER_DEFINITIONS.filter');
     expect(editorHtml).toContain('parameterList.append(...moduleParameters.map(createParameterRow));');
     expect(editorHtml).toContain('parameters.append(...ENEMY_PARAMETER_DEFINITIONS.filter');
-    expect(editorHtml).not.toContain('id="save-config"');
+    expect(editorHtml).toContain('id="save-config"');
+    expect(editorHtml).toContain('async function saveConfigNow()');
+    expect(editorHtml).toContain('await flushAutoSave(true, true);');
+    expect(editorHtml).toContain('const pendingDraft = isDirty() ? structuredClone(draft) : null;');
+    expect(editorHtml).toContain('number.className = "number-input cooldown-number-input";');
+    expect(editorHtml).toContain('number.addEventListener("input", () => updateCooldown(number.value));');
+    expect(editorHtml).toContain('renderModules(true);');
+    expect(editorHtml).toContain('statusButton.classList.toggle("is-active", statusButton.dataset.state === state);');
   });
 
   it('一键启动器只在本机以随机令牌读写固定配置文件', () => {

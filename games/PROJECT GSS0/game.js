@@ -47,6 +47,8 @@
     codexButton: document.querySelector("#codex-button"),
     codex: document.querySelector("#codex-screen"),
     codexList: document.querySelector("#codex-list"),
+    codexCategoryButtons: [...document.querySelectorAll("#codex-category-filter button")],
+    codexCount: document.querySelector("#codex-count"),
     codexCloseButton: document.querySelector("#codex-close-button"),
     enemyCodexButton: document.querySelector("#enemy-codex-button"),
     enemyCodex: document.querySelector("#enemy-codex-screen"),
@@ -139,6 +141,9 @@
   const MODULE_BY_ID = Object.fromEntries(MODULES.map((module) => [module.id, module]));
   const configuredUpgradeModules = MODULES.filter((module) => MODULE_DESIGN_STATES[module.id] !== "disabled");
   const UPGRADE_MODULES = configuredUpgradeModules.length ? configuredUpgradeModules : MODULES;
+  const CODEX_MODULES = MODULES.filter((module) => MODULE_DESIGN_STATES[module.id] !== "disabled");
+  const CODEX_ARCHIVE_NUMBERS = new Map(CODEX_MODULES.map((module, index) => [module.id, index + 1]));
+  let moduleCodexCategory = "all";
   const TARGET_REQUIRED_MODULES = new Set([
     "spark", "frost", "prism", "tesla", "laser", "missile", "venom",
     "rail", "ricochet", "cluster", "fan", "gravity", "needle", "mortar", "sweep",
@@ -3417,9 +3422,23 @@
   }
 
   function renderModuleCodex() {
-    ui.codexList.replaceChildren(...MODULES.map((module, index) => createModuleCard(module, {
+    const modules = CODEX_MODULES.filter((module) => moduleCodexCategory === "all" || module.category === moduleCodexCategory);
+    for (const button of ui.codexCategoryButtons) {
+      const active = button.dataset.category === moduleCodexCategory;
+      button.classList.toggle("is-active", active);
+      button.setAttribute("aria-pressed", String(active));
+    }
+    ui.codexCount.textContent = `${modules.length}/${CODEX_MODULES.length} 个可用机体`;
+    if (modules.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "codex-empty";
+      empty.textContent = "该类型暂无可用机体";
+      ui.codexList.replaceChildren(empty);
+      return;
+    }
+    ui.codexList.replaceChildren(...modules.map((module) => createModuleCard(module, {
       actionLabel: "档案编号",
-      actionSymbol: String(index + 1).padStart(2, "0")
+      actionSymbol: String(CODEX_ARCHIVE_NUMBERS.get(module.id)).padStart(2, "0")
     })));
   }
 
@@ -6969,6 +6988,15 @@
   ui.lobbyButton.addEventListener("click", () => void returnToLobby());
   ui.codexButton.addEventListener("click", openCodex);
   ui.codexCloseButton.addEventListener("click", closeCodex);
+  for (const button of ui.codexCategoryButtons) {
+    button.addEventListener("click", () => {
+      if (button.dataset.category === moduleCodexCategory) return;
+      moduleCodexCategory = button.dataset.category;
+      renderModuleCodex();
+      ui.codex.scrollTop = 0;
+      sound("ui");
+    });
+  }
   ui.enemyCodexButton.addEventListener("click", openEnemyCodex);
   ui.enemyCodexCloseButton.addEventListener("click", closeEnemyCodex);
   ui.changelogButton.addEventListener("click", openChangelog);
