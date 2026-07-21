@@ -150,10 +150,10 @@ describe('设计配置', () => {
   it('全部现有机体都有审查状态且禁用项不会进入升级池', () => {
     const source = (globalThis as typeof globalThis & { GSS0_DESIGNER_CONFIG: { moduleStates: Record<string, string> } }).GSS0_DESIGNER_CONFIG;
     expect(Object.keys(source.moduleStates).sort()).toEqual(MODULES.map((module) => module.id).sort());
-    expect(Object.values(source.moduleStates).filter((state) => state === 'normal')).toHaveLength(58);
+    expect(Object.values(source.moduleStates).filter((state) => state === 'normal')).toHaveLength(43);
     expect(Object.values(source.moduleStates).filter((state) => state === 'tune')).toHaveLength(0);
     expect(Object.values(source.moduleStates).filter((state) => state === 'rework')).toHaveLength(0);
-    expect(Object.values(source.moduleStates).filter((state) => state === 'disabled')).toHaveLength(0);
+    expect(Object.values(source.moduleStates).filter((state) => state === 'disabled')).toHaveLength(15);
     expect(UPGRADE_MODULES.map((module) => module.id)).toEqual(MODULES.filter((module) => moduleDesignState(module.id) !== 'disabled').map((module) => module.id));
   });
 
@@ -178,8 +178,8 @@ describe('设计配置', () => {
     expect(MODULES.find((module) => module.id === 'haste')?.desc).toContain('0.18弧度/秒转向速度');
     expect(MODULES.some((module) => (module.category as string) === '恢复')).toBe(false);
     expect(MODULES.filter((module) => module.category === '发育')).toHaveLength(5);
-    expect(editorHtml).toContain('src="module-catalog.js?v=62"');
-    expect(editorHtml).toContain('src="module-progression.js?v=62"');
+    expect(editorHtml).toContain('src="module-catalog.js?v=63"');
+    expect(editorHtml).toContain('src="module-progression.js?v=63"');
     expect(editorHtml).toContain('const MODULES = moduleCatalog;');
     expect(editorHtml).toContain('descriptionText.textContent = describeModule(module.id, draft.balance);');
     expect(editorHtml).toContain('ID: ${module.id}');
