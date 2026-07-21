@@ -92,12 +92,12 @@
         projectile.row += projectile.vyCells * dt;
         const hitHorizontal = projectile.col < minimum || projectile.col > maximum;
         const hitVertical = projectile.row < minimum || projectile.row > maximum;
-        if ((hitHorizontal || hitVertical) && projectile.bounces > 0) {
+        if ((hitHorizontal || hitVertical) && projectile.bounces !== 0) {
           projectile.col = Math.max(minimum, Math.min(maximum, projectile.col));
           projectile.row = Math.max(minimum, Math.min(maximum, projectile.row));
           if (hitHorizontal) projectile.vxCells *= -1;
           if (hitVertical) projectile.vyCells *= -1;
-          projectile.bounces -= 1;
+          if (projectile.bounces > 0) projectile.bounces -= 1;
         }
 
         projectile.x = arena.left + (projectile.col - worldMinimum + 0.5) * arena.cellSize;

@@ -385,11 +385,11 @@
     </div>
   </main>
 
-  <script src="enemy-codex.js?v=64"></script>
-  <script src="wave-director.js?v=64"></script>
-  <script src="designer-config.js?v=64"></script>
-  <script src="module-catalog.js?v=64"></script>
-  <script src="module-progression.js?v=64"></script>
+  <script src="enemy-codex.js?v=65"></script>
+  <script src="wave-director.js?v=65"></script>
+  <script src="designer-config.js?v=65"></script>
+  <script src="module-catalog.js?v=65"></script>
+  <script src="module-progression.js?v=65"></script>
   <script>
     (() => {
       "use strict";
@@ -499,15 +499,19 @@
         { key: "projectileSpeedScale", group: "战斗", label: "全局子弹速度倍率", hint: "作用于所有以速度参数发射的投射物", min: 0.1, max: 10, step: 0.05, unit: "倍" },
         { key: "projectileSizeScale", group: "战斗", label: "全局子弹体积倍率", hint: "同时放大所有子弹的绘制尺寸与命中体积；2 表示基础尺寸的两倍", min: 0.1, max: 10, step: 0.05, unit: "倍" },
         { key: "playerCollisionDamage", group: "战斗", label: "玩家撞击伤害", hint: "玩家蛇头撞上敌蛇头部或身体时对敌蛇造成的基础伤害", min: 0, max: 1000, step: 1, unit: "点" },
-        { key: "poisonInitialTickDelay", group: "战斗", label: "毒伤首次生效延迟", hint: "毒弹命中后到第一次持续伤害生效的等待时间", min: 0.05, max: 30, step: 0.05, unit: "秒" },
-        { key: "poisonTickInterval", group: "战斗", label: "毒伤后续间隔", hint: "第一次毒伤生效后，每次持续伤害之间的间隔", min: 0.05, max: 30, step: 0.05, unit: "秒" },
+        { key: "poisonTickInterval", group: "战斗", label: "毒伤间隔", hint: "每层永久中毒随机摧毁敌蛇身体节的结算间隔", min: 0.05, max: 30, step: 0.05, unit: "秒" },
         { key: "activeSkillBaseCooldown", group: "战斗", label: "主动技能基础冷却", hint: "第二页各机体的冷却百分比均以此时间为 100%", min: 0.05, max: 30, step: 0.05, unit: "秒" },
+        { key: "moduleFrostSlowPerHit", moduleId: "frost", group: "冰棱节", label: "每次永久减速", hint: "每次命中永久降低敌蛇的移动速度；多次命中加法叠加", min: 0, max: 1, step: 0.01, unit: "比例/次" },
+        { key: "moduleFrostMinimumSpeedMultiplier", moduleId: "frost", group: "冰棱节", label: "最低速度倍率", hint: "永久减速叠加后敌蛇仍保留的最低移动速度比例", min: 0.01, max: 1, step: 0.01, unit: "比例" },
+        { key: "moduleBladeBaseSizePixels", moduleId: "blade", group: "旋刃节", label: "旋刃基础体积", hint: "应用全局子弹体积倍率前的旋刃绘制与命中半径", min: 1, max: 100, step: 1, unit: "px" },
+        { key: "modulePulseRadiusCells", moduleId: "pulse", group: "脉冲核心", label: "冲击波半径", hint: "冲击波对范围内每个敌方部位分别结算命中的半径", min: 0.1, max: 30, step: 0.1, unit: "格" },
+        { key: "moduleClusterBlastRadiusCells", moduleId: "cluster", group: "裂变弹舱", label: "爆炸半径", hint: "裂变爆弹对范围内每个敌方部位分别结算命中的半径", min: 0.1, max: 30, step: 0.1, unit: "格" },
+        { key: "moduleShieldMaxCharges", moduleId: "shield", group: "碧玉护盾", label: "护盾储存上限", hint: "可同时储存并显示在生命条上的护盾层数", min: 1, max: 20, step: 1, unit: "层" },
         { key: "moduleRepulseRangePerLevelPixels", moduleId: "repulse", group: "斥力环节", label: "每级作用半径", hint: "每一级提供的蛇头斥力作用半径", min: 1, max: 1000, step: 5, unit: "px/级" },
         { key: "moduleArmorCooldownRatePerLevel", moduleId: "armor", group: "黑曜装甲", label: "每级冷却速度", hint: "每一级为护盾与相位提供的额外冷却速度", min: 0, max: 5, step: 0.01, unit: "倍率/级" },
         { key: "moduleStabilizerSlowReductionPerLevel", moduleId: "stabilizer", group: "平衡陀螺", label: "每级减速时间减免", hint: "每一级减少的反弹减速持续时间", min: 0, max: 1, step: 0.01, unit: "比例/级" },
         { key: "moduleStabilizerLockReductionPerLevel", moduleId: "stabilizer", group: "平衡陀螺", label: "每级转向锁定减免", hint: "每一级减少的反弹转向锁定时间", min: 0, max: 1, step: 0.01, unit: "比例/级" },
         { key: "moduleMagnetPickupRangePerLevel", moduleId: "magnet", group: "磁吸环节", label: "每级吃球范围", hint: "每一级增加的蛇头吃球半径", min: 0, max: 20, step: 0.05, unit: "格/级" },
-        { key: "moduleHasteSpeedPerLevel", moduleId: "haste", group: "涡轮节", label: "每级移动速度", hint: "每一级增加的移动速度倍率", min: 0, max: 2, step: 0.005, unit: "倍率/级" },
         { key: "moduleHasteTurnRatePerLevel", moduleId: "haste", group: "涡轮节", label: "每级转向速度", hint: "每一级增加的转向速度", min: 0, max: 10, step: 0.01, unit: "弧度/秒/级" },
         { key: "moduleChronosSlowPerLevel", moduleId: "chronos", group: "时缓晶节", label: "每级敌人减速", hint: "每一级减少的全场敌蛇移动速度", min: 0, max: 1, step: 0.01, unit: "比例/级" },
         { key: "moduleTractorRangePerLevel", moduleId: "tractor", group: "引力环节", label: "每级牵引范围", hint: "每一级提供的球牵引范围", min: 0, max: 30, step: 0.1, unit: "格/级" },
@@ -519,17 +523,35 @@
         { key: "moduleFeastSpeedPerLevel", moduleId: "feast", group: "吞噬涡轮", label: "每级增益速度", hint: "增益期间每一级增加的移动速度倍率", min: 0, max: 5, step: 0.01, unit: "倍率/级" },
         { key: "moduleSalvageExpectedDropsPerLevel", moduleId: "salvage", group: "回收炉节", label: "每级回收期望", hint: "每节敌蛇身体受损时，每一级增加的回收球期望", min: 0, max: 10, step: 0.01, unit: "球/级" },
         { key: "moduleAmplifierCooldownRatePerLevel", moduleId: "amplifier", group: "超频增幅节", label: "每级冷却速度", hint: "每一级为所有主动技能增加的冷却速度", min: 0, max: 5, step: 0.01, unit: "倍率/级" },
-        { key: "moduleBufferKnockbackReductionPerLevel", moduleId: "buffer", group: "动能缓冲节", label: "每级击退减免", hint: "每一级减少的玩家物理击退力度", min: 0, max: 1, step: 0.01, unit: "比例/级" },
+        { key: "moduleBufferCollisionReductionPerLevel", moduleId: "buffer", group: "动能缓冲节", label: "每级碰撞缓冲", hint: "蛇头撞击单位时，每一级减少的击退力与减速时间", min: 0, max: 1, step: 0.01, unit: "比例/级" },
         { key: "moduleDecoyAvoidanceReductionPerLevel", moduleId: "decoy", group: "诱导涂层", label: "每级避让削弱", hint: "每一级减少的敌蛇身体避让强度", min: 0, max: 1, step: 0.01, unit: "比例/级" },
         { key: "moduleDecoyMaxAvoidanceReduction", moduleId: "decoy", group: "诱导涂层", label: "避让削弱上限", hint: "诱导涂层最多能够削弱的敌蛇避让强度", min: 0, max: 1, step: 0.01, unit: "比例" },
         { key: "moduleEmergencyDurationPerLevel", moduleId: "emergency", group: "应急屏障节", label: "每级无敌时间", hint: "身体吃球后，每一级提供的无敌时间", min: 0, max: 30, step: 0.01, unit: "秒/级" },
         { key: "moduleEmergencyMaxDuration", moduleId: "emergency", group: "应急屏障节", label: "无敌时间上限", hint: "身体吃球触发的无敌持续时间上限", min: 0, max: 30, step: 0.05, unit: "秒" },
         { key: "moduleCollectorPickupRadiusPerLevel", moduleId: "collector", group: "全身采集节", label: "每级身体吃球半径", hint: "每一级为所有身体节增加的吃球半径", min: 0, max: 10, step: 0.01, unit: "格/级" },
-        { key: "moduleBeaconWaveRatePerLevel", moduleId: "beacon", group: "增压信标", label: "每级波次速度", hint: "每一级增加的波次倒计时速度倍率", min: 0, max: 5, step: 0.01, unit: "倍率/级" },
+        { key: "moduleBeaconEnemyCountPerLevel", moduleId: "beacon", group: "增压信标", label: "每级敌蛇数量", hint: "每一级增加的敌蛇生成数量倍率；与其它数量来源乘算", min: 0, max: 5, step: 0.01, unit: "倍率/级" },
         { key: "moduleMomentumKnockbackPerLevel", moduleId: "momentum", group: "冲量增幅器", label: "每级敌人击退", hint: "每一级增加的敌蛇物理击退力度", min: 0, max: 5, step: 0.01, unit: "倍率/级" },
-        { key: "moduleProgressorMaxSpeedPerLevel", moduleId: "progressor", group: "临界推进节", label: "每级满经验速度", hint: "经验进度满时，每一级最多增加的移动速度倍率", min: 0, max: 5, step: 0.01, unit: "倍率/级" },
+        { key: "moduleProgressorSpeedPerLevel", moduleId: "progressor", group: "临界推进节", label: "每级移动速度", hint: "每一级提供的固定移动速度加成，不再受经验进度影响", min: 0, max: 5, step: 0.01, unit: "倍率/级" },
         { key: "moduleCacheKillsPerTrigger", moduleId: "cache", group: "战果缓存节", label: "触发所需击破数", hint: "累计击破达到该数量后，按机体等级生成等量球", min: 1, max: 100, step: 1, unit: "次" },
         { key: "moduleThornsProjectileCount", moduleId: "thorns", group: "截击反应节", label: "截击弹数量", hint: "截击反应触发时固定发射的环形子弹数量", min: 1, max: 100, step: 1, unit: "枚" },
+        { key: "moduleBonusXpChancePerLevel", moduleId: "insight", group: "经验增幅节", label: "每级额外经验概率", hint: "吃球时额外获得1点经验的概率", min: 0, max: 1, step: 0.01, unit: "概率/级" },
+        { key: "moduleHeadCollisionDamagePerLevel", moduleId: "headstrike", group: "裂首冲锥", label: "每级额外头撞伤害", hint: "玩家蛇头撞击敌蛇蛇头时增加的伤害", min: 0, max: 100, step: 1, unit: "点/级" },
+        { key: "moduleMaxHealthPerLevel", moduleId: "vitality", group: "生命扩容节", label: "每级生命上限", hint: "每级增加的最大生命值；获得或升级时同步增加当前生命", min: 0, max: 100, step: 1, unit: "点/级" },
+        { key: "moduleHealthRegenPerLevel", moduleId: "renewal", group: "恒愈芯节", label: "每级每秒恢复", hint: "叠加到玩家基础自然恢复中的每秒生命恢复", min: 0, max: 20, step: 0.1, unit: "点/秒/级" },
+        { key: "moduleDamageReductionPerLevel", moduleId: "plating", group: "层叠装甲", label: "每级伤害减免", hint: "每一级降低所有来源伤害的比例", min: 0, max: 1, step: 0.01, unit: "比例/级" },
+        { key: "moduleFoodReplicationChancePerLevel", moduleId: "replicator", group: "孢子复制节", label: "每级复制概率", hint: "每节吃球成长动画完成后在尾部生成1个球的概率", min: 0, max: 1, step: 0.01, unit: "概率/级" },
+        { key: "moduleFoodHealPerLevel", moduleId: "medkit", group: "摄生转化节", label: "每级吃球恢复", hint: "玩家吃球时立即恢复的生命值", min: 0, max: 100, step: 1, unit: "点/级" },
+        { key: "moduleMissingHealthSpeedStep", moduleId: "adrenaline", group: "失压推进节", label: "失血判定步长", hint: "每损失该比例的最大生命值结算一次移动速度加成", min: 0.01, max: 1, step: 0.01, unit: "比例" },
+        { key: "moduleMissingHealthSpeedPerStepPerLevel", moduleId: "adrenaline", group: "失压推进节", label: "每级每档速度", hint: "每个失血档位、每一级提供的移动速度加成", min: 0, max: 1, step: 0.01, unit: "倍率/档/级" },
+        { key: "moduleMissingHealthHeadDamageStep", moduleId: "berserk", group: "逆境撞针", label: "失血判定步长", hint: "每损失该比例的最大生命值结算一次蛇头伤害加成", min: 0.01, max: 1, step: 0.01, unit: "比例" },
+        { key: "moduleMissingHealthHeadDamagePerStepPerLevel", moduleId: "berserk", group: "逆境撞针", label: "每级每档伤害", hint: "每个失血档位、每一级提供的蛇头伤害", min: 0, max: 100, step: 1, unit: "点/档/级" },
+        { key: "moduleHealingReceivedPerLevel", moduleId: "recovery", group: "愈合增幅节", label: "每级恢复增幅", hint: "提高除生命上限同步增加外所有生命恢复的比例", min: 0, max: 5, step: 0.01, unit: "倍率/级" },
+        { key: "moduleEnemyWallDamagePerLevel", moduleId: "wallbreaker", group: "壁垒共振节", label: "每级撞墙伤害增幅", hint: "多人模式取所有玩家中的最高等级", min: 0, max: 10, step: 0.05, unit: "倍率/级" },
+        { key: "moduleEnemyWallKnockbackPerLevel", moduleId: "wallbreaker", group: "壁垒共振节", label: "每级撞墙击退增幅", hint: "多人模式取所有玩家中的最高等级", min: 0, max: 10, step: 0.05, unit: "倍率/级" },
+        { key: "moduleTailGuardSegmentsPerLevel", moduleId: "tailguard", group: "尾部隔离舱", label: "每级白色机体节", hint: "在玩家尾部追加、可拦截敌人的无特殊效果白色机体数量", min: 0, max: 20, step: 1, unit: "节/级" },
+        { key: "moduleDeathBurstProjectilesPerLevel", moduleId: "deathburst", group: "猎杀齐射节", label: "每级死亡齐射弹数", hint: "任意敌蛇死亡时向随机方向发射的子弹数量", min: 0, max: 20, step: 1, unit: "枚/级" },
+        { key: "moduleCrisisHealthThreshold", moduleId: "crisis", group: "危态代偿节", label: "生命阈值", hint: "低于该最大生命比例时获得正恢复，否则产生等量负恢复", min: 0, max: 1, step: 0.01, unit: "比例" },
+        { key: "moduleCrisisRegenPerLevel", moduleId: "crisis", group: "危态代偿节", label: "每级代偿恢复", hint: "阈值两侧分别增加或减少的每秒生命恢复", min: 0, max: 20, step: 0.1, unit: "点/秒/级" },
         { key: "arenaAreaPerLevel", group: "场地", label: "每级场地面积成长", hint: "按场上最高玩家等级增加的场地面积倍率", min: 0, max: 0.5, step: 0.005, unit: "倍率/级" },
         { key: "arenaResizeRate", group: "场地", label: "场地缩放速度", hint: "场地面积目标变化后的平滑追随速度", min: 0.1, max: 10, step: 0.1, unit: "速率" },
         { key: "maxRenderFps", group: "性能", label: "最高绘制帧率", hint: "只限制 Canvas 和界面动效绘制，不降低逻辑与网络输入频率", min: 30, max: 240, step: 1, unit: "FPS" },
@@ -616,7 +638,7 @@
       const filePickerSupported = typeof window.showOpenFilePicker === "function";
 
       function normalizeConfig(value) {
-        const config = { schemaVersion: 11, balance: {}, waveEnemyCountSchedule: [], moduleCooldownPercentages: {}, moduleStates: {} };
+        const config = { schemaVersion: 12, balance: {}, waveEnemyCountSchedule: [], moduleCooldownPercentages: {}, moduleStates: {} };
         for (const definition of ALL_PARAMETER_DEFINITIONS) {
           const candidate = Number(value?.balance?.[definition.key]);
           config.balance[definition.key] = Number.isFinite(candidate) ? Math.max(definition.min, Math.min(definition.max, candidate)) : definition.min;
@@ -628,7 +650,7 @@
           const proposedStart = index === 0 ? 1 : Math.round(Number(candidate?.startWave));
           const startWave = index === 0 ? 1 : Math.max(previousStartWave + 1, Math.min(100000, Number.isFinite(proposedStart) ? proposedStart : fallback.startWave));
           const proposedCount = Math.round(Number(candidate?.enemyCount));
-          const enemyCount = Math.max(1, Math.min(100, Number.isFinite(proposedCount) ? proposedCount : fallback.enemyCount));
+          const enemyCount = Math.max(1, Number.isFinite(proposedCount) ? proposedCount : fallback.enemyCount);
           config.waveEnemyCountSchedule.push({ startWave, enemyCount });
           previousStartWave = startWave;
         }
@@ -652,7 +674,7 @@
         const end = text.lastIndexOf("}");
         if (start < 0 || end <= start) throw new Error("配置内容不完整");
         const parsed = JSON.parse(text.slice(start, end + 1));
-        if (parsed?.schemaVersion !== 11) throw new Error("配置版本无效，需要 schemaVersion 11");
+        if (parsed?.schemaVersion !== 12) throw new Error("配置版本无效，需要 schemaVersion 12");
         return normalizeConfig(parsed);
       }
 
@@ -958,12 +980,11 @@
           const countInput = document.createElement("input");
           countInput.type = "number";
           countInput.min = "1";
-          countInput.max = "100";
           countInput.step = "1";
           countInput.value = String(tier.enemyCount);
           countInput.setAttribute("aria-label", `第 ${index + 1} 段基础敌人数`);
           countInput.addEventListener("change", () => {
-            tier.enemyCount = Math.max(1, Math.min(100, Math.round(Number(countInput.value)) || 1));
+            tier.enemyCount = Math.max(1, Math.round(Number(countInput.value)) || 1);
             countInput.value = String(tier.enemyCount);
             renderWavePreview();
             scheduleAutoSave();

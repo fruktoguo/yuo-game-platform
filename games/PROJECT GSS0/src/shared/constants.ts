@@ -44,7 +44,6 @@ export const ENEMY_THINK_INTERVAL_MIN = Math.min(DESIGNER_BALANCE.enemyThinkInte
 export const ENEMY_THINK_INTERVAL_MAX = Math.max(DESIGNER_BALANCE.enemyThinkIntervalMin, DESIGNER_BALANCE.enemyThinkIntervalMax);
 export const ENEMY_FOOD_SEARCH_LIMIT = DESIGNER_BALANCE.enemyFoodSearchLimit;
 export const ENEMY_WALL_AVOIDANCE_DISTANCE = DESIGNER_BALANCE.enemyWallAvoidanceDistance;
-export const POISON_INITIAL_TICK_DELAY = DESIGNER_BALANCE.poisonInitialTickDelay;
 export const POISON_TICK_INTERVAL = DESIGNER_BALANCE.poisonTickInterval;
 export const UPGRADE_INVULNERABILITY_DURATION = DESIGNER_BALANCE.upgradeInvulnerabilityDuration;
 export const RESPAWN_LOCATOR_CONVERGE_DURATION = DESIGNER_BALANCE.respawnLocatorConvergeDuration;

@@ -6,7 +6,10 @@ export type GSS0ModuleId =
   | "salvage" | "regen" | "bloom" | "amplifier" | "needle" | "mortar" | "sweep"
   | "sniper" | "flak" | "fork" | "anchor" | "saw" | "flare" | "scatter" | "lance"
   | "execute" | "crossfire" | "phasebolt" | "ram" | "buffer" | "decoy" | "emergency"
-  | "collector" | "beacon" | "momentum" | "progressor" | "nursery" | "cache";
+  | "collector" | "beacon" | "momentum" | "progressor" | "nursery" | "cache"
+  | "insight" | "headstrike" | "vitality" | "renewal" | "plating" | "replicator"
+  | "medkit" | "adrenaline" | "berserk" | "recovery" | "wallbreaker" | "tailguard"
+  | "deathburst" | "crisis";
 
 export type GSS0ModuleCategory = "进攻" | "生存" | "辅助" | "发育";
 export type GSS0ModuleShape = "triangle" | "diamond" | "hex" | "star" | "ring" | "capsule" | "square" | "circle";

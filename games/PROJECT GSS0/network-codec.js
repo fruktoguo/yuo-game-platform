@@ -2,7 +2,7 @@
   "use strict";
 
   const MAGIC = 0x55534e50;
-  const VERSION = 10;
+  const VERSION = 11;
   const GRID_SIZE = 24;
   const COORDINATE_PADDING = 2;
   const TAU = Math.PI * 2;
@@ -57,6 +57,7 @@
     const definition = moduleIndex ? modules[moduleIndex - 1] : null;
     result.module = typeof definition === "string" ? definition : definition?.id || null;
     result.neutral = Boolean(flags & 1);
+    result.tailGuard = Boolean(flags & 16);
     result.ready = Boolean(flags & 2);
     result.moduleLevel = reader.u16();
     result.experienceTier = reader.u8();
@@ -94,6 +95,7 @@
     result.collisionCooldown = reader.f32();
     result.health = reader.f32();
     result.maxHealth = reader.f32();
+    result.shieldCharges = reader.u8();
     result.score = reader.f32();
     result.kills = reader.u16();
     result.botKills = reader.u16();
@@ -111,7 +113,9 @@
     if (reader.u8()) {
       const growth = result.growth || (result.growth = {});
       growth.color = reader.color();
-      growth.special = Boolean(reader.u8());
+      const growthFlags = reader.u8();
+      growth.special = Boolean(growthFlags & 1);
+      growth.spawnTailFood = Boolean(growthFlags & 2);
       growth.elapsed = reader.f32();
       growth.nodeCount = reader.u16();
     } else result.growth = null;
@@ -130,6 +134,8 @@
     result.angle = reader.angle();
     result.color = reader.color();
     result.captured = reader.u16();
+    result.permanentSlow = reader.u8() / 100;
+    result.poisonStacks = reader.u32();
     const segments = result.segments || (result.segments = []);
     const count = reader.u16();
     for (let index = 0; index < count; index += 1) {

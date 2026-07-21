@@ -26,7 +26,7 @@ export interface GSS0ModuleProgressionApi {
   readonly compressionBase: number;
   readonly slotUnlockLevels: readonly number[];
   readonly experienceTiers: readonly { readonly tier: number; readonly value: number; readonly color: string; readonly accent: string; readonly name: string }[];
-  readonly effects: Record<string, (level?: number) => number>;
+  readonly effects: Record<string, (...args: number[]) => number>;
   moduleLevel(segment: GSS0ProgressionSegment): number;
   moduleLevelsFromSegments(segments: readonly GSS0ProgressionSegment[]): Record<string, number>;
   moduleSlotCapacity(playerLevel: number): number;

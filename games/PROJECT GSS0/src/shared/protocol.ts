@@ -17,6 +17,7 @@ export interface UltraSegment extends GridPoint {
   module: ModuleId | null;
   moduleLevel: number;
   neutral: boolean;
+  tailGuard: boolean;
   experienceTier: number;
   timer: number;
   ready: boolean;
@@ -28,6 +29,7 @@ export interface UltraSegment extends GridPoint {
 export interface GrowthView {
   color: string;
   special: boolean;
+  spawnTailFood: boolean;
   elapsed: number;
   nodeCount: number;
 }
@@ -52,6 +54,7 @@ export interface UltraPlayerView extends GridPoint {
   collisionCooldown: number;
   health: number;
   maxHealth: number;
+  shieldCharges: number;
   score: number;
   kills: number;
   botKills: number;
@@ -73,6 +76,8 @@ export interface UltraEnemyView extends GridPoint {
   angle: number;
   color: string;
   captured: number;
+  permanentSlow: number;
+  poisonStacks: number;
   segments: GridPoint[];
 }
 
@@ -161,7 +166,7 @@ export interface UltraSnapshot {
   pendingSpawns: PendingSpawnView[];
 }
 
-export type UltraSoundKind = 'ui' | 'start' | 'pause' | 'resume' | 'foodSpawn' | 'enemyWarning' | 'enemySpawn' | 'bounce' | 'shoot' | 'skill' | 'frost' | 'electric' | 'nova' | 'laser' | 'mine' | 'pulse' | 'regen' | 'hit' | 'hurt' | 'kill' | 'level' | 'levelCharge' | 'select' | 'shield' | 'death' | 'eat';
+export type UltraSoundKind = 'ui' | 'start' | 'pause' | 'resume' | 'foodSpawn' | 'enemyWarning' | 'enemySpawn' | 'bounce' | 'shoot' | 'skill' | 'frost' | 'electric' | 'nova' | 'laser' | 'mine' | 'pulse' | 'regen' | 'hit' | 'hurt' | 'heal' | 'kill' | 'level' | 'levelCharge' | 'select' | 'shield' | 'death' | 'eat';
 
 export type UltraFeedbackKind = 'growth' | 'growth-special' | 'level' | 'food' | 'food-special' | 'hit' | 'hurt' | 'kill' | 'blast' | 'bounce';
 
@@ -185,6 +190,7 @@ export type UltraEffect = UltraEffectBase & (
   | { id: string; type: 'experienceCompress'; sources: GridPoint[]; target: GridPoint; fromTier: number; toTier: number; delay: number; ownerEntityId: number; audienceEntityId?: number }
   | { id: string; type: 'enemyBodyHit'; enemyId: number; beforeCount: number; start: number; count: number; reconnectIndex: number; audienceEntityId?: number }
   | { id: string; type: 'playerHurt'; playerEntityId: number; col: number; row: number; amount: number; health: number; maxHealth: number }
+  | { id: string; type: 'playerHeal'; playerEntityId: number; col: number; row: number; amount: number; health: number; maxHealth: number; color: string }
   | { id: string; type: 'sound'; kind: UltraSoundKind; detail?: number; sourceEntityId?: number; audienceEntityId?: number }
   | { id: string; type: 'feedback'; kind: UltraFeedbackKind; audienceEntityId: number }
   | { id: string; type: 'flash'; color: string; strength: number; audienceEntityId?: number }

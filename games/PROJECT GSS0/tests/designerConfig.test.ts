@@ -67,11 +67,22 @@ describe('设计配置', () => {
       foodsPerPlayerPerWave: 2,
       projectileSpeedScale: 3,
       projectileSizeScale: 2,
-      poisonInitialTickDelay: 1.4,
-      poisonTickInterval: 2.3,
+      poisonTickInterval: 3,
       activeSkillBaseCooldown: 6,
       moduleRepulseRangePerLevelPixels: 110,
-      moduleHasteSpeedPerLevel: 0.045,
+      moduleHasteTurnRatePerLevel: 0.2,
+      moduleBufferCollisionReductionPerLevel: 0.2,
+      moduleBeaconEnemyCountPerLevel: 0.15,
+      moduleProgressorSpeedPerLevel: 0.2,
+      modulePulseRadiusCells: 6,
+      moduleClusterBlastRadiusCells: 5,
+      moduleShieldMaxCharges: 5,
+      moduleBonusXpChancePerLevel: 0.1,
+      moduleMaxHealthPerLevel: 6,
+      moduleHealthRegenPerLevel: 0.5,
+      moduleDamageReductionPerLevel: 0.1,
+      moduleFoodReplicationChancePerLevel: 0.06,
+      moduleFoodHealPerLevel: 1,
       moduleCacheKillsPerTrigger: 5,
       arenaAreaPerLevel: 0.03,
       upgradeInvulnerabilityDuration: 1,
@@ -152,7 +163,7 @@ describe('设计配置', () => {
   it('全部现有机体都有审查状态且禁用项不会进入升级池', () => {
     const source = (globalThis as typeof globalThis & { GSS0_DESIGNER_CONFIG: { moduleStates: Record<string, string> } }).GSS0_DESIGNER_CONFIG;
     expect(Object.keys(source.moduleStates).sort()).toEqual(MODULES.map((module) => module.id).sort());
-    expect(Object.values(source.moduleStates).filter((state) => state === 'normal')).toHaveLength(43);
+    expect(Object.values(source.moduleStates).filter((state) => state === 'normal')).toHaveLength(57);
     expect(Object.values(source.moduleStates).filter((state) => state === 'tune')).toHaveLength(0);
     expect(Object.values(source.moduleStates).filter((state) => state === 'rework')).toHaveLength(0);
     expect(Object.values(source.moduleStates).filter((state) => state === 'disabled')).toHaveLength(15);
@@ -165,24 +176,25 @@ describe('设计配置', () => {
 
     expect(parameterKeys.sort()).toEqual(Object.keys(DESIGNER_BALANCE).sort());
     expect(moduleIds.sort()).toEqual(MODULES.map((module) => module.id).sort());
-    expect(new Set(parameterKeys).size).toBe(150);
+    expect(new Set(parameterKeys).size).toBe(172);
     expect(parameterKeys).not.toContain('playerSpeedPerLevel');
     expect(parameterKeys).not.toContain('moduleEffectReductionMaximum');
-    expect(new Set(moduleIds).size).toBe(58);
+    expect(new Set(moduleIds).size).toBe(72);
   });
 
   it('全部机体共用唯一描述目录且被动参数明确', () => {
-    expect(MODULES).toHaveLength(58);
+    expect(MODULES).toHaveLength(72);
     expect(MODULES.every((module) => module.desc.trim().length > 0)).toBe(true);
     expect(new Set(MODULES.map((module) => module.id)).size).toBe(MODULES.length);
     expect(MODULES.find((module) => module.id === 'spark')?.desc).toBe('发射1枚高速焰弹，造成1伤害。');
-    expect(MODULES.find((module) => module.id === 'haste')?.desc).toContain('4.5%移动速度');
-    expect(MODULES.find((module) => module.id === 'haste')?.desc).toContain('0.18弧度/秒转向速度');
+    expect(MODULES.find((module) => module.id === 'haste')?.desc).toBe('每级使玩家转向速度提高20%。');
+    expect(MODULES.find((module) => module.id === 'headstrike')?.desc).toContain('敌蛇蛇头');
+    expect(MODULES.find((module) => module.id === 'ram')?.desc).toContain('敌蛇任意部位');
     expect(MODULES.some((module) => ['输出', '防御', '恢复'].includes(module.category as string))).toBe(false);
     expect(MODULES.every((module) => ['进攻', '生存', '辅助', '发育'].includes(module.category))).toBe(true);
-    expect(MODULES.filter((module) => module.category === '发育')).toHaveLength(5);
-    expect(editorHtml).toContain('src="module-catalog.js?v=64"');
-    expect(editorHtml).toContain('src="module-progression.js?v=64"');
+    expect(MODULES.filter((module) => module.category === '发育')).toHaveLength(9);
+    expect(editorHtml).toContain('src="module-catalog.js?v=65"');
+    expect(editorHtml).toContain('src="module-progression.js?v=65"');
     expect(editorHtml).toContain('const MODULES = moduleCatalog;');
     expect(editorHtml).toContain('descriptionText.textContent = describeModule(module.id, draft.balance);');
     expect(editorHtml).toContain('ID: ${module.id}');

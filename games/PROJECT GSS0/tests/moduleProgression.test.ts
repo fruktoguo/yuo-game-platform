@@ -43,17 +43,18 @@ describe('机体成长规则', () => {
   });
 
   it('被动效果从零级开始，并在升级卡展示前后实际变化', () => {
-    expect(MODULE_PROGRESSION.effects.hasteSpeedBonus(0)).toBe(0);
-    expect(MODULE_PROGRESSION.effects.hasteSpeedBonus(3)).toBeCloseTo(0.135);
-    expect(MODULE_PROGRESSION.effects.hasteSpeedBonus(100)).toBeCloseTo(0.225);
+    expect(MODULE_PROGRESSION.effects.hasteTurnRateBonus(0)).toBe(0);
+    expect(MODULE_PROGRESSION.effects.hasteTurnRateBonus(3)).toBeCloseTo(0.6);
+    expect(MODULE_PROGRESSION.effects.hasteTurnRateBonus(100)).toBeCloseTo(1);
     const active = MODULE_PROGRESSION.moduleUpgradePreview('spark', 2);
     expect(active.levelLabel).toBe('等级 2 → 等级 3');
     expect(active.lines[0].text).toBe('冷却时间 3秒 → 2秒');
     const passive = MODULE_PROGRESSION.moduleUpgradePreview('haste', 2);
     expect(passive.lines.map((line) => line.text)).toEqual([
-      '移动速度 +9% → +13.5%',
-      '转向速度 +0.36弧度/秒 → +0.54弧度/秒',
+      '转向速度 +40% → +60%',
     ]);
+    expect(MODULE_PROGRESSION.moduleUpgradePreview('vitality', 4).lines[0].text).toBe('最大生命值 +24 → +30');
+    expect(MODULE_PROGRESSION.moduleUpgradePreview('replicator', 4).lines[0].text).toBe('复制球概率 24% → 30%');
   });
 
   it('为机体栏提供当前等级的实际效果摘要', () => {
@@ -63,8 +64,7 @@ describe('机体成长规则', () => {
       lines: [{ label: '冷却时间', text: '冷却时间 3秒' }],
     });
     expect(MODULE_PROGRESSION.moduleCurrentEffect('haste', 2).lines.map((line) => line.text)).toEqual([
-      '移动速度 +9%',
-      '转向速度 +0.36弧度/秒',
+      '转向速度 +40%',
     ]);
   });
 

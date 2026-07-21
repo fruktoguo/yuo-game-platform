@@ -25,7 +25,7 @@ if (!Array.isArray(MODULE_CATALOG) || MODULE_CATALOG.length === 0) {
 export const MODULES = Object.freeze(MODULE_CATALOG.map((module): ModuleDefinition => ({
   ...module,
   cooldown: module.activeCooldown
-    ? `${formatCooldownSeconds(moduleCooldownSeconds(module.id))}${module.id === 'blade' || module.id === 'saw' ? '/目标' : ''}`
+    ? `${formatCooldownSeconds(moduleCooldownSeconds(module.id))}${module.id === 'saw' ? '/目标' : ''}`
     : module.cooldown,
 })));
 

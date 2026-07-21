@@ -7,7 +7,7 @@
     return Math.max(minimum, Math.min(maximum, candidate));
   }
 
-  function positiveInteger(value, fallback, maximum = 100000) {
+  function positiveInteger(value, fallback, maximum = Infinity) {
     return Math.round(finiteNumber(value, fallback, 1, maximum));
   }
 
@@ -16,7 +16,7 @@
     const normalized = entries
       .map((entry) => ({
         startWave: positiveInteger(entry?.startWave, 1),
-        enemyCount: positiveInteger(entry?.enemyCount, 1, 100)
+        enemyCount: positiveInteger(entry?.enemyCount, 1)
       }))
       .sort((left, right) => left.startWave - right.startWave);
     if (normalized.length === 0) normalized.push({ startWave: 1, enemyCount: 1 });

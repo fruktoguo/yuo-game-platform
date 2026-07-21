@@ -42,7 +42,6 @@ import {
   PLAYER_TURN_RATE,
   PLAYER_WALL_COLLISION_DAMAGE,
   ENEMY_COLLISION_DAMAGE,
-  POISON_INITIAL_TICK_DELAY,
   POISON_TICK_INTERVAL,
   PROJECTILE_SIZE_SCALE,
   PROJECTILE_SPEED_SCALE,
@@ -106,22 +105,17 @@ interface PlayerEntity extends UltraPlayerView {
   knockbackY: number;
   foodBoost: number;
   thornsCooldown: number;
-  ramCooldown: number;
   bloomCooldown: number;
   cacheKills: number;
+  regenDamageBuffer: number;
   lastInputSequence: number;
   movementHistory: PlayerMovementSample[];
   recentPicks: ModuleId[];
-  growthQueue: Array<{ color: string; special: boolean }>;
+  growthQueue: Array<{ color: string; special: boolean; spawnTailFood: boolean }>;
   upgradePending: boolean;
   upgradeRevealTimer: number;
   upgradeOffer: UpgradeOffer | null;
-  bladeCooldown: number;
   sawCooldown: number;
-  poisonTicks: number;
-  poisonTimer: number;
-  poisonColor: string | null;
-  poisonOwnerEntityId: number | null;
 }
 
 interface EnemySegment extends GridPoint {
@@ -141,11 +135,9 @@ interface EnemyEntity extends UltraEnemyView {
   slow: number;
   knockbackX: number;
   knockbackY: number;
-  poisonTicks: number;
   poisonTimer: number;
   poisonColor: string | null;
   poisonOwnerEntityId: number | null;
-  bladeCooldownsByPlayer: Map<number, number>;
   sawCooldownsByPlayer: Map<number, number>;
   collisionCooldown: number;
   projectileMinCol: number;
@@ -224,9 +216,10 @@ interface ProjectileEntity extends UltraProjectileView {
   blastRadius: number;
   slow: number;
   poison: number;
+  permanentSlow: number;
   homing: number;
   target: TargetRef | null;
-  hitIds: string[];
+  hitNodes: Set<GridPoint>;
 }
 
 interface HazardEntity extends UltraHazardView {
@@ -244,8 +237,10 @@ interface ShotOptions {
   blastRadius?: number;
   slow?: number;
   poison?: number;
+  permanentSlow?: number;
   homing?: number;
   angleOffset?: number;
+  blastRadiusCells?: number;
 }
 
 export interface RunResult {
@@ -330,7 +325,8 @@ export class UltraWorld {
   private readonly foodCollectionCandidatePool: FoodCollectionCandidate[] = [];
   private readonly orderedFoodCollectionCandidates: FoodCollectionCandidate[] = [];
   private networkSnapshotCache: UltraSnapshot | null = null;
-  private enemyKnockbackMultiplier = 1;
+  private enemyWallDamageMultiplier = 1;
+  private enemyWallKnockbackMultiplier = 1;
   private enemyFoodVisitToken = 0;
   private tick = 0;
   private gameTime = 0;
@@ -527,6 +523,7 @@ export class UltraWorld {
         || (claim.normalRow < 0 && player.row >= this.arenaMaximum() - 1.5)
       );
       if (!nearWall) return false;
+      this.triggerCollisionEcho(player);
       this.damagePlayer(player, PLAYER_WALL_COLLISION_DAMAGE, now, '撞上墙壁');
       return true;
     }
@@ -546,7 +543,7 @@ export class UltraWorld {
       if (claim.kind === 'enemy-head') {
         this.applyPlayerCollisionAttack(player, enemy, enemy, -1, true);
       }
-      if (!enemy.dead) this.bounceEntity(enemy, -claim.normalCol, -claim.normalRow, enemy.color, 0.54);
+      if (!enemy.dead) this.bounceEntity(enemy, -claim.normalCol, -claim.normalRow, enemy.color, 0.54, 1 + MODULE_PROGRESSION.effects.momentumKnockbackBonus(this.moduleCount(player, 'momentum')));
       return true;
     }
     if (claim.kind === 'enemy-body') {
@@ -614,7 +611,7 @@ export class UltraWorld {
     this.recentPlayerHeadCollisionPairs.set(pairKey, { eventId, at: now });
     this.recentPlayerHeadCollisionEvents.set(eventId, now);
     if (target.autopilot) {
-      this.bounceEntity(target, -event.normalCol, -event.normalRow, PLAYER_COLORS[target.colorIndex], 0.58);
+      this.bounceEntity(target, -event.normalCol, -event.normalRow, PLAYER_COLORS[target.colorIndex], 0.58, 1, true);
     }
     this.callbacks.onPlayerHeadCollision?.(event);
     return true;
@@ -801,7 +798,9 @@ export class UltraWorld {
 
     this.updateEnemySpawnWarnings(worldDelta);
     this.updateSpawns(worldDelta, present, active);
-    this.enemyKnockbackMultiplier = 1 + MODULE_PROGRESSION.effects.momentumKnockbackBonus(this.maximumModuleCount('momentum', active));
+    const wallbreaker = this.maximumModuleCount('wallbreaker', present);
+    this.enemyWallDamageMultiplier = 1 + MODULE_PROGRESSION.effects.enemyWallDamageBonus(wallbreaker);
+    this.enemyWallKnockbackMultiplier = 1 + MODULE_PROGRESSION.effects.enemyWallKnockbackBonus(wallbreaker);
     for (const player of active) if (player.autopilot && player.collisionCooldown <= 0) player.desiredAngle = this.autopilotAngle(player, present);
     for (const player of active) this.movePlayer(player, worldDelta);
     for (const player of active) this.recordPlayerMovement(player, now);
@@ -970,15 +969,16 @@ export class UltraWorld {
       invulnerable: 0,
       health: PLAYER_MAX_HEALTH,
       maxHealth: PLAYER_MAX_HEALTH,
+      shieldCharges: 0,
       slow: 0,
       collisionCooldown: 0,
       knockbackX: 0,
       knockbackY: 0,
       foodBoost: 0,
       thornsCooldown: 0,
-      ramCooldown: 0,
       bloomCooldown: 0,
       cacheKills: 0,
+      regenDamageBuffer: 0,
       lastInputSequence: -1,
       movementHistory: [],
       score: 0,
@@ -997,12 +997,7 @@ export class UltraWorld {
       upgradePending: false,
       upgradeRevealTimer: 0,
       upgradeOffer: null,
-      bladeCooldown: 0,
       sawCooldown: 0,
-      poisonTicks: 0,
-      poisonTimer: 0,
-      poisonColor: null,
-      poisonOwnerEntityId: null,
     };
   }
 
@@ -1018,15 +1013,16 @@ export class UltraWorld {
     player.invulnerable = 0;
     player.health = PLAYER_MAX_HEALTH;
     player.maxHealth = PLAYER_MAX_HEALTH;
+    player.shieldCharges = 0;
     player.slow = 0;
     player.collisionCooldown = 0;
     player.knockbackX = 0;
     player.knockbackY = 0;
     player.foodBoost = 0;
     player.thornsCooldown = 0;
-    player.ramCooldown = 0;
     player.bloomCooldown = 0;
     player.cacheKills = 0;
+    player.regenDamageBuffer = 0;
     player.lastInputSequence = -1;
     player.movementHistory.length = 0;
     this.clearPlayerHeadCollisionRecords(player.entityId);
@@ -1046,12 +1042,7 @@ export class UltraWorld {
     player.upgradePending = false;
     player.upgradeRevealTimer = 0;
     player.upgradeOffer = null;
-    player.bladeCooldown = 0;
     player.sawCooldown = 0;
-    player.poisonTicks = 0;
-    player.poisonTimer = 0;
-    player.poisonColor = null;
-    player.poisonOwnerEntityId = null;
   }
 
   private resetSharedWorld(): void {
@@ -1159,10 +1150,30 @@ export class UltraWorld {
   }
 
   private playerBaseSpeed(player: PlayerEntity): number {
-    const hasteMultiplier = 1 + MODULE_PROGRESSION.effects.hasteSpeedBonus(this.moduleCount(player, 'haste'));
-    const progress = player.xpNeeded > 0 ? clamp(player.xp / player.xpNeeded, 0, 1) : 0;
-    const progressMultiplier = 1 + MODULE_PROGRESSION.effects.progressorMaxSpeedBonus(this.moduleCount(player, 'progressor')) * progress;
-    return PLAYER_BASE_SPEED * hasteMultiplier * progressMultiplier;
+    const feast = player.foodBoost > 0 ? MODULE_PROGRESSION.effects.feastSpeedBonus(this.moduleCount(player, 'feast')) : 0;
+    const bonus = MODULE_PROGRESSION.effects.progressorSpeedBonus(this.moduleCount(player, 'progressor'))
+      + MODULE_PROGRESSION.effects.missingHealthSpeedBonus(this.moduleCount(player, 'adrenaline'), this.missingHealthFraction(player))
+      + feast;
+    return PLAYER_BASE_SPEED * (1 + bonus);
+  }
+
+  private missingHealthFraction(player: PlayerEntity): number {
+    if (player.maxHealth <= 0) return 0;
+    return clamp(1 - player.health / player.maxHealth, 0, 1);
+  }
+
+  private playerHeadDamage(player: PlayerEntity, hitEnemyHead = false): number {
+    return PLAYER_COLLISION_DAMAGE
+      + this.moduleCount(player, 'ram')
+      + MODULE_PROGRESSION.effects.missingHealthHeadDamageBonus(this.moduleCount(player, 'berserk'), this.missingHealthFraction(player))
+      + (hitEnemyHead ? MODULE_PROGRESSION.effects.headCollisionDamageBonus(this.moduleCount(player, 'headstrike')) : 0);
+  }
+
+  private playerHealthRegenRate(player: PlayerEntity): number {
+    const healthFraction = player.maxHealth > 0 ? clamp(player.health / player.maxHealth, 0, 1) : 0;
+    return PLAYER_HEALTH_REGEN_PER_SECOND
+      + MODULE_PROGRESSION.effects.healthRegenBonus(this.moduleCount(player, 'renewal'))
+      + MODULE_PROGRESSION.effects.crisisRegen(this.moduleCount(player, 'crisis'), healthFraction);
   }
 
   private moduleCount(player: PlayerEntity, id: ModuleId): number {
@@ -1187,7 +1198,7 @@ export class UltraWorld {
 
     let target: GridPoint = nearestFood ?? { col: (this.arenaMinimum() + this.arenaMaximum()) / 2, row: (this.arenaMinimum() + this.arenaMaximum()) / 2 };
     let targetDistance = nearestDistance;
-    const headStrikeDamage = PLAYER_COLLISION_DAMAGE + Number(this.moduleCount(player, 'ram') > 0 && player.ramCooldown <= 0);
+    const headStrikeDamage = this.playerHeadDamage(player, true);
     for (const enemy of this.enemies) {
       if (enemy.dead || enemy.segments.length >= headStrikeDamage) continue;
       const distance = distanceSquared(player, enemy);
@@ -1241,10 +1252,9 @@ export class UltraWorld {
 
   private movePlayer(player: PlayerEntity, delta: number): void {
     if (player.collisionCooldown > 0) player.desiredAngle = player.angle;
-    else player.angle = rotateToward(player.angle, player.desiredAngle, (PLAYER_TURN_RATE + MODULE_PROGRESSION.effects.hasteTurnRateBonus(this.moduleCount(player, 'haste'))) * delta);
+    else player.angle = rotateToward(player.angle, player.desiredAngle, PLAYER_TURN_RATE * (1 + MODULE_PROGRESSION.effects.hasteTurnRateBonus(this.moduleCount(player, 'haste'))) * delta);
     const slowMultiplier = player.slow > 0 ? 0.48 : 1;
-    const feastMultiplier = player.foodBoost > 0 ? 1 + MODULE_PROGRESSION.effects.feastSpeedBonus(this.moduleCount(player, 'feast')) : 1;
-    player.speed = this.playerBaseSpeed(player) * slowMultiplier * feastMultiplier;
+    player.speed = this.playerBaseSpeed(player) * slowMultiplier;
     player.col += (Math.cos(player.angle) * player.speed + player.knockbackX) * delta;
     player.row += (Math.sin(player.angle) * player.speed + player.knockbackY) * delta;
     this.applyKnockbackDecay(player, delta);
@@ -1253,12 +1263,21 @@ export class UltraWorld {
 
   private updatePlayerTimers(player: PlayerEntity, delta: number): void {
     player.invulnerable = Math.max(0, player.invulnerable - delta);
-    player.health = Math.min(player.maxHealth, player.health + PLAYER_HEALTH_REGEN_PER_SECOND * delta);
+    const regenRate = this.playerHealthRegenRate(player);
+    if (regenRate >= 0) {
+      player.regenDamageBuffer = 0;
+      this.healPlayer(player, regenRate * delta);
+    } else {
+      player.regenDamageBuffer += -regenRate * delta;
+      while (player.regenDamageBuffer >= 1 && player.alive) {
+        player.regenDamageBuffer -= 1;
+        this.damagePlayer(player, 1, this.now, '生命代偿失衡');
+      }
+    }
     player.slow = Math.max(0, player.slow - delta);
     player.collisionCooldown = Math.max(0, player.collisionCooldown - delta);
     player.foodBoost = Math.max(0, player.foodBoost - delta);
     player.thornsCooldown = Math.max(0, player.thornsCooldown - delta);
-    player.ramCooldown = Math.max(0, player.ramCooldown - delta);
     player.bloomCooldown = Math.max(0, player.bloomCooldown - delta);
   }
 
@@ -1283,6 +1302,7 @@ export class UltraWorld {
     this.burst(tail.col, tail.row, '#eef5ff', completed.special ? 18 : 12, completed.special ? 135 : 105, player.entityId);
     this.ring(tail.col, tail.row, completed.color, 0.46, 3, 0.78, player.entityId);
     this.ring(tail.col, tail.row, '#ffffff', 0.28, 2, 0.46, player.entityId);
+    if (completed.spawnTailFood) this.spawnFoodBehindTail(player);
     this.feedback(completed.special ? 'growth-special' : 'growth', player.entityId);
     player.growth = null;
     if (player.growthQueue.length > 0) {
@@ -1292,15 +1312,12 @@ export class UltraWorld {
     }
   }
 
-  private materializePendingGrowth(player: PlayerEntity): void {
-    const pendingCount = player.growthQueue.length + (player.growth ? 1 : 0);
-    player.growth = null;
-    player.growthQueue.length = 0;
-    for (let index = 0; index < pendingCount; index += 1) {
-      const tail = player.segments.at(-1) ?? player;
-      player.segments.push(makeSegment(tail.col, tail.row, { neutral: true, experienceTier: 0 }, this.randomSource));
-    }
-    this.compressExperienceSegments(player);
+  private spawnFoodBehindTail(player: PlayerEntity): void {
+    const tail = player.segments.at(-1) ?? player;
+    const previous = player.segments.at(-2) ?? player;
+    const angle = Math.atan2(tail.row - previous.row, tail.col - previous.col);
+    this.spawnFood({ col: tail.col + Math.cos(angle) * 1.2, row: tail.row + Math.sin(angle) * 1.2 }, true);
+    this.ring(tail.col, tail.row, MODULE_BY_ID.replicator.color, 0.48, 3, 0.9, player.entityId);
   }
 
   private compressExperienceSegments(player: PlayerEntity): number {
@@ -1393,17 +1410,13 @@ export class UltraWorld {
     const definition = MODULE_BY_ID[moduleId];
     if (!definition?.activeCooldown) return;
     segment.timer = 0;
-    if (moduleId === 'shield' || moduleId === 'phase') {
+    if (moduleId === 'phase') {
       segment.ready = true;
       segment.cooldown = 0;
     } else if (moduleId === 'thorns') {
       player.thornsCooldown = 0;
-    } else if (moduleId === 'ram') {
-      player.ramCooldown = 0;
     } else if (moduleId === 'bloom') {
       player.bloomCooldown = 0;
-    } else if (moduleId === 'blade') {
-      for (const enemy of this.enemies) enemy.bladeCooldownsByPlayer.delete(player.entityId);
     } else if (moduleId === 'saw') {
       for (const enemy of this.enemies) enemy.sawCooldownsByPlayer.delete(player.entityId);
     }
@@ -1411,6 +1424,7 @@ export class UltraWorld {
 
   private applyUpgrade(player: PlayerEntity, moduleId: ModuleId, _now: number): void {
     const existing = player.segments.find((segment) => segment.module === moduleId) ?? null;
+    const previousMaximumHealth = player.maxHealth;
     const consumedExperience = player.segments.filter((segment) => segment.neutral);
     player.segments = player.segments.filter((segment) => !segment.neutral);
     player.level += 1;
@@ -1430,6 +1444,8 @@ export class UltraWorld {
       player.segments.push(upgradedSegment);
     }
     this.refreshActiveModuleCooldown(player, moduleId, upgradedSegment);
+    this.syncPlayerMaximumHealth(player, previousMaximumHealth);
+    this.syncTailGuardSegments(player);
     player.recentPicks.push(moduleId);
     if (player.recentPicks.length > 6) player.recentPicks.shift();
     player.score += 250 * player.level;
@@ -1444,17 +1460,40 @@ export class UltraWorld {
     this.ring(upgradedSegment.col, upgradedSegment.row, definition.color, 0.7, 12, existing ? 72 : 57, player.entityId, 'pixels');
   }
 
+  private syncPlayerMaximumHealth(player: PlayerEntity, previousMaximum: number): void {
+    const nextMaximum = PLAYER_MAX_HEALTH + MODULE_PROGRESSION.effects.maxHealthBonus(this.moduleCount(player, 'vitality'));
+    const increase = nextMaximum - previousMaximum;
+    player.maxHealth = nextMaximum;
+    player.health = increase > 0
+      ? Math.min(nextMaximum, player.health + increase)
+      : Math.min(player.health, nextMaximum);
+  }
+
+  private syncTailGuardSegments(player: PlayerEntity): void {
+    const targetCount = MODULE_PROGRESSION.effects.tailGuardSegmentCount(this.moduleCount(player, 'tailguard'));
+    player.segments = player.segments.filter((segment) => !segment.tailGuard);
+    for (let index = 0; index < targetCount; index += 1) {
+      const tail = player.segments.at(-1) ?? player;
+      player.segments.push(makeSegment(tail.col, tail.row, { tailGuard: true, birthAge: 0 }, this.randomSource));
+    }
+  }
+
   private collectFood(player: PlayerEntity, foodIndex: number, collector: GridPoint): void {
     const food = this.removeFoodAt(foodIndex);
     if (!food) return;
-    player.xp += 1;
+    const bonusExperience = this.random() < MODULE_PROGRESSION.effects.bonusXpChance(this.moduleCount(player, 'insight')) ? 1 : 0;
+    player.xp += 1 + bonusExperience;
     player.score += food.special ? 35 : 20;
-    player.growthQueue.push({ color: food.color, special: food.special });
+    player.growthQueue.push({
+      color: food.color,
+      special: food.special,
+      spawnTailFood: this.random() < MODULE_PROGRESSION.effects.foodReplicationChance(this.moduleCount(player, 'replicator')),
+    });
     const completesLevel = player.xp >= player.xpNeeded;
     if (completesLevel) {
       player.upgradePending = true;
-      this.materializePendingGrowth(player);
-    } else if (!player.growth) {
+    }
+    if (!player.growth) {
       player.growth = { ...player.growthQueue.shift()!, elapsed: 0, nodeCount: player.segments.length + 1 };
     }
     if (this.moduleCount(player, 'feast') > 0) player.foodBoost = MODULE_PROGRESSION.effects.feastDuration();
@@ -1463,13 +1502,13 @@ export class UltraWorld {
       player.invulnerable = Math.max(player.invulnerable, MODULE_PROGRESSION.effects.emergencyDuration(emergency));
       this.ring(collector.col, collector.row, MODULE_BY_ID.emergency.color, 0.38, 7, 0.72, player.entityId);
     }
+    this.healPlayer(player, MODULE_PROGRESSION.effects.foodHeal(this.moduleCount(player, 'medkit')), MODULE_BY_ID.medkit.color, true);
     this.burst(collector.col, collector.row, food.color, food.special ? 34 : 28, food.special ? 210 : 180, player.entityId);
     this.ring(collector.col, collector.row, food.color, 0.58, 5, 1.5, player.entityId);
     this.ring(collector.col, collector.row, '#ffffff', 0.32, 4, 0.82, player.entityId);
-    this.textEffect(collector.col, collector.row, '+1', food.color, 0.72, player.entityId);
+    this.textEffect(collector.col, collector.row, `+${1 + bonusExperience}`, food.color, 0.72, player.entityId);
     this.effectSound('eat', player.entityId, player.xp);
     this.feedback(food.special ? 'food-special' : 'food', player.entityId);
-    if (completesLevel) this.startLevelUpTransition(player);
   }
 
   private updateFood(delta: number, activePlayers: PlayerEntity[]): void {
@@ -1614,14 +1653,8 @@ export class UltraWorld {
     return nearest;
   }
 
-  private waveCountdownRate(players?: readonly PlayerEntity[]): number {
-    let best = 1;
-    const candidates = players ?? this.playersByEntity.values();
-    for (const player of candidates) {
-      if (!players && (!player.alive || !player.connected || player.paused || player.choosingUpgrade)) continue;
-      best = Math.max(best, 1 + MODULE_PROGRESSION.effects.beaconWaveRateBonus(this.moduleCount(player, 'beacon')));
-    }
-    return best;
+  private waveCountdownRate(_players?: readonly PlayerEntity[]): number {
+    return 1;
   }
 
   private chooseEnemyArchetype(): EnemyArchetypeDefinition | null {
@@ -1639,17 +1672,21 @@ export class UltraWorld {
     return available[available.length - 1];
   }
 
-  private queueWaveEnemies(playerCount: number, occupied: Set<number>): void {
+  private queueWaveEnemies(playerCount: number, occupied: Set<number>, players: readonly PlayerEntity[]): void {
     const plan = enemyWaveDirector.plan(this.waveCount + 1);
+    const countMultiplier = players.reduce(
+      (multiplier, player) => multiplier * MODULE_PROGRESSION.effects.beaconEnemyCountMultiplier(this.moduleCount(player, 'beacon')),
+      1,
+    );
     const archetypes: EnemyArchetypeDefinition[] = [];
-    for (let index = 0; index < plan.enemyCount * playerCount; index += 1) {
+    for (let index = 0; index < Math.ceil(plan.enemyCount * playerCount * countMultiplier); index += 1) {
       const archetype = this.chooseEnemyArchetype();
       if (!archetype) break;
       archetypes.push(archetype);
     }
     const allocation = enemyWaveDirector.allocateHealth(
       archetypes.map((archetype) => archetype.healthWeight),
-      plan.totalThreat * playerCount,
+      plan.totalThreat * playerCount * countMultiplier,
       () => this.random(),
     );
     for (let index = 0; index < archetypes.length; index += 1) {
@@ -1666,7 +1703,7 @@ export class UltraWorld {
     for (const player of players) {
       this.spawnWaveFoods(FOODS_PER_PLAYER_PER_WAVE, foodCells, occupied);
     }
-    this.queueWaveEnemies(playerCount, occupied);
+    this.queueWaveEnemies(playerCount, occupied, activePlayers);
     this.waveCount += 1;
     this.waveTimer = WAVE_BASE_INTERVAL;
   }
@@ -1985,13 +2022,13 @@ export class UltraWorld {
       think: this.randomBetween(0.1, 0.5),
       wobble: this.randomBetween(0, TAU),
       slow: 0,
+      permanentSlow: 0,
       knockbackX: 0,
       knockbackY: 0,
-      poisonTicks: 0,
+      poisonStacks: 0,
       poisonTimer: 0,
       poisonColor: null,
       poisonOwnerEntityId: null,
-      bladeCooldownsByPlayer: new Map(),
       sawCooldownsByPlayer: new Map(),
       collisionCooldown: 0,
       projectileMinCol: spawn.headCell.col,
@@ -2185,18 +2222,11 @@ export class UltraWorld {
     return candidates[0] ?? this.findFreeCell(center, 2) ?? center;
   }
 
-  private triggerCollisionEcho(player: PlayerEntity, target: EnemyTargetSelection): void {
+  private triggerCollisionEcho(player: PlayerEntity): void {
     const echoes = this.moduleCount(player, 'echo');
     if (echoes <= 0) return;
     for (let index = 0; index < echoes; index += 1) {
-      const direction = index % 2 ? 1 : -1;
-      const tier = Math.floor(index / 2) + 1;
-      this.spawnShot(player, player, target, {
-        color: MODULE_BY_ID.echo.color,
-        speed: 330,
-        size: 3.4,
-        angleOffset: direction * tier * 0.13,
-      });
+      this.createProjectile(player, player, this.randomBetween(0, TAU), { color: MODULE_BY_ID.echo.color, speed: 330, size: 3.4 });
     }
     this.effectSound('shoot', player.entityId);
   }
@@ -2209,21 +2239,29 @@ export class UltraWorld {
     hitHead: boolean,
   ): void {
     if (enemy.dead) return;
-    const target: EnemyTargetSelection = {
+    this.triggerCollisionEcho(player);
+    this.damageTarget(
+      player,
       enemy,
-      node: point,
+      this.playerHeadDamage(player, hitHead),
+      point,
+      PLAYER_COLORS[player.colorIndex],
       segmentIndex,
-      distanceSquared: distanceSquared(player, point),
-    };
-    this.triggerCollisionEcho(player, target);
-    this.damageTarget(player, enemy, PLAYER_COLLISION_DAMAGE, point, PLAYER_COLORS[player.colorIndex], segmentIndex);
-    if (!hitHead || enemy.dead) return;
-    const ram = this.moduleCount(player, 'ram');
-    if (ram <= 0 || player.ramCooldown > 0) return;
-    this.damageTarget(player, enemy, 1, enemy, MODULE_BY_ID.ram.color, -1);
-    player.ramCooldown = this.activeModuleCooldown(player, 'ram', ram);
-    this.ring(player.col, player.row, MODULE_BY_ID.ram.color, 0.42, 6, 1, player.entityId);
-    this.playSkillSound(player, 'ram');
+    );
+  }
+
+  private bladeHitSegmentIndex(target: EnemyEntity, blade: GridPoint, radius: number): number | null {
+    if (distanceSquared(blade, target) < (radius + 0.28) ** 2) return target.segments.length > 0 ? 0 : null;
+    const segmentRadiusSquared = (radius + this.pixelsToCells(9)) ** 2;
+    let nearestIndex: number | null = null;
+    let nearestDistance = segmentRadiusSquared;
+    for (let index = 0; index < target.segments.length; index += 1) {
+      const distance = distanceSquared(blade, target.segments[index]);
+      if (distance >= nearestDistance) continue;
+      nearestDistance = distance;
+      nearestIndex = index;
+    }
+    return nearestIndex;
   }
 
   private updateModules(player: PlayerEntity, delta: number): void {
@@ -2232,7 +2270,26 @@ export class UltraWorld {
       segment.timer -= delta;
       segment.orbit += delta * 3.8;
 
-      if (segment.module === 'shield' || segment.module === 'phase') {
+      if (segment.module === 'shield') {
+        const maximumCharges = MODULE_PROGRESSION.effects.shieldMaximumCharges();
+        const cooldown = this.activeModuleCooldown(
+          player,
+          'shield',
+          segment.moduleLevel,
+          MODULE_PROGRESSION.effects.armorCooldownRateBonus(this.moduleCount(player, 'armor')),
+        );
+        if (player.shieldCharges < maximumCharges) {
+          if (segment.timer <= 0) {
+            player.shieldCharges = Math.min(maximumCharges, player.shieldCharges + 1);
+            segment.timer = cooldown;
+            this.ring(segment.col, segment.row, MODULE_BY_ID.shield.color, 0.5, 10, 1, player.entityId);
+            this.effectSound('shield', player.entityId);
+          }
+        } else segment.timer = cooldown;
+        continue;
+      }
+
+      if (segment.module === 'phase') {
         if (!segment.ready) {
           segment.cooldown -= delta;
           if (segment.cooldown <= 0) {
@@ -2244,18 +2301,16 @@ export class UltraWorld {
       }
 
       if (segment.module === 'blade') {
-        const blade = {
-          col: segment.col + Math.cos(segment.orbit) * 2.9,
-          row: segment.row + Math.sin(segment.orbit) * 2.9,
-        };
-        for (const target of this.enemies) {
-          if (
-            target.dead
-            || (target.bladeCooldownsByPlayer.get(player.entityId) ?? 0) > 0
-            || !this.pointHitsTarget(blade, this.pixelsToCells(10), target)
-          ) continue;
-          target.bladeCooldownsByPlayer.set(player.entityId, this.activeModuleCooldown(player, 'blade', segment.moduleLevel));
-          this.damageTarget(player, target, 1, blade, MODULE_BY_ID.blade.color);
+        const bladeCount = MODULE_PROGRESSION.effects.bladeCount(segment.moduleLevel);
+        const bladeRadius = this.pixelsToCells(MODULE_PROGRESSION.effects.bladeBaseSizePixels() * PROJECTILE_SIZE_SCALE);
+        for (let bladeIndex = 0; bladeIndex < bladeCount; bladeIndex += 1) {
+          const angle = segment.orbit + bladeIndex * TAU / bladeCount;
+          const blade = { col: segment.col + Math.cos(angle) * 2.9, row: segment.row + Math.sin(angle) * 2.9 };
+          for (const target of this.enemies) {
+            if (target.dead) continue;
+            const hitSegmentIndex = this.bladeHitSegmentIndex(target, blade, bladeRadius);
+            if (hitSegmentIndex !== null) this.damageTarget(player, target, 1, blade, MODULE_BY_ID.blade.color, hitSegmentIndex);
+          }
         }
         continue;
       }
@@ -2277,7 +2332,8 @@ export class UltraWorld {
 
       if (segment.module === 'regen' && segment.timer <= 0) {
         const distance = this.pixelsToCells(this.randomBetween(85, 130));
-        const point = { col: player.col + Math.cos(player.angle) * distance, row: player.row + Math.sin(player.angle) * distance };
+        const angle = this.randomBetween(0, TAU);
+        const point = { col: segment.col + Math.cos(angle) * distance, row: segment.row + Math.sin(angle) * distance };
         this.spawnFood(point, true);
         this.playSkillSound(player, 'regen');
         this.ring(point.col, point.row, MODULE_BY_ID.regen.color, 0.9, 8, 53, player.entityId, 'pixels');
@@ -2306,7 +2362,7 @@ export class UltraWorld {
           segment.timer = this.activeModuleCooldown(player, 'spark', segment.moduleLevel);
           break;
         case 'frost':
-          if (this.spawnShot(player, segment, target, { color: MODULE_BY_ID.frost.color, speed: 310, size: 5, slow: 2.6 })) this.playSkillSound(player, 'frost');
+          if (this.spawnShot(player, segment, target, { color: MODULE_BY_ID.frost.color, speed: 310, size: 5, permanentSlow: MODULE_PROGRESSION.effects.frostSlowPerHit() })) this.playSkillSound(player, 'frost');
           segment.timer = this.activeModuleCooldown(player, 'frost', segment.moduleLevel);
           break;
         case 'prism':
@@ -2358,7 +2414,7 @@ export class UltraWorld {
           segment.timer = this.activeModuleCooldown(player, 'pulse', segment.moduleLevel);
           break;
         case 'venom':
-          if (this.spawnShot(player, segment, target, { color: MODULE_BY_ID.venom.color, speed: 285, size: 5.5, poison: 2 })) this.playSkillSound(player, 'venom');
+          if (this.spawnShot(player, segment, target, { color: MODULE_BY_ID.venom.color, speed: 285, size: 5.5, poison: 1 })) this.playSkillSound(player, 'venom');
           segment.timer = this.activeModuleCooldown(player, 'venom', segment.moduleLevel);
           break;
         case 'rail':
@@ -2366,11 +2422,11 @@ export class UltraWorld {
           segment.timer = this.activeModuleCooldown(player, 'rail', segment.moduleLevel);
           break;
         case 'ricochet':
-          if (this.spawnShot(player, segment, target, { color: MODULE_BY_ID.ricochet.color, speed: 340, size: 5.2, pierce: 2, bounces: 2 })) this.playSkillSound(player, 'ricochet');
+          if (this.spawnShot(player, segment, target, { color: MODULE_BY_ID.ricochet.color, speed: 340, size: 5.2, bounces: 2 })) this.playSkillSound(player, 'ricochet');
           segment.timer = this.activeModuleCooldown(player, 'ricochet', segment.moduleLevel);
           break;
         case 'cluster':
-          if (this.spawnShot(player, segment, target, { color: MODULE_BY_ID.cluster.color, speed: 245, size: 7, homing: 3.6, blastRadius: 72 })) this.playSkillSound(player, 'cluster');
+          if (this.spawnShot(player, segment, target, { color: MODULE_BY_ID.cluster.color, speed: 245, size: 7, homing: 3.6, blastRadiusCells: MODULE_PROGRESSION.effects.clusterBlastRadiusCells() })) this.playSkillSound(player, 'cluster');
           segment.timer = this.activeModuleCooldown(player, 'cluster', segment.moduleLevel);
           break;
         case 'fan':
@@ -2385,7 +2441,9 @@ export class UltraWorld {
             const point = { col: target.node.col, row: target.node.row };
             this.addHazard({ id: this.allocateHazardId(), ownerEntityId: player.entityId, kind: 'gravity', ...point, life: 6, arm: 0, radius: this.pixelsToCells(95), color: MODULE_BY_ID.gravity.color, phase: this.randomBetween(0, TAU) });
             for (const hostile of this.enemies) {
-              if (!hostile.dead && this.pointHitsTarget(point, this.pixelsToCells(95), hostile)) this.damageTarget(player, hostile, 1, point, MODULE_BY_ID.gravity.color);
+              if (hostile.dead) continue;
+              const hitIndexes = this.circularTargetHitIndexes(point, this.pixelsToCells(95), hostile);
+              if (hitIndexes.length > 0) this.damageTargetParts(player, hostile, hitIndexes, point, MODULE_BY_ID.gravity.color);
             }
             this.playSkillSound(player, 'gravity');
           }
@@ -2442,15 +2500,18 @@ export class UltraWorld {
           if (this.spawnShot(player, segment, target, { color: MODULE_BY_ID.lance.color, speed: 590, size: 7, pierce: 5 })) this.playSkillSound(player, 'lance');
           segment.timer = this.activeModuleCooldown(player, 'lance', segment.moduleLevel);
           break;
-        case 'execute':
-          if (target) {
-            const damage = target.enemy.segments.length + 1 <= 3 ? 2 : 1;
-            this.damageTarget(player, target.enemy, damage, target.node, MODULE_BY_ID.execute.color);
-            this.beam('beam', segment, target.node, MODULE_BY_ID.execute.color, 0.2, player.entityId);
-            this.playSkillSound(player, 'execute');
+        case 'execute': {
+          const executionTarget = this.nearestTarget(player, segment, Number.POSITIVE_INFINITY, (enemy) => enemy.segments.length === 0);
+          if (!executionTarget) {
+            segment.timer = 0;
+            break;
           }
+          this.damageTarget(player, executionTarget.enemy, 1, executionTarget.node, MODULE_BY_ID.execute.color, -1);
+          this.beam('beam', segment, executionTarget.node, MODULE_BY_ID.execute.color, 0.2, player.entityId);
+          this.playSkillSound(player, 'execute');
           segment.timer = this.activeModuleCooldown(player, 'execute', segment.moduleLevel);
           break;
+        }
         case 'crossfire':
           if (target) {
             this.fireCrossfire(player, segment, target);
@@ -2459,7 +2520,7 @@ export class UltraWorld {
           segment.timer = this.activeModuleCooldown(player, 'crossfire', segment.moduleLevel);
           break;
         case 'phasebolt':
-          if (this.spawnShot(player, segment, target, { color: MODULE_BY_ID.phasebolt.color, speed: 320, size: 6, bounces: 4, homing: 1.6 })) this.playSkillSound(player, 'phasebolt');
+          if (this.spawnShot(player, segment, target, { color: MODULE_BY_ID.phasebolt.color, speed: 320, size: 6, bounces: -1, pierce: 5, homing: 1.6 })) this.playSkillSound(player, 'phasebolt');
           segment.timer = this.activeModuleCooldown(player, 'phasebolt', segment.moduleLevel);
           break;
         default:
@@ -2507,12 +2568,13 @@ export class UltraWorld {
       size: (options.size ?? 4) * PROJECTILE_SIZE_SCALE,
       pierce: options.pierce ?? 0,
       bounces: options.bounces ?? 0,
-      blastRadius: options.blastRadius ? this.pixelsToCells(options.blastRadius) : 0,
+      blastRadius: options.blastRadiusCells ?? (options.blastRadius ? this.pixelsToCells(options.blastRadius) : 0),
       slow: options.slow ?? 0,
       poison: options.poison ?? 0,
+      permanentSlow: options.permanentSlow ?? 0,
       homing: (options.homing ?? 0) + MODULE_PROGRESSION.effects.guidanceHomingBonus(guidance),
       target: options.homing || guidance ? target : null,
-      hitIds: [],
+      hitNodes: new Set(),
     };
     this.projectiles.push(projectile);
     this.pendingProjectileEvents.push({ type: 'spawn', projectile: toProjectileState(projectile) });
@@ -2540,11 +2602,48 @@ export class UltraWorld {
     }
   }
 
+  private circularTargetHitIndexes(origin: GridPoint, radius: number, target: EnemyEntity): number[] {
+    const hits: number[] = [];
+    if (distanceSquared(origin, target) < (radius + 0.28) ** 2) hits.push(-1);
+    const segmentRadiusSquared = (radius + this.pixelsToCells(9)) ** 2;
+    for (let index = 0; index < target.segments.length; index += 1) {
+      if (distanceSquared(origin, target.segments[index]) < segmentRadiusSquared) hits.push(index);
+    }
+    return hits;
+  }
+
+  private lineTargetHitIndexes(origin: GridPoint, directionCol: number, directionRow: number, range: number, halfWidth: number, target: EnemyEntity): number[] {
+    const hits: number[] = [];
+    for (let index = -1; index < target.segments.length; index += 1) {
+      const node = index < 0 ? target : target.segments[index];
+      const relativeCol = node.col - origin.col;
+      const relativeRow = node.row - origin.row;
+      const projection = relativeCol * directionCol + relativeRow * directionRow;
+      if (projection < 0 || projection > range) continue;
+      const perpendicular = Math.abs(relativeCol * directionRow - relativeRow * directionCol);
+      const nodeRadius = index < 0 ? 0.28 : this.pixelsToCells(9);
+      if (perpendicular <= halfWidth + nodeRadius) hits.push(index);
+    }
+    return hits;
+  }
+
+  private damageTargetParts(owner: PlayerEntity, target: EnemyEntity, hitIndexes: number[], point: GridPoint, color: string): void {
+    const bodyIndexes = [...new Set(hitIndexes.filter((index) => index >= 0))].sort((left, right) => right - left);
+    const hitsHead = hitIndexes.includes(-1);
+    for (const index of bodyIndexes) {
+      if (target.dead || index >= target.segments.length) continue;
+      this.damageTarget(owner, target, 1, target.segments[index], color, index);
+    }
+    if (!target.dead && hitsHead) this.damageTarget(owner, target, 1, point, color, -1);
+  }
+
   private firePulse(player: PlayerEntity, origin: GridPoint): void {
-    const radius = this.pixelsToCells(105);
+    const radius = MODULE_PROGRESSION.effects.pulseRadiusCells();
     this.ring(origin.col, origin.row, MODULE_BY_ID.pulse.color, 0.55, 16, radius, player.entityId);
     for (const target of this.enemies) {
-      if (!target.dead && this.pointHitsTarget(origin, radius, target)) this.damageTarget(player, target, 1, origin, MODULE_BY_ID.pulse.color);
+      if (target.dead) continue;
+      const hits = this.circularTargetHitIndexes(origin, radius, target);
+      if (hits.length > 0) this.damageTargetParts(player, target, hits, origin, MODULE_BY_ID.pulse.color);
     }
   }
 
@@ -2557,10 +2656,10 @@ export class UltraWorld {
     let hits = 0;
     for (const hostile of this.enemies) {
       if (hostile.dead) continue;
-      const hit = this.lineHitTarget(origin, directionX, directionY, range, this.pixelsToCells(26), hostile);
-      if (!hit) continue;
-      this.damageTarget(player, hostile, 1, hit, MODULE_BY_ID.sweep.color);
-      hits += 1;
+      const hitIndexes = this.lineTargetHitIndexes(origin, directionX, directionY, range, this.pixelsToCells(26), hostile);
+      if (hitIndexes.length === 0) continue;
+      this.damageTargetParts(player, hostile, hitIndexes, hostile, MODULE_BY_ID.sweep.color);
+      hits += hitIndexes.length;
     }
     this.beam('beam', origin, end, MODULE_BY_ID.sweep.color, 0.24, player.entityId);
     return hits > 0;
@@ -2572,9 +2671,11 @@ export class UltraWorld {
     this.ring(target.node.col, target.node.row, MODULE_BY_ID.flak.color, 0.5, 8, radius, player.entityId);
     this.burst(target.node.col, target.node.row, MODULE_BY_ID.flak.color, 18, 155, player.entityId);
     for (const hostile of this.enemies) {
-      if (hostile.dead || !this.pointHitsTarget(target.node, radius, hostile)) continue;
-      this.damageTarget(player, hostile, 1, target.node, MODULE_BY_ID.flak.color);
-      hits += 1;
+      if (hostile.dead) continue;
+      const hitIndexes = this.circularTargetHitIndexes(target.node, radius, hostile);
+      if (hitIndexes.length === 0) continue;
+      this.damageTargetParts(player, hostile, hitIndexes, target.node, MODULE_BY_ID.flak.color);
+      hits += hitIndexes.length;
     }
     return hits > 0;
   }
@@ -2588,24 +2689,21 @@ export class UltraWorld {
 
   private updateTargetStatuses(delta: number): void {
     for (const target of this.enemies) {
-      for (const [playerId, cooldown] of target.bladeCooldownsByPlayer) {
-        const next = cooldown - delta;
-        if (next > 0) target.bladeCooldownsByPlayer.set(playerId, next);
-        else target.bladeCooldownsByPlayer.delete(playerId);
-      }
       for (const [playerId, cooldown] of target.sawCooldownsByPlayer) {
         const next = cooldown - delta;
         if (next > 0) target.sawCooldownsByPlayer.set(playerId, next);
         else target.sawCooldownsByPlayer.delete(playerId);
       }
       if (target.slow > 0) target.slow -= delta;
-      if (target.poisonTicks <= 0) continue;
+      if (target.poisonStacks <= 0) continue;
       target.poisonTimer -= delta;
       if (target.poisonTimer > 0) continue;
       target.poisonTimer = POISON_TICK_INTERVAL;
-      target.poisonTicks -= 1;
       const owner = target.poisonOwnerEntityId === null ? null : this.playersByEntity.get(target.poisonOwnerEntityId) ?? null;
-      if (owner) this.damageTarget(owner, target, 1, target, target.poisonColor ?? MODULE_BY_ID.venom.color);
+      for (let stack = 0; stack < target.poisonStacks && !target.dead && target.segments.length > 0; stack += 1) {
+        const hitSegmentIndex = Math.floor(this.random() * target.segments.length);
+        this.damageTarget(owner, target, 1, target.segments[hitSegmentIndex], target.poisonColor ?? MODULE_BY_ID.venom.color, hitSegmentIndex);
+      }
     }
   }
 
@@ -2768,7 +2866,7 @@ export class UltraWorld {
   }
 
   private updateEnemies(delta: number, activePlayers: PlayerEntity[], presentPlayers: PlayerEntity[]): void {
-    const chronosMultiplier = 1 - MODULE_PROGRESSION.effects.chronosSlowReduction(this.maximumModuleCount('chronos', activePlayers));
+    const chronosMultiplier = 1 - MODULE_PROGRESSION.effects.chronosSlowReduction(this.maximumModuleCount('chronos', presentPlayers));
     const timeSpeedMultiplier = Math.min(ENEMY_SPEED_MAX_MULTIPLIER, 1 + this.gameTime / 60 * ENEMY_SPEED_PER_MINUTE);
     const collisionPlayers = this.stepCollisionPlayers;
     collisionPlayers.length = 0;
@@ -2796,7 +2894,7 @@ export class UltraWorld {
         this.steerEnemyAwayFromWalls(enemy);
         enemy.angle = rotateToward(enemy.angle, enemy.desiredAngle, delta * enemy.turnRate);
       }
-      const speed = enemy.speed * timeSpeedMultiplier * chronosMultiplier * (enemy.slow > 0 ? 0.55 : 1);
+      const speed = enemy.speed * timeSpeedMultiplier * chronosMultiplier * (enemy.slow > 0 ? 0.55 : 1) * (1 - enemy.permanentSlow);
       const previousPosition = this.enemyMovementStart;
       previousPosition.col = enemy.col;
       previousPosition.row = enemy.row;
@@ -2829,8 +2927,8 @@ export class UltraWorld {
           const normal = collisionNormal(playerCollision.player, enemy);
           this.applyPlayerCollisionAttack(playerCollision.player, enemy, enemy, -1, true);
           const knockbackMultiplier = enemy.archetype === 'warden' ? DESIGNER_BALANCE.enemyWardenKnockbackMultiplier : 1;
-          this.bounceEntity(playerCollision.player, normal.col, normal.row, '#dffcff', 0.58, knockbackMultiplier);
-          if (!enemy.dead) this.bounceEntity(enemy, -normal.col, -normal.row, enemy.color, 0.54);
+          this.bounceEntity(playerCollision.player, normal.col, normal.row, '#dffcff', 0.58, knockbackMultiplier, true);
+          if (!enemy.dead) this.bounceEntity(enemy, -normal.col, -normal.row, enemy.color, 0.54, 1 + MODULE_PROGRESSION.effects.momentumKnockbackBonus(this.moduleCount(playerCollision.player, 'momentum')));
         }
         continue;
       }
@@ -2838,8 +2936,8 @@ export class UltraWorld {
       if (wallNormal) {
         enemy.col = clamp(nextCol, this.arenaMinimum(), this.arenaMaximum());
         enemy.row = clamp(nextRow, this.arenaMinimum(), this.arenaMaximum());
-        this.damageTarget(null, enemy, ENEMY_COLLISION_DAMAGE, enemy, '#f3c600', -1);
-        if (!enemy.dead) this.bounceEntity(enemy, wallNormal.col, wallNormal.row, enemy.color, 0.54);
+        this.damageTarget(null, enemy, ENEMY_COLLISION_DAMAGE * this.enemyWallDamageMultiplier, enemy, '#f3c600', -1);
+        if (!enemy.dead) this.bounceEntity(enemy, wallNormal.col, wallNormal.row, enemy.color, 0.54, this.enemyWallKnockbackMultiplier);
         continue;
       }
       enemy.col = nextCol;
@@ -3051,12 +3149,12 @@ export class UltraWorld {
       const hitHorizontal = projectile.col < projectileMinimum || projectile.col > projectileMaximum;
       const hitVertical = projectile.row < projectileMinimum || projectile.row > projectileMaximum;
       if (hitHorizontal || hitVertical) {
-        if (projectile.bounces > 0) {
+        if (projectile.bounces !== 0) {
           projectile.col = clamp(projectile.col, projectileMinimum, projectileMaximum);
           projectile.row = clamp(projectile.row, projectileMinimum, projectileMaximum);
           if (hitHorizontal) projectile.vx *= -1;
           if (hitVertical) projectile.vy *= -1;
-          projectile.bounces -= 1;
+          if (projectile.bounces > 0) projectile.bounces -= 1;
           this.pendingProjectileEvents.push({ type: 'update', projectile: toProjectileState(projectile) });
         } else projectile.life = 0;
       }
@@ -3064,20 +3162,18 @@ export class UltraWorld {
       end.col = projectile.col;
       end.row = projectile.row;
       const radius = this.pixelsToCells(projectile.size);
-      let contacts: Array<{ hostile: EnemyEntity; progress: number; segmentIndex: number; order: number }> | null = null;
+      let contacts: Array<{ hostile: EnemyEntity; node: GridPoint; progress: number; head: boolean; order: number }> | null = null;
       for (let order = 0; order < this.enemies.length; order += 1) {
         const hostile = this.enemies[order];
         if (hostile.dead) continue;
-        const key = targetKey(hostile);
-        if (projectile.hitIds.includes(key)) continue;
-        const contact = this.sweptHitsTarget(start, end, radius, hostile);
-        if (contact) (contacts ??= []).push({ hostile, ...contact, order });
+        for (const contact of this.sweptTargetContacts(start, end, radius, hostile)) {
+          if (!projectile.hitNodes.has(contact.node)) (contacts ??= []).push({ hostile, ...contact, order });
+        }
       }
       if (contacts) {
         contacts.sort((left, right) => left.progress - right.progress || left.order - right.order);
-        for (const { hostile, progress, segmentIndex } of contacts) {
-          const key = targetKey(hostile);
-          if (hostile.dead || projectile.hitIds.includes(key)) continue;
+        for (const { hostile, node, progress, head } of contacts) {
+          if (hostile.dead || projectile.hitNodes.has(node)) continue;
           const hitPoint = {
             col: start.col + (end.col - start.col) * progress,
             row: start.row + (end.row - start.row) * progress,
@@ -3090,12 +3186,15 @@ export class UltraWorld {
             endedByImpact = true;
             break;
           }
+          const segmentIndex = head ? -1 : hostile.segments.indexOf(node as EnemySegment);
+          if (!head && segmentIndex < 0) continue;
+          projectile.hitNodes.add(node);
           this.damageTarget(owner, hostile, 1, hitPoint, projectile.color, segmentIndex);
-          projectile.hitIds.push(key);
-          if (projectile.slow) hostile.slow = Math.max(hostile.slow, projectile.slow);
-          if (projectile.poison) {
-            hostile.poisonTicks += projectile.poison;
-            hostile.poisonTimer = POISON_INITIAL_TICK_DELAY;
+          if (!hostile.dead && projectile.slow) hostile.slow = Math.max(hostile.slow, projectile.slow);
+          if (!hostile.dead && projectile.permanentSlow) hostile.permanentSlow = Math.min(MODULE_PROGRESSION.effects.frostMaximumSlow(), hostile.permanentSlow + projectile.permanentSlow);
+          if (!hostile.dead && projectile.poison) {
+            hostile.poisonStacks += projectile.poison;
+            if (hostile.poisonTimer <= 0) hostile.poisonTimer = POISON_TICK_INTERVAL;
             hostile.poisonColor = projectile.color;
             hostile.poisonOwnerEntityId = owner.entityId;
           }
@@ -3125,7 +3224,9 @@ export class UltraWorld {
     this.burst(projectile.col, projectile.row, projectile.color, 20, 165, owner.entityId);
     this.feedback('blast', owner.entityId);
     for (const hostile of this.enemies) {
-      if (!hostile.dead && this.pointHitsTarget(projectile, projectile.blastRadius, hostile)) this.damageTarget(owner, hostile, 1, projectile, projectile.color);
+      if (hostile.dead) continue;
+      const hitIndexes = this.circularTargetHitIndexes(projectile, projectile.blastRadius, hostile);
+      if (hitIndexes.length > 0) this.damageTargetParts(owner, hostile, hitIndexes, projectile, projectile.color);
     }
   }
 
@@ -3172,9 +3273,9 @@ export class UltraWorld {
     this.burst(hazard.col, hazard.row, hazard.color, 18, 150, owner.entityId);
     this.feedback('blast', owner.entityId);
     for (const hostile of this.enemies) {
-      if (!hostile.dead && distanceSquared(hazard, hostile) < hazard.radius * hazard.radius) {
-        this.damageTarget(owner, hostile, 1, hazard, hazard.color);
-      }
+      if (hostile.dead) continue;
+      const hitIndexes = this.circularTargetHitIndexes(hazard, hazard.radius, hostile);
+      if (hitIndexes.length > 0) this.damageTargetParts(owner, hostile, hitIndexes, hazard, hazard.color);
     }
     if (bounceOwner) this.bounceEntity(owner, owner.col - hazard.col, owner.row - hazard.row, hazard.color, 0.58);
     hazard.life = 0;
@@ -3189,6 +3290,7 @@ export class UltraWorld {
       if (wall) {
         player.col = clamp(player.col, this.arenaMinimum(), this.arenaMaximum());
         player.row = clamp(player.row, this.arenaMinimum(), this.arenaMaximum());
+        this.triggerCollisionEcho(player);
         this.damagePlayer(player, PLAYER_WALL_COLLISION_DAMAGE, now, '撞上墙壁');
         if (player.alive) this.bounceEntity(player, wall.col, wall.row, '#b8f53f', 0.58);
         continue;
@@ -3196,7 +3298,7 @@ export class UltraWorld {
       if (player.collisionCooldown <= 0) {
         const ownBody = findSelfCollision(player, 0.5);
         if (ownBody) {
-          this.bounceEntity(player, player.col - ownBody.col, player.row - ownBody.row, '#f4ffdc', 0.58);
+          this.bounceEntity(player, player.col - ownBody.col, player.row - ownBody.row, '#f4ffdc', 0.58, 1, true);
           continue;
         }
       }
@@ -3209,7 +3311,7 @@ export class UltraWorld {
           const defended = this.consumeDefense(player);
           this.applyPlayerCollisionAttack(player, enemy, body, segmentIndex, false);
           if (!defended) this.damagePlayer(player, PLAYER_ENEMY_BODY_COLLISION_DAMAGE, now, '被敌蛇重创');
-          if (player.alive) this.bounceEntity(player, player.col - body.col, player.row - body.row, enemy.color, 0.58);
+          if (player.alive) this.bounceEntity(player, player.col - body.col, player.row - body.row, enemy.color, 0.58, 1, true);
           break;
         }
       }
@@ -3219,8 +3321,8 @@ export class UltraWorld {
         const normal = collisionNormal(player, enemy);
         this.applyPlayerCollisionAttack(player, enemy, enemy, -1, true);
         const knockbackMultiplier = enemy.archetype === 'warden' ? DESIGNER_BALANCE.enemyWardenKnockbackMultiplier : 1;
-        this.bounceEntity(player, normal.col, normal.row, '#dffcff', 0.58, knockbackMultiplier);
-        if (!enemy.dead) this.bounceEntity(enemy, -normal.col, -normal.row, enemy.color, 0.54);
+        this.bounceEntity(player, normal.col, normal.row, '#dffcff', 0.58, knockbackMultiplier, true);
+        if (!enemy.dead) this.bounceEntity(enemy, -normal.col, -normal.row, enemy.color, 0.54, 1 + MODULE_PROGRESSION.effects.momentumKnockbackBonus(this.moduleCount(player, 'momentum')));
       }
     }
 
@@ -3236,6 +3338,8 @@ export class UltraWorld {
           attacker.row - contact.row,
           PLAYER_COLORS[defender.colorIndex],
           0.58,
+          1,
+          true,
         );
         break;
       }
@@ -3251,8 +3355,8 @@ export class UltraWorld {
         if (left.alive && right.alive) this.checkPlayerBodyHit(right, left);
         if (!left.alive || !right.alive || left.collisionCooldown > 0 || right.collisionCooldown > 0 || Math.hypot(left.col - right.col, left.row - right.row) >= this.playerHeadRadiusCells() * 2) continue;
         const normal = collisionNormal(left, right);
-        this.bounceEntity(left, normal.col, normal.row, PLAYER_COLORS[left.colorIndex], 0.58);
-        if (right.alive) this.bounceEntity(right, -normal.col, -normal.row, PLAYER_COLORS[right.colorIndex], 0.58);
+        this.bounceEntity(left, normal.col, normal.row, PLAYER_COLORS[left.colorIndex], 0.58, 1, true);
+        if (right.alive) this.bounceEntity(right, -normal.col, -normal.row, PLAYER_COLORS[right.colorIndex], 0.58, 1, true);
         this.publishAuthoritativePlayerHeadCollision(left, right, normal, now);
       }
     }
@@ -3264,7 +3368,7 @@ export class UltraWorld {
         this.checkPlayerBodyHit(attacker, defender);
         if (!attacker.alive || Math.hypot(attacker.col - defender.col, attacker.row - defender.row) >= this.playerHeadRadiusCells() * 2) continue;
         const normal = collisionNormal(attacker, defender);
-        this.bounceEntity(attacker, normal.col, normal.row, PLAYER_COLORS[attacker.colorIndex], 0.58);
+        this.bounceEntity(attacker, normal.col, normal.row, PLAYER_COLORS[attacker.colorIndex], 0.58, 1, true);
         this.publishAuthoritativePlayerHeadCollision(attacker, defender, normal, now);
         break;
       }
@@ -3297,11 +3401,11 @@ export class UltraWorld {
     ) return;
     const body = defender.segments.find((segment) => Math.hypot(attacker.col - segment.col, attacker.row - segment.row) < 0.42);
     if (!body) return;
-    this.bounceEntity(attacker, attacker.col - body.col, attacker.row - body.row, PLAYER_COLORS[defender.colorIndex], 0.58);
+    this.bounceEntity(attacker, attacker.col - body.col, attacker.row - body.row, PLAYER_COLORS[defender.colorIndex], 0.58, 1, true);
   }
 
   private consumeDefense(player: PlayerEntity): boolean {
-    const defense = player.segments.find((segment) => (segment.module === 'shield' || segment.module === 'phase') && segment.ready);
+    const defense = player.segments.find((segment) => segment.module === 'phase' && segment.ready);
     if (!defense?.module) return false;
     defense.ready = false;
     defense.cooldown = this.activeModuleCooldown(
@@ -3317,9 +3421,40 @@ export class UltraWorld {
     return true;
   }
 
+  private consumeShieldCharge(player: PlayerEntity): boolean {
+    if (player.shieldCharges <= 0) return false;
+    player.shieldCharges -= 1;
+    this.effectSound('shield', player.entityId);
+    this.ring(player.col, player.row, MODULE_BY_ID.shield.color, 0.7, 18, 76, player.entityId, 'pixels');
+    this.burst(player.col, player.row, MODULE_BY_ID.shield.color, 18, 130, player.entityId);
+    return true;
+  }
+
+  private healPlayer(player: PlayerEntity, amount: number, color = MODULE_BY_ID.recovery.color, present = false): number {
+    if (!player.alive || amount <= 0 || player.health >= player.maxHealth) return 0;
+    const amplified = amount * (1 + MODULE_PROGRESSION.effects.healingReceivedBonus(this.moduleCount(player, 'recovery')));
+    const applied = Math.min(amplified, player.maxHealth - player.health);
+    player.health += applied;
+    if (present && applied > 0) {
+      this.pendingEffects.push({
+        id: this.effectId(),
+        type: 'playerHeal',
+        playerEntityId: player.entityId,
+        col: player.col,
+        row: player.row,
+        amount: applied,
+        health: player.health,
+        maxHealth: player.maxHealth,
+        color,
+      });
+    }
+    return applied;
+  }
+
   private damagePlayer(player: PlayerEntity, amount: number, now: number, reason: string): boolean {
     if (!player.alive || player.invulnerable > 0) return false;
-    const damage = Math.max(0, amount);
+    if (this.consumeShieldCharge(player)) return false;
+    const damage = Math.max(0, amount) * (1 - MODULE_PROGRESSION.effects.damageReduction(this.moduleCount(player, 'plating')));
     if (damage <= 0) return false;
     player.health = Math.max(0, player.health - damage);
     const health = player.health;
@@ -3387,6 +3522,20 @@ export class UltraWorld {
   private killEnemy(enemy: EnemyEntity, owner: PlayerEntity | null): void {
     if (enemy.dead) return;
     enemy.dead = true;
+    for (const player of this.playersByEntity.values()) {
+      if (!player.alive) continue;
+      const deathBurstLevel = this.moduleCount(player, 'deathburst');
+      if (deathBurstLevel <= 0) continue;
+      const origin = player.segments.find((segment) => segment.module === 'deathburst') ?? player;
+      const target = this.nearestTarget(player, origin, Number.POSITIVE_INFINITY);
+      const targetRef = target ? this.targetRef(target) : null;
+      const shotCount = MODULE_PROGRESSION.effects.deathBurstProjectileCount(deathBurstLevel);
+      const startAngle = this.randomBetween(0, TAU);
+      for (let index = 0; index < shotCount; index += 1) {
+        this.createProjectile(player, origin, startAngle + index * TAU / shotCount, { speed: 315, color: MODULE_BY_ID.deathburst.color, size: 4.2 }, targetRef);
+      }
+      if (shotCount > 0) this.effectSound('shoot', player.entityId);
+    }
     const dropOccupied = this.spawnOccupiedCellKeys();
     if (owner) {
       owner.kills += 1;
@@ -3462,11 +3611,11 @@ export class UltraWorld {
     return { enemy, node, segmentIndex, distanceSquared: best };
   }
 
-  private nearestTarget(_owner: PlayerEntity, origin: GridPoint, maximumDistance: number): EnemyTargetSelection | null {
+  private nearestTarget(_owner: PlayerEntity, origin: GridPoint, maximumDistance: number, predicate?: (enemy: EnemyEntity) => boolean): EnemyTargetSelection | null {
     let nearest: EnemyTargetSelection | null = null;
     let best = maximumDistance * maximumDistance;
     for (const target of this.enemies) {
-      if (target.dead) continue;
+      if (target.dead || (predicate && !predicate(target))) continue;
       const candidate = this.nearestJointOnTarget(origin, target);
       if (candidate.distanceSquared >= best) continue;
       best = candidate.distanceSquared;
@@ -3478,24 +3627,6 @@ export class UltraWorld {
   private pointHitsTarget(point: GridPoint, radius: number, target: EnemyEntity): boolean {
     if (distanceSquared(point, target) < (radius + 0.28) ** 2) return true;
     return target.segments.some((segment) => distanceSquared(point, segment) < (radius + this.pixelsToCells(9)) ** 2);
-  }
-
-  private lineHitTarget(origin: GridPoint, directionCol: number, directionRow: number, range: number, halfWidth: number, target: EnemyEntity): GridPoint | null {
-    let hit: GridPoint | null = null;
-    let hitProjection = Number.POSITIVE_INFINITY;
-    for (let index = -1; index < target.segments.length; index += 1) {
-      const node = index < 0 ? target : target.segments[index];
-      const relativeCol = node.col - origin.col;
-      const relativeRow = node.row - origin.row;
-      const projection = relativeCol * directionCol + relativeRow * directionRow;
-      if (projection < 0 || projection > range || projection >= hitProjection) continue;
-      const perpendicular = Math.abs(relativeCol * directionRow - relativeRow * directionCol);
-      const radius = index < 0 ? 0.28 : this.pixelsToCells(9);
-      if (perpendicular > halfWidth + radius) continue;
-      hit = node;
-      hitProjection = projection;
-    }
-    return hit;
   }
 
   private refreshProjectileHitBounds(): void {
@@ -3518,24 +3649,23 @@ export class UltraWorld {
     }
   }
 
-  private sweptHitsTarget(start: GridPoint, end: GridPoint, radius: number, target: EnemyEntity): { progress: number; segmentIndex: number } | null {
+  private sweptTargetContacts(start: GridPoint, end: GridPoint, radius: number, target: EnemyEntity): Array<{ node: GridPoint; progress: number; head: boolean }> {
     const padding = radius + 0.28;
     if (
       Math.max(start.col, end.col) < target.projectileMinCol - padding
       || Math.min(start.col, end.col) > target.projectileMaxCol + padding
       || Math.max(start.row, end.row) < target.projectileMinRow - padding
       || Math.min(start.row, end.row) > target.projectileMaxRow + padding
-    ) return null;
-    let nearest = sweptContactProgress(start, end, target, radius + 0.28);
-    let segmentIndex = -1;
+    ) return [];
+    const contacts: Array<{ node: GridPoint; progress: number; head: boolean }> = [];
+    const headProgress = sweptContactProgress(start, end, target, radius + 0.28);
+    if (headProgress !== null) contacts.push({ node: target, progress: headProgress, head: true });
     const segmentRadius = radius + this.pixelsToCells(9);
-    for (let index = 0; index < target.segments.length; index += 1) {
-      const progress = sweptContactProgress(start, end, target.segments[index], segmentRadius);
-      if (progress === null || (nearest !== null && progress >= nearest)) continue;
-      nearest = progress;
-      segmentIndex = index;
+    for (const segment of target.segments) {
+      const progress = sweptContactProgress(start, end, segment, segmentRadius);
+      if (progress !== null) contacts.push({ node: segment, progress, head: false });
     }
-    return nearest === null ? null : { progress: nearest, segmentIndex };
+    return contacts;
   }
 
   private isTargetAlive(target: EnemyEntity): boolean {
@@ -3669,7 +3799,7 @@ export class UltraWorld {
     };
   }
 
-  private bounceEntity(entity: PlayerEntity | EnemyEntity, normalX: number, normalY: number, color: string, spacing: number, extraImpulseMultiplier = 1): void {
+  private bounceEntity(entity: PlayerEntity | EnemyEntity, normalX: number, normalY: number, color: string, spacing: number, extraImpulseMultiplier = 1, mitigatePlayerCollision = false): void {
     let length = Math.hypot(normalX, normalY);
     if (length < 0.001) {
       normalX = -Math.cos(entity.angle);
@@ -3687,16 +3817,22 @@ export class UltraWorld {
     bounceY += ny * 0.5;
     const bounceAngle = Math.atan2(bounceY, bounceX);
     const isPlayer = 'accountId' in entity;
-    const impulseMultiplier = isPlayer
-      ? (1 - MODULE_PROGRESSION.effects.bufferKnockbackReduction(this.moduleCount(entity, 'buffer'))) * extraImpulseMultiplier
-      : this.enemyKnockbackMultiplier;
-    entity.knockbackX = nx * KNOCKBACK_INITIAL_SPEED * impulseMultiplier;
-    entity.knockbackY = ny * KNOCKBACK_INITIAL_SPEED * impulseMultiplier;
-    entity.angle = bounceAngle;
-    entity.desiredAngle = bounceAngle;
+    const collisionReduction = isPlayer && mitigatePlayerCollision
+      ? MODULE_PROGRESSION.effects.bufferCollisionReduction(this.moduleCount(entity, 'buffer'))
+      : 0;
+    const impulseMultiplier = (1 - collisionReduction) * extraImpulseMultiplier;
+    if (impulseMultiplier > 0.001) {
+      entity.knockbackX = nx * KNOCKBACK_INITIAL_SPEED * impulseMultiplier;
+      entity.knockbackY = ny * KNOCKBACK_INITIAL_SPEED * impulseMultiplier;
+      entity.angle = bounceAngle;
+      entity.desiredAngle = bounceAngle;
+    } else {
+      entity.knockbackX = 0;
+      entity.knockbackY = 0;
+    }
     const stabilization = isPlayer ? this.moduleCount(entity, 'stabilizer') : 0;
-    entity.slow = Math.max(entity.slow, BOUNCE_SLOW_TIME * (1 - MODULE_PROGRESSION.effects.stabilizerSlowReduction(stabilization)));
-    entity.collisionCooldown = BOUNCE_LOCK_TIME * (1 - MODULE_PROGRESSION.effects.stabilizerLockReduction(stabilization));
+    entity.slow = Math.max(entity.slow, BOUNCE_SLOW_TIME * (1 - MODULE_PROGRESSION.effects.stabilizerSlowReduction(stabilization)) * (1 - collisionReduction));
+    entity.collisionCooldown = Math.max(0.06, BOUNCE_LOCK_TIME * (1 - MODULE_PROGRESSION.effects.stabilizerLockReduction(stabilization)) * (1 - collisionReduction));
     if (isPlayer) followContinuousSegments(entity.col, entity.row, entity.segments, spacing);
     else followEnemySegments(entity, 0, spacing);
     const anchor: UltraEffectAnchor = isPlayer
@@ -3870,6 +4006,7 @@ function makeSegment(col: number, row: number, options: Partial<UltraSegment>, r
     module: options.module ?? null,
     moduleLevel: options.moduleLevel ?? (options.module ? 1 : 0),
     neutral: options.neutral ?? false,
+    tailGuard: options.tailGuard ?? false,
     experienceTier: options.experienceTier ?? 0,
     timer: options.timer ?? 0,
     ready: options.ready ?? true,
@@ -3993,6 +4130,7 @@ function toPlayerView(player: PlayerEntity): UltraPlayerView {
     collisionCooldown: player.collisionCooldown,
     health: player.health,
     maxHealth: player.maxHealth,
+    shieldCharges: player.shieldCharges,
     score: Math.floor(player.score),
     kills: player.kills,
     botKills: player.botKills,
@@ -4018,6 +4156,8 @@ function toEnemyView(enemy: EnemyEntity): UltraEnemyView {
     angle: enemy.angle,
     color: enemy.color,
     captured: enemy.captured,
+    permanentSlow: enemy.permanentSlow,
+    poisonStacks: enemy.poisonStacks,
     segments: enemy.segments.map((segment) => ({ col: segment.col, row: segment.row })),
   };
 }
@@ -4100,10 +4240,6 @@ function sweptContactProgress(start: GridPoint, end: GridPoint, point: GridPoint
   const closestCol = start.col + pathCol * progress;
   const closestRow = start.row + pathRow * progress;
   return (point.col - closestCol) ** 2 + (point.row - closestRow) ** 2 < radius * radius ? progress : null;
-}
-
-function targetKey(target: EnemyEntity): string {
-  return `e:${target.id}`;
 }
 
 function wallBounceNormal(col: number, row: number, minimum: number, maximum: number): GridPoint | null {

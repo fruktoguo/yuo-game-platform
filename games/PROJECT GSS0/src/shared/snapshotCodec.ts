@@ -14,7 +14,7 @@ import type {
 } from './protocol';
 
 const MAGIC = 0x5553_4e50;
-export const SNAPSHOT_PROTOCOL_VERSION = 10;
+export const SNAPSHOT_PROTOCOL_VERSION = 11;
 const COORDINATE_SCALE = 65_535;
 const COORDINATE_PADDING = 2;
 const VELOCITY_SCALE = 64;
@@ -110,7 +110,7 @@ function writePlayer(writer: BinaryWriter, player: UltraPlayerView, arenaSize: n
   writer.u8(Number(player.connected) | Number(player.alive) << 1 | Number(player.paused) << 2 | Number(player.choosingUpgrade) << 3);
   writeCoordinate(writer, player.col, arenaSize); writeCoordinate(writer, player.row, arenaSize); writeAngle(writer, player.angle); writeAngle(writer, player.desiredAngle);
   writer.u32(player.lastInputSequence + 1); writer.f32(player.speed); writer.f32(player.slow); writer.f32(player.foodBoost); writer.f32(player.knockbackX); writer.f32(player.knockbackY);
-  writer.f32(player.invulnerable); writer.f32(player.collisionCooldown); writer.f32(player.health); writer.f32(player.maxHealth);
+  writer.f32(player.invulnerable); writer.f32(player.collisionCooldown); writer.f32(player.health); writer.f32(player.maxHealth); writer.u8(player.shieldCharges);
   writer.f32(player.score); writer.u16(player.kills); writer.u16(player.botKills); writer.u16(player.pvpKills);
   writer.f32(player.survivalTime); writer.u16(player.level); writer.u16(player.xp); writer.u16(player.xpNeeded);
   writer.f64(player.respawnAt ?? -1);
@@ -135,7 +135,7 @@ function readPlayer(reader: BinaryReader, arenaSize: number): UltraPlayerView {
     choosingUpgrade: Boolean(flags & 8),
     col: readCoordinate(reader, arenaSize), row: readCoordinate(reader, arenaSize), angle: readAngle(reader), desiredAngle: readAngle(reader),
     lastInputSequence: reader.u32() - 1, speed: reader.f32(), slow: reader.f32(), foodBoost: reader.f32(), knockbackX: reader.f32(), knockbackY: reader.f32(),
-    invulnerable: reader.f32(), collisionCooldown: reader.f32(), health: reader.f32(), maxHealth: reader.f32(),
+    invulnerable: reader.f32(), collisionCooldown: reader.f32(), health: reader.f32(), maxHealth: reader.f32(), shieldCharges: reader.u8(),
     score: reader.f32(), kills: reader.u16(), botKills: reader.u16(), pvpKills: reader.u16(),
     survivalTime: reader.f32(), level: reader.u16(), xp: reader.u16(), xpNeeded: reader.u16(),
     respawnAt: null,
@@ -156,7 +156,7 @@ function writeSegment(writer: BinaryWriter, segment: UltraSegment, arenaSize: nu
   const hasOrbit = segment.module === 'blade';
   const hasCooldown = (segment.module === 'shield' || segment.module === 'phase') && !segment.ready;
   writer.u8(moduleIndex ?? 0);
-  writer.u8(Number(segment.neutral) | Number(segment.ready) << 1 | Number(hasOrbit) << 2 | Number(hasCooldown) << 3);
+  writer.u8(Number(segment.neutral) | Number(segment.ready) << 1 | Number(hasOrbit) << 2 | Number(hasCooldown) << 3 | Number(segment.tailGuard) << 4);
   writer.u16(Math.max(0, Math.min(65_535, Math.round(segment.moduleLevel))));
   writer.u8(Math.max(0, Math.min(2, Math.round(segment.experienceTier))));
   writeCoordinate(writer, segment.col, arenaSize); writeCoordinate(writer, segment.row, arenaSize);
@@ -173,6 +173,7 @@ function readSegment(reader: BinaryReader, arenaSize: number): UltraSegment {
     module,
     moduleLevel: reader.u16(),
     neutral: Boolean(flags & 1),
+    tailGuard: Boolean(flags & 16),
     experienceTier: reader.u8(),
     ready: Boolean(flags & 2),
     col: readCoordinate(reader, arenaSize), row: readCoordinate(reader, arenaSize), angle: 0,
@@ -185,13 +186,15 @@ function readSegment(reader: BinaryReader, arenaSize: number): UltraSegment {
 
 function writeGrowth(writer: BinaryWriter, growth: GrowthView): void {
   writer.color(growth.color);
-  writer.u8(Number(growth.special));
+  writer.u8(Number(growth.special) | Number(growth.spawnTailFood) << 1);
   writer.f32(growth.elapsed);
   writer.u16(growth.nodeCount);
 }
 
 function readGrowth(reader: BinaryReader): GrowthView {
-  return { color: reader.color(), special: Boolean(reader.u8()), elapsed: reader.f32(), nodeCount: reader.u16() };
+  const color = reader.color();
+  const flags = reader.u8();
+  return { color, special: Boolean(flags & 1), spawnTailFood: Boolean(flags & 2), elapsed: reader.f32(), nodeCount: reader.u16() };
 }
 
 function writeEnemy(writer: BinaryWriter, enemy: UltraEnemyView, arenaSize: number): void {
@@ -200,7 +203,7 @@ function writeEnemy(writer: BinaryWriter, enemy: UltraEnemyView, arenaSize: numb
   if (archetypeIndex === undefined || behaviorIndex === undefined) throw new Error('无法编码未知敌人类型或行为');
   writer.u16(enemy.id); writer.u8(archetypeIndex); writer.u8(behaviorIndex); writer.u8(clampInteger(Math.round(enemy.behaviorPhase * 255), 0, 255));
   writeCoordinate(writer, enemy.col, arenaSize); writeCoordinate(writer, enemy.row, arenaSize); writeAngle(writer, enemy.angle);
-  writer.color(enemy.color); writer.u16(enemy.captured); writer.u16(enemy.segments.length);
+  writer.color(enemy.color); writer.u16(enemy.captured); writer.u8(clampInteger(Math.round(enemy.permanentSlow * 100), 0, 99)); writer.u32(enemy.poisonStacks); writer.u16(enemy.segments.length);
   for (const segment of enemy.segments) { writeCoordinate(writer, segment.col, arenaSize); writeCoordinate(writer, segment.row, arenaSize); }
 }
 
@@ -213,7 +216,7 @@ function readEnemy(reader: BinaryReader, arenaSize: number): UltraEnemyView {
   const enemy: UltraEnemyView = {
     id, archetype, behaviorState, behaviorPhase,
     col: readCoordinate(reader, arenaSize), row: readCoordinate(reader, arenaSize), angle: readAngle(reader),
-    color: reader.color(), captured: reader.u16(), segments: [],
+    color: reader.color(), captured: reader.u16(), permanentSlow: reader.u8() / 100, poisonStacks: reader.u32(), segments: [],
   };
   const count = reader.u16();
   for (let index = 0; index < count; index += 1) enemy.segments.push({ col: readCoordinate(reader, arenaSize), row: readCoordinate(reader, arenaSize) });

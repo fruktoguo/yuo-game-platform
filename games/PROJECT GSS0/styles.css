@@ -1342,10 +1342,37 @@ input:focus-visible {
 .health-fill {
   position: absolute;
   inset: 0 auto 0 0;
+  z-index: 1;
   width: 100%;
   background: linear-gradient(90deg, #ff355e, #ff6b82 72%, #f3c600);
   box-shadow: 8px 0 0 rgba(255, 255, 255, 0.22);
   transition: width 140ms ease;
+}
+
+.shield-fill {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  opacity: 0;
+  background: rgba(72, 224, 191, 0.78);
+  box-shadow: inset 0 0 0 1px rgba(224, 255, 249, 0.9), 0 0 14px rgba(72, 224, 191, 0.65);
+  transition: opacity 140ms ease;
+}
+
+.shield-fill.is-active {
+  opacity: 1;
+}
+
+.shield-fill::after {
+  content: "\00d7" attr(data-charges);
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  color: #071411;
+  font-size: calc(9px * var(--font-scale));
+  font-weight: 900;
+  line-height: 1;
+  transform: translateY(-50%);
 }
 
 .health-group.is-hit .health-track {
@@ -1356,6 +1383,14 @@ input:focus-visible {
   animation: health-hit-fill 180ms ease-out 2 alternate;
 }
 
+.health-group.is-heal .health-track {
+  animation: health-heal-track 300ms ease-out 2 alternate;
+}
+
+.health-group.is-heal .health-fill {
+  animation: health-heal-fill 300ms ease-out 2 alternate;
+}
+
 @keyframes health-hit-track {
   0%, 100% { border-color: rgba(255, 92, 119, 0.52); }
   50% { border-color: #ffffff; box-shadow: 0 0 18px rgba(255, 53, 94, 0.72); }
@@ -1364,6 +1399,16 @@ input:focus-visible {
 @keyframes health-hit-fill {
   from { filter: brightness(1); }
   to { filter: brightness(1.75); }
+}
+
+@keyframes health-heal-track {
+  from { border-color: rgba(255, 92, 119, 0.52); }
+  to { border-color: #8dffd9; box-shadow: 0 0 18px rgba(72, 224, 191, 0.72); }
+}
+
+@keyframes health-heal-fill {
+  from { filter: brightness(1); }
+  to { filter: brightness(1.45) saturate(0.78) hue-rotate(82deg); }
 }
 
 .module-rack::before {

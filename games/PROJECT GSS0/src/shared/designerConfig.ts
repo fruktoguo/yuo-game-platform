@@ -11,7 +11,7 @@ interface DesignerConfigSource {
 }
 
 const source = (globalThis as typeof globalThis & { GSS0_DESIGNER_CONFIG?: DesignerConfigSource }).GSS0_DESIGNER_CONFIG;
-if (source?.schemaVersion !== 11) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 11');
+if (source?.schemaVersion !== 12) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 12');
 
 function numberSetting(key: string, fallback: number, minimum: number, maximum: number, integer = false): number {
   const candidate = source?.balance?.[key];
@@ -32,7 +32,7 @@ function waveEnemyCountScheduleSetting(): readonly WaveEnemyCountTier[] {
   const schedule = source.waveEnemyCountSchedule.map((entry, index) => {
     const candidate = entry as { startWave?: unknown; enemyCount?: unknown };
     const startWave = Math.max(1, Math.round(Number(candidate?.startWave)));
-    const enemyCount = Math.max(1, Math.min(100, Math.round(Number(candidate?.enemyCount))));
+    const enemyCount = Math.max(1, Math.round(Number(candidate?.enemyCount)));
     if (!Number.isFinite(startWave) || !Number.isFinite(enemyCount)) throw new Error(`PROJECT GSS0 第 ${index + 1} 段波次计划无效`);
     return Object.freeze({ startWave, enemyCount });
   });
@@ -129,16 +129,14 @@ export const DESIGNER_BALANCE = Object.freeze({
   enemySpawnWarning: numberSetting('enemySpawnWarning', 1.5, 0, 10),
   projectileSpeedScale: numberSetting('projectileSpeedScale', 3, 0.1, 10),
   projectileSizeScale: numberSetting('projectileSizeScale', 2, 0.1, 10),
-  poisonInitialTickDelay: numberSetting('poisonInitialTickDelay', 1.4, 0.05, 30),
-  poisonTickInterval: numberSetting('poisonTickInterval', 2.3, 0.05, 30),
+  poisonTickInterval: numberSetting('poisonTickInterval', 3, 0.05, 30),
   activeSkillBaseCooldown: numberSetting('activeSkillBaseCooldown', 3, 0.05, 30),
   moduleRepulseRangePerLevelPixels: numberSetting('moduleRepulseRangePerLevelPixels', 110, 1, 1_000),
   moduleArmorCooldownRatePerLevel: numberSetting('moduleArmorCooldownRatePerLevel', 0.18, 0, 5),
   moduleStabilizerSlowReductionPerLevel: numberSetting('moduleStabilizerSlowReductionPerLevel', 0.25, 0, 1),
   moduleStabilizerLockReductionPerLevel: numberSetting('moduleStabilizerLockReductionPerLevel', 0.2, 0, 1),
   moduleMagnetPickupRangePerLevel: numberSetting('moduleMagnetPickupRangePerLevel', 0.55, 0, 20),
-  moduleHasteSpeedPerLevel: numberSetting('moduleHasteSpeedPerLevel', 0.045, 0, 2),
-  moduleHasteTurnRatePerLevel: numberSetting('moduleHasteTurnRatePerLevel', 0.18, 0, 10),
+  moduleHasteTurnRatePerLevel: numberSetting('moduleHasteTurnRatePerLevel', 0.2, 0, 5),
   moduleChronosSlowPerLevel: numberSetting('moduleChronosSlowPerLevel', 0.08, 0, 1),
   moduleTractorRangePerLevel: numberSetting('moduleTractorRangePerLevel', 3.5, 0, 30),
   moduleTractorPullSpeedPerLevel: numberSetting('moduleTractorPullSpeedPerLevel', 1.8, 0, 30),
@@ -148,18 +146,42 @@ export const DESIGNER_BALANCE = Object.freeze({
   moduleFeastDuration: numberSetting('moduleFeastDuration', 2.5, 0.05, 30),
   moduleFeastSpeedPerLevel: numberSetting('moduleFeastSpeedPerLevel', 0.12, 0, 5),
   moduleSalvageExpectedDropsPerLevel: numberSetting('moduleSalvageExpectedDropsPerLevel', 0.14, 0, 10),
-  moduleAmplifierCooldownRatePerLevel: numberSetting('moduleAmplifierCooldownRatePerLevel', 0.14, 0, 5),
-  moduleBufferKnockbackReductionPerLevel: numberSetting('moduleBufferKnockbackReductionPerLevel', 0.18, 0, 1),
+  moduleAmplifierCooldownRatePerLevel: numberSetting('moduleAmplifierCooldownRatePerLevel', 0.1, 0, 5),
+  moduleBufferCollisionReductionPerLevel: numberSetting('moduleBufferCollisionReductionPerLevel', 0.2, 0, 1),
   moduleDecoyAvoidanceReductionPerLevel: numberSetting('moduleDecoyAvoidanceReductionPerLevel', 0.12, 0, 1),
   moduleDecoyMaxAvoidanceReduction: numberSetting('moduleDecoyMaxAvoidanceReduction', 0.55, 0, 1),
   moduleEmergencyDurationPerLevel: numberSetting('moduleEmergencyDurationPerLevel', 0.37, 0, 30),
   moduleEmergencyMaxDuration: numberSetting('moduleEmergencyMaxDuration', 0.9, 0, 30),
   moduleCollectorPickupRadiusPerLevel: numberSetting('moduleCollectorPickupRadiusPerLevel', 0.09, 0, 10),
-  moduleBeaconWaveRatePerLevel: numberSetting('moduleBeaconWaveRatePerLevel', 0.07, 0, 5),
-  moduleMomentumKnockbackPerLevel: numberSetting('moduleMomentumKnockbackPerLevel', 0.18, 0, 5),
-  moduleProgressorMaxSpeedPerLevel: numberSetting('moduleProgressorMaxSpeedPerLevel', 0.08, 0, 5),
+  moduleBeaconEnemyCountPerLevel: numberSetting('moduleBeaconEnemyCountPerLevel', 0.15, 0, 5),
+  moduleMomentumKnockbackPerLevel: numberSetting('moduleMomentumKnockbackPerLevel', 1, 0, 10),
+  moduleProgressorSpeedPerLevel: numberSetting('moduleProgressorSpeedPerLevel', 0.2, 0, 5),
   moduleCacheKillsPerTrigger: numberSetting('moduleCacheKillsPerTrigger', 5, 1, 100, true),
   moduleThornsProjectileCount: numberSetting('moduleThornsProjectileCount', 6, 1, 100, true),
+  moduleFrostSlowPerHit: numberSetting('moduleFrostSlowPerHit', 0.2, 0, 1),
+  moduleFrostMinimumSpeedMultiplier: numberSetting('moduleFrostMinimumSpeedMultiplier', 0.05, 0.01, 1),
+  moduleBladeBaseSizePixels: numberSetting('moduleBladeBaseSizePixels', 10, 1, 100),
+  modulePulseRadiusCells: numberSetting('modulePulseRadiusCells', 6, 0.1, 30),
+  moduleClusterBlastRadiusCells: numberSetting('moduleClusterBlastRadiusCells', 5, 0.1, 30),
+  moduleShieldMaxCharges: numberSetting('moduleShieldMaxCharges', 5, 1, 20, true),
+  moduleBonusXpChancePerLevel: numberSetting('moduleBonusXpChancePerLevel', 0.1, 0, 1),
+  moduleHeadCollisionDamagePerLevel: numberSetting('moduleHeadCollisionDamagePerLevel', 2, 0, 100, true),
+  moduleMaxHealthPerLevel: numberSetting('moduleMaxHealthPerLevel', 6, 0, 100),
+  moduleHealthRegenPerLevel: numberSetting('moduleHealthRegenPerLevel', 0.5, 0, 20),
+  moduleDamageReductionPerLevel: numberSetting('moduleDamageReductionPerLevel', 0.1, 0, 1),
+  moduleFoodReplicationChancePerLevel: numberSetting('moduleFoodReplicationChancePerLevel', 0.06, 0, 1),
+  moduleFoodHealPerLevel: numberSetting('moduleFoodHealPerLevel', 1, 0, 100),
+  moduleMissingHealthSpeedStep: numberSetting('moduleMissingHealthSpeedStep', 0.03, 0.01, 1),
+  moduleMissingHealthSpeedPerStepPerLevel: numberSetting('moduleMissingHealthSpeedPerStepPerLevel', 0.01, 0, 1),
+  moduleMissingHealthHeadDamageStep: numberSetting('moduleMissingHealthHeadDamageStep', 0.3, 0.01, 1),
+  moduleMissingHealthHeadDamagePerStepPerLevel: numberSetting('moduleMissingHealthHeadDamagePerStepPerLevel', 1, 0, 100, true),
+  moduleHealingReceivedPerLevel: numberSetting('moduleHealingReceivedPerLevel', 0.2, 0, 5),
+  moduleEnemyWallDamagePerLevel: numberSetting('moduleEnemyWallDamagePerLevel', 1, 0, 10),
+  moduleEnemyWallKnockbackPerLevel: numberSetting('moduleEnemyWallKnockbackPerLevel', 1, 0, 10),
+  moduleTailGuardSegmentsPerLevel: numberSetting('moduleTailGuardSegmentsPerLevel', 2, 0, 20, true),
+  moduleDeathBurstProjectilesPerLevel: numberSetting('moduleDeathBurstProjectilesPerLevel', 2, 0, 20, true),
+  moduleCrisisHealthThreshold: numberSetting('moduleCrisisHealthThreshold', 0.5, 0, 1),
+  moduleCrisisRegenPerLevel: numberSetting('moduleCrisisRegenPerLevel', 1, 0, 20),
   arenaAreaPerLevel: numberSetting('arenaAreaPerLevel', 0.03, 0, 0.5),
   arenaResizeRate: numberSetting('arenaResizeRate', 2.4, 0.1, 10),
   upgradeInvulnerabilityDuration: numberSetting('upgradeInvulnerabilityDuration', 0.5, 0, 10),

@@ -3,7 +3,7 @@
 
   const config = globalThis.GSS0_DESIGNER_CONFIG;
   const modules = globalThis.GSS0ModuleCatalog;
-  if (config?.schemaVersion !== 11 || !Array.isArray(modules) || modules.length === 0) {
+  if (config?.schemaVersion !== 12 || !Array.isArray(modules) || modules.length === 0) {
     throw new Error("PROJECT GSS0 机体成长规则依赖加载失败");
   }
 
@@ -105,7 +105,6 @@
     stabilizerSlowReduction: (level) => reduction(level, balance.moduleStabilizerSlowReductionPerLevel),
     stabilizerLockReduction: (level) => reduction(level, balance.moduleStabilizerLockReductionPerLevel),
     magnetPickupRangeCells: (level) => balance.moduleMagnetPickupRangePerLevel * effectLevel(level),
-    hasteSpeedBonus: (level) => balance.moduleHasteSpeedPerLevel * effectLevel(level),
     hasteTurnRateBonus: (level) => balance.moduleHasteTurnRatePerLevel * effectLevel(level),
     chronosSlowReduction: (level) => reduction(level, balance.moduleChronosSlowPerLevel),
     tractorRangeCells: (level) => balance.moduleTractorRangePerLevel * effectLevel(level),
@@ -117,15 +116,49 @@
     feastSpeedBonus: (level) => balance.moduleFeastSpeedPerLevel * effectLevel(level),
     salvageExpectedDrops: (level) => linearRewardAmount(balance.moduleSalvageExpectedDropsPerLevel, level),
     amplifierCooldownRateBonus: (level) => balance.moduleAmplifierCooldownRatePerLevel * effectLevel(level),
-    bufferKnockbackReduction: (level) => reduction(level, balance.moduleBufferKnockbackReductionPerLevel),
+    bufferCollisionReduction: (level) => reduction(level, balance.moduleBufferCollisionReductionPerLevel),
     decoyAvoidanceReduction: (level) => reduction(level, balance.moduleDecoyAvoidanceReductionPerLevel, balance.moduleDecoyMaxAvoidanceReduction),
     emergencyDuration: (level) => Math.min(balance.moduleEmergencyMaxDuration, balance.moduleEmergencyDurationPerLevel * effectLevel(level)),
     collectorPickupRadiusCells: (level) => balance.moduleCollectorPickupRadiusPerLevel * effectLevel(level),
-    beaconWaveRateBonus: (level) => balance.moduleBeaconWaveRatePerLevel * effectLevel(level),
+    beaconEnemyCountMultiplier: (level) => 1 + balance.moduleBeaconEnemyCountPerLevel * effectLevel(level),
     momentumKnockbackBonus: (level) => balance.moduleMomentumKnockbackPerLevel * effectLevel(level),
-    progressorMaxSpeedBonus: (level) => balance.moduleProgressorMaxSpeedPerLevel * effectLevel(level),
+    progressorSpeedBonus: (level) => balance.moduleProgressorSpeedPerLevel * effectLevel(level),
     cacheKillsPerTrigger: () => Math.max(1, Math.round(balance.moduleCacheKillsPerTrigger)),
-    thornsProjectileCount: () => Math.max(1, Math.round(balance.moduleThornsProjectileCount))
+    thornsProjectileCount: () => Math.max(1, Math.round(balance.moduleThornsProjectileCount)),
+    frostSlowPerHit: () => balance.moduleFrostSlowPerHit,
+    frostMaximumSlow: () => 1 - balance.moduleFrostMinimumSpeedMultiplier,
+    bladeBaseSizePixels: () => balance.moduleBladeBaseSizePixels,
+    bladeCount: (level) => effectLevel(level),
+    pulseRadiusCells: () => balance.modulePulseRadiusCells,
+    clusterBlastRadiusCells: () => balance.moduleClusterBlastRadiusCells,
+    shieldMaximumCharges: () => Math.max(1, Math.round(balance.moduleShieldMaxCharges)),
+    bonusXpChance: (level) => reduction(level, balance.moduleBonusXpChancePerLevel),
+    headCollisionDamageBonus: (level) => balance.moduleHeadCollisionDamagePerLevel * effectLevel(level),
+    maxHealthBonus: (level) => balance.moduleMaxHealthPerLevel * effectLevel(level),
+    healthRegenBonus: (level) => balance.moduleHealthRegenPerLevel * effectLevel(level),
+    damageReduction: (level) => reduction(level, balance.moduleDamageReductionPerLevel),
+    foodReplicationChance: (level) => reduction(level, balance.moduleFoodReplicationChancePerLevel),
+    foodHeal: (level) => balance.moduleFoodHealPerLevel * effectLevel(level),
+    missingHealthSpeedBonus: (level, missingFraction = 0) => (
+      Math.floor(Math.max(0, missingFraction) / balance.moduleMissingHealthSpeedStep + 1e-9)
+      * balance.moduleMissingHealthSpeedPerStepPerLevel
+      * effectLevel(level)
+    ),
+    missingHealthHeadDamageBonus: (level, missingFraction = 0) => (
+      Math.floor(Math.max(0, missingFraction) / balance.moduleMissingHealthHeadDamageStep + 1e-9)
+      * balance.moduleMissingHealthHeadDamagePerStepPerLevel
+      * effectLevel(level)
+    ),
+    healingReceivedBonus: (level) => balance.moduleHealingReceivedPerLevel * effectLevel(level),
+    enemyWallDamageBonus: (level) => balance.moduleEnemyWallDamagePerLevel * effectLevel(level),
+    enemyWallKnockbackBonus: (level) => balance.moduleEnemyWallKnockbackPerLevel * effectLevel(level),
+    tailGuardSegmentCount: (level) => Math.max(0, Math.round(balance.moduleTailGuardSegmentsPerLevel * effectLevel(level))),
+    deathBurstProjectileCount: (level) => Math.max(0, Math.round(balance.moduleDeathBurstProjectilesPerLevel * effectLevel(level))),
+    crisisRegen: (level, healthFraction = 1) => (
+      (healthFraction < balance.moduleCrisisHealthThreshold ? 1 : -1)
+      * balance.moduleCrisisRegenPerLevel
+      * effectLevel(level)
+    )
   });
 
   function formatNumber(value, digits = 2) {
@@ -144,6 +177,7 @@
   function passiveStats(moduleId, level) {
     switch (moduleId) {
       case "echo": return [{ label: "撞击发射", value: safeLevel(level), format: (value) => `${value}枚` }];
+      case "blade": return [{ label: "旋刃数量", value: effects.bladeCount(level), format: (value) => `${value}枚` }];
       case "repulse": return [{ label: "作用半径", value: effects.repulseRangePixels(level), format: (value) => `${formatNumber(value)}px` }];
       case "armor": return [{ label: "护盾冷却速度", value: effects.armorCooldownRateBonus(level), format: formatPercent }];
       case "stabilizer": return [
@@ -151,10 +185,7 @@
         { label: "转向锁定时间", value: effects.stabilizerLockReduction(level), format: (value) => formatPercent(-value, false) }
       ];
       case "magnet": return [{ label: "蛇头吃球范围", value: effects.magnetPickupRangeCells(level), format: (value) => `+${formatNumber(value)}格` }];
-      case "haste": return [
-        { label: "移动速度", value: effects.hasteSpeedBonus(level), format: formatPercent },
-        { label: "转向速度", value: effects.hasteTurnRateBonus(level), format: (value) => `+${formatNumber(value)}弧度/秒` }
-      ];
+      case "haste": return [{ label: "转向速度", value: effects.hasteTurnRateBonus(level), format: formatPercent }];
       case "chronos": return [{ label: "敌蛇移动速度", value: effects.chronosSlowReduction(level), format: (value) => formatPercent(-value, false) }];
       case "tractor": return [
         { label: "牵引范围", value: effects.tractorRangeCells(level), format: (value) => `${formatNumber(value)}格` },
@@ -168,13 +199,37 @@
       case "feast": return [{ label: "增益移动速度", value: effects.feastSpeedBonus(level), format: formatPercent }];
       case "salvage": return [{ label: "每节受损机体回收期望", value: effects.salvageExpectedDrops(level), format: (value) => `${formatNumber(value)}枚球` }];
       case "amplifier": return [{ label: "主动技能冷却速度", value: effects.amplifierCooldownRateBonus(level), format: formatPercent }];
-      case "buffer": return [{ label: "物理击退减免", value: effects.bufferKnockbackReduction(level), format: formatPercent }];
+      case "buffer": return [
+        { label: "撞击击退减免", value: effects.bufferCollisionReduction(level), format: formatPercent },
+        { label: "撞击减速时间", value: effects.bufferCollisionReduction(level), format: (value) => formatPercent(-value, false) }
+      ];
       case "decoy": return [{ label: "敌蛇避让强度", value: effects.decoyAvoidanceReduction(level), format: (value) => formatPercent(-value, false) }];
       case "emergency": return [{ label: "吃球无敌时间", value: effects.emergencyDuration(level), format: formatSeconds }];
       case "collector": return [{ label: "全身吃球半径", value: effects.collectorPickupRadiusCells(level), format: (value) => `+${formatNumber(value)}格` }];
-      case "beacon": return [{ label: "波次倒计时速度", value: effects.beaconWaveRateBonus(level), format: formatPercent }];
-      case "momentum": return [{ label: "敌蛇受到的击退", value: effects.momentumKnockbackBonus(level), format: formatPercent }];
-      case "progressor": return [{ label: "满经验移动速度", value: effects.progressorMaxSpeedBonus(level), format: formatPercent }];
+      case "beacon": return [{ label: "敌蛇生成数量", value: effects.beaconEnemyCountMultiplier(level) - 1, format: formatPercent }];
+      case "momentum": return [{ label: "蛇头撞击击退", value: effects.momentumKnockbackBonus(level), format: formatPercent }];
+      case "progressor": return [{ label: "移动速度", value: effects.progressorSpeedBonus(level), format: formatPercent }];
+      case "ram": return [{ label: "蛇头伤害", value: safeLevel(level), format: (value) => `+${value}` }];
+      case "insight": return [{ label: "额外经验概率", value: effects.bonusXpChance(level), format: (value) => formatPercent(value, false) }];
+      case "headstrike": return [{ label: "对敌蛇头额外伤害", value: effects.headCollisionDamageBonus(level), format: (value) => `+${formatNumber(value)}` }];
+      case "vitality": return [{ label: "最大生命值", value: effects.maxHealthBonus(level), format: (value) => `+${formatNumber(value)}` }];
+      case "renewal": return [{ label: "每秒生命恢复", value: effects.healthRegenBonus(level), format: (value) => `+${formatNumber(value)}` }];
+      case "plating": return [{ label: "所有伤害", value: effects.damageReduction(level), format: (value) => formatPercent(-value, false) }];
+      case "replicator": return [{ label: "复制球概率", value: effects.foodReplicationChance(level), format: (value) => formatPercent(value, false) }];
+      case "medkit": return [{ label: "吃球恢复", value: effects.foodHeal(level), format: (value) => `${formatNumber(value)}生命` }];
+      case "adrenaline": return [{ label: "每损失3%生命的移动速度", value: balance.moduleMissingHealthSpeedPerStepPerLevel * safeLevel(level), format: formatPercent }];
+      case "berserk": return [{ label: "每损失30%生命的蛇头伤害", value: balance.moduleMissingHealthHeadDamagePerStepPerLevel * safeLevel(level), format: (value) => `+${formatNumber(value)}` }];
+      case "recovery": return [{ label: "生命恢复效果", value: effects.healingReceivedBonus(level), format: formatPercent }];
+      case "wallbreaker": return [
+        { label: "敌蛇撞墙伤害", value: effects.enemyWallDamageBonus(level), format: formatPercent },
+        { label: "敌蛇撞墙击退", value: effects.enemyWallKnockbackBonus(level), format: formatPercent }
+      ];
+      case "tailguard": return [{ label: "白色拦截机体", value: effects.tailGuardSegmentCount(level), format: (value) => `+${value}节` }];
+      case "deathburst": return [{ label: "敌蛇死亡发射", value: effects.deathBurstProjectileCount(level), format: (value) => `${value}枚` }];
+      case "crisis": return [
+        { label: "低生命每秒恢复", value: Math.abs(effects.crisisRegen(level, 0)), format: (value) => `+${formatNumber(value)}` },
+        { label: "高生命每秒恢复", value: effects.crisisRegen(level, 1), format: (value) => formatNumber(value) }
+      ];
       case "cache": return [{ label: `每${effects.cacheKillsPerTrigger()}次击破生成`, value: safeLevel(level), format: (value) => `${value}枚球` }];
       default: return [{ label: "效果强度", value: safeLevel(level), format: (value) => `${value * 100}%` }];
     }

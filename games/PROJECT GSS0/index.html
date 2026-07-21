@@ -19,7 +19,7 @@
           <strong>代号：几何贪吃蛇</strong>
         </div>
         <span class="signature">by 四季鸽</span>
-        <span class="brand-version" aria-label="游戏版本 V64">V64</span>
+        <span class="brand-version" aria-label="游戏版本 V65">V65</span>
       </div>
 
       <div class="run-stats">
@@ -135,6 +135,7 @@
           </div>
           <div class="health-track" aria-hidden="true">
             <div id="health-fill" class="health-fill"></div>
+            <div id="shield-fill" class="shield-fill" data-charges="0"></div>
           </div>
         </div>
         <div class="resource-group xp-group">
@@ -156,7 +157,7 @@
 
     <section id="start-screen" class="modal-layer start-screen is-visible" aria-labelledby="game-title">
       <div class="start-glow" aria-hidden="true"></div>
-      <div class="start-version" aria-label="游戏版本 V64"><span>BUILD</span><strong>V64</strong></div>
+      <div class="start-version" aria-label="游戏版本 V65"><span>BUILD</span><strong>V65</strong></div>
       <div class="start-layout">
         <div class="start-content">
           <div id="network-status" class="title-kicker">TACTICAL SURVIVAL / LOCAL</div>
@@ -257,6 +258,22 @@
           <button id="changelog-close-button" class="icon-button codex-close-button" type="button" aria-label="关闭更新日志" title="关闭更新日志">×</button>
         </header>
         <div class="changelog-list">
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V65</strong></div>
+              <time datetime="2026-07-22">2026.07.22</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">机体体系重构</span>
+              <h3>十四种新机体与战斗规则统一</h3>
+              <ul>
+                <li>新增经验、头撞、生命、恢复、减伤、复制、失血增益、撞墙强化、尾部拦截与敌蛇死亡齐射等十四种被动机体。</li>
+                <li>重做冰棱、中毒、旋刃、护盾、回声弹匣、终结协议及多种进攻机体；范围攻击与穿透统一按敌蛇部位结算。</li>
+                <li>护盾层数直接覆盖显示在生命条上，生命恢复获得专属音效、粒子、浮字与 HUD 反馈。</li>
+                <li>设计控制台同步全部新参数，并移除敌蛇生成数量上限。</li>
+              </ul>
+            </div>
+          </article>
           <article class="changelog-entry">
             <header>
               <div class="changelog-version"><span>BUILD</span><strong>V64</strong></div>
@@ -1013,20 +1030,20 @@
     </section>
   </main>
 
-  <script src="designer-config.js?v=64"></script>
-  <script src="module-catalog.js?v=64"></script>
-  <script src="module-progression.js?v=64"></script>
-  <script src="wave-director.js?v=64"></script>
-  <script src="spawn-planner.js?v=64"></script>
-  <script src="network-codec.js?v=64"></script>
-  <script src="network-player-prediction.js?v=64"></script>
-  <script src="network-player-state-codec.js?v=64"></script>
-  <script src="network-player-collisions.js?v=64"></script>
-  <script src="network-head-collisions.js?v=64"></script>
-  <script src="network-food-claims.js?v=64"></script>
-  <script src="network-projectiles.js?v=64"></script>
-  <script src="lobby-navigation.js?v=64"></script>
-  <script src="enemy-codex.js?v=64"></script>
-  <script src="game.js?v=64"></script>
+  <script src="designer-config.js?v=65"></script>
+  <script src="module-catalog.js?v=65"></script>
+  <script src="module-progression.js?v=65"></script>
+  <script src="wave-director.js?v=65"></script>
+  <script src="spawn-planner.js?v=65"></script>
+  <script src="network-codec.js?v=65"></script>
+  <script src="network-player-prediction.js?v=65"></script>
+  <script src="network-player-state-codec.js?v=65"></script>
+  <script src="network-player-collisions.js?v=65"></script>
+  <script src="network-head-collisions.js?v=65"></script>
+  <script src="network-food-claims.js?v=65"></script>
+  <script src="network-projectiles.js?v=65"></script>
+  <script src="lobby-navigation.js?v=65"></script>
+  <script src="enemy-codex.js?v=65"></script>
+  <script src="game.js?v=65"></script>
 </body>
 </html>
