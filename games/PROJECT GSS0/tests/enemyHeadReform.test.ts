@@ -18,6 +18,12 @@ describe('敌蛇断首与新头接替', () => {
   it('头部碎裂与身体变形动画通过可靠事件在联机端重放', () => {
     expect(gameSource).toContain('function playEnemyHeadReformPresentation');
     expect(gameSource).toContain('enemy.headReform = { startedAt: performance.now(), duration: safeDuration };');
+    expect(gameSource).toContain('headSprite.size * (0.16 + pulse * 0.035)');
+    expect(gameSource).not.toContain('headSprite.size * (0.42 + pulse * 0.34)');
+    const presentation = gameSource.match(/function playEnemyHeadReformPresentation[\s\S]*?\n  \}\n\n  function damageEnemy/u)?.[0];
+    expect(presentation).toContain('endRadius: radius * 1.65');
+    expect(presentation).not.toContain('ENEMY_DEATH_HEAD_PARTICLES');
+    expect(presentation).not.toContain('type: "beam"');
     expect(gameSource).toContain('operation.promoteHead');
     expect(gameSource).toContain('pendingEnemyHeadReforms');
   });

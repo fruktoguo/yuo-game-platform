@@ -5596,17 +5596,12 @@
     if (Math.hypot(tangentX, tangentY) > 0.001) enemy.angle = Math.atan2(tangentY, tangentX);
   }
 
-  function playEnemyHeadReformPresentation(enemy, oldHead, color, duration = ENEMY_HEAD_REFORM_DURATION) {
+  function playEnemyHeadReformPresentation(enemy, _oldHead, color, duration = ENEMY_HEAD_REFORM_DURATION) {
     if (!enemy || enemy.dead) return;
     const safeDuration = clamp(Number(duration) || ENEMY_HEAD_REFORM_DURATION, 0.05, 2);
-    const oldX = Number.isFinite(oldHead?.x) ? oldHead.x : enemy.x;
-    const oldY = Number.isFinite(oldHead?.y) ? oldHead.y : enemy.y;
     const radius = enemy.radius || arena.cellSize * 0.28;
     enemy.headReform = { startedAt: performance.now(), duration: safeDuration };
-    burst(oldX, oldY, color, ENEMY_DEATH_HEAD_PARTICLES, ENEMY_DEATH_HEAD_PARTICLE_SPEED);
-    effects.push({ type: "ring", x: oldX, y: oldY, color, life: safeDuration, maxLife: safeDuration, radius: radius * 0.45, endRadius: radius * 2.8 });
-    effects.push({ type: "beam", x: oldX, y: oldY, x2: enemy.x, y2: enemy.y, color: "#ffffff", width: Math.max(2, radius * 0.22), life: safeDuration, maxLife: safeDuration });
-    effects.push({ type: "ring", x: enemy.x, y: enemy.y, color: "#ffffff", life: safeDuration, maxLife: safeDuration, radius: radius * 0.3, endRadius: radius * 1.9 });
+    effects.push({ type: "ring", x: enemy.x, y: enemy.y, color, life: safeDuration, maxLife: safeDuration, radius: radius * 0.45, endRadius: radius * 1.65 });
   }
 
   function damageEnemy(enemy, amount, x, y, color, options = {}) {
@@ -6573,9 +6568,9 @@
       ctx.globalAlpha = (1 - reformProgress) * 0.9;
       ctx.strokeStyle = "#ffffff";
       ctx.shadowColor = enemy.color;
-      ctx.shadowBlur = 12;
-      ctx.lineWidth = 2.4 * (1 - reformProgress) + 0.6;
-      drawPolygonPath(0, 0, headSprite.size * (0.42 + pulse * 0.34), 6, reformProgress * Math.PI);
+      ctx.shadowBlur = 6;
+      ctx.lineWidth = 1.4 * (1 - reformProgress) + 0.6;
+      drawPolygonPath(0, 0, headSprite.size * (0.16 + pulse * 0.035), 6, reformProgress * Math.PI);
       ctx.stroke();
     } else {
       ctx.drawImage(headSprite.canvas, -headSprite.size / 2, -headSprite.size / 2, headSprite.size, headSprite.size);
