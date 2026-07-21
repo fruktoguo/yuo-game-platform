@@ -22,8 +22,8 @@ describe('设计配置', () => {
   it('默认参数保持现有玩法数值', () => {
     expect(DESIGNER_BALANCE).toMatchObject({
       playerBaseSpeed: 5,
-      playerMaxHealth: 30,
-      playerHealthRegenPerSecond: 1,
+      playerMaxHealth: 20,
+      playerHealthRegenPerSecond: 0.5,
       playerEnemyBodyCollisionDamage: 10,
       playerWallCollisionDamage: 5,
       playerCollisionDamage: 1,
@@ -48,6 +48,7 @@ describe('设计配置', () => {
       enemyThreatTimeCoefficient: 6,
       enemyThreatGrowthPerWave: 0.02,
       enemyHealthWeightVariation: 0.25,
+      enemyWallAvoidanceDistance: 1.35,
       enemyScoutSpawnWeight: 10,
       enemyScoutHealthWeight: 1,
       enemyScoutFoodRange: 6,
@@ -81,6 +82,7 @@ describe('设计配置', () => {
       playerDamageShakeStrength: 9,
       playerDamageParticleCount: 26,
       playerDamageParticleSpeed: 190,
+      foodBirthDuration: 0.36,
       maxRenderFps: 160,
       maxRenderDpr: 1.25,
       networkPlayerStateHz: 20,
@@ -163,7 +165,7 @@ describe('设计配置', () => {
 
     expect(parameterKeys.sort()).toEqual(Object.keys(DESIGNER_BALANCE).sort());
     expect(moduleIds.sort()).toEqual(MODULES.map((module) => module.id).sort());
-    expect(new Set(parameterKeys).size).toBe(148);
+    expect(new Set(parameterKeys).size).toBe(150);
     expect(parameterKeys).not.toContain('playerSpeedPerLevel');
     expect(parameterKeys).not.toContain('moduleEffectReductionMaximum');
     expect(new Set(moduleIds).size).toBe(58);
@@ -176,10 +178,11 @@ describe('设计配置', () => {
     expect(MODULES.find((module) => module.id === 'spark')?.desc).toBe('发射1枚高速焰弹，造成1伤害。');
     expect(MODULES.find((module) => module.id === 'haste')?.desc).toContain('4.5%移动速度');
     expect(MODULES.find((module) => module.id === 'haste')?.desc).toContain('0.18弧度/秒转向速度');
-    expect(MODULES.some((module) => (module.category as string) === '恢复')).toBe(false);
+    expect(MODULES.some((module) => ['输出', '防御', '恢复'].includes(module.category as string))).toBe(false);
+    expect(MODULES.every((module) => ['进攻', '生存', '辅助', '发育'].includes(module.category))).toBe(true);
     expect(MODULES.filter((module) => module.category === '发育')).toHaveLength(5);
-    expect(editorHtml).toContain('src="module-catalog.js?v=63"');
-    expect(editorHtml).toContain('src="module-progression.js?v=63"');
+    expect(editorHtml).toContain('src="module-catalog.js?v=64"');
+    expect(editorHtml).toContain('src="module-progression.js?v=64"');
     expect(editorHtml).toContain('const MODULES = moduleCatalog;');
     expect(editorHtml).toContain('descriptionText.textContent = describeModule(module.id, draft.balance);');
     expect(editorHtml).toContain('ID: ${module.id}');
@@ -200,6 +203,8 @@ describe('设计配置', () => {
     expect(editorHtml).not.toContain('id="description-detail"');
     expect(editorHtml).not.toContain('gss0-detailed-descriptions');
     expect(editorHtml).toContain('draft.moduleCooldownPercentages[module.id]');
+    expect(editorHtml).toContain('{ key: "playerMaxHealth", group: "玩家", label: "玩家生命上限", hint: "每次出生时拥有的生命值与生命上限", min: 0, max: 100');
+    expect(editorHtml).toContain('{ key: "playerHealthRegenPerSecond", group: "玩家", label: "玩家生命恢复", hint: "存活并正常行动时每秒恢复的生命值", min: 0, max: 1');
     expect(editorHtml).toContain('range.max = "1000"');
     expect(editorHtml).toContain('actual.textContent = `实际 ${moduleCooldownLabel(module)}`');
     expect(editorHtml).toContain('data-view="enemies"');

@@ -56,6 +56,18 @@ describe('机体成长规则', () => {
     ]);
   });
 
+  it('为机体栏提供当前等级的实际效果摘要', () => {
+    expect(MODULE_PROGRESSION.moduleCurrentEffect('spark', 2)).toMatchObject({
+      level: 2,
+      levelLabel: '等级 2',
+      lines: [{ label: '冷却时间', text: '冷却时间 3秒' }],
+    });
+    expect(MODULE_PROGRESSION.moduleCurrentEffect('haste', 2).lines.map((line) => line.text)).toEqual([
+      '移动速度 +9%',
+      '转向速度 +0.36弧度/秒',
+    ]);
+  });
+
   it('满级机体不会再次进入升级候选', () => {
     const maxed = [{ module: MODULES[0].id, moduleLevel: 5 }];
     expect(MODULE_PROGRESSION.chooseUpgradeIds([MODULES[0]], maxed, 0, () => 0.1, 3)).toEqual([]);

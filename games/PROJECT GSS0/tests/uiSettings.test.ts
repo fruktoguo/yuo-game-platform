@@ -9,7 +9,7 @@ describe('界面设置', () => {
   it('使用正式游戏名并在左上品牌卡显示当前版本', () => {
     expect(indexHtml).toContain('<title>代号：几何贪吃蛇</title>');
     expect(indexHtml).toContain('<h1 id="game-title"><span>代号：几何贪吃蛇</span></h1>');
-    expect(indexHtml).toContain('<span class="brand-version" aria-label="游戏版本 V63">V63</span>');
+    expect(indexHtml).toContain('<span class="brand-version" aria-label="游戏版本 V64">V64</span>');
     expect(styles).toContain('.brand-version');
     const brandTitleRule = styles.match(/\.brand-lockup strong\s*\{([^}]*)\}/)?.[1];
     const brandVersionRule = styles.match(/\.brand-version\s*\{([^}]*)\}/)?.[1];
@@ -39,12 +39,27 @@ describe('界面设置', () => {
   });
 
   it('升级卡展示机体等级变化且机体架显示槽位占用', () => {
-    expect(indexHtml).toContain('src="module-progression.js?v=63"');
+    expect(indexHtml).toContain('src="module-progression.js?v=64"');
     expect(gameSource).toContain('MODULE_PROGRESSION.moduleUpgradePreview');
     expect(gameSource).toContain('progression.levelLabel');
     expect(gameSource).toContain('ui.rack.dataset.capacity');
+    expect(gameSource).toContain('MODULE_PROGRESSION.moduleCurrentEffect');
+    expect(gameSource).toContain('slot.className = "rack-slot rack-slot-empty";');
+    expect(gameSource).toContain('item.dataset.tooltip =');
     expect(styles).toContain('.card-progression');
     expect(styles).toContain('content: "槽位 " attr(data-capacity);');
+    expect(styles).toContain('flex-flow: row nowrap;');
+    expect(styles).toContain('.rack-module:hover::after');
+    expect(styles).toMatch(/\.upgrade-screen\s*\{\s*z-index: 8;/u);
+    expect(styles.match(/\.module-rack\s*\{([^}]*)\}/u)?.[1]).toContain('pointer-events: auto;');
+  });
+
+  it('生命参数范围与球生成动画保持设计控制台和运行时一致', () => {
+    expect(indexHtml).toContain('id="module-rack"');
+    expect(gameSource).toContain('const FOOD_BIRTH_DURATION = designerNumber("foodBirthDuration"');
+    expect(gameSource).toContain('const birthScale =');
+    expect(gameSource).toContain('food.birthAge = 0;');
+    expect(indexHtml).toContain('初始拥有 20 点耐久，每秒恢复 0.5 点');
   });
 
   it('联机入口从一名玩家起始终显示共享世界界面', () => {
@@ -79,7 +94,7 @@ describe('界面设置', () => {
     expect(tooltipRule).not.toContain('transition');
     expect(indexHtml).not.toContain('id="description-button"');
     expect(indexHtml).not.toContain('id="description-toggle"');
-    expect(indexHtml).toContain('src="module-catalog.js?v=63"');
+    expect(indexHtml).toContain('src="module-catalog.js?v=64"');
     expect(gameSource).toContain('const MODULE_CATALOG = globalThis.GSS0ModuleCatalog;');
     expect(gameSource).not.toContain('SHORT_MODULE_DESCRIPTIONS');
     expect(gameSource).not.toContain('gss0-detailed-descriptions');
@@ -87,8 +102,8 @@ describe('界面设置', () => {
 
   it('机体图鉴隐藏禁用机体并支持按类型筛选', () => {
     expect(indexHtml).toContain('id="codex-category-filter"');
-    expect(indexHtml).toContain('data-category="输出"');
-    expect(indexHtml).toContain('data-category="防御"');
+    expect(indexHtml).toContain('data-category="进攻"');
+    expect(indexHtml).toContain('data-category="生存"');
     expect(indexHtml).toContain('data-category="辅助"');
     expect(indexHtml).toContain('data-category="发育"');
     expect(indexHtml).toContain('id="codex-count"');

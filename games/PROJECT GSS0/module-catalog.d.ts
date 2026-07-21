@@ -8,7 +8,7 @@ export type GSS0ModuleId =
   | "execute" | "crossfire" | "phasebolt" | "ram" | "buffer" | "decoy" | "emergency"
   | "collector" | "beacon" | "momentum" | "progressor" | "nursery" | "cache";
 
-export type GSS0ModuleCategory = "输出" | "防御" | "辅助" | "发育";
+export type GSS0ModuleCategory = "进攻" | "生存" | "辅助" | "发育";
 export type GSS0ModuleShape = "triangle" | "diamond" | "hex" | "star" | "ring" | "capsule" | "square" | "circle";
 
 export interface GSS0ModuleCatalogEntry {

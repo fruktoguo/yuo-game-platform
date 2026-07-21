@@ -339,7 +339,7 @@
         <header class="view-head"><div><span>MODULE ARCHIVE</span><h2>机体状态图鉴</h2></div><output id="module-count" class="view-count"></output></header>
         <div class="module-toolbar">
           <input id="module-search" class="filter-input" type="search" placeholder="搜索名称或 ID" aria-label="搜索机体">
-          <select id="category-filter" aria-label="筛选分类"><option value="all">全部分类</option><option>输出</option><option>防御</option><option>辅助</option><option>发育</option></select>
+          <select id="category-filter" aria-label="筛选分类"><option value="all">全部分类</option><option>进攻</option><option>生存</option><option>辅助</option><option>发育</option></select>
           <select id="status-filter" aria-label="筛选状态"><option value="all">全部状态</option><option value="normal">正常</option><option value="tune">需调数值</option><option value="rework">需大改</option><option value="disabled">禁用</option></select>
         </div>
         <div class="module-bulk-actions" aria-label="批量设置机体状态">
@@ -385,11 +385,11 @@
     </div>
   </main>
 
-  <script src="enemy-codex.js?v=63"></script>
-  <script src="wave-director.js?v=63"></script>
-  <script src="designer-config.js?v=63"></script>
-  <script src="module-catalog.js?v=63"></script>
-  <script src="module-progression.js?v=63"></script>
+  <script src="enemy-codex.js?v=64"></script>
+  <script src="wave-director.js?v=64"></script>
+  <script src="designer-config.js?v=64"></script>
+  <script src="module-catalog.js?v=64"></script>
+  <script src="module-progression.js?v=64"></script>
   <script>
     (() => {
       "use strict";
@@ -408,8 +408,8 @@
 
       const ALL_PARAMETER_DEFINITIONS = [
         { key: "playerBaseSpeed", group: "玩家", label: "玩家基础速度", hint: "升级与机体加速前的每秒移动格数", min: 1, max: 12, step: 0.1, unit: "格/秒" },
-        { key: "playerMaxHealth", group: "玩家", label: "玩家生命上限", hint: "每次出生时拥有的生命值与生命上限", min: 1, max: 10000, step: 1, unit: "点" },
-        { key: "playerHealthRegenPerSecond", group: "玩家", label: "玩家生命恢复", hint: "存活并正常行动时每秒恢复的生命值", min: 0, max: 1000, step: 0.1, unit: "点/秒" },
+        { key: "playerMaxHealth", group: "玩家", label: "玩家生命上限", hint: "每次出生时拥有的生命值与生命上限", min: 0, max: 100, step: 1, unit: "点" },
+        { key: "playerHealthRegenPerSecond", group: "玩家", label: "玩家生命恢复", hint: "存活并正常行动时每秒恢复的生命值", min: 0, max: 1, step: 0.1, unit: "点/秒" },
         { key: "playerEnemyBodyCollisionDamage", group: "玩家", label: "撞敌蛇身体受伤", hint: "玩家蛇头撞上敌蛇身体时受到的伤害", min: 0, max: 10000, step: 1, unit: "点" },
         { key: "playerWallCollisionDamage", group: "玩家", label: "撞墙受伤", hint: "玩家蛇头撞上场地边界时受到的伤害", min: 0, max: 10000, step: 1, unit: "点" },
         { key: "xpRequirementBase", group: "玩家", label: "升级基础经验需求", hint: "0 级升到 1 级所需的经验球数量", min: 1, max: 100, step: 1, unit: "球" },
@@ -431,6 +431,7 @@
         { key: "playerDamageShakeStrength", group: "表现", label: "玩家受伤震屏强度", hint: "本地玩家受伤时镜头震动的强度", min: 0, max: 30, step: 0.5, unit: "强度" },
         { key: "playerDamageParticleCount", group: "表现", label: "玩家受伤粒子数", hint: "每次受伤在玩家位置爆出的红色粒子数量", min: 0, max: 200, step: 1, unit: "个" },
         { key: "playerDamageParticleSpeed", group: "表现", label: "玩家受伤粒子速度", hint: "每次受伤爆出粒子的基础飞行速度", min: 0, max: 1000, step: 5, unit: "速度" },
+        { key: "foodBirthDuration", group: "表现", label: "球生成动画时长", hint: "新球从光点展开到完整尺寸所需的时间", min: 0.05, max: 2, step: 0.01, unit: "秒" },
         { key: "enemyBaseSpeed", group: "敌人全局", label: "敌人基础速度", hint: "各类型速度倍率和时间成长生效前的每秒移动格数", min: 0.5, max: 12, step: 0.1, unit: "格/秒" },
         { key: "enemySpeedPerMinute", group: "敌人全局", label: "每分钟速度成长", hint: "每经过一分钟附加的敌人速度倍率；0.01 表示提高 1%", min: 0, max: 0.2, step: 0.005, unit: "倍率/分钟" },
         { key: "enemySpeedMaxMultiplier", group: "敌人全局", label: "时间速度倍率上限", hint: "时间成长可将敌人基础速度提高到的最高倍率", min: 1, max: 3, step: 0.01, unit: "倍" },
@@ -439,6 +440,7 @@
         { key: "enemyThinkIntervalMin", group: "敌人全局", label: "AI 思考间隔下界", hint: "敌人重新选择目标和路线的最短间隔", min: 0.05, max: 5, step: 0.01, unit: "秒" },
         { key: "enemyThinkIntervalMax", group: "敌人全局", label: "AI 思考间隔上界", hint: "敌人重新选择目标和路线的最长间隔", min: 0.05, max: 5, step: 0.01, unit: "秒" },
         { key: "enemyFoodSearchLimit", group: "敌人全局", label: "AI 候选球数量", hint: "敌人每次决策最多评估的附近球数量", min: 1, max: 32, step: 1, unit: "枚" },
+        { key: "enemyWallAvoidanceDistance", group: "敌人全局", label: "墙壁规避距离", hint: "所有敌人开始主动转离墙壁的最低距离，并按速度自动增加前瞻", min: 0.5, max: 6, step: 0.05, unit: "格" },
         { key: "enemyCollisionDamage", group: "敌人全局", label: "敌人碰撞伤害", hint: "敌蛇撞墙或撞上其他敌蛇时受到的伤害", min: 0, max: 1000, step: 1, unit: "点" },
         { key: "waveInterval", group: "波次曲线", label: "基础波次间隔", hint: "不含增压信标时，相邻两波之间的固定倒计时", min: 0.5, max: 120, step: 0.1, unit: "秒" },
         { key: "enemyPressureWaveInterval", group: "波次曲线", label: "高压波周期", hint: "每隔多少波触发高压波；0 表示关闭", min: 0, max: 50, step: 1, unit: "波" },

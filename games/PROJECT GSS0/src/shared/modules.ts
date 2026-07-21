@@ -2,7 +2,7 @@ import '../../module-catalog.js';
 import type { GSS0ModuleId } from '../../module-catalog.js';
 import { formatCooldownSeconds, moduleCooldownSeconds, moduleDesignState, moduleIsUpgradeEnabled, type ModuleDesignState } from './designerConfig';
 
-export type ModuleCategory = '输出' | '防御' | '辅助' | '发育';
+export type ModuleCategory = '进攻' | '生存' | '辅助' | '发育';
 export type ModuleShape = 'triangle' | 'diamond' | 'hex' | 'star' | 'ring' | 'capsule' | 'square' | 'circle';
 export type ModuleId = GSS0ModuleId;
 

@@ -15,6 +15,12 @@ export interface GSS0UpgradePreview {
   readonly lines: readonly { readonly label: string; readonly text: string }[];
 }
 
+export interface GSS0ModuleCurrentEffect {
+  readonly level: number;
+  readonly levelLabel: string;
+  readonly lines: readonly { readonly label: string; readonly text: string }[];
+}
+
 export interface GSS0ModuleProgressionApi {
   readonly maxModuleLevel: number;
   readonly compressionBase: number;
@@ -30,6 +36,7 @@ export interface GSS0ModuleProgressionApi {
   experienceValue(tier: number): number;
   findCompressionIndexes(segments: readonly GSS0ProgressionSegment[], tier: number): number[];
   rollLinearRewards(amount: number, random?: () => number): number;
+  moduleCurrentEffect(moduleId: GSS0ModuleId, level?: number): GSS0ModuleCurrentEffect;
   moduleUpgradePreview(moduleId: GSS0ModuleId, currentLevel?: number): GSS0UpgradePreview;
   chooseUpgradeIds(
     availableModules: readonly GSS0ModuleCatalogEntry[],

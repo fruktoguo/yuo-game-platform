@@ -19,7 +19,7 @@
           <strong>代号：几何贪吃蛇</strong>
         </div>
         <span class="signature">by 四季鸽</span>
-        <span class="brand-version" aria-label="游戏版本 V63">V63</span>
+        <span class="brand-version" aria-label="游戏版本 V64">V64</span>
       </div>
 
       <div class="run-stats">
@@ -131,7 +131,7 @@
         <div id="health-group" class="resource-group health-group">
           <div class="xp-row health-row">
             <span>机体耐久</span>
-            <strong><span id="health-value">30</span> / <span id="health-max">30</span></strong>
+            <strong><span id="health-value">20</span> / <span id="health-max">20</span></strong>
           </div>
           <div class="health-track" aria-hidden="true">
             <div id="health-fill" class="health-fill"></div>
@@ -156,7 +156,7 @@
 
     <section id="start-screen" class="modal-layer start-screen is-visible" aria-labelledby="game-title">
       <div class="start-glow" aria-hidden="true"></div>
-      <div class="start-version" aria-label="游戏版本 V63"><span>BUILD</span><strong>V63</strong></div>
+      <div class="start-version" aria-label="游戏版本 V64"><span>BUILD</span><strong>V64</strong></div>
       <div class="start-layout">
         <div class="start-content">
           <div id="network-status" class="title-kicker">TACTICAL SURVIVAL / LOCAL</div>
@@ -196,7 +196,7 @@
           </header>
           <section>
             <strong><span>01</span> 单人行动</strong>
-            <p><span>初始拥有 30 点耐久，每秒恢复 1 点</span><span>蛇头撞敌蛇会造成 1 点伤害并弹开</span><span>撞敌蛇身体受到 10 点伤害，撞墙受到 5 点伤害</span><span>敌人会抢球，摧毁敌人后全部爆出</span></p>
+            <p><span>初始拥有 20 点耐久，每秒恢复 0.5 点</span><span>蛇头撞敌蛇会造成 1 点伤害并弹开</span><span>撞敌蛇身体受到 10 点伤害，撞墙受到 5 点伤害</span><span>敌人会抢球，摧毁敌人后全部爆出</span></p>
           </section>
           <section>
             <strong><span>02</span> 多人共斗</strong>
@@ -223,8 +223,8 @@
         <div class="codex-toolbar">
           <div id="codex-category-filter" class="codex-category-filter" role="group" aria-label="按机体类型筛选">
             <button class="is-active" type="button" data-category="all" aria-pressed="true">全部</button>
-            <button type="button" data-category="输出" aria-pressed="false">输出</button>
-            <button type="button" data-category="防御" aria-pressed="false">防御</button>
+            <button type="button" data-category="进攻" aria-pressed="false">进攻</button>
+            <button type="button" data-category="生存" aria-pressed="false">生存</button>
             <button type="button" data-category="辅助" aria-pressed="false">辅助</button>
             <button type="button" data-category="发育" aria-pressed="false">发育</button>
           </div>
@@ -257,6 +257,22 @@
           <button id="changelog-close-button" class="icon-button codex-close-button" type="button" aria-label="关闭更新日志" title="关闭更新日志">×</button>
         </header>
         <div class="changelog-list">
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V64</strong></div>
+              <time datetime="2026-07-21">2026.07.21</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">战斗与界面</span>
+              <h3>战术 HUD 与智能交战</h3>
+              <ul>
+                <li>机体栏改为单行固定槽位，并可悬浮查看当前等级效果；升级时机体栏与生命、经验面板保持可见。</li>
+                <li>玩家生命上限调整为 20、每秒恢复调整为 0.5；设计范围分别收紧至 0–100 与 0–1。</li>
+                <li>所有敌人会提前避开墙壁；自动战斗只规避敌蛇身体，并会主动撞击可击破的敌蛇头。</li>
+                <li>球生成时增加本体展开动画，机体分类统一为进攻、生存、辅助与发育。</li>
+              </ul>
+            </div>
+          </article>
           <article class="changelog-entry">
             <header>
               <div class="changelog-version"><span>BUILD</span><strong>V63</strong></div>
@@ -997,20 +1013,20 @@
     </section>
   </main>
 
-  <script src="designer-config.js?v=63"></script>
-  <script src="module-catalog.js?v=63"></script>
-  <script src="module-progression.js?v=63"></script>
-  <script src="wave-director.js?v=63"></script>
-  <script src="spawn-planner.js?v=63"></script>
-  <script src="network-codec.js?v=63"></script>
-  <script src="network-player-prediction.js?v=63"></script>
-  <script src="network-player-state-codec.js?v=63"></script>
-  <script src="network-player-collisions.js?v=63"></script>
-  <script src="network-head-collisions.js?v=63"></script>
-  <script src="network-food-claims.js?v=63"></script>
-  <script src="network-projectiles.js?v=63"></script>
-  <script src="lobby-navigation.js?v=63"></script>
-  <script src="enemy-codex.js?v=63"></script>
-  <script src="game.js?v=63"></script>
+  <script src="designer-config.js?v=64"></script>
+  <script src="module-catalog.js?v=64"></script>
+  <script src="module-progression.js?v=64"></script>
+  <script src="wave-director.js?v=64"></script>
+  <script src="spawn-planner.js?v=64"></script>
+  <script src="network-codec.js?v=64"></script>
+  <script src="network-player-prediction.js?v=64"></script>
+  <script src="network-player-state-codec.js?v=64"></script>
+  <script src="network-player-collisions.js?v=64"></script>
+  <script src="network-head-collisions.js?v=64"></script>
+  <script src="network-food-claims.js?v=64"></script>
+  <script src="network-projectiles.js?v=64"></script>
+  <script src="lobby-navigation.js?v=64"></script>
+  <script src="enemy-codex.js?v=64"></script>
+  <script src="game.js?v=64"></script>
 </body>
 </html>

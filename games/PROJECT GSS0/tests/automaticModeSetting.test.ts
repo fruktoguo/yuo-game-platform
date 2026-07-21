@@ -27,6 +27,10 @@ describe('自动模式设置', () => {
     expect(gameSource).toContain('emitNetworkAction("ultra:autopilot", automaticModeEnabled)');
     expect(gameSource).toContain('networkPlayerPredictionRuntime.adoptLocal(player);');
     expect(serverSource).toContain('if (enabled && player.choosingUpgrade && player.upgradeOffer)');
+    expect(gameSource).toContain('const headStrikeDamage = PLAYER_COLLISION_DAMAGE');
+    expect(serverSource).toContain('const headStrikeDamage = PLAYER_COLLISION_DAMAGE');
+    expect(gameSource).not.toContain('repel(enemy, 3.2, 3.5);');
+    expect(serverSource).not.toContain('repel(enemy, 3.2, 3.5);');
   });
 
   it('自动模式不再绕过独立的后台暂停设置', () => {

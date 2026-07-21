@@ -179,8 +179,8 @@
   const PROJECTILE_SPEED_SCALE = designerNumber("projectileSpeedScale", 3, 0.1, 10);
   const PROJECTILE_SIZE_SCALE = designerNumber("projectileSizeScale", 2, 0.1, 10);
   const PLAYER_BASE_SPEED = designerNumber("playerBaseSpeed", 5, 1, 12);
-  const PLAYER_MAX_HEALTH = designerNumber("playerMaxHealth", 30, 1, 10000);
-  const PLAYER_HEALTH_REGEN_PER_SECOND = designerNumber("playerHealthRegenPerSecond", 1, 0, 1000);
+  const PLAYER_MAX_HEALTH = designerNumber("playerMaxHealth", 30, 0, 100);
+  const PLAYER_HEALTH_REGEN_PER_SECOND = designerNumber("playerHealthRegenPerSecond", 1, 0, 1);
   const PLAYER_ENEMY_BODY_COLLISION_DAMAGE = designerNumber("playerEnemyBodyCollisionDamage", 10, 0, 10000);
   const PLAYER_WALL_COLLISION_DAMAGE = designerNumber("playerWallCollisionDamage", 5, 0, 10000);
   const PLAYER_COLLISION_DAMAGE = designerNumber("playerCollisionDamage", 1, 0, 1000, true);
@@ -194,6 +194,7 @@
   const ENEMY_THINK_INTERVAL_MIN = designerNumber("enemyThinkIntervalMin", 0.22, 0.05, 5);
   const ENEMY_THINK_INTERVAL_MAX = designerNumber("enemyThinkIntervalMax", 0.55, 0.05, 5);
   const ENEMY_FOOD_SEARCH_LIMIT = designerNumber("enemyFoodSearchLimit", 8, 1, 32, true);
+  const ENEMY_WALL_AVOIDANCE_DISTANCE = designerNumber("enemyWallAvoidanceDistance", 1.35, 0.5, 6);
   const waveDirectorApi = globalThis.GSS0WaveDirector;
   if (!waveDirectorApi) throw new Error("PROJECT GSS0 波次导演未加载");
   const enemyWaveDirector = waveDirectorApi.create({
@@ -250,6 +251,7 @@
   const PLAYER_DAMAGE_SHAKE_STRENGTH = designerNumber("playerDamageShakeStrength", 9, 0, 30);
   const PLAYER_DAMAGE_PARTICLE_COUNT = designerNumber("playerDamageParticleCount", 26, 0, 200, true);
   const PLAYER_DAMAGE_PARTICLE_SPEED = designerNumber("playerDamageParticleSpeed", 190, 0, 1000);
+  const FOOD_BIRTH_DURATION = designerNumber("foodBirthDuration", 0.36, 0.05, 2);
   const GROWTH_NODE_DELAY = 0.045;
   const GROWTH_PULSE_DURATION = 0.3;
   const SEGMENT_BIRTH_DURATION = 0.34;
@@ -1904,7 +1906,10 @@
       }
       Object.assign(food, item);
       syncNetworkFoodView(food);
-      if (isNew) addNetworkFoodView(food);
+      if (isNew) {
+        food.birthAge = 0;
+        addNetworkFoodView(food);
+      }
       if (!food.isPulled) network.foodMotions.delete(food.id);
       upsertedFoods.push(food);
       if (isNew && !delta.reset) {
@@ -2053,6 +2058,7 @@
       let food = network.foodViews.get(item.id);
       if (!food) {
         food = { ...item };
+        food.birthAge = 0;
         network.foodViews.set(item.id, food);
         syncNetworkFoodView(food);
         addNetworkFoodView(food);
@@ -2378,6 +2384,7 @@
     );
     flushPendingNetworkVisualEffects();
     processNetworkPlayerHeadCollisionEvents(now);
+    updateFoodBirthAnimations(dt);
     networkProjectileRuntime.update(dt, (id) => network.enemyViews.get(id) || null, arena);
     projectiles = networkProjectileRuntime.items;
     for (const visiblePlayer of visiblePlayers) {
@@ -2859,6 +2866,7 @@
       radius: arena.cellSize * 0.13,
       phase: random(0, TAU),
       pullTimer: random(0.4, 1),
+      birthAge: 0,
       special
     };
     foods.push(food);
@@ -3845,17 +3853,26 @@
     for (const segment of player.segments) {
       if (segment.module) counts.set(segment.module, (counts.get(segment.module) || 0) + Math.max(1, segment.moduleLevel || 1));
     }
-    ui.rack.dataset.capacity = `${counts.size}/${MODULE_PROGRESSION.moduleSlotCapacity(level)}`;
-    ui.rack.setAttribute("aria-label", `已装载身体模块，槽位 ${counts.size}/${MODULE_PROGRESSION.moduleSlotCapacity(level)}`);
+    const capacity = MODULE_PROGRESSION.moduleSlotCapacity(level);
+    ui.rack.dataset.capacity = `${counts.size}/${capacity}`;
+    ui.rack.setAttribute("aria-label", `已装载身体模块，槽位 ${counts.size}/${capacity}`);
     for (const [id, count] of counts) {
       const module = MODULE_BY_ID[id];
       const item = document.createElement("span");
-      item.className = `rack-module shape-${module.shape}`;
+      const currentEffect = MODULE_PROGRESSION.moduleCurrentEffect(id, count);
+      item.className = `rack-slot rack-module shape-${module.shape}`;
       item.style.setProperty("--module-color", module.color);
-      item.title = `${module.name}：${module.desc}`;
-      item.setAttribute("aria-label", `${module.name}，等级 ${count}`);
+      item.tabIndex = 0;
+      item.dataset.tooltip = `${module.name} · ${currentEffect.levelLabel}\n${currentEffect.lines.map((line) => line.text).join("\n")}`;
+      item.setAttribute("aria-label", `${module.name}，${currentEffect.levelLabel}，${currentEffect.lines.map((line) => line.text).join("，")}`);
       item.innerHTML = `<i aria-hidden="true"></i><b>${count}</b>`;
       ui.rack.append(item);
+    }
+    for (let index = counts.size; index < capacity; index += 1) {
+      const slot = document.createElement("span");
+      slot.className = "rack-slot rack-slot-empty";
+      slot.setAttribute("aria-hidden", "true");
+      ui.rack.append(slot);
     }
   }
 
@@ -3873,10 +3890,10 @@
     setText(ui.score, Math.floor(score).toLocaleString("zh-CN"));
     setText(ui.level, level);
     const currentHealth = Math.max(0, player?.health || 0);
-    const maximumHealth = Math.max(1, player?.maxHealth || PLAYER_MAX_HEALTH);
+    const maximumHealth = Math.max(0, player?.maxHealth ?? PLAYER_MAX_HEALTH);
     setText(ui.health, Number(currentHealth.toFixed(1)));
     setText(ui.maxHealth, Number(maximumHealth.toFixed(1)));
-    const healthWidth = `${clamp(currentHealth / maximumHealth * 100, 0, 100)}%`;
+    const healthWidth = `${clamp(currentHealth / Math.max(1, maximumHealth) * 100, 0, 100)}%`;
     if (force || ui.healthFill.style.width !== healthWidth) ui.healthFill.style.width = healthWidth;
     setText(ui.xp, xp);
     setText(ui.needed, xpNeeded);
@@ -3903,9 +3920,20 @@
       }
     }
 
-    if (nearestFood) {
-      const targetX = nearestFood.col - player.col;
-      const targetY = nearestFood.row - player.row;
+    let target = nearestFood;
+    let targetDistance = nearestDistance;
+    const headStrikeDamage = PLAYER_COLLISION_DAMAGE + Number(moduleCount("ram") > 0 && player.ramCooldown <= 0);
+    for (const enemy of enemies) {
+      if (enemy.dead || enemy.segments.length >= headStrikeDamage) continue;
+      const distance = (enemy.col - player.col) ** 2 + (enemy.row - player.row) ** 2;
+      if (distance >= targetDistance) continue;
+      target = enemy;
+      targetDistance = distance;
+    }
+
+    if (target) {
+      const targetX = target.col - player.col;
+      const targetY = target.row - player.row;
       const targetLength = Math.hypot(targetX, targetY) || 1;
       vectorX += targetX / targetLength;
       vectorY += targetY / targetLength;
@@ -3936,7 +3964,6 @@
     for (let index = 3; index < player.segments.length; index += 1) repel(player.segments[index], 1.4, 2.4);
     for (const enemy of enemies) {
       if (enemy.dead) continue;
-      repel(enemy, 3.2, 3.5);
       for (const segment of enemy.segments) repel(segment, 2.4, 2.8);
     }
     if (network.enabled) {
@@ -4157,6 +4184,7 @@
   }
 
   function updateFood(dt) {
+    updateFoodBirthAnimations(dt);
     const tractor = moduleCount("tractor");
     const tractorRange = MODULE_EFFECTS.tractorRangeCells(tractor);
     const tractorSpeed = MODULE_EFFECTS.tractorPullSpeed(tractor);
@@ -4202,6 +4230,14 @@
       if (upgradePending || state === "upgrade") break;
     }
     localFoodContacts.clear();
+  }
+
+  function updateFoodBirthAnimations(dt) {
+    for (const food of foods) {
+      if (food.birthAge == null) continue;
+      food.birthAge += dt;
+      if (food.birthAge >= FOOD_BIRTH_DURATION) food.birthAge = null;
+    }
   }
 
   function nearestJointOnEnemy(origin, enemy) {
@@ -4943,6 +4979,21 @@
     enemy.desiredAngle += Math.sin(gameTime + enemy.wobble) * 0.05;
   }
 
+  function steerEnemyAwayFromWalls(enemy) {
+    const lookaheadDistance = Math.max(ENEMY_WALL_AVOIDANCE_DISTANCE, enemy.speed * ENEMY_THINK_INTERVAL_MAX);
+    const projectedCol = enemy.col + Math.cos(enemy.angle) * lookaheadDistance;
+    const projectedRow = enemy.row + Math.sin(enemy.angle) * lookaheadDistance;
+    const safeMinimum = arena.worldMin + ENEMY_WALL_AVOIDANCE_DISTANCE;
+    const safeMaximum = arena.worldMax - ENEMY_WALL_AVOIDANCE_DISTANCE;
+    let escapeCol = 0;
+    let escapeRow = 0;
+    if (projectedCol < safeMinimum) escapeCol += safeMinimum - projectedCol;
+    if (projectedCol > safeMaximum) escapeCol -= projectedCol - safeMaximum;
+    if (projectedRow < safeMinimum) escapeRow += safeMinimum - projectedRow;
+    if (projectedRow > safeMaximum) escapeRow -= projectedRow - safeMaximum;
+    if (Math.hypot(escapeCol, escapeRow) > 0.001) enemy.desiredAngle = Math.atan2(escapeRow, escapeCol);
+  }
+
   function updateEnemies(dt) {
     const chronosMultiplier = 1 - MODULE_EFFECTS.chronosSlowReduction(moduleCount("chronos"));
     const timeSpeedMultiplier = Math.min(ENEMY_SPEED_MAX_MULTIPLIER, 1 + gameTime / 60 * ENEMY_SPEED_PER_MINUTE);
@@ -4958,11 +5009,6 @@
           chooseEnemyIntent(enemy);
         }
         steerEnemy(enemy, activeFoods);
-        const wallDistance = 1.35;
-        if (enemy.col < arena.worldMin + wallDistance || enemy.col > arena.worldMax - wallDistance || enemy.row < arena.worldMin + wallDistance || enemy.row > arena.worldMax - wallDistance) {
-          const center = (arena.worldMin + arena.worldMax) / 2;
-          enemy.desiredAngle = Math.atan2(center - enemy.row, center - enemy.col) + Math.sin(enemy.wobble) * 0.18;
-        }
 
         const avoidance = ENEMY_PLAYER_BODY_AVOIDANCE.has(enemy.archetype) ? playerBodyAvoidance(enemy) : null;
         if (avoidance) {
@@ -4984,6 +5030,7 @@
           }
         }
 
+        steerEnemyAwayFromWalls(enemy);
         enemy.angle = rotateToward(enemy.angle, enemy.desiredAngle, dt * enemy.turnRate);
       }
       const statusMultiplier = enemy.slow > 0 ? 0.55 : 1;
@@ -5802,6 +5849,9 @@
     for (const food of foods) {
       if (food.networkHidden) continue;
       const pulse = 1 + Math.sin(time * 5 + food.phase) * 0.08;
+      const birthProgress = food.birthAge == null ? 1 : clamp(food.birthAge / FOOD_BIRTH_DURATION, 0, 1);
+      const birthEase = 1 - (1 - birthProgress) ** 3;
+      const birthScale = (0.14 + birthEase * 0.86) * (1 + Math.sin(birthProgress * Math.PI) * 0.24);
       ctx.save();
       if (food.isPulled) {
         const pullTarget = network.enabled
@@ -5821,7 +5871,8 @@
         }
       }
       ctx.translate(food.x, food.y);
-      ctx.scale(pulse, pulse);
+      ctx.globalAlpha *= 0.2 + birthProgress * 0.8;
+      ctx.scale(pulse * birthScale, pulse * birthScale);
       ctx.rotate(Math.PI / 4 + Math.sin(time * 1.6 + food.phase) * 0.08);
       ctx.shadowColor = food.color;
       ctx.shadowBlur = 12;

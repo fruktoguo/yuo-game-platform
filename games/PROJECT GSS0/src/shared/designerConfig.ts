@@ -47,8 +47,8 @@ export const DESIGNER_WAVE_ENEMY_COUNT_SCHEDULE = waveEnemyCountScheduleSetting(
 
 export const DESIGNER_BALANCE = Object.freeze({
   playerBaseSpeed: numberSetting('playerBaseSpeed', 5, 1, 12),
-  playerMaxHealth: numberSetting('playerMaxHealth', 30, 1, 10_000),
-  playerHealthRegenPerSecond: numberSetting('playerHealthRegenPerSecond', 1, 0, 1_000),
+  playerMaxHealth: numberSetting('playerMaxHealth', 30, 0, 100),
+  playerHealthRegenPerSecond: numberSetting('playerHealthRegenPerSecond', 1, 0, 1),
   playerEnemyBodyCollisionDamage: numberSetting('playerEnemyBodyCollisionDamage', 10, 0, 10_000),
   playerWallCollisionDamage: numberSetting('playerWallCollisionDamage', 5, 0, 10_000),
   playerCollisionDamage: numberSetting('playerCollisionDamage', 1, 0, 1_000, true),
@@ -79,6 +79,7 @@ export const DESIGNER_BALANCE = Object.freeze({
   enemyThinkIntervalMin: numberSetting('enemyThinkIntervalMin', 0.22, 0.05, 5),
   enemyThinkIntervalMax: numberSetting('enemyThinkIntervalMax', 0.55, 0.05, 5),
   enemyFoodSearchLimit: numberSetting('enemyFoodSearchLimit', 8, 1, 32, true),
+  enemyWallAvoidanceDistance: numberSetting('enemyWallAvoidanceDistance', 1.35, 0.5, 6),
   enemyScoutUnlockSeconds: numberSetting('enemyScoutUnlockSeconds', 0, 0, 3_600),
   enemyScoutSpawnWeight: numberSetting('enemyScoutSpawnWeight', 10, 0, 20),
   enemyScoutHealthWeight: numberSetting('enemyScoutHealthWeight', 1, 0.01, 20),
@@ -169,6 +170,7 @@ export const DESIGNER_BALANCE = Object.freeze({
   playerDamageShakeStrength: numberSetting('playerDamageShakeStrength', 9, 0, 30),
   playerDamageParticleCount: numberSetting('playerDamageParticleCount', 26, 0, 200, true),
   playerDamageParticleSpeed: numberSetting('playerDamageParticleSpeed', 190, 0, 1_000),
+  foodBirthDuration: numberSetting('foodBirthDuration', 0.36, 0.05, 2),
   maxRenderFps: numberSetting('maxRenderFps', 60, 30, 240, true),
   maxRenderDpr: numberSetting('maxRenderDpr', 1.25, 1, 2),
   networkPlayerStateHz: numberSetting('networkPlayerStateHz', 20, 5, 60, true),

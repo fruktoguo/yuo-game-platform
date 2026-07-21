@@ -208,6 +208,23 @@
     });
   }
 
+  function moduleCurrentEffect(moduleId, level = 1) {
+    const module = moduleById[moduleId];
+    if (!module) throw new Error(`PROJECT GSS0 未知机体 ${moduleId}`);
+    const currentLevel = safeLevel(level);
+    const stats = module.activeCooldown
+      ? [{ label: "冷却时间", value: activeCooldownSeconds(moduleId, currentLevel), format: formatSeconds }]
+      : passiveStats(moduleId, currentLevel);
+    return Object.freeze({
+      level: currentLevel,
+      levelLabel: `等级 ${currentLevel}`,
+      lines: Object.freeze(stats.map((stat) => Object.freeze({
+        label: stat.label,
+        text: `${stat.label} ${stat.format(stat.value)}`
+      })))
+    });
+  }
+
   function chooseUpgradeIds(availableModules, segments, playerLevel, random = Math.random, count = 3) {
     const levels = moduleLevelsFromSegments(segments);
     const ownedIds = new Set(Object.keys(levels));
@@ -248,6 +265,7 @@
     experienceValue,
     findCompressionIndexes,
     rollLinearRewards,
+    moduleCurrentEffect,
     moduleUpgradePreview,
     chooseUpgradeIds
   });

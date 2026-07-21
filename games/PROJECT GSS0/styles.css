@@ -712,10 +712,10 @@ input:focus-visible {
   z-index: 9;
   top: calc(88px + var(--safe-top));
   left: 15px;
-  display: grid;
-  grid-template-columns: repeat(2, 32px);
+  display: flex;
+  flex-flow: row nowrap;
   gap: 4px;
-  max-height: calc(100vh - 190px);
+  max-width: calc(100vw - 30px);
   padding: 7px;
   border-left: 3px solid var(--yellow);
   background:
@@ -725,7 +725,7 @@ input:focus-visible {
   filter:
     drop-shadow(0 20px 30px rgba(0, 0, 0, 0.5))
     drop-shadow(0 4px 9px rgba(0, 0, 0, 0.3));
-  pointer-events: none;
+  pointer-events: auto;
   transform: perspective(1200px) translate3d(var(--ui-shift-x), var(--ui-shift-y), 22px) rotateX(var(--ui-tilt-x)) rotateY(var(--ui-tilt-y));
   transform-origin: 0 50%;
   transform-style: preserve-3d;
@@ -897,17 +897,62 @@ input:focus-visible {
 .title-kicker.is-connecting { color: #8a7310; }
 .title-kicker.is-error { color: #b4232f; }
 
-.rack-module {
+.rack-slot {
   position: relative;
-  display: grid;
+  flex: 0 0 32px;
   width: 32px;
   height: 32px;
+}
+
+.rack-module {
+  display: grid;
   place-items: center;
   border: 1px solid color-mix(in srgb, var(--module-color) 68%, #596064);
   background: color-mix(in srgb, var(--module-color) 12%, #15191c);
-  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%);
   filter: drop-shadow(0 7px 13px rgba(0, 0, 0, 0.32));
   transform: translateZ(14px);
+}
+
+.rack-slot-empty {
+  border: 1px dashed rgba(255, 255, 255, 0.28);
+  background:
+    linear-gradient(135deg, transparent 0 46%, rgba(255, 255, 255, 0.08) 46% 54%, transparent 54% 100%),
+    rgba(17, 21, 23, 0.72);
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%);
+}
+
+.rack-module::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: -8px;
+  z-index: 2;
+  visibility: hidden;
+  width: max-content;
+  max-width: 260px;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-left: 3px solid var(--module-color);
+  background: rgba(7, 10, 12, 0.96);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.42);
+  color: var(--white);
+  font-size: calc(10px * var(--font-scale));
+  font-weight: 800;
+  line-height: 1.45;
+  opacity: 0;
+  pointer-events: none;
+  white-space: pre-line;
+}
+
+.rack-module:hover::after,
+.rack-module:focus-visible::after {
+  visibility: visible;
+  opacity: 1;
+}
+
+.rack-module:focus-visible {
+  outline: 2px solid var(--yellow);
+  outline-offset: 2px;
 }
 
 .rack-module i,
@@ -1624,6 +1669,7 @@ input:focus-visible {
 }
 
 .upgrade-screen {
+  z-index: 8;
   overflow-y: auto;
   align-items: center;
   background:
@@ -2512,7 +2558,11 @@ input:focus-visible {
     top: auto;
     bottom: calc(18px + var(--safe-bottom));
     left: 16px;
-    max-height: min(180px, calc(50vh - 100px));
+    max-width: calc(100vw - 32px);
+  }
+
+  .upgrade-screen {
+    padding-right: calc(clamp(340px, 22vw, 428px) + 38px);
   }
 }
 
@@ -2640,9 +2690,8 @@ input:focus-visible {
   .module-rack {
     top: calc(120px + var(--safe-top));
     left: 8px;
-    grid-template-columns: repeat(4, 28px);
-    max-width: 132px;
-    max-height: 93px;
+    max-width: calc(100vw - 16px);
+    overflow-x: auto;
     padding: 5px;
   }
 
@@ -2664,7 +2713,8 @@ input:focus-visible {
     bottom: calc(82px + var(--safe-bottom));
   }
 
-  .rack-module {
+  .rack-slot {
+    flex-basis: 28px;
     width: 28px;
     height: 28px;
   }

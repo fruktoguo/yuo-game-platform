@@ -9,6 +9,7 @@ import {
   ENEMY_BODY_RECONNECT_DURATION,
   ENEMY_COLORS,
   ENEMY_FOOD_SEARCH_LIMIT,
+  ENEMY_WALL_AVOIDANCE_DISTANCE,
   ENEMY_SPAWN_WARNING_TIME,
   ENEMY_SPEED_MAX_MULTIPLIER,
   ENEMY_SPEED_PER_MINUTE,
@@ -1184,7 +1185,16 @@ export class UltraWorld {
       nearestFood = food;
     }
 
-    const target = nearestFood ?? { col: (this.arenaMinimum() + this.arenaMaximum()) / 2, row: (this.arenaMinimum() + this.arenaMaximum()) / 2 };
+    let target: GridPoint = nearestFood ?? { col: (this.arenaMinimum() + this.arenaMaximum()) / 2, row: (this.arenaMinimum() + this.arenaMaximum()) / 2 };
+    let targetDistance = nearestDistance;
+    const headStrikeDamage = PLAYER_COLLISION_DAMAGE + Number(this.moduleCount(player, 'ram') > 0 && player.ramCooldown <= 0);
+    for (const enemy of this.enemies) {
+      if (enemy.dead || enemy.segments.length >= headStrikeDamage) continue;
+      const distance = distanceSquared(player, enemy);
+      if (distance >= targetDistance) continue;
+      target = enemy;
+      targetDistance = distance;
+    }
     const targetCol = target.col - player.col;
     const targetRow = target.row - player.row;
     const targetLength = Math.hypot(targetCol, targetRow) || 1;
@@ -1210,7 +1220,6 @@ export class UltraWorld {
     for (let index = 3; index < player.segments.length; index += 1) repel(player.segments[index], 1.4, 2.4);
     for (const enemy of this.enemies) {
       if (enemy.dead) continue;
-      repel(enemy, 3.2, 3.5);
       for (const segment of enemy.segments) repel(segment, 2.4, 2.8);
     }
     for (const other of presentPlayers) {
@@ -2743,6 +2752,21 @@ export class UltraWorld {
     enemy.desiredAngle += Math.sin(this.gameTime + enemy.wobble) * 0.05;
   }
 
+  private steerEnemyAwayFromWalls(enemy: EnemyEntity): void {
+    const lookaheadDistance = Math.max(ENEMY_WALL_AVOIDANCE_DISTANCE, enemy.speed * ENEMY_THINK_INTERVAL_MAX);
+    const projectedCol = enemy.col + Math.cos(enemy.angle) * lookaheadDistance;
+    const projectedRow = enemy.row + Math.sin(enemy.angle) * lookaheadDistance;
+    const safeMinimum = this.arenaMinimum() + ENEMY_WALL_AVOIDANCE_DISTANCE;
+    const safeMaximum = this.arenaMaximum() - ENEMY_WALL_AVOIDANCE_DISTANCE;
+    let escapeCol = 0;
+    let escapeRow = 0;
+    if (projectedCol < safeMinimum) escapeCol += safeMinimum - projectedCol;
+    if (projectedCol > safeMaximum) escapeCol -= projectedCol - safeMaximum;
+    if (projectedRow < safeMinimum) escapeRow += safeMinimum - projectedRow;
+    if (projectedRow > safeMaximum) escapeRow -= projectedRow - safeMaximum;
+    if (Math.hypot(escapeCol, escapeRow) > 0.001) enemy.desiredAngle = Math.atan2(escapeRow, escapeCol);
+  }
+
   private updateEnemies(delta: number, activePlayers: PlayerEntity[], presentPlayers: PlayerEntity[]): void {
     const chronosMultiplier = 1 - MODULE_PROGRESSION.effects.chronosSlowReduction(this.maximumModuleCount('chronos', activePlayers));
     const timeSpeedMultiplier = Math.min(ENEMY_SPEED_MAX_MULTIPLIER, 1 + this.gameTime / 60 * ENEMY_SPEED_PER_MINUTE);
@@ -2760,11 +2784,6 @@ export class UltraWorld {
           this.chooseEnemyIntent(enemy);
         }
         this.steerEnemy(enemy, presentPlayers);
-        const wallDistance = 1.35;
-        if (enemy.col < this.arenaMinimum() + wallDistance || enemy.col > this.arenaMaximum() - wallDistance || enemy.row < this.arenaMinimum() + wallDistance || enemy.row > this.arenaMaximum() - wallDistance) {
-          const center = (this.arenaMinimum() + this.arenaMaximum()) / 2;
-          enemy.desiredAngle = Math.atan2(center - enemy.row, center - enemy.col) + Math.sin(enemy.wobble) * 0.18;
-        }
         const avoidance = ENEMY_PLAYER_BODY_AVOIDANCE.has(enemy.archetype)
           ? this.playerBodyAvoidance(enemy, presentPlayers)
           : null;
@@ -2774,6 +2793,7 @@ export class UltraWorld {
             : avoidance.strength;
           enemy.desiredAngle += angleDifference(enemy.desiredAngle, avoidance.angle) * priorityStrength;
         }
+        this.steerEnemyAwayFromWalls(enemy);
         enemy.angle = rotateToward(enemy.angle, enemy.desiredAngle, delta * enemy.turnRate);
       }
       const speed = enemy.speed * timeSpeedMultiplier * chronosMultiplier * (enemy.slow > 0 ? 0.55 : 1);
