@@ -596,6 +596,79 @@
     return (point.col - closestCol) ** 2 + (point.row - closestRow) ** 2 < radius * radius ? progress : null;
   }
 
+  function closestPointOnGridSegment(point, start, end) {
+    const deltaCol = end.col - start.col;
+    const deltaRow = end.row - start.row;
+    const lengthSquared = deltaCol * deltaCol + deltaRow * deltaRow;
+    const progress = lengthSquared > 0.000001
+      ? clamp(((point.col - start.col) * deltaCol + (point.row - start.row) * deltaRow) / lengthSquared, 0, 1)
+      : 0;
+    return {
+      col: start.col + deltaCol * progress,
+      row: start.row + deltaRow * progress
+    };
+  }
+
+  function sweptCapsuleContactProgress(start, end, capsuleStart, capsuleEnd, radius) {
+    const pathCol = end.col - start.col;
+    const pathRow = end.row - start.row;
+    const capsuleCol = capsuleEnd.col - capsuleStart.col;
+    const capsuleRow = capsuleEnd.row - capsuleStart.row;
+    const offsetCol = start.col - capsuleStart.col;
+    const offsetRow = start.row - capsuleStart.row;
+    const pathLengthSquared = pathCol * pathCol + pathRow * pathRow;
+    const capsuleLengthSquared = capsuleCol * capsuleCol + capsuleRow * capsuleRow;
+    const pathCapsuleDot = pathCol * capsuleCol + pathRow * capsuleRow;
+    const pathOffsetDot = pathCol * offsetCol + pathRow * offsetRow;
+    const capsuleOffsetDot = capsuleCol * offsetCol + capsuleRow * offsetRow;
+    let pathProgress = 0;
+    let capsuleProgress = 0;
+
+    if (pathLengthSquared <= 0.000001) {
+      capsuleProgress = capsuleLengthSquared > 0.000001
+        ? clamp(capsuleOffsetDot / capsuleLengthSquared, 0, 1)
+        : 0;
+    } else if (capsuleLengthSquared <= 0.000001) {
+      pathProgress = clamp(-pathOffsetDot / pathLengthSquared, 0, 1);
+    } else {
+      const denominator = pathLengthSquared * capsuleLengthSquared - pathCapsuleDot * pathCapsuleDot;
+      pathProgress = denominator > 0.000001
+        ? clamp((pathCapsuleDot * capsuleOffsetDot - pathOffsetDot * capsuleLengthSquared) / denominator, 0, 1)
+        : 0;
+      capsuleProgress = (pathCapsuleDot * pathProgress + capsuleOffsetDot) / capsuleLengthSquared;
+      if (capsuleProgress < 0) {
+        capsuleProgress = 0;
+        pathProgress = clamp(-pathOffsetDot / pathLengthSquared, 0, 1);
+      } else if (capsuleProgress > 1) {
+        capsuleProgress = 1;
+        pathProgress = clamp((pathCapsuleDot - pathOffsetDot) / pathLengthSquared, 0, 1);
+      }
+    }
+
+    const pathContactCol = start.col + pathCol * pathProgress;
+    const pathContactRow = start.row + pathRow * pathProgress;
+    const capsuleContactCol = capsuleStart.col + capsuleCol * capsuleProgress;
+    const capsuleContactRow = capsuleStart.row + capsuleRow * capsuleProgress;
+    return (pathContactCol - capsuleContactCol) ** 2 + (pathContactRow - capsuleContactRow) ** 2 < radius * radius
+      ? pathProgress
+      : null;
+  }
+
+  function bodyConnectionContact(point, snake, range, firstSegmentIndex = 0) {
+    const rangeSquared = range * range;
+    for (let index = firstSegmentIndex; index < snake.segments.length; index += 1) {
+      const segment = snake.segments[index];
+      const previous = index > 0 ? snake.segments[index - 1] : snake;
+      const contactPoint = closestPointOnGridSegment(point, previous, segment);
+      const deltaCol = point.col - contactPoint.col;
+      const deltaRow = point.row - contactPoint.row;
+      if (deltaCol * deltaCol + deltaRow * deltaRow < rangeSquared) {
+        return { point: contactPoint, segment, segmentIndex: index };
+      }
+    }
+    return null;
+  }
+
   function angleDelta(from, to) {
     let delta = (to - from + Math.PI) % TAU - Math.PI;
     if (delta < -Math.PI) delta += TAU;
@@ -2707,6 +2780,7 @@
       worldMax: arena.worldMax,
       selfRange: PLAYER_SELF_COLLISION_RANGE,
       bodyRange: SNAKE_BODY_CONTACT_RANGE,
+      enemyBodyRange: ENEMY_BODY_CONTACT_RANGE,
       playerHeadRange: playerHeadRadiusPixels() * 2 / arena.cellSize,
       enemyHeadRange: playerHeadRadiusPixels() / arena.cellSize + ENEMY_HEAD_RADIUS_CELLS
     });
@@ -4412,11 +4486,7 @@
   }
 
   function findSelfCollision(entity, threshold) {
-    for (let index = 2; index < entity.segments.length; index += 1) {
-      const segment = entity.segments[index];
-      if (Math.hypot(entity.col - segment.col, entity.row - segment.row) < threshold) return segment;
-    }
-    return null;
+    return bodyConnectionContact(entity, entity, threshold, 2)?.point || null;
   }
 
   function movePlayer(dt) {
@@ -5407,13 +5477,27 @@
           ? { kind: "protected", point: player, progress: headProgress }
           : { kind: "head", progress: headProgress };
       }
-      for (const segment of player.segments) {
+      for (let segmentIndex = 0; segmentIndex < player.segments.length; segmentIndex += 1) {
         if (protectedPlayer && enemy.collisionCooldown > 0) continue;
-        const progress = sweptContactProgress(previousPosition, { col: nextCol, row: nextRow }, segment, ENEMY_BODY_CONTACT_RANGE);
+        const segment = player.segments[segmentIndex];
+        const previousSegment = segmentIndex > 0 ? player.segments[segmentIndex - 1] : player;
+        const progress = sweptCapsuleContactProgress(
+          previousPosition,
+          { col: nextCol, row: nextRow },
+          previousSegment,
+          segment,
+          ENEMY_BODY_CONTACT_RANGE
+        );
         if (progress === null || (playerCollision && playerCollision.progress <= progress)) continue;
+        const collisionPosition = {
+          col: previousPosition.col + (nextCol - previousPosition.col) * progress,
+          row: previousPosition.row + (nextRow - previousPosition.row) * progress
+        };
+        const point = closestPointOnGridSegment(collisionPosition, previousSegment, segment);
+        syncNodePosition(point);
         playerCollision = protectedPlayer
-          ? { kind: "protected", point: segment, progress }
-          : { kind: "body", segment, progress };
+          ? { kind: "protected", point, progress }
+          : { kind: "body", point, progress };
       }
       if (playerCollision) {
         enemy.col = previousPosition.col + (nextCol - previousPosition.col) * playerCollision.progress;
@@ -5433,7 +5517,7 @@
           const thornsReady = thorns > 0 && player.thornsCooldown <= 0;
           killEnemy(enemy);
           if (thornsReady) {
-            triggerBodyIntercept(enemy, playerCollision.segment);
+            triggerBodyIntercept(enemy, playerCollision.point);
             player.thornsCooldown = activeModuleCooldown("thorns", thorns);
           }
         } else {

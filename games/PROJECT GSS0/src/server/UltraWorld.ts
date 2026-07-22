@@ -558,7 +558,7 @@ export class UltraWorld {
     const enemy = this.enemies.find((item) => item.id === claim.targetId && !item.dead);
     if (!enemy) return false;
     if (claim.kind === 'enemy-head' || claim.kind === 'enemy-protected') {
-      const nearPlayer = distanceSquared(player, enemy) <= 9 || player.segments.some((segment) => distanceSquared(segment, enemy) <= 9);
+      const nearPlayer = distanceSquared(player, enemy) <= 9 || bodyConnectionContact(enemy, player, 3) !== null;
       if (!Number.isFinite(claim.normalCol) || !Number.isFinite(claim.normalRow) || !nearPlayer) return false;
       if (claim.kind === 'enemy-head') {
         this.applyPlayerCollisionAttack(player, enemy, enemy, -1, true);
@@ -576,12 +576,15 @@ export class UltraWorld {
     }
     if (claim.kind !== 'enemy-hit-body') return false;
     const bodySegment = player.segments[claim.segmentIndex];
-    if (!bodySegment || distanceSquared(enemy, bodySegment) > 9) return false;
+    if (!bodySegment) return false;
+    const previousSegment = claim.segmentIndex > 0 ? player.segments[claim.segmentIndex - 1] : player;
+    const collisionPoint = closestPointOnGridSegment(enemy, previousSegment, bodySegment);
+    if (distanceSquared(enemy, collisionPoint) > 9) return false;
     const thorns = this.moduleCount(player, 'thorns');
     const thornsReady = thorns > 0 && player.thornsCooldown <= 0;
     this.killEnemy(enemy, player);
     if (thornsReady) {
-      this.triggerBodyIntercept(player, bodySegment, enemy);
+      this.triggerBodyIntercept(player, collisionPoint, enemy);
       player.thornsCooldown = this.activeModuleCooldown(player, 'thorns', thorns);
     }
     return true;
@@ -3039,7 +3042,7 @@ export class UltraWorld {
           const thornsReady = thorns > 0 && playerCollision.player.thornsCooldown <= 0;
           this.killEnemy(enemy, playerCollision.player);
           if (thornsReady) {
-            this.triggerBodyIntercept(playerCollision.player, playerCollision.segment, enemy);
+            this.triggerBodyIntercept(playerCollision.player, playerCollision.point, enemy);
             playerCollision.player.thornsCooldown = this.activeModuleCooldown(playerCollision.player, 'thorns', thorns);
           }
         } else {
@@ -3084,12 +3087,12 @@ export class UltraWorld {
 
   private findPlayerCollision(enemy: EnemyEntity, start: GridPoint, end: GridPoint, presentPlayers: PlayerEntity[]):
     | { kind: 'head'; player: PlayerEntity; progress: number }
-    | { kind: 'body'; player: PlayerEntity; segment: UltraSegment; progress: number }
+    | { kind: 'body'; player: PlayerEntity; point: GridPoint; progress: number }
     | { kind: 'protected'; player: PlayerEntity; point: GridPoint; progress: number }
     | null {
     let nearest:
       | { kind: 'head'; player: PlayerEntity; progress: number }
-      | { kind: 'body'; player: PlayerEntity; segment: UltraSegment; progress: number }
+      | { kind: 'body'; player: PlayerEntity; point: GridPoint; progress: number }
       | { kind: 'protected'; player: PlayerEntity; point: GridPoint; progress: number }
       | null = null;
     for (const player of presentPlayers) {
@@ -3102,13 +3105,20 @@ export class UltraWorld {
             : { kind: 'head', player, progress: headProgress };
         }
       }
-      for (const segment of player.segments) {
+      for (let segmentIndex = 0; segmentIndex < player.segments.length; segmentIndex += 1) {
         if (protectedPlayer && enemy.collisionCooldown > 0) continue;
-        const progress = sweptContactProgress(start, end, segment, ENEMY_BODY_CONTACT_RANGE);
+        const segment = player.segments[segmentIndex];
+        const previousSegment = segmentIndex > 0 ? player.segments[segmentIndex - 1] : player;
+        const progress = sweptCapsuleContactProgress(start, end, previousSegment, segment, ENEMY_BODY_CONTACT_RANGE);
         if (progress === null || (nearest && nearest.progress <= progress)) continue;
+        const collisionPosition = {
+          col: start.col + (end.col - start.col) * progress,
+          row: start.row + (end.row - start.row) * progress,
+        };
+        const point = closestPointOnGridSegment(collisionPosition, previousSegment, segment);
         nearest = protectedPlayer
-          ? { kind: 'protected', player, point: segment, progress }
-          : { kind: 'body', player, segment, progress };
+          ? { kind: 'protected', player, point, progress }
+          : { kind: 'body', player, point, progress };
       }
     }
     return nearest;
@@ -3541,11 +3551,7 @@ export class UltraWorld {
   private protectedPlayerContact(attacker: PlayerEntity, defender: PlayerEntity): GridPoint | null {
     const headRange = this.playerHeadRadiusCells() * 2;
     if (distanceSquared(attacker, defender) < headRange * headRange) return defender;
-    const bodyRangeSquared = SNAKE_BODY_CONTACT_RANGE * SNAKE_BODY_CONTACT_RANGE;
-    for (const segment of defender.segments) {
-      if (distanceSquared(attacker, segment) < bodyRangeSquared) return segment;
-    }
-    return null;
+    return bodyConnectionContact(attacker, defender, SNAKE_BODY_CONTACT_RANGE)?.point ?? null;
   }
 
   private checkPlayerBodyHit(attacker: PlayerEntity, defender: PlayerEntity): void {
@@ -3558,9 +3564,10 @@ export class UltraWorld {
       || defender.choosingUpgrade
       || attacker.collisionCooldown > 0
     ) return;
-    const body = defender.segments.find((segment) => Math.hypot(attacker.col - segment.col, attacker.row - segment.row) < SNAKE_BODY_CONTACT_RANGE);
-    if (!body) return;
-    this.bounceEntity(attacker, attacker.col - body.col, attacker.row - body.row, PLAYER_COLORS[defender.colorIndex], SNAKE_SEGMENT_SPACING, 1, true);
+    if (distanceSquared(attacker, defender) < (this.playerHeadRadiusCells() * 2) ** 2) return;
+    const contact = bodyConnectionContact(attacker, defender, SNAKE_BODY_CONTACT_RANGE);
+    if (!contact) return;
+    this.bounceEntity(attacker, attacker.col - contact.point.col, attacker.row - contact.point.row, PLAYER_COLORS[defender.colorIndex], SNAKE_SEGMENT_SPACING, 1, true);
   }
 
   private consumeDefense(player: PlayerEntity): boolean {
@@ -4464,6 +4471,82 @@ function sweptContactProgress(start: GridPoint, end: GridPoint, point: GridPoint
   return (point.col - closestCol) ** 2 + (point.row - closestRow) ** 2 < radius * radius ? progress : null;
 }
 
+function closestPointOnGridSegment(point: GridPoint, start: GridPoint, end: GridPoint): GridPoint {
+  const deltaCol = end.col - start.col;
+  const deltaRow = end.row - start.row;
+  const lengthSquared = deltaCol * deltaCol + deltaRow * deltaRow;
+  const progress = lengthSquared > 0.000001
+    ? clamp(((point.col - start.col) * deltaCol + (point.row - start.row) * deltaRow) / lengthSquared, 0, 1)
+    : 0;
+  return {
+    col: start.col + deltaCol * progress,
+    row: start.row + deltaRow * progress,
+  };
+}
+
+function sweptCapsuleContactProgress(start: GridPoint, end: GridPoint, capsuleStart: GridPoint, capsuleEnd: GridPoint, radius: number): number | null {
+  const pathCol = end.col - start.col;
+  const pathRow = end.row - start.row;
+  const capsuleCol = capsuleEnd.col - capsuleStart.col;
+  const capsuleRow = capsuleEnd.row - capsuleStart.row;
+  const offsetCol = start.col - capsuleStart.col;
+  const offsetRow = start.row - capsuleStart.row;
+  const pathLengthSquared = pathCol * pathCol + pathRow * pathRow;
+  const capsuleLengthSquared = capsuleCol * capsuleCol + capsuleRow * capsuleRow;
+  const pathCapsuleDot = pathCol * capsuleCol + pathRow * capsuleRow;
+  const pathOffsetDot = pathCol * offsetCol + pathRow * offsetRow;
+  const capsuleOffsetDot = capsuleCol * offsetCol + capsuleRow * offsetRow;
+  let pathProgress = 0;
+  let capsuleProgress = 0;
+
+  if (pathLengthSquared <= 0.000001) {
+    capsuleProgress = capsuleLengthSquared > 0.000001
+      ? clamp(capsuleOffsetDot / capsuleLengthSquared, 0, 1)
+      : 0;
+  } else if (capsuleLengthSquared <= 0.000001) {
+    pathProgress = clamp(-pathOffsetDot / pathLengthSquared, 0, 1);
+  } else {
+    const denominator = pathLengthSquared * capsuleLengthSquared - pathCapsuleDot * pathCapsuleDot;
+    pathProgress = denominator > 0.000001
+      ? clamp((pathCapsuleDot * capsuleOffsetDot - pathOffsetDot * capsuleLengthSquared) / denominator, 0, 1)
+      : 0;
+    capsuleProgress = (pathCapsuleDot * pathProgress + capsuleOffsetDot) / capsuleLengthSquared;
+    if (capsuleProgress < 0) {
+      capsuleProgress = 0;
+      pathProgress = clamp(-pathOffsetDot / pathLengthSquared, 0, 1);
+    } else if (capsuleProgress > 1) {
+      capsuleProgress = 1;
+      pathProgress = clamp((pathCapsuleDot - pathOffsetDot) / pathLengthSquared, 0, 1);
+    }
+  }
+
+  const pathContactCol = start.col + pathCol * pathProgress;
+  const pathContactRow = start.row + pathRow * pathProgress;
+  const capsuleContactCol = capsuleStart.col + capsuleCol * capsuleProgress;
+  const capsuleContactRow = capsuleStart.row + capsuleRow * capsuleProgress;
+  return (pathContactCol - capsuleContactCol) ** 2 + (pathContactRow - capsuleContactRow) ** 2 < radius * radius
+    ? pathProgress
+    : null;
+}
+
+function bodyConnectionContact(
+  point: GridPoint,
+  snake: { col: number; row: number; segments: GridPoint[] },
+  range: number,
+  firstSegmentIndex = 0,
+): { point: GridPoint; segment: GridPoint; segmentIndex: number } | null {
+  const rangeSquared = range * range;
+  for (let index = firstSegmentIndex; index < snake.segments.length; index += 1) {
+    const segment = snake.segments[index];
+    const previous = index > 0 ? snake.segments[index - 1] : snake;
+    const contactPoint = closestPointOnGridSegment(point, previous, segment);
+    if (distanceSquared(point, contactPoint) < rangeSquared) {
+      return { point: contactPoint, segment, segmentIndex: index };
+    }
+  }
+  return null;
+}
+
 function wallBounceNormal(col: number, row: number, minimum: number, maximum: number): GridPoint | null {
   let normalCol = 0;
   let normalRow = 0;
@@ -4475,11 +4558,7 @@ function wallBounceNormal(col: number, row: number, minimum: number, maximum: nu
 }
 
 function findSelfCollision(entity: { col: number; row: number; segments: GridPoint[] }, threshold: number): GridPoint | null {
-  for (let index = 2; index < entity.segments.length; index += 1) {
-    const segment = entity.segments[index];
-    if (Math.hypot(entity.col - segment.col, entity.row - segment.row) < threshold) return segment;
-  }
-  return null;
+  return bodyConnectionContact(entity, entity, threshold, 2)?.point ?? null;
 }
 
 function collisionNormal(left: { col: number; row: number; angle: number }, right: { col: number; row: number; angle: number }): GridPoint {

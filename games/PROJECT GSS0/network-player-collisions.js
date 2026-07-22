@@ -21,13 +21,35 @@
     return { normalCol: col, normalRow: row };
   }
 
-  function contactWithSnake(head, snake, headRangeSquared, bodyRangeSquared) {
-    if (distanceSquared(head, snake) < headRangeSquared) return { point: snake, part: "head" };
-    for (let index = 0; index < (snake.segments || []).length; index += 1) {
+  function closestPointOnSegment(point, start, end) {
+    const deltaCol = end.col - start.col;
+    const deltaRow = end.row - start.row;
+    const lengthSquared = deltaCol * deltaCol + deltaRow * deltaRow;
+    const progress = lengthSquared > 0.000001
+      ? Math.max(0, Math.min(1, ((point.col - start.col) * deltaCol + (point.row - start.row) * deltaRow) / lengthSquared))
+      : 0;
+    return {
+      col: start.col + deltaCol * progress,
+      row: start.row + deltaRow * progress
+    };
+  }
+
+  function bodyConnectionContact(point, snake, rangeSquared, firstSegmentIndex = 0) {
+    for (let index = firstSegmentIndex; index < (snake.segments || []).length; index += 1) {
       const segment = snake.segments[index];
-      if (distanceSquared(head, segment) < bodyRangeSquared) return { point: segment, part: "body", segmentIndex: index };
+      const previous = index > 0 ? snake.segments[index - 1] : snake;
+      const contactPoint = closestPointOnSegment(point, previous, segment);
+      if (distanceSquared(point, contactPoint) < rangeSquared) {
+        return { point: contactPoint, segment, segmentIndex: index };
+      }
     }
     return null;
+  }
+
+  function contactWithSnake(head, snake, headRangeSquared, bodyRangeSquared) {
+    if (distanceSquared(head, snake) < headRangeSquared) return { point: snake, part: "head" };
+    const contact = bodyConnectionContact(head, snake, bodyRangeSquared);
+    return contact ? { point: contact.point, part: "body", segmentIndex: contact.segmentIndex } : null;
   }
 
   function detect(player, enemies, players, options) {
@@ -41,21 +63,19 @@
     }
 
     const bodyRangeSquared = options.bodyRange * options.bodyRange;
+    const enemyBodyRangeSquared = (options.enemyBodyRange || options.bodyRange) ** 2;
     const playerHeadRangeSquared = options.playerHeadRange * options.playerHeadRange;
     const enemyHeadRangeSquared = options.enemyHeadRange * options.enemyHeadRange;
 
     if (player.collisionCooldown <= 0) {
-      for (let index = 2; index < player.segments.length; index += 1) {
-        if (distanceSquared(player, player.segments[index]) < options.selfRange * options.selfRange) {
-          return { kind: "self", point: player.segments[index] };
-        }
-      }
+      const selfContact = bodyConnectionContact(player, player, options.selfRange * options.selfRange, 2);
+      if (selfContact) return { kind: "self", point: selfContact.point };
     }
 
     if (player.protectedState || player.invulnerable > 0) {
       for (const enemy of enemies || []) {
         if (enemy.dead) continue;
-        const contact = contactWithSnake(enemy, player, enemyHeadRangeSquared, bodyRangeSquared);
+        const contact = contactWithSnake(enemy, player, enemyHeadRangeSquared, enemyBodyRangeSquared);
         if (contact) {
           return {
             kind: "enemy-protected",
@@ -85,9 +105,10 @@
       }
       for (const other of players || []) {
         if (other === player || other.isSelf || other.ghost || other.protectedState) continue;
-        for (let index = 0; index < other.segments.length; index += 1) {
-          if (distanceSquared(player, other.segments[index]) < bodyRangeSquared) {
-            return { kind: "player-body", targetId: other.entityId, segmentIndex: index, point: other.segments[index] };
+        if (distanceSquared(player, other) >= playerHeadRangeSquared) {
+          const contact = bodyConnectionContact(player, other, bodyRangeSquared);
+          if (contact) {
+            return { kind: "player-body", targetId: other.entityId, segmentIndex: contact.segmentIndex, point: contact.point };
           }
         }
       }
@@ -106,15 +127,14 @@
 
     for (const enemy of enemies || []) {
       if (enemy.dead) continue;
-      for (let index = 0; index < player.segments.length; index += 1) {
-        const segment = player.segments[index];
-        if (distanceSquared(enemy, segment) >= bodyRangeSquared) continue;
+      const contact = bodyConnectionContact(enemy, player, enemyBodyRangeSquared);
+      if (contact) {
         return {
           kind: "enemy-hit-body",
           targetId: enemy.id,
-          segmentIndex: index,
-          point: segment,
-          ...normalBetween(segment, enemy)
+          segmentIndex: contact.segmentIndex,
+          point: contact.point,
+          ...normalBetween(contact.point, enemy)
         };
       }
     }
