@@ -2390,9 +2390,9 @@ export class UltraWorld {
   }
 
   private triggerCollisionEcho(player: PlayerEntity): void {
-    const echoes = this.moduleCount(player, 'echo');
-    if (echoes <= 0) return;
-    for (let index = 0; index < echoes; index += 1) {
+    const projectileCount = MODULE_PROGRESSION.effects.echoProjectileCount(this.moduleCount(player, 'echo'));
+    if (projectileCount <= 0) return;
+    for (let index = 0; index < projectileCount; index += 1) {
       this.createProjectile(player, player, this.randomBetween(0, TAU), { color: MODULE_BY_ID.echo.color, speed: 330, size: 3.4 });
     }
     this.effectSound('shoot', player.entityId);
@@ -2690,6 +2690,22 @@ export class UltraWorld {
           if (this.spawnShot(player, segment, target, { color: MODULE_BY_ID.phasebolt.color, speed: 320, size: 6, bounces: -1, homing: 1.6 })) this.playSkillSound(player, 'phasebolt');
           segment.timer = this.activeModuleCooldown(player, 'phasebolt', segment.moduleLevel);
           break;
+        case 'barrage': {
+          const projectileCount = MODULE_PROGRESSION.effects.barrageProjectileCount();
+          const startAngle = segment.orbit * 0.15;
+          for (let index = 0; index < projectileCount; index += 1) {
+            this.createProjectile(player, segment, startAngle + index * TAU / projectileCount, {
+              color: MODULE_BY_ID.barrage.color,
+              speed: 300,
+              size: 4.8,
+              bounces: -1,
+            });
+          }
+          this.playSkillSound(player, 'barrage');
+          this.ring(segment.col, segment.row, MODULE_BY_ID.barrage.color, 0.55, 10, 1.2, player.entityId);
+          segment.timer = this.activeModuleCooldown(player, 'barrage', segment.moduleLevel);
+          break;
+        }
         default:
           break;
       }
@@ -3111,7 +3127,11 @@ export class UltraWorld {
       if (wallNormal) {
         enemy.col = clamp(nextCol, this.arenaMinimum(), this.arenaMaximum());
         enemy.row = clamp(nextRow, this.arenaMinimum(), this.arenaMaximum());
-        this.damageTarget(null, enemy, ENEMY_COLLISION_DAMAGE * this.enemyWallDamageMultiplier, enemy, '#f3c600', -1);
+        const wallDamage = MODULE_PROGRESSION.rollLinearRewards(
+          ENEMY_COLLISION_DAMAGE * this.enemyWallDamageMultiplier,
+          () => this.random(),
+        );
+        this.damageTarget(null, enemy, wallDamage, enemy, '#f3c600', -1);
         if (!enemy.dead) this.bounceEntity(enemy, wallNormal.col, wallNormal.row, enemy.color, SNAKE_SEGMENT_SPACING, this.enemyWallKnockbackMultiplier);
         continue;
       }
@@ -3178,6 +3198,8 @@ export class UltraWorld {
   }
 
   private resolveEnemyCollisions(): void {
+    const collisionDamageAmount = ENEMY_COLLISION_DAMAGE * this.enemyWallDamageMultiplier;
+    const collisionKnockback = this.enemyWallKnockbackMultiplier;
     const headRangeSquared = (ENEMY_HEAD_RADIUS_CELLS * 2) ** 2;
     for (let firstIndex = 0; firstIndex < this.enemies.length; firstIndex += 1) {
       const first = this.enemies[firstIndex];
@@ -3187,10 +3209,11 @@ export class UltraWorld {
         if (second.dead || second.collisionCooldown > 0) continue;
         if (distanceSquared(first, second) >= headRangeSquared) continue;
         const normal = collisionNormal(first, second);
-        this.damageTarget(null, first, ENEMY_COLLISION_DAMAGE, first, second.color, -1);
-        this.damageTarget(null, second, ENEMY_COLLISION_DAMAGE, second, first.color, -1);
-        if (!first.dead) this.bounceEntity(first, normal.col, normal.row, first.color, SNAKE_SEGMENT_SPACING);
-        if (!second.dead) this.bounceEntity(second, -normal.col, -normal.row, second.color, SNAKE_SEGMENT_SPACING);
+        const collisionDamage = MODULE_PROGRESSION.rollLinearRewards(collisionDamageAmount, () => this.random());
+        this.damageTarget(null, first, collisionDamage, first, second.color, -1);
+        this.damageTarget(null, second, collisionDamage, second, first.color, -1);
+        if (!first.dead) this.bounceEntity(first, normal.col, normal.row, first.color, SNAKE_SEGMENT_SPACING, collisionKnockback);
+        if (!second.dead) this.bounceEntity(second, -normal.col, -normal.row, second.color, SNAKE_SEGMENT_SPACING, collisionKnockback);
         break;
       }
     }
@@ -3252,9 +3275,10 @@ export class UltraWorld {
       if (ownerSegmentIndex < 0) continue;
       const normalCol = enemy.col - bodyHit.segment.col;
       const normalRow = enemy.row - bodyHit.segment.row;
-      this.damageTarget(null, bodyHit.owner, ENEMY_COLLISION_DAMAGE, bodyHit.segment, enemy.color, ownerSegmentIndex);
-      this.damageTarget(null, enemy, ENEMY_COLLISION_DAMAGE, enemy, bodyHit.owner.color, -1);
-      if (!enemy.dead) this.bounceEntity(enemy, normalCol, normalRow, enemy.color, SNAKE_SEGMENT_SPACING);
+      const collisionDamage = MODULE_PROGRESSION.rollLinearRewards(collisionDamageAmount, () => this.random());
+      this.damageTarget(null, bodyHit.owner, collisionDamage, bodyHit.segment, enemy.color, ownerSegmentIndex);
+      this.damageTarget(null, enemy, collisionDamage, enemy, bodyHit.owner.color, -1);
+      if (!enemy.dead) this.bounceEntity(enemy, normalCol, normalRow, enemy.color, SNAKE_SEGMENT_SPACING, collisionKnockback);
     }
   }
 
@@ -3373,7 +3397,7 @@ export class UltraWorld {
           projectile.hitNodes.add(node);
           this.damageTarget(owner, hostile, 1, hitPoint, projectile.color, segmentIndex);
           if (!hostile.dead && projectile.slow) hostile.slow = Math.max(hostile.slow, projectile.slow);
-          if (!hostile.dead && projectile.permanentSlow) hostile.permanentSlow = Math.min(MODULE_PROGRESSION.effects.frostMaximumSlow(), hostile.permanentSlow + projectile.permanentSlow);
+          if (!hostile.dead && projectile.permanentSlow) hostile.permanentSlow = Math.max(hostile.permanentSlow, projectile.permanentSlow);
           if (!hostile.dead && projectile.poison) {
             hostile.poisonStacks += projectile.poison;
             if (hostile.poisonTimer <= 0) hostile.poisonTimer = POISON_TICK_INTERVAL;

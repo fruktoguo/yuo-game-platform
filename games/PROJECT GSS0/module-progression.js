@@ -3,7 +3,7 @@
 
   const config = globalThis.GSS0_DESIGNER_CONFIG;
   const modules = globalThis.GSS0ModuleCatalog;
-  if (config?.schemaVersion !== 29 || !Array.isArray(modules) || modules.length === 0) {
+  if (config?.schemaVersion !== 30 || !Array.isArray(modules) || modules.length === 0) {
     throw new Error("PROJECT GSS0 机体成长规则依赖加载失败");
   }
 
@@ -130,7 +130,8 @@
     cacheKillsPerTrigger: () => Math.max(1, Math.round(balance.moduleCacheKillsPerTrigger)),
     thornsProjectileCount: () => Math.max(1, Math.round(balance.moduleThornsProjectileCount)),
     frostSlowPerHit: () => balance.moduleFrostSlowPerHit,
-    frostMaximumSlow: () => 1 - balance.moduleFrostMinimumSpeedMultiplier,
+    echoProjectileCount: (level) => Math.max(0, Math.round(balance.moduleEchoProjectilesPerLevel * effectLevel(level))),
+    barrageProjectileCount: () => Math.max(1, Math.round(balance.moduleBarrageProjectileCount)),
     bladeBaseSizePixels: () => balance.moduleBladeBaseSizePixels,
     bladeOrbitRadiusCells: () => balance.moduleBladeOrbitRadiusCells,
     bladeCount: (level) => effectLevel(level),
@@ -184,7 +185,7 @@
       case "arsenal": return [{ label: "攻击尺寸", value: effects.attackSizeMultiplier(level) - 1, format: formatPercent }];
       case "doublehit": return [{ label: "撞击伤害翻倍概率", value: effects.collisionDoubleChance(level), format: (value) => formatPercent(value, false) }];
       case "multishot": return [{ label: "子弹数量翻倍概率", value: effects.projectileDoubleChance(level), format: (value) => formatPercent(value, false) }];
-      case "echo": return [{ label: "撞击发射", value: safeLevel(level), format: (value) => `${value}枚` }];
+      case "echo": return [{ label: "撞击发射", value: effects.echoProjectileCount(level), format: (value) => `${value}枚` }];
       case "blade": return [{ label: "旋刃数量", value: effects.bladeCount(level), format: (value) => `${value}枚` }];
       case "repulse": return [{ label: "作用半径", value: effects.repulseRangePixels(level), format: (value) => `${formatNumber(value)}px` }];
       case "armor": return [{ label: "护盾冷却速度", value: effects.armorCooldownRateBonus(level), format: formatPercent }];
@@ -230,8 +231,8 @@
       case "berserk": return [{ label: "每损失30%生命的蛇头伤害", value: balance.moduleMissingHealthHeadDamagePerStepPerLevel * safeLevel(level), format: (value) => `+${formatNumber(value)}` }];
       case "recovery": return [{ label: "生命恢复效果", value: effects.healingReceivedBonus(level), format: formatPercent }];
       case "wallbreaker": return [
-        { label: "敌蛇撞墙伤害", value: effects.enemyWallDamageBonus(level), format: formatPercent },
-        { label: "敌蛇撞墙击退", value: effects.enemyWallKnockbackBonus(level), format: formatPercent }
+        { label: "敌蛇撞墙与互撞伤害", value: effects.enemyWallDamageBonus(level), format: formatPercent },
+        { label: "敌蛇撞墙与互撞击退", value: effects.enemyWallKnockbackBonus(level), format: formatPercent }
       ];
       case "tailguard": return [{ label: "白色拦截机体", value: effects.tailGuardSegmentCount(level), format: (value) => `+${value}节` }];
       case "deathburst": return [{ label: "敌蛇死亡发射", value: effects.deathBurstProjectileCount(level), format: (value) => `${value}枚` }];

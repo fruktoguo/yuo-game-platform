@@ -5,7 +5,7 @@ export type GSS0ModuleId =
   | "magnet" | "haste" | "chronos" | "tractor" | "fortune" | "guidance" | "feast"
   | "salvage" | "regen" | "bloom" | "amplifier" | "needle" | "mortar" | "sweep"
   | "sniper" | "flak" | "fork" | "anchor" | "saw" | "flare" | "scatter" | "lance"
-  | "execute" | "crossfire" | "phasebolt" | "ram" | "buffer" | "decoy" | "emergency"
+  | "execute" | "crossfire" | "phasebolt" | "barrage" | "ram" | "buffer" | "decoy" | "emergency"
   | "collector" | "beacon" | "momentum" | "progressor" | "nursery" | "cache"
   | "insight" | "headstrike" | "vitality" | "renewal" | "plating" | "replicator"
   | "medkit" | "adrenaline" | "berserk" | "recovery" | "wallbreaker" | "tailguard"

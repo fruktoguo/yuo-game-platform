@@ -388,11 +388,11 @@
     </div>
   </main>
 
-  <script src="enemy-codex.js?v=99"></script>
-  <script src="wave-director.js?v=99"></script>
-  <script src="designer-config.js?v=99"></script>
-  <script src="module-catalog.js?v=99"></script>
-  <script src="module-progression.js?v=99"></script>
+  <script src="enemy-codex.js?v=100"></script>
+  <script src="wave-director.js?v=100"></script>
+  <script src="designer-config.js?v=100"></script>
+  <script src="module-catalog.js?v=100"></script>
+  <script src="module-progression.js?v=100"></script>
   <script>
     (() => {
       "use strict";
@@ -527,8 +527,9 @@
         { key: "moduleAttackSizePerLevel", moduleId: "arsenal", group: "武装扩容节", label: "每级攻击尺寸", hint: "每一级增加的子弹、旋刃、爆炸范围与激光半径", min: 0, max: 1, step: 0.01, unit: "倍率/级" },
         { key: "moduleCollisionDoubleChancePerLevel", moduleId: "doublehit", group: "倍击撞针", label: "每级撞击翻倍概率", hint: "每次造成撞击伤害时，使该次伤害翻倍的概率", min: 0, max: 1, step: 0.01, unit: "概率/级" },
         { key: "moduleProjectileDoubleChancePerLevel", moduleId: "multishot", group: "齐射增殖节", label: "每级倍弹概率", hint: "每次发射子弹时，使该枚子弹复制为两枚的概率", min: 0, max: 1, step: 0.01, unit: "概率/级" },
-        { key: "moduleFrostSlowPerHit", moduleId: "frost", group: "冰棱节", label: "每次永久减速", hint: "每次命中永久降低敌蛇的移动速度；多次命中加法叠加", min: 0, max: 1, step: 0.01, unit: "比例/次" },
-        { key: "moduleFrostMinimumSpeedMultiplier", moduleId: "frost", group: "冰棱节", label: "最低速度倍率", hint: "永久减速叠加后敌蛇仍保留的最低移动速度比例", min: 0.01, max: 1, step: 0.01, unit: "比例" },
+        { key: "moduleFrostSlowPerHit", moduleId: "frost", group: "冰棱节", label: "永久减速", hint: "首次命中永久降低敌蛇的移动速度；后续冰晶弹命中不再叠加", min: 0, max: 1, step: 0.01, unit: "比例" },
+        { key: "moduleEchoProjectilesPerLevel", moduleId: "echo", group: "回声弹匣", label: "每级撞击弹数", hint: "蛇头撞击敌蛇或墙壁时，每一级向随机方向发射的子弹数量", min: 0, max: 100, step: 1, unit: "枚/级" },
+        { key: "moduleBarrageProjectileCount", moduleId: "barrage", group: "镜反弹幕节", label: "环形弹幕数量", hint: "每次触发时向四周均匀发射的无限反弹子弹数量", min: 1, max: 100, step: 1, unit: "枚" },
         { key: "moduleBladeBaseSizePixels", moduleId: "blade", group: "旋刃节", label: "旋刃基础体积", hint: "应用全局子弹体积倍率前的旋刃绘制与命中半径", min: 1, max: 100, step: 1, unit: "px" },
         { key: "moduleBladeOrbitRadiusCells", moduleId: "blade", group: "旋刃节", label: "旋刃环绕半径", hint: "旋刃中心到所属机体中心的环绕距离", min: 0.5, max: 10, step: 0.1, unit: "格" },
         { key: "moduleBladeOrbitSpeed", moduleId: "blade", group: "旋刃节", label: "旋刃旋转速度", hint: "旋刃围绕所属机体旋转的角速度", min: 0, max: 20, step: 0.01, unit: "弧度/秒" },
@@ -575,8 +576,8 @@
         { key: "moduleMissingHealthHeadDamageStep", moduleId: "berserk", group: "逆境撞针", label: "失血判定步长", hint: "每损失该比例的最大生命值结算一次蛇头伤害加成", min: 0.01, max: 1, step: 0.01, unit: "比例" },
         { key: "moduleMissingHealthHeadDamagePerStepPerLevel", moduleId: "berserk", group: "逆境撞针", label: "每级每档伤害", hint: "每个失血档位、每一级提供的蛇头伤害", min: 0, max: 100, step: 1, unit: "点/档/级" },
         { key: "moduleHealingReceivedPerLevel", moduleId: "recovery", group: "愈合增幅节", label: "每级恢复增幅", hint: "提高除生命上限同步增加外所有生命恢复的比例", min: 0, max: 5, step: 0.01, unit: "倍率/级" },
-        { key: "moduleEnemyWallDamagePerLevel", moduleId: "wallbreaker", group: "壁垒共振节", label: "每级撞墙伤害增幅", hint: "多人模式取所有玩家中的最高等级", min: 0, max: 10, step: 0.05, unit: "倍率/级" },
-        { key: "moduleEnemyWallKnockbackPerLevel", moduleId: "wallbreaker", group: "壁垒共振节", label: "每级撞墙击退增幅", hint: "多人模式取所有玩家中的最高等级", min: 0, max: 10, step: 0.05, unit: "倍率/级" },
+        { key: "moduleEnemyWallDamagePerLevel", moduleId: "wallbreaker", group: "壁垒共振节", label: "每级撞墙与互撞伤害", hint: "同时增强敌蛇撞墙和敌蛇互撞伤害；多人模式取所有玩家中的最高等级", min: 0, max: 10, step: 0.05, unit: "倍率/级" },
+        { key: "moduleEnemyWallKnockbackPerLevel", moduleId: "wallbreaker", group: "壁垒共振节", label: "每级撞墙与互撞击退", hint: "同时增强敌蛇撞墙和敌蛇互撞击退；多人模式取所有玩家中的最高等级", min: 0, max: 10, step: 0.05, unit: "倍率/级" },
         { key: "moduleTailGuardSegmentsPerLevel", moduleId: "tailguard", group: "尾部隔离舱", label: "每级白色机体节", hint: "在玩家尾部追加、可拦截敌人的无特殊效果白色机体数量", min: 0, max: 20, step: 1, unit: "节/级" },
         { key: "moduleDeathBurstProjectilesPerLevel", moduleId: "deathburst", group: "猎杀齐射节", label: "每级死亡齐射弹数", hint: "任意敌蛇死亡时向随机方向发射的子弹数量", min: 0, max: 20, step: 1, unit: "枚/级" },
         { key: "moduleCrisisHealthThreshold", moduleId: "crisis", group: "危态代偿节", label: "生命阈值", hint: "低于该最大生命比例时获得正恢复，否则产生等量负恢复", min: 0, max: 1, step: 0.01, unit: "比例" },
@@ -679,7 +680,7 @@
       const filePickerSupported = typeof window.showOpenFilePicker === "function";
 
       function normalizeConfig(value) {
-        const config = { schemaVersion: 29, balance: {}, waveEnemyCountSchedule: [], moduleCooldownPercentages: {}, moduleStates: {} };
+        const config = { schemaVersion: 30, balance: {}, waveEnemyCountSchedule: [], moduleCooldownPercentages: {}, moduleStates: {} };
         for (const definition of ALL_PARAMETER_DEFINITIONS) {
           const candidate = Number(value?.balance?.[definition.key]);
           config.balance[definition.key] = Number.isFinite(candidate) ? Math.max(definition.min, Math.min(definition.max, candidate)) : definition.min;
@@ -715,7 +716,7 @@
         const end = text.lastIndexOf("}");
         if (start < 0 || end <= start) throw new Error("配置内容不完整");
         const parsed = JSON.parse(text.slice(start, end + 1));
-        if (parsed?.schemaVersion !== 29) throw new Error("配置版本无效，需要 schemaVersion 29");
+        if (parsed?.schemaVersion !== 30) throw new Error("配置版本无效，需要 schemaVersion 30");
         return normalizeConfig(parsed);
       }
 

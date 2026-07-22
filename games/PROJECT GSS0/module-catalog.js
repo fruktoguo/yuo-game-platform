@@ -18,7 +18,7 @@
 
   const moduleBlueprints = [
     { id: "spark", name: "高速枪节", category: "攻击", color: "#ff9f43", shape: "triangle", cooldown: "", activeCooldown: true, desc: "向随机方向发射1枚子弹。" },
-    { id: "frost", name: "冰棱节", category: "攻击", color: "#58d8ff", shape: "diamond", cooldown: "", activeCooldown: true, desc: "发射冰晶弹并永久降低敌蛇20%移动速度；可叠加至仅剩5%。" },
+    { id: "frost", name: "冰棱节", category: "攻击", color: "#58d8ff", shape: "diamond", cooldown: "", activeCooldown: true, desc: "发射冰晶弹并永久降低敌蛇50%移动速度" },
     { id: "prism", name: "三棱镜节", category: "攻击", color: "#ff5da2", shape: "hex", cooldown: "", activeCooldown: true, desc: "扇形发射3枚子弹。" },
     { id: "nova", name: "星爆节", category: "攻击", color: "#ff7043", shape: "star", cooldown: "", activeCooldown: true, desc: "向8个方向各发射1枚子弹。" },
     { id: "tesla", name: "雷鸣环节", category: "攻击", color: "#f7e85b", shape: "ring", cooldown: "", activeCooldown: true, desc: "电击最近的敌蛇，并向155px内的新目标跳跃；最多命中3条敌蛇，每条受到1伤害。" },
@@ -28,7 +28,7 @@
     { id: "blade", name: "旋刃节", category: "攻击", color: "#e8eef7", shape: "diamond", cooldown: "被动效果", desc: "每级生成1枚环绕机体的旋刃，对命中的部位造成1伤害。" },
     { id: "pulse", name: "脉冲核心", category: "攻击", color: "#3eb7ff", shape: "ring", cooldown: "", activeCooldown: true, desc: "释放半径6格的冲击波，对范围内每个敌方部位分别造成1伤害。" },
     { id: "venom", name: "腐蚀囊节", category: "攻击", color: "#8be04e", shape: "hex", cooldown: "", activeCooldown: true, desc: "发射腐蚀弹，命中后施加可无限叠加的永久中毒；中毒间隔3秒，每层中毒随机摧毁1节身体。" },
-    { id: "echo", name: "回声弹匣", category: "攻击", color: "#ff8bd7", shape: "capsule", cooldown: "被动效果", desc: "蛇头撞击敌蛇或墙壁时，每级向随机方向发射1枚子弹。" },
+    { id: "echo", name: "回声弹匣", category: "攻击", color: "#ff8bd7", shape: "capsule", cooldown: "被动效果", desc: "蛇头撞击敌蛇或墙壁时，每级向随机方向发射2枚子弹。" },
     { id: "rail", name: "贯穿轨炮节", category: "攻击", color: "#7ef9ff", shape: "capsule", cooldown: "", activeCooldown: true, desc: "发射可无限穿透的轨炮弹。" },
     { id: "ricochet", name: "弹射晶节", category: "攻击", color: "#ffcf5a", shape: "diamond", cooldown: "", activeCooldown: true, desc: "发射可无限反弹墙壁的晶体弹。" },
     { id: "cluster", name: "裂变弹舱", category: "攻击", color: "#ff6b4a", shape: "hex", cooldown: "", activeCooldown: true, desc: "发射追踪爆弹，在半径5格内爆炸并命中每个敌方部位。" },
@@ -65,6 +65,7 @@
     { id: "execute", name: "终结协议", category: "攻击", color: "#ff3f55", shape: "diamond", cooldown: "", activeCooldown: true, desc: "瞬间摧毁生命值为1的敌蛇；没有有效目标时保留冷却。" },
     { id: "crossfire", name: "十字火控", category: "攻击", color: "#ffb347", shape: "square", cooldown: "", activeCooldown: true, desc: "向目标方向、反方向和两侧各发射1枚具有1次穿透的重弹。" },
     { id: "phasebolt", name: "相位回旋节", category: "攻击", color: "#b49cff", shape: "circle", cooldown: "", activeCooldown: true, desc: "发射可追踪敌人并无限反弹墙壁的相位弹。" },
+    { id: "barrage", name: "镜反弹幕节", category: "攻击", color: "#9be7ff", shape: "star", cooldown: "", activeCooldown: true, desc: "向四周发射16枚可无限反弹墙壁的子弹。" },
     { id: "ram", name: "破障冲角", category: "攻击", color: "#f3c600", shape: "triangle", cooldown: "被动效果", desc: "每级使玩家蛇头撞击敌蛇任意部位时造成的伤害+1。" },
     { id: "buffer", name: "动能缓冲节", category: "辅助", color: "#8fa6ad", shape: "square", cooldown: "被动效果", desc: "蛇头撞击任意单位时，每级使受到的击退力与减速时间降低20%。" },
     { id: "decoy", name: "诱导涂层", category: "生存", color: "#ff7a90", shape: "diamond", cooldown: "被动效果", desc: "每级使敌蛇对玩家身体的避让强度-12%，最多-55%。" },
@@ -85,9 +86,9 @@
     { id: "adrenaline", name: "失压推进节", category: "辅助", color: "#ffbd59", shape: "triangle", cooldown: "被动效果", desc: "每损失3%最大生命值，每级使移动速度提高1%。" },
     { id: "berserk", name: "逆境撞针", category: "攻击", color: "#ff5964", shape: "star", cooldown: "被动效果", desc: "每损失30%最大生命值，每级使蛇头伤害+1。" },
     { id: "recovery", name: "愈合增幅节", category: "生存", color: "#73f2c2", shape: "ring", cooldown: "被动效果", desc: "每级使所有来源的生命恢复效果提高20%。" },
-    { id: "wallbreaker", name: "壁垒共振节", category: "攻击", color: "#ff9d42", shape: "square", cooldown: "被动效果", desc: "每级使敌蛇撞墙伤害和反弹击退提高100%；多人模式取最高等级。" },
+    { id: "wallbreaker", name: "壁垒共振节", category: "攻击", color: "#ff9d42", shape: "square", cooldown: "被动效果", desc: "每级使敌蛇撞墙与互撞的伤害和击退提高50%" },
     { id: "tailguard", name: "尾部隔离舱", category: "辅助", color: "#e8eef5", shape: "capsule", cooldown: "被动效果", desc: "每级在蛇尾追加2节无特殊效果的白色拦截机体。" },
-    { id: "deathburst", name: "猎杀齐射节", category: "攻击", color: "#ff8d6b", shape: "star", cooldown: "被动效果", desc: "任意敌蛇死亡时，每级向随机方向发射2枚子弹。" },
+    { id: "deathburst", name: "猎杀齐射节", category: "攻击", color: "#ff8d6b", shape: "star", cooldown: "被动效果", desc: "任意敌蛇死亡时，每级向随机方向发射3枚子弹。" },
     { id: "crisis", name: "危态代偿节", category: "生存", color: "#ff6f91", shape: "diamond", cooldown: "被动效果", desc: "生命低于50%时，每级使每秒生命恢复+1；否则每级使每秒生命恢复-1。" },
     { id: "linkage", name: "延展耦合节", category: "辅助", color: "#62d8ff", shape: "capsule", cooldown: "被动效果", desc: "每级使自身机体连接距离提高20%。" },
     { id: "arsenal", name: "武装扩容节", category: "攻击", color: "#ffcf66", shape: "hex", cooldown: "被动效果", desc: "每级使攻击尺寸提高10%。" },
@@ -99,7 +100,7 @@
     const fallback = moduleBlueprints.find((module) => module.id === moduleId)?.desc || "";
     switch (moduleId) {
       case "frost":
-        return `发射冰晶弹并永久降低敌蛇${formatPercent(setting(balance, "moduleFrostSlowPerHit", 0.2))}移动速度；可叠加至仅剩${formatPercent(setting(balance, "moduleFrostMinimumSpeedMultiplier", 0.05))}。`;
+        return `发射冰晶弹并永久降低敌蛇${formatPercent(setting(balance, "moduleFrostSlowPerHit", 0.5))}移动速度`;
       case "blade":
         return "每级生成1枚环绕机体的旋刃，对命中的部位造成1伤害。";
       case "pulse":
@@ -111,7 +112,9 @@
       case "shield":
         return `周期性获得1层可抵御任意一次伤害的护盾，最多储存${formatNumber(setting(balance, "moduleShieldMaxCharges", 5))}层。`;
       case "echo":
-        return "蛇头撞击敌蛇或墙壁时，每级向随机方向发射1枚子弹。";
+        return `蛇头撞击敌蛇或墙壁时，每级向随机方向发射${formatNumber(setting(balance, "moduleEchoProjectilesPerLevel", 2))}枚子弹。`;
+      case "barrage":
+        return `向四周发射${formatNumber(setting(balance, "moduleBarrageProjectileCount", 16))}枚可无限反弹墙壁的子弹。`;
       case "repulse":
         return `持续将靠近蛇头的敌蛇航向推向外侧，每级提供${formatNumber(setting(balance, "moduleRepulseRangePerLevelPixels", 110))}px作用半径。`;
       case "armor":
@@ -173,7 +176,7 @@
       case "recovery":
         return `每级使所有来源的生命恢复效果提高${formatPercent(setting(balance, "moduleHealingReceivedPerLevel", 0.2))}。`;
       case "wallbreaker":
-        return `每级使敌蛇撞墙伤害提高${formatPercent(setting(balance, "moduleEnemyWallDamagePerLevel", 1))}、反弹击退提高${formatPercent(setting(balance, "moduleEnemyWallKnockbackPerLevel", 1))}；多人模式取最高等级。`;
+        return `每级使敌蛇撞墙与互撞的伤害和击退提高${formatPercent(setting(balance, "moduleEnemyWallDamagePerLevel", 0.5))}`;
       case "tailguard":
         return `每级在蛇尾追加${formatNumber(setting(balance, "moduleTailGuardSegmentsPerLevel", 2))}节无特殊效果的白色拦截机体。`;
       case "deathburst":

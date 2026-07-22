@@ -1477,29 +1477,17 @@ input:focus-visible {
 }
 
 .shield-fill {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
+  width: 0;
+  height: 3px;
+  margin-bottom: 4px;
   opacity: 0;
-  background: rgba(72, 224, 191, 0.78);
-  box-shadow: inset 0 0 0 1px rgba(224, 255, 249, 0.9), 0 0 14px rgba(72, 224, 191, 0.65);
-  transition: opacity 140ms ease;
+  background: #48e0bf;
+  box-shadow: 0 0 8px rgba(72, 224, 191, 0.82);
+  transition: width 140ms ease, opacity 140ms ease;
 }
 
 .shield-fill.is-active {
   opacity: 1;
-}
-
-.shield-fill::after {
-  content: "\00d7" attr(data-charges);
-  position: absolute;
-  right: 6px;
-  top: 50%;
-  color: #071411;
-  font-size: calc(9px * var(--font-scale));
-  font-weight: 900;
-  line-height: 1;
-  transform: translateY(-50%);
 }
 
 .health-group.is-hit .health-track {

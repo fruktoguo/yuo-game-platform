@@ -19,7 +19,7 @@
           <strong>代号：几何贪吃蛇</strong>
         </div>
         <span class="signature">by 四季鸽</span>
-        <span class="brand-version" aria-label="游戏版本 V99">V99</span>
+        <span class="brand-version" aria-label="游戏版本 V100">V100</span>
       </div>
 
       <div class="run-stats">
@@ -160,9 +160,9 @@
             <span>机体耐久</span>
             <strong><span id="health-value">15.0</span> / <span id="health-max">15.0</span></strong>
           </div>
+          <div id="shield-fill" class="shield-fill" aria-hidden="true"></div>
           <div class="health-track" aria-hidden="true">
             <div id="health-fill" class="health-fill"></div>
-            <div id="shield-fill" class="shield-fill" data-charges="0"></div>
           </div>
         </div>
         <div class="resource-group xp-group">
@@ -184,7 +184,7 @@
 
     <section id="start-screen" class="modal-layer start-screen is-visible" aria-labelledby="game-title">
       <div class="start-glow" aria-hidden="true"></div>
-          <div class="start-version" aria-label="游戏版本 V99"><span>BUILD</span><strong>V99</strong></div>
+          <div class="start-version" aria-label="游戏版本 V100"><span>BUILD</span><strong>V100</strong></div>
       <div class="start-layout">
         <div class="start-content">
           <div id="network-status" class="title-kicker">TACTICAL SURVIVAL / LOCAL</div>
@@ -285,6 +285,22 @@
           <button id="changelog-close-button" class="icon-button codex-close-button" type="button" aria-label="关闭更新日志" title="关闭更新日志">×</button>
         </header>
         <div class="changelog-list">
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V100</strong></div>
+              <time datetime="2026-07-22">2026.07.22</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">机体机制</span>
+              <h3>机体机制与护盾表现更新</h3>
+              <ul>
+                <li>壁垒共振节现在同时增强敌蛇撞墙与互撞的伤害和击退，每级增幅调整为50%；冰棱节改为一次性永久减速50%，不再叠加。</li>
+                <li>回声弹匣每级撞击发射2枚子弹，并在设计控制台开放弹数；新增镜反弹幕节，以1000%冷却向四周发射16枚可无限反弹墙壁的子弹。</li>
+                <li>碧玉护盾改为生命条上方按层延伸的细线，持盾时蛇头同步覆盖碧玉色护盾图层。</li>
+                <li>同步封装本期设计参数与机体启停调整。</li>
+              </ul>
+            </div>
+          </article>
           <article class="changelog-entry">
             <header>
               <div class="changelog-version"><span>BUILD</span><strong>V99</strong></div>
@@ -1544,20 +1560,20 @@
     </section>
   </main>
 
-  <script src="designer-config.js?v=99"></script>
-  <script src="module-catalog.js?v=99"></script>
-  <script src="module-progression.js?v=99"></script>
-  <script src="wave-director.js?v=99"></script>
-  <script src="spawn-planner.js?v=99"></script>
-  <script src="network-codec.js?v=99"></script>
-  <script src="network-player-prediction.js?v=99"></script>
-  <script src="network-player-state-codec.js?v=99"></script>
-  <script src="network-player-collisions.js?v=99"></script>
-  <script src="network-head-collisions.js?v=99"></script>
-  <script src="network-food-claims.js?v=99"></script>
-  <script src="network-projectiles.js?v=99"></script>
-  <script src="lobby-navigation.js?v=99"></script>
-  <script src="enemy-codex.js?v=99"></script>
-  <script src="game.js?v=99"></script>
+  <script src="designer-config.js?v=100"></script>
+  <script src="module-catalog.js?v=100"></script>
+  <script src="module-progression.js?v=100"></script>
+  <script src="wave-director.js?v=100"></script>
+  <script src="spawn-planner.js?v=100"></script>
+  <script src="network-codec.js?v=100"></script>
+  <script src="network-player-prediction.js?v=100"></script>
+  <script src="network-player-state-codec.js?v=100"></script>
+  <script src="network-player-collisions.js?v=100"></script>
+  <script src="network-head-collisions.js?v=100"></script>
+  <script src="network-food-claims.js?v=100"></script>
+  <script src="network-projectiles.js?v=100"></script>
+  <script src="lobby-navigation.js?v=100"></script>
+  <script src="enemy-codex.js?v=100"></script>
+  <script src="game.js?v=100"></script>
 </body>
 </html>

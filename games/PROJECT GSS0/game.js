@@ -102,7 +102,7 @@
 
   const TAU = Math.PI * 2;
   const DESIGNER_CONFIG = globalThis.GSS0_DESIGNER_CONFIG || {};
-  if (DESIGNER_CONFIG.schemaVersion !== 29) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 29");
+  if (DESIGNER_CONFIG.schemaVersion !== 30) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 30");
   const DESIGNER_BALANCE = DESIGNER_CONFIG.balance || {};
   const MODULE_DESIGN_STATES = DESIGNER_CONFIG.moduleStates || {};
 
@@ -161,7 +161,7 @@
   const UNLIMITED_PROJECTILE_MODULES = new Set([
     "spark", "frost", "prism", "nova", "missile", "venom", "echo", "rail",
     "ricochet", "cluster", "fan", "needle", "mortar", "fork", "anchor", "flare",
-    "scatter", "lance", "crossfire", "phasebolt", "thorns"
+    "scatter", "lance", "crossfire", "phasebolt", "barrage", "thorns"
   ]);
   const FOOD_COLORS = ["#b8f53f", "#36dcff", "#ff4d96", "#ffd166", "#a98cff", "#54e1a6"];
   const ENEMY_COLORS = ["#ff5c62", "#ff8a4c", "#d95cff", "#ff477e", "#f4c542"];
@@ -4518,7 +4518,8 @@
     const healthWidth = `${clamp(currentHealth / Math.max(1, maximumHealth) * 100, 0, 100)}%`;
     if (force || ui.healthFill.style.width !== healthWidth) ui.healthFill.style.width = healthWidth;
     const shieldCharges = Math.max(0, Math.round(player?.shieldCharges || 0));
-    ui.shieldFill.dataset.charges = String(shieldCharges);
+    const shieldWidth = `${clamp(shieldCharges * 20, 0, 100)}%`;
+    if (force || ui.shieldFill.style.width !== shieldWidth) ui.shieldFill.style.width = shieldWidth;
     ui.shieldFill.classList.toggle("is-active", shieldCharges > 0);
     setText(ui.xp, xp);
     setText(ui.needed, xpNeeded);
@@ -4960,9 +4961,9 @@
   }
 
   function triggerCollisionEcho() {
-    const echoes = moduleCount("echo");
-    if (echoes <= 0) return;
-    for (let index = 0; index < echoes; index += 1) {
+    const projectileCount = MODULE_EFFECTS.echoProjectileCount(moduleCount("echo"));
+    if (projectileCount <= 0) return;
+    for (let index = 0; index < projectileCount; index += 1) {
       createPlayerProjectile(player, random(0, TAU), {
         color: MODULE_BY_ID.echo.color,
         speed: 330,
@@ -5265,6 +5266,22 @@
           if (spawnShot(segment, target, { color: MODULE_BY_ID.phasebolt.color, speed: 320, size: 6, bounces: -1, homing: 1.6 })) playSkillSound("phasebolt");
           segment.timer = activeModuleCooldown("phasebolt", segment.moduleLevel);
           break;
+        case "barrage": {
+          const projectileCount = MODULE_EFFECTS.barrageProjectileCount();
+          const startAngle = segment.orbit * 0.15;
+          for (let index = 0; index < projectileCount; index += 1) {
+            createPlayerProjectile(segment, startAngle + index * TAU / projectileCount, {
+              color: MODULE_BY_ID.barrage.color,
+              speed: 300,
+              size: 4.8,
+              bounces: -1
+            });
+          }
+          playSkillSound("barrage");
+          effects.push({ type: "ring", x: segment.x, y: segment.y, color: MODULE_BY_ID.barrage.color, life: 0.55, maxLife: 0.55, radius: 10, endRadius: arena.cellSize * 1.2 });
+          segment.timer = activeModuleCooldown("barrage", segment.moduleLevel);
+          break;
+        }
         default:
           break;
       }
@@ -5483,6 +5500,8 @@
   }
 
   function resolveEnemyCollisions() {
+    const collisionDamageAmount = ENEMY_COLLISION_DAMAGE * (1 + MODULE_EFFECTS.enemyWallDamageBonus(moduleCount("wallbreaker")));
+    const collisionKnockback = 1 + MODULE_EFFECTS.enemyWallKnockbackBonus(moduleCount("wallbreaker"));
     for (let firstIndex = 0; firstIndex < enemies.length; firstIndex += 1) {
       const first = enemies[firstIndex];
       if (first.dead || first.collisionCooldown > 0) continue;
@@ -5505,10 +5524,11 @@
           normalY = -Math.sin(first.angle);
         }
 
-        damageEnemy(first, ENEMY_COLLISION_DAMAGE, first.x, first.y, second.color, { rewardSelf: false, hitSegmentIndex: -1 });
-        damageEnemy(second, ENEMY_COLLISION_DAMAGE, second.x, second.y, first.color, { rewardSelf: false, hitSegmentIndex: -1 });
-        if (!first.dead) bounceEntity(first, normalX, normalY, first.color, SNAKE_SEGMENT_SPACING);
-        if (!second.dead) bounceEntity(second, -normalX, -normalY, second.color, SNAKE_SEGMENT_SPACING);
+        const collisionDamage = MODULE_PROGRESSION.rollLinearRewards(collisionDamageAmount, Math.random);
+        damageEnemy(first, collisionDamage, first.x, first.y, second.color, { rewardSelf: false, hitSegmentIndex: -1 });
+        damageEnemy(second, collisionDamage, second.x, second.y, first.color, { rewardSelf: false, hitSegmentIndex: -1 });
+        if (!first.dead) bounceEntity(first, normalX, normalY, first.color, SNAKE_SEGMENT_SPACING, collisionKnockback);
+        if (!second.dead) bounceEntity(second, -normalX, -normalY, second.color, SNAKE_SEGMENT_SPACING, collisionKnockback);
         break;
       }
     }
@@ -5554,12 +5574,13 @@
         if (ownerSegmentIndex < 0) continue;
         const normalX = enemy.col - bodyHit.segment.col;
         const normalY = enemy.row - bodyHit.segment.row;
-        damageEnemy(bodyHit.owner, ENEMY_COLLISION_DAMAGE, bodyHit.segment.x, bodyHit.segment.y, enemy.color, {
+        const collisionDamage = MODULE_PROGRESSION.rollLinearRewards(collisionDamageAmount, Math.random);
+        damageEnemy(bodyHit.owner, collisionDamage, bodyHit.segment.x, bodyHit.segment.y, enemy.color, {
           rewardSelf: false,
           hitSegmentIndex: ownerSegmentIndex
         });
-        damageEnemy(enemy, ENEMY_COLLISION_DAMAGE, enemy.x, enemy.y, bodyHit.owner.color, { rewardSelf: false, hitSegmentIndex: -1 });
-        if (!enemy.dead) bounceEntity(enemy, normalX, normalY, enemy.color, SNAKE_SEGMENT_SPACING);
+        damageEnemy(enemy, collisionDamage, enemy.x, enemy.y, bodyHit.owner.color, { rewardSelf: false, hitSegmentIndex: -1 });
+        if (!enemy.dead) bounceEntity(enemy, normalX, normalY, enemy.color, SNAKE_SEGMENT_SPACING, collisionKnockback);
       }
     }
   }
@@ -5834,7 +5855,11 @@
         enemy.col = clamp(nextCol, arena.worldMin, arena.worldMax);
         enemy.row = clamp(nextRow, arena.worldMin, arena.worldMax);
         syncNodePosition(enemy);
-        damageEnemy(enemy, ENEMY_COLLISION_DAMAGE * (1 + MODULE_EFFECTS.enemyWallDamageBonus(moduleCount("wallbreaker"))), enemy.x, enemy.y, "#f3c600", { rewardSelf: false, hitSegmentIndex: -1 });
+        const wallDamage = MODULE_PROGRESSION.rollLinearRewards(
+          ENEMY_COLLISION_DAMAGE * (1 + MODULE_EFFECTS.enemyWallDamageBonus(moduleCount("wallbreaker"))),
+          Math.random
+        );
+        damageEnemy(enemy, wallDamage, enemy.x, enemy.y, "#f3c600", { rewardSelf: false, hitSegmentIndex: -1 });
         if (!enemy.dead) bounceEntity(enemy, wallNormal.x, wallNormal.y, enemy.color, SNAKE_SEGMENT_SPACING, 1 + MODULE_EFFECTS.enemyWallKnockbackBonus(moduleCount("wallbreaker")));
         continue;
       }
@@ -6006,7 +6031,7 @@
         projectile.hitNodes.add(node);
         damageEnemy(enemy, 1, node.x, node.y, projectile.color, { hitSegmentIndex });
         if (!enemy.dead && projectile.slow) enemy.slow = Math.max(enemy.slow, projectile.slow);
-        if (!enemy.dead && projectile.permanentSlow) enemy.permanentSlow = Math.min(MODULE_EFFECTS.frostMaximumSlow(), (enemy.permanentSlow || 0) + projectile.permanentSlow);
+        if (!enemy.dead && projectile.permanentSlow) enemy.permanentSlow = Math.max(enemy.permanentSlow || 0, projectile.permanentSlow);
         if (!enemy.dead && projectile.poison) {
           enemy.poisonStacks += projectile.poison;
           if (enemy.poisonTimer <= 0) enemy.poisonTimer = POISON_TICK_INTERVAL;
@@ -7608,6 +7633,16 @@
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
+      if ((player.shieldCharges || 0) > 0) {
+        ctx.save();
+        ctx.globalCompositeOperation = "screen";
+        ctx.globalAlpha = 0.52;
+        ctx.fillStyle = MODULE_BY_ID.shield.color;
+        ctx.shadowColor = MODULE_BY_ID.shield.color;
+        ctx.shadowBlur = 12;
+        ctx.fill();
+        ctx.restore();
+      }
       ctx.shadowBlur = 0;
       ctx.fillStyle = "#15191b";
       ctx.beginPath();

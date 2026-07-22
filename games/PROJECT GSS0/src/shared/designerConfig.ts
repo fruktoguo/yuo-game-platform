@@ -11,7 +11,7 @@ interface DesignerConfigSource {
 }
 
 const source = (globalThis as typeof globalThis & { GSS0_DESIGNER_CONFIG?: DesignerConfigSource }).GSS0_DESIGNER_CONFIG;
-if (source?.schemaVersion !== 29) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 29');
+if (source?.schemaVersion !== 30) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 30');
 
 function numberSetting(key: string, fallback: number, minimum: number, maximum: number, integer = false): number {
   const candidate = source?.balance?.[key];
@@ -142,7 +142,7 @@ export const DESIGNER_BALANCE = Object.freeze({
   activeSkillBaseCooldown: numberSetting('activeSkillBaseCooldown', 3, 0.05, 30),
   moduleAttackSizePerLevel: numberSetting('moduleAttackSizePerLevel', 0.1, 0, 1),
   moduleCollisionDoubleChancePerLevel: numberSetting('moduleCollisionDoubleChancePerLevel', 0.2, 0, 1),
-  moduleProjectileDoubleChancePerLevel: numberSetting('moduleProjectileDoubleChancePerLevel', 0.1, 0, 1),
+  moduleProjectileDoubleChancePerLevel: numberSetting('moduleProjectileDoubleChancePerLevel', 0.12, 0, 1),
   moduleRepulseRangePerLevelPixels: numberSetting('moduleRepulseRangePerLevelPixels', 110, 1, 1_000),
   moduleArmorCooldownRatePerLevel: numberSetting('moduleArmorCooldownRatePerLevel', 0.18, 0, 5),
   moduleStabilizerSlowReductionPerLevel: numberSetting('moduleStabilizerSlowReductionPerLevel', 0.25, 0, 1),
@@ -171,11 +171,12 @@ export const DESIGNER_BALANCE = Object.freeze({
   moduleLinkageSpacingPerLevel: numberSetting('moduleLinkageSpacingPerLevel', 0.2, 0, 5),
   moduleCacheKillsPerTrigger: numberSetting('moduleCacheKillsPerTrigger', 5, 1, 100, true),
   moduleThornsProjectileCount: numberSetting('moduleThornsProjectileCount', 6, 1, 100, true),
-  moduleFrostSlowPerHit: numberSetting('moduleFrostSlowPerHit', 0.2, 0, 1),
-  moduleFrostMinimumSpeedMultiplier: numberSetting('moduleFrostMinimumSpeedMultiplier', 0.05, 0.01, 1),
+  moduleFrostSlowPerHit: numberSetting('moduleFrostSlowPerHit', 0.5, 0, 1),
+  moduleEchoProjectilesPerLevel: numberSetting('moduleEchoProjectilesPerLevel', 2, 0, 100, true),
+  moduleBarrageProjectileCount: numberSetting('moduleBarrageProjectileCount', 16, 1, 100, true),
   moduleBladeBaseSizePixels: numberSetting('moduleBladeBaseSizePixels', 10, 1, 100),
-  moduleBladeOrbitRadiusCells: numberSetting('moduleBladeOrbitRadiusCells', 2.9, 0.5, 10),
-  moduleBladeOrbitSpeed: numberSetting('moduleBladeOrbitSpeed', 2.28, 0, 20),
+  moduleBladeOrbitRadiusCells: numberSetting('moduleBladeOrbitRadiusCells', 6, 0.5, 10),
+  moduleBladeOrbitSpeed: numberSetting('moduleBladeOrbitSpeed', 0.6, 0, 20),
   modulePulseRadiusCells: numberSetting('modulePulseRadiusCells', 6, 0.1, 30),
   moduleClusterBlastRadiusCells: numberSetting('moduleClusterBlastRadiusCells', 5, 0.1, 30),
   moduleShieldMaxCharges: numberSetting('moduleShieldMaxCharges', 5, 1, 20, true),
@@ -191,10 +192,10 @@ export const DESIGNER_BALANCE = Object.freeze({
   moduleMissingHealthHeadDamageStep: numberSetting('moduleMissingHealthHeadDamageStep', 0.3, 0.01, 1),
   moduleMissingHealthHeadDamagePerStepPerLevel: numberSetting('moduleMissingHealthHeadDamagePerStepPerLevel', 1, 0, 100, true),
   moduleHealingReceivedPerLevel: numberSetting('moduleHealingReceivedPerLevel', 0.2, 0, 5),
-  moduleEnemyWallDamagePerLevel: numberSetting('moduleEnemyWallDamagePerLevel', 1, 0, 10),
-  moduleEnemyWallKnockbackPerLevel: numberSetting('moduleEnemyWallKnockbackPerLevel', 1, 0, 10),
+  moduleEnemyWallDamagePerLevel: numberSetting('moduleEnemyWallDamagePerLevel', 0.5, 0, 10),
+  moduleEnemyWallKnockbackPerLevel: numberSetting('moduleEnemyWallKnockbackPerLevel', 0.5, 0, 10),
   moduleTailGuardSegmentsPerLevel: numberSetting('moduleTailGuardSegmentsPerLevel', 2, 0, 20, true),
-  moduleDeathBurstProjectilesPerLevel: numberSetting('moduleDeathBurstProjectilesPerLevel', 2, 0, 20, true),
+  moduleDeathBurstProjectilesPerLevel: numberSetting('moduleDeathBurstProjectilesPerLevel', 3, 0, 20, true),
   moduleCrisisHealthThreshold: numberSetting('moduleCrisisHealthThreshold', 0.5, 0, 1),
   moduleCrisisRegenPerLevel: numberSetting('moduleCrisisRegenPerLevel', 1, 0, 20),
   arenaBaseArea: numberSetting('arenaBaseArea', 345.6, 64, 4_096),
