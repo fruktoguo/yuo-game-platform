@@ -40,6 +40,7 @@ import {
   experienceRequiredForLevel,
   KNOCKBACK_DECAY,
   KNOCKBACK_INITIAL_SPEED,
+  KNOCKBACK_STOP_SPEED,
   LEVEL_UP_TRANSITION_DURATION,
   MAX_PLAYERS,
   MODULE_BLADE_ORBIT_CONVERGE_SPEED,
@@ -595,7 +596,7 @@ export class UltraWorld {
     if (claim.kind === 'self-body') {
       if (!findSelfCollision(player, PLAYER_SELF_COLLISION_RANGE)) return false;
       this.triggerCollisionEcho(player);
-      this.damagePlayer(player, PLAYER_WALL_COLLISION_DAMAGE, now, '撞上自己的身体');
+      if (!this.hasActiveKnockback(player)) this.damagePlayer(player, PLAYER_WALL_COLLISION_DAMAGE, now, '撞上自己的身体');
       return true;
     }
     if (!Number.isSafeInteger(claim.targetId) || claim.targetId <= 0) return false;
@@ -3625,8 +3626,9 @@ export class UltraWorld {
       if (player.collisionCooldown <= 0) {
         const ownBody = findSelfCollision(player, PLAYER_SELF_COLLISION_RANGE);
         if (ownBody) {
+          const knockedBack = this.hasActiveKnockback(player);
           this.triggerCollisionEcho(player);
-          this.damagePlayer(player, PLAYER_WALL_COLLISION_DAMAGE, now, '撞上自己的身体');
+          if (!knockedBack) this.damagePlayer(player, PLAYER_WALL_COLLISION_DAMAGE, now, '撞上自己的身体');
           if (player.alive) this.bounceEntity(player, player.col - ownBody.col, player.row - ownBody.row, '#f4ffdc', SNAKE_SEGMENT_SPACING);
           continue;
         }
@@ -4108,10 +4110,14 @@ export class UltraWorld {
     const damping = Math.exp(-KNOCKBACK_DECAY * delta);
     entity.knockbackX *= damping;
     entity.knockbackY *= damping;
-    if (Math.hypot(entity.knockbackX, entity.knockbackY) < 0.04) {
+    if (Math.hypot(entity.knockbackX, entity.knockbackY) < KNOCKBACK_STOP_SPEED) {
       entity.knockbackX = 0;
       entity.knockbackY = 0;
     }
+  }
+
+  private hasActiveKnockback(entity: { knockbackX: number; knockbackY: number }): boolean {
+    return Math.hypot(entity.knockbackX, entity.knockbackY) >= KNOCKBACK_STOP_SPEED;
   }
 
   private respawnAutopilotPlayers(now: number): void {

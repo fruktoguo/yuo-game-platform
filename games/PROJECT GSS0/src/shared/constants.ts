@@ -13,6 +13,7 @@ export const ENEMY_SPAWN_ACTIVATION_PARTICLE_SPEED = DESIGNER_BALANCE.enemySpawn
 export const ENEMY_SPAWN_ACTIVATION_RADIUS_CELLS = DESIGNER_BALANCE.enemySpawnActivationRadiusCells;
 export const KNOCKBACK_INITIAL_SPEED = 10;
 export const KNOCKBACK_DECAY = 8;
+export const KNOCKBACK_STOP_SPEED = 0.04;
 export const BOUNCE_SLOW_TIME = 0.78;
 export const BOUNCE_LOCK_TIME = 0.34;
 export const WAVE_BASE_INTERVAL = DESIGNER_BALANCE.waveInterval;

@@ -208,6 +208,7 @@
   const ENEMY_SPAWN_ACTIVATION_RADIUS_CELLS = designerNumber("enemySpawnActivationRadiusCells", 0.52, 0, 3);
   const KNOCKBACK_INITIAL_SPEED = 10;
   const KNOCKBACK_DECAY = 8;
+  const KNOCKBACK_STOP_SPEED = 0.04;
   const BOUNCE_SLOW_TIME = 0.78;
   const BOUNCE_LOCK_TIME = 0.34;
   const WAVE_BASE_INTERVAL = designerNumber("waveInterval", 6, 0.5, 120);
@@ -530,6 +531,7 @@
   if (!networkProjectileRuntime) throw new Error("PROJECT GSS0 投射物运行时未加载");
   const networkPlayerPredictionRuntime = globalThis.GSS0PlayerPrediction?.create({
     knockbackDecay: KNOCKBACK_DECAY,
+    knockbackStopSpeed: KNOCKBACK_STOP_SPEED,
     segmentSpacing: playerSegmentSpacing
   });
   if (!networkPlayerPredictionRuntime) throw new Error("PROJECT GSS0 玩家预测运行时未加载");
@@ -3196,8 +3198,9 @@
       return;
     }
     if (collision.kind === "self") {
+      const knockedBack = hasActiveKnockback(player);
       const claimed = reportNetworkCollision({ kind: "self-body" }, "self-body");
-      if (claimed && player.invulnerable <= 0) predictNetworkPlayerHurt(PLAYER_WALL_COLLISION_DAMAGE);
+      if (claimed && !knockedBack && player.invulnerable <= 0) predictNetworkPlayerHurt(PLAYER_WALL_COLLISION_DAMAGE);
       bounceNetworkSelf(player.col - collision.point.col, player.row - collision.point.row, "#f4ffdc");
       return;
     }
@@ -4909,10 +4912,14 @@
     const damping = Math.exp(-KNOCKBACK_DECAY * dt);
     entity.knockbackX = (entity.knockbackX || 0) * damping;
     entity.knockbackY = (entity.knockbackY || 0) * damping;
-    if (Math.hypot(entity.knockbackX, entity.knockbackY) < 0.04) {
+    if (Math.hypot(entity.knockbackX, entity.knockbackY) < KNOCKBACK_STOP_SPEED) {
       entity.knockbackX = 0;
       entity.knockbackY = 0;
     }
+  }
+
+  function hasActiveKnockback(entity) {
+    return Math.hypot(entity.knockbackX || 0, entity.knockbackY || 0) >= KNOCKBACK_STOP_SPEED;
   }
 
   function wallBounceNormal(col, row) {
@@ -6559,8 +6566,9 @@
     if (player.collisionCooldown <= 0) {
       const ownBodyHit = findSelfCollision(player, PLAYER_SELF_COLLISION_RANGE);
       if (ownBodyHit) {
+        const knockedBack = hasActiveKnockback(player);
         triggerCollisionEcho();
-        damagePlayer(PLAYER_WALL_COLLISION_DAMAGE);
+        if (!knockedBack) damagePlayer(PLAYER_WALL_COLLISION_DAMAGE);
         if (state === "running") bounceEntity(player, player.col - ownBodyHit.col, player.row - ownBodyHit.row, "#f4ffdc", SNAKE_SEGMENT_SPACING);
         return;
       }

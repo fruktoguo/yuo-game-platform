@@ -18,6 +18,7 @@
 
   function create(options = {}) {
     const knockbackDecay = Math.max(0, Number(options.knockbackDecay) || 8);
+    const knockbackStopSpeed = Math.max(0, Number(options.knockbackStopSpeed) || 0.04);
     const segmentSpacingOption = options.segmentSpacing;
     const state = {
       initialized: false,
@@ -123,7 +124,7 @@
       const damping = Math.exp(-knockbackDecay * delta);
       state.knockbackX *= damping;
       state.knockbackY *= damping;
-      if (Math.hypot(state.knockbackX, state.knockbackY) < 0.04) {
+      if (Math.hypot(state.knockbackX, state.knockbackY) < knockbackStopSpeed) {
         state.knockbackX = 0;
         state.knockbackY = 0;
       }
