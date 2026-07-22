@@ -190,6 +190,7 @@ export type UltraEffect = UltraEffectBase & (
   | ({ type: 'beam' | 'lightning'; col: number; row: number; col2: number; row2: number; color: string; life: number } & UltraEffectAnchor)
   | ({ type: 'text'; col: number; row: number; text: string; color: string; life: number; emphasis?: boolean; damageNumber?: boolean } & UltraEffectAnchor)
   | { id: string; type: 'experienceCompress'; sources: GridPoint[]; target: GridPoint; fromTier: number; toTier: number; delay: number; ownerEntityId: number; audienceEntityId?: number }
+  | { id: string; type: 'experienceSettle'; ownerEntityId: number }
   | { id: string; type: 'enemyBodyHit'; enemyId: number; beforeCount: number; start: number; count: number; reconnectIndex: number; audienceEntityId?: number }
   | { id: string; type: 'enemyHeadHit'; enemyId: number; beforeCount: number; count: number; oldHead: GridPoint; newHead: GridPoint; color: string; duration: number; audienceEntityId?: number }
   | { id: string; type: 'playerHurt'; playerEntityId: number; col: number; row: number; amount: number; health: number; maxHealth: number }

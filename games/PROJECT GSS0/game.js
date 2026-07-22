@@ -1707,6 +1707,22 @@
   }
 
   function applyNetworkEffect(item) {
+    if (item.type === "experienceSettle") {
+      cancelExperienceCompressionEffects(item.ownerEntityId);
+      retainInPlace(network.pendingVisualEffects, (effect) => (
+        effect.type !== "experienceCompress" || effect.ownerEntityId !== item.ownerEntityId
+      ));
+      const target = network.playerViews.get(item.ownerEntityId);
+      if (target) {
+        target.growth = null;
+        target.experienceSettled = true;
+        for (const segment of target.segments || []) {
+          if (segment.neutral) segment.birthAge = null;
+        }
+      }
+      if (item.ownerEntityId === network.selfEntityId) activeGrowth = null;
+      return;
+    }
     if (item.type === "playerHurt") {
       const target = network.playerViews.get(item.playerEntityId) || cellCenter(item.col, item.row);
       const affectsSelf = item.playerEntityId === network.selfEntityId;
@@ -2280,7 +2296,7 @@
     return view;
   }
 
-  function syncNetworkSegments(views, items, previousItems, amount) {
+  function syncNetworkSegments(views, items, previousItems, amount, suppressNeutralBirth = false) {
     for (let index = 0; index < items.length; index += 1) {
       const item = items[index];
       const old = previousItems?.[index];
@@ -2289,7 +2305,7 @@
       syncNetworkNode(view, item, old, amount);
       if (item.module === "blade") view.orbit = interpolateAngle(old?.orbit ?? item.orbit, item.orbit, amount);
       else if (isNew) view.orbit = index * 2.399963229728653 % TAU;
-      if (!old && previousItems) view.birthAge = 0;
+      if (!old && previousItems) view.birthAge = suppressNeutralBirth && item.neutral ? null : 0;
       views[index] = view;
     }
     views.length = items.length;
@@ -2387,7 +2403,8 @@
       view.angle = authoritativeAngle;
       view.desiredAngle = item.desiredAngle;
       view.protectedState = item.paused || item.choosingUpgrade || item.invulnerable > 0;
-      syncNetworkSegments(view.segments, item.segments, old?.segments, playerAmount);
+      const experienceSettled = Boolean(view.experienceSettled);
+      syncNetworkSegments(view.segments, item.segments, old?.segments, playerAmount, experienceSettled);
       if (view.isSelf && !automaticModeEnabled && !item.paused && !item.choosingUpgrade) applyNetworkSelfPrediction(view);
       view.protectedState = item.paused || item.choosingUpgrade || view.invulnerable > 0;
       if (hadSource && wasGhost && !item.ghost) playGhostRevivePresentation(view);
@@ -2408,6 +2425,7 @@
           view.growth = growth;
         } else view.growth = null;
       }
+      if (experienceSettled && !item.growth) view.experienceSettled = false;
       view.seenAtTick = activeTick;
       visiblePlayers.push(view);
     }
@@ -3919,7 +3937,16 @@
     if (effect.delay <= 0) activateExperienceCompression(effect);
   }
 
-  function compressExperienceSegments() {
+  function cancelExperienceCompressionEffects(ownerEntityId = null) {
+    retainInPlace(effects, (effect) => {
+      if (effect.type !== "experienceCompress") return true;
+      return ownerEntityId == null
+        ? effect.ownerEntityId != null
+        : effect.ownerEntityId !== ownerEntityId;
+    });
+  }
+
+  function compressExperienceSegments(animate = true) {
     let cascade = 0;
     for (let tier = 0; tier < MODULE_PROGRESSION.experienceTiers.length - 1; tier += 1) {
       while (true) {
@@ -3929,13 +3956,34 @@
         const insertionIndex = indexes[0];
         for (let index = indexes.length - 1; index >= 0; index -= 1) player.segments.splice(indexes[index], 1);
         const target = sources[0] || player.segments[player.segments.length - 1] || player;
-        const compressed = makeSegmentAtCell(target.col, target.row, { neutral: true, experienceTier: tier + 1, birthAge: 0 });
+        const compressed = makeSegmentAtCell(target.col, target.row, {
+          neutral: true,
+          experienceTier: tier + 1,
+          birthAge: animate ? 0 : null
+        });
         player.segments.splice(Math.min(insertionIndex, player.segments.length), 0, compressed);
-        queueExperienceCompression(sources, compressed, tier, tier + 1, cascade * EXPERIENCE_COMPRESSION_CASCADE_DELAY, null, true);
+        if (animate) {
+          queueExperienceCompression(sources, compressed, tier, tier + 1, cascade * EXPERIENCE_COMPRESSION_CASCADE_DELAY, null, true);
+        }
         cascade += 1;
       }
     }
     return cascade;
+  }
+
+  function settlePendingExperienceGrowth() {
+    const pendingGrowth = activeGrowth ? [activeGrowth, ...growthQueue] : [...growthQueue];
+    activeGrowth = null;
+    growthQueue.length = 0;
+    for (const growth of pendingGrowth) {
+      addNeutralSegment();
+      if (growth.spawnTailFood) spawnFoodBehindTail();
+    }
+    compressExperienceSegments(false);
+    for (const segment of player.segments) {
+      if (segment.neutral) segment.birthAge = null;
+    }
+    cancelExperienceCompressionEffects();
   }
 
   function spawnFoodBehindTail() {
@@ -4055,8 +4103,10 @@
     const completesLevel = xp >= xpNeeded;
     if (completesLevel) {
       upgradePending = true;
+      settlePendingExperienceGrowth();
+    } else {
+      startNextGrowthAnimation();
     }
-    startNextGrowthAnimation();
     if (moduleCount("feast") > 0) player.foodBoost = MODULE_EFFECTS.feastDuration();
     const emergency = moduleCount("emergency");
     if (emergency > 0) {
@@ -4070,6 +4120,7 @@
     effects.push({ type: "text", x: collector.x, y: collector.y, text: `+${1 + bonusExperience}`, color: food.color, life: 0.72, maxLife: 0.72 });
     sound("eat", storedNeutralCount());
     shake = Math.max(shake, food.special ? 4 : 2.8);
+    if (completesLevel) startLevelUpTransition();
     updateHud();
   }
 

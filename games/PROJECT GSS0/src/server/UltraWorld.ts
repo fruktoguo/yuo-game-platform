@@ -1414,7 +1414,7 @@ export class UltraWorld {
     this.ring(tail.col, tail.row, MODULE_BY_ID.replicator.color, 0.48, 3, 0.9, player.entityId);
   }
 
-  private compressExperienceSegments(player: PlayerEntity): number {
+  private compressExperienceSegments(player: PlayerEntity, animate = true): number {
     let cascade = 0;
     for (let tier = 0; tier < MODULE_PROGRESSION.experienceTiers.length - 1; tier += 1) {
       while (true) {
@@ -1427,23 +1427,51 @@ export class UltraWorld {
         const compressed = makeSegment(target.col, target.row, {
           neutral: true,
           experienceTier: tier + 1,
-          birthAge: 0,
+          birthAge: animate ? 0 : null,
         }, this.randomSource);
         player.segments.splice(Math.min(insertionIndex, player.segments.length), 0, compressed);
-        this.pendingEffects.push({
-          id: this.effectId(),
-          type: 'experienceCompress',
-          sources: sources.map((segment) => ({ col: segment.col, row: segment.row })),
-          target: { col: compressed.col, row: compressed.row },
-          fromTier: tier,
-          toTier: tier + 1,
-          delay: cascade * DESIGNER_BALANCE.experienceCompressionCascadeDelay,
-          ownerEntityId: player.entityId,
-        });
+        if (animate) {
+          this.pendingEffects.push({
+            id: this.effectId(),
+            type: 'experienceCompress',
+            sources: sources.map((segment) => ({ col: segment.col, row: segment.row })),
+            target: { col: compressed.col, row: compressed.row },
+            fromTier: tier,
+            toTier: tier + 1,
+            delay: cascade * DESIGNER_BALANCE.experienceCompressionCascadeDelay,
+            ownerEntityId: player.entityId,
+          });
+        }
         cascade += 1;
       }
     }
     return cascade;
+  }
+
+  private settlePendingExperienceGrowth(player: PlayerEntity): void {
+    const pendingGrowth = player.growth ? [player.growth, ...player.growthQueue] : [...player.growthQueue];
+    player.growth = null;
+    player.growthQueue.length = 0;
+    for (const growth of pendingGrowth) {
+      const tail = player.segments.at(-1) ?? player;
+      player.segments.push(makeSegment(tail.col, tail.row, {
+        neutral: true,
+        experienceTier: 0,
+      }, this.randomSource));
+      if (growth.spawnTailFood) this.spawnFoodBehindTail(player);
+    }
+    this.compressExperienceSegments(player, false);
+    for (const segment of player.segments) {
+      if (segment.neutral) segment.birthAge = null;
+    }
+    retainInPlace(this.pendingEffects, (effect) => (
+      effect.type !== 'experienceCompress' || effect.ownerEntityId !== player.entityId
+    ));
+    this.pendingEffects.push({
+      id: this.effectId(),
+      type: 'experienceSettle',
+      ownerEntityId: player.entityId,
+    });
   }
 
   private startLevelUpTransition(player: PlayerEntity): void {
@@ -1589,8 +1617,8 @@ export class UltraWorld {
     const completesLevel = player.xp >= player.xpNeeded;
     if (completesLevel) {
       player.upgradePending = true;
-    }
-    if (!player.growth) {
+      this.settlePendingExperienceGrowth(player);
+    } else if (!player.growth) {
       player.growth = { ...player.growthQueue.shift()!, elapsed: 0, nodeCount: player.segments.length + 1 };
     }
     if (this.moduleCount(player, 'feast') > 0) player.foodBoost = MODULE_PROGRESSION.effects.feastDuration();
@@ -1606,6 +1634,7 @@ export class UltraWorld {
     this.textEffect(collector.col, collector.row, `+${1 + bonusExperience}`, food.color, 0.72, player.entityId);
     this.effectSound('eat', player.entityId, player.xp);
     this.feedback(food.special ? 'food-special' : 'food', player.entityId);
+    if (completesLevel) this.startLevelUpTransition(player);
   }
 
   private updateFood(delta: number, activePlayers: PlayerEntity[]): void {
