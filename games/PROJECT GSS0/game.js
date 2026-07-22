@@ -85,6 +85,7 @@
     backgroundPausePopover: document.querySelector("#background-pause-popover"),
     automaticModeButton: document.querySelector("#automatic-mode-button"),
     automaticModeToggle: document.querySelector("#automatic-mode-toggle"),
+    automaticModuleSelectionToggle: document.querySelector("#automatic-module-selection-toggle"),
     automaticModePopover: document.querySelector("#automatic-mode-popover"),
     resumeButton: document.querySelector("#resume-button"),
     pauseRestart: document.querySelector("#pause-restart-button"),
@@ -395,6 +396,7 @@
   );
   let backgroundPauseEnabled = loadSetting("gss0-background-pause", 1, 0, 1) >= 0.5;
   let automaticModeEnabled = loadSetting("gss0-automatic-mode", 0, 0, 1) >= 0.5;
+  let automaticModuleSelectionEnabled = loadSetting("gss0-automatic-module-selection", 1, 0, 1) >= 0.5;
   let automaticModeSyncRevision = 0;
   let bestScore = loadBestScore();
   let recentPicks = [];
@@ -821,13 +823,27 @@
     if (persist) saveSetting("gss0-background-pause", backgroundPauseEnabled ? 1 : 0);
   }
 
+  function automaticModePreferences() {
+    return {
+      enabled: automaticModeEnabled,
+      autoSelectModules: automaticModuleSelectionEnabled
+    };
+  }
+
+  function applyAutomaticModuleSelection(enabled, persist = true) {
+    automaticModuleSelectionEnabled = Boolean(enabled);
+    ui.automaticModuleSelectionToggle.checked = automaticModuleSelectionEnabled;
+    if (automaticModeEnabled && automaticModuleSelectionEnabled && state === "upgrade") scheduleAutomaticUpgrade();
+    if (persist) saveSetting("gss0-automatic-module-selection", automaticModuleSelectionEnabled ? 1 : 0);
+  }
+
   function updateAutomaticModeState(enabled, persist = true) {
     automaticModeEnabled = Boolean(enabled);
     ui.automaticModeToggle.checked = automaticModeEnabled;
     ui.automaticModeButton.classList.toggle("is-active", automaticModeEnabled);
     ui.shell.classList.toggle("is-automatic-mode", automaticModeEnabled);
     const status = automaticModeEnabled ? "已开启" : "已关闭";
-    updateSettingButtonLabel(ui.automaticModeButton, `自动模式${status}`, `自动模式${status}`);
+    updateSettingButtonLabel(ui.automaticModeButton, `自动战斗${status}，按 A 键切换`, `自动战斗${status} · A 键切换`);
     if (automaticModeEnabled) ui.shell.dataset.automaticMode = "enabled";
     else delete ui.shell.dataset.automaticMode;
     pointer.active = false;
@@ -871,15 +887,29 @@
     updateAutomaticModeState(enabled, persist);
     if (!synchronizeNetwork || !network.enabled || !network.socket?.connected) return;
     const revision = ++automaticModeSyncRevision;
-    void emitNetworkAction("ultra:autopilot", automaticModeEnabled).then((result) => {
+    void emitNetworkAction("ultra:autopilot", automaticModePreferences()).then((result) => {
       if (revision !== automaticModeSyncRevision) return;
       if (!result?.ok) {
         updateAutomaticModeState(previous, persist);
         reconcileAutomaticNetworkState();
-        setNetworkStatus("error", `ULTRA LINK / ${result?.error || "无法切换自动模式"}`);
+        setNetworkStatus("error", `ULTRA LINK / ${result?.error || "无法切换自动战斗"}`);
         return;
       }
       reconcileAutomaticNetworkState();
+    });
+  }
+
+  function setAutomaticModuleSelection(enabled, persist = true, synchronizeNetwork = true) {
+    const previous = automaticModuleSelectionEnabled;
+    applyAutomaticModuleSelection(enabled, persist);
+    if (!synchronizeNetwork || !network.enabled || !network.socket?.connected) return;
+    const revision = ++automaticModeSyncRevision;
+    void emitNetworkAction("ultra:autopilot", automaticModePreferences()).then((result) => {
+      if (revision !== automaticModeSyncRevision) return;
+      if (!result?.ok) {
+        applyAutomaticModuleSelection(previous, persist);
+        setNetworkStatus("error", `ULTRA LINK / ${result?.error || "无法同步自动选机设置"}`);
+      }
     });
   }
 
@@ -1417,7 +1447,7 @@
         setNetworkStatus("online", `ULTRA LINK / @${network.principal.username}`);
         renderNetworkRoster(result.data.snapshot.players);
         applyNetworkPresentation(result.data.snapshot, result.data.snapshot, network.snapshotBuffer[0].indexes, 1);
-        void emitNetworkAction("ultra:autopilot", automaticModeEnabled).then((modeResult) => {
+        void emitNetworkAction("ultra:autopilot", automaticModePreferences()).then((modeResult) => {
           if (!modeResult?.ok) {
             setNetworkStatus("error", `ULTRA LINK / ${modeResult?.error || "无法同步自动模式"}`);
             return;
@@ -3025,7 +3055,7 @@
   async function startNetworkGame(restart = false) {
     ensureAudio();
     closeSettingPopovers();
-    const modeResult = await emitNetworkAction("ultra:autopilot", automaticModeEnabled);
+    const modeResult = await emitNetworkAction("ultra:autopilot", automaticModePreferences());
     if (!modeResult?.ok) {
       setNetworkStatus("error", `ULTRA LINK / ${modeResult?.error || "无法切换行动模式"}`);
       return;
@@ -3939,7 +3969,7 @@
   }
 
   function chooseUpgradeOptions() {
-    const chooseIds = automaticModeEnabled
+    const chooseIds = automaticModeEnabled && automaticModuleSelectionEnabled
       ? MODULE_PROGRESSION.chooseAutomaticUpgradeIds
       : MODULE_PROGRESSION.chooseUpgradeIds;
     return chooseIds(UPGRADE_MODULES, player.segments, level + 1, Math.random, 3)
@@ -3968,12 +3998,12 @@
   }
 
   function scheduleAutomaticUpgrade() {
-    if (!automaticModeEnabled || state !== "upgrade") return;
+    if (!automaticModeEnabled || !automaticModuleSelectionEnabled || state !== "upgrade") return;
     const choices = Array.from(ui.options.querySelectorAll("button.upgrade-card"));
     if (choices.length === 0) return;
     const automaticChoice = choices[Math.floor(Math.random() * choices.length)];
     window.setTimeout(() => {
-      if (automaticModeEnabled && state === "upgrade" && automaticChoice.isConnected) automaticChoice.click();
+      if (automaticModeEnabled && automaticModuleSelectionEnabled && state === "upgrade" && automaticChoice.isConnected) automaticChoice.click();
     }, 650);
   }
 
@@ -4447,7 +4477,7 @@
     }
     let dx = 0;
     let dy = 0;
-    if (keys.has("ArrowLeft") || keys.has("KeyA")) dx -= 1;
+    if (keys.has("ArrowLeft")) dx -= 1;
     if (keys.has("ArrowRight") || keys.has("KeyD")) dx += 1;
     if (keys.has("ArrowUp") || keys.has("KeyW")) dy -= 1;
     if (keys.has("ArrowDown") || keys.has("KeyS")) dy += 1;
@@ -7716,6 +7746,14 @@
     }
   }
 
+  function isTextEntryTarget(target) {
+    if (target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) return true;
+    if (target instanceof HTMLInputElement) {
+      return !["button", "checkbox", "radio", "range", "reset", "submit"].includes(target.type);
+    }
+    return target instanceof HTMLElement && target.isContentEditable;
+  }
+
   canvas.addEventListener("pointerup", endPointer);
   canvas.addEventListener("pointercancel", endPointer);
   window.addEventListener("pointermove", updateUIMotionTarget, { passive: true });
@@ -7725,6 +7763,15 @@
 
   window.addEventListener("keydown", (event) => {
     if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"].includes(event.code)) event.preventDefault();
+    if (event.code === "KeyA" && !event.altKey && !event.ctrlKey && !event.metaKey && !isTextEntryTarget(event.target)) {
+      event.preventDefault();
+      if (event.repeat) return;
+      keys.delete("KeyA");
+      ensureAudio();
+      setAutomaticMode(!automaticModeEnabled);
+      sound("ui");
+      return;
+    }
     if (event.code === "Escape" && closeSettingPopovers()) {
       event.preventDefault();
       return;
@@ -7748,7 +7795,6 @@
     if (player && state === "running" && !automaticModeEnabled) {
       const tapDirections = {
         ArrowLeft: Math.PI,
-        KeyA: Math.PI,
         ArrowRight: 0,
         KeyD: 0,
         ArrowUp: -Math.PI / 2,
@@ -7858,12 +7904,20 @@
     sound("ui");
   });
 
+  const automaticModeControl = ui.automaticModeButton.closest(".setting-control");
+  automaticModeControl.addEventListener("mouseenter", () => {
+    if (!uiMotionMedia.matches) return;
+    closeSettingPopovers(automaticModeControl);
+    setSettingPopover(ui.automaticModeButton, ui.automaticModePopover, true);
+  });
+  automaticModeControl.addEventListener("mouseleave", () => {
+    if (uiMotionMedia.matches) setSettingPopover(ui.automaticModeButton, ui.automaticModePopover, false);
+  });
   ui.automaticModeButton.addEventListener("click", (event) => {
     event.stopPropagation();
     ensureAudio();
-    const control = ui.automaticModeButton.closest(".setting-control");
-    const open = !control.classList.contains("is-open");
-    closeSettingPopovers(control);
+    const open = uiMotionMedia.matches || !automaticModeControl.classList.contains("is-open");
+    closeSettingPopovers(automaticModeControl);
     setSettingPopover(ui.automaticModeButton, ui.automaticModePopover, open);
     sound("ui");
   });
@@ -7911,6 +7965,11 @@
     setAutomaticMode(ui.automaticModeToggle.checked);
     sound("ui");
   });
+  ui.automaticModuleSelectionToggle.addEventListener("change", () => {
+    ensureAudio();
+    setAutomaticModuleSelection(ui.automaticModuleSelectionToggle.checked);
+    sound("ui");
+  });
   document.addEventListener("contextmenu", (event) => event.preventDefault());
   document.addEventListener("click", () => closeSettingPopovers());
 
@@ -7920,6 +7979,7 @@
   applyFollowCameraZoom(followCameraZoom, false);
   applyCameraMode(cameraMode, false);
   applyBackgroundPause(backgroundPauseEnabled, false);
+  applyAutomaticModuleSelection(automaticModuleSelectionEnabled, false);
   setAutomaticMode(automaticModeEnabled, false, false);
   setNetworkButtonsDisabled(false);
   ui.best.textContent = Math.floor(bestScore).toLocaleString("zh-CN");

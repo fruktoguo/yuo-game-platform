@@ -15,6 +15,7 @@ import type {
   ActionResult,
   ArenaEvent,
   ArenaJoinData,
+  AutopilotPreferences,
   ChatMessage,
   ClientToServerEvents,
   FoodClaimPayload,
@@ -136,7 +137,7 @@ export class ArenaHub {
     socket.on('ultra:spawn', (ack) => this.handleSpawn(socket, ack));
     socket.on('ultra:restart', (ack) => this.handleRestart(socket, ack));
     socket.on('ultra:leave-run', (ack) => this.handleLeaveRun(socket, ack));
-    socket.on('ultra:autopilot', (enabled, ack) => this.handleAutopilot(socket, enabled, ack));
+    socket.on('ultra:autopilot', (preferences, ack) => this.handleAutopilot(socket, preferences, ack));
     socket.on('ultra:pause', (paused, ack) => this.handlePause(socket, paused, ack));
     socket.on('ultra:input', (payload) => this.handleInput(socket, payload));
     socket.on('ultra:collision', (claim, ack) => this.handleCollision(socket, claim, ack));
@@ -219,12 +220,19 @@ export class ArenaHub {
     this.broadcastMeta();
   }
 
-  private handleAutopilot(socket: UltraSocket, enabled: boolean, ack: (result: ActionResult) => void): void {
+  private handleAutopilot(socket: UltraSocket, preferences: AutopilotPreferences, ack: (result: ActionResult) => void): void {
     if (typeof ack !== 'function') return;
     const accountId = this.getJoinedAccountId(socket);
     if (!accountId) return ack({ ok: false, error: '请先接入行动区域' });
-    if (typeof enabled !== 'boolean') return ack({ ok: false, error: '当前无法切换自动驾驶' });
-    if (!this.world.setAutopilot(accountId, enabled)) return ack({ ok: false, error: '当前无法切换自动驾驶' });
+    if (
+      !preferences
+      || typeof preferences !== 'object'
+      || typeof preferences.enabled !== 'boolean'
+      || typeof preferences.autoSelectModules !== 'boolean'
+    ) return ack({ ok: false, error: '自动战斗设置无效' });
+    if (!this.world.setAutopilot(accountId, preferences.enabled, preferences.autoSelectModules)) {
+      return ack({ ok: false, error: '当前无法切换自动战斗' });
+    }
     ack({ ok: true });
   }
 

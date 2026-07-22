@@ -301,6 +301,11 @@ export interface FoodClaimResult {
   claimedFoodIds: number[];
 }
 
+export interface AutopilotPreferences {
+  enabled: boolean;
+  autoSelectModules: boolean;
+}
+
 export interface ArenaEvent {
   id: string;
   type: 'join' | 'leave' | 'bot-kill' | 'pvp-kill' | 'record';
@@ -345,7 +350,7 @@ export interface ClientToServerEvents {
   'ultra:spawn': (ack: (result: ActionResult) => void) => void;
   'ultra:restart': (ack: (result: ActionResult) => void) => void;
   'ultra:leave-run': (ack: (result: ActionResult) => void) => void;
-  'ultra:autopilot': (enabled: boolean, ack: (result: ActionResult) => void) => void;
+  'ultra:autopilot': (preferences: AutopilotPreferences, ack: (result: ActionResult) => void) => void;
   'ultra:pause': (paused: boolean, ack: (result: ActionResult) => void) => void;
   'ultra:input': (payload: InputPayload) => void;
   'ultra:collision': (claim: PlayerCollisionClaim, ack: (result: ActionResult) => void) => void;

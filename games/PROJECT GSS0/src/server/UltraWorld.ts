@@ -117,6 +117,7 @@ interface PlayerEntity extends UltraPlayerView {
   accountId: string;
   playerId: string;
   autopilot: boolean;
+  autoSelectModules: boolean;
   disconnectedAt: number | null;
   speed: number;
   slow: number;
@@ -458,11 +459,12 @@ export class UltraWorld {
     return true;
   }
 
-  setAutopilot(accountId: string, enabled: boolean): boolean {
+  setAutopilot(accountId: string, enabled: boolean, autoSelectModules: boolean): boolean {
     const player = this.playersByAccount.get(accountId);
     if (!player?.connected) return false;
     player.autopilot = enabled;
-    if (enabled && player.choosingUpgrade && player.upgradeOffer) {
+    player.autoSelectModules = autoSelectModules;
+    if (enabled && autoSelectModules && player.choosingUpgrade && player.upgradeOffer) {
       const automaticOptions = this.chooseUpgradeOptions(player, true);
       const options = automaticOptions.length > 0 ? automaticOptions : player.upgradeOffer.options;
       this.applyUpgrade(player, options[Math.floor(this.random() * options.length)], this.now);
@@ -1024,6 +1026,7 @@ export class UltraWorld {
       accountId,
       playerId: normalizePlayerId(playerId),
       autopilot: false,
+      autoSelectModules: true,
       name: normalizeName(name),
       colorIndex: this.choosePlayerColor(),
       connected: true,
@@ -1502,7 +1505,7 @@ export class UltraWorld {
     const offer: UpgradeOffer = {
       level: player.level + 1,
       expiresAt: 0,
-      options: this.chooseUpgradeOptions(player, player.autopilot),
+      options: this.chooseUpgradeOptions(player, player.autopilot && player.autoSelectModules),
     };
     if (offer.options.length === 0) {
       this.completeLevelWithoutModule(player);
@@ -1512,14 +1515,14 @@ export class UltraWorld {
     player.upgradeOffer = offer;
     player.upgradeRevealTimer = 0;
     this.effectSound('level', player.entityId);
-    if (player.autopilot) {
+    if (player.autopilot && player.autoSelectModules) {
       this.applyUpgrade(player, offer.options[Math.floor(this.random() * offer.options.length)], now);
       return;
     }
     this.callbacks.onUpgrade?.(player.entityId, offer);
   }
 
-  private chooseUpgradeOptions(player: PlayerEntity, automatic = player.autopilot): ModuleId[] {
+  private chooseUpgradeOptions(player: PlayerEntity, automatic = player.autopilot && player.autoSelectModules): ModuleId[] {
     const chooseIds = automatic
       ? MODULE_PROGRESSION.chooseAutomaticUpgradeIds
       : MODULE_PROGRESSION.chooseUpgradeIds;
