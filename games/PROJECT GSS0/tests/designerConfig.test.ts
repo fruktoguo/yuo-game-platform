@@ -220,7 +220,7 @@ describe('设计配置', () => {
   it('全部现有机体都有审查状态且禁用项不会进入升级池', () => {
     const source = (globalThis as typeof globalThis & { GSS0_DESIGNER_CONFIG: { moduleStates: Record<string, string> } }).GSS0_DESIGNER_CONFIG;
     expect(Object.keys(source.moduleStates).sort()).toEqual(MODULES.map((module) => module.id).sort());
-    expect(Object.values(source.moduleStates).filter((state) => state === 'normal')).toHaveLength(49);
+    expect(Object.values(source.moduleStates).filter((state) => state === 'normal')).toHaveLength(51);
     expect(Object.values(source.moduleStates).filter((state) => state === 'tune')).toHaveLength(0);
     expect(Object.values(source.moduleStates).filter((state) => state === 'rework')).toHaveLength(0);
     expect(Object.values(source.moduleStates).filter((state) => state === 'disabled')).toHaveLength(28);
@@ -233,16 +233,16 @@ describe('设计配置', () => {
 
     expect(parameterKeys.sort()).toEqual(Object.keys(DESIGNER_BALANCE).sort());
     expect(moduleIds.sort()).toEqual(MODULES.map((module) => module.id).sort());
-    expect(moduleProgressionSource).toContain('config?.schemaVersion !== 34');
-    expect(new Set(parameterKeys).size).toBe(218);
+    expect(moduleProgressionSource).toContain('config?.schemaVersion !== 35');
+    expect(new Set(parameterKeys).size).toBe(227);
     expect(parameterKeys).not.toContain('playerSpeedPerLevel');
     expect(parameterKeys).not.toContain('moduleEffectReductionMaximum');
     expect(parameterKeys).not.toContain('newModuleOfferChance');
-    expect(new Set(moduleIds).size).toBe(77);
+    expect(new Set(moduleIds).size).toBe(79);
   });
 
   it('全部机体共用唯一描述目录且被动参数明确', () => {
-    expect(MODULES).toHaveLength(77);
+    expect(MODULES).toHaveLength(79);
     expect(MODULES.every((module) => module.desc.trim().length > 0)).toBe(true);
     expect(new Set(MODULES.map((module) => module.id)).size).toBe(MODULES.length);
     expect(MODULES.find((module) => module.id === 'spark')?.desc).toBe('向随机方向发射1枚子弹。');
@@ -263,8 +263,8 @@ describe('设计配置', () => {
     expect(MODULES.some((module) => ['输出', '进攻', '防御', '恢复'].includes(module.category as string))).toBe(false);
     expect(MODULES.every((module) => ['攻击', '生存', '辅助', '发育'].includes(module.category))).toBe(true);
     expect(MODULES.filter((module) => module.category === '发育')).toHaveLength(9);
-    expect(editorHtml).toContain('src="module-catalog.js?v=105"');
-    expect(editorHtml).toContain('src="module-progression.js?v=105"');
+    expect(editorHtml).toContain('src="module-catalog.js?v=106"');
+    expect(editorHtml).toContain('src="module-progression.js?v=106"');
     expect(editorHtml).toContain('const MODULES = moduleCatalog;');
     expect(editorHtml).toContain('descriptionText.textContent = describeModule(module.id, draft.balance);');
     expect(editorHtml).toContain('ID: ${module.id}');

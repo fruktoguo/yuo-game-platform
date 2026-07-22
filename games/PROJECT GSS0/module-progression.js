@@ -3,7 +3,7 @@
 
   const config = globalThis.GSS0_DESIGNER_CONFIG;
   const modules = globalThis.GSS0ModuleCatalog;
-  if (config?.schemaVersion !== 34 || !Array.isArray(modules) || modules.length === 0) {
+  if (config?.schemaVersion !== 35 || !Array.isArray(modules) || modules.length === 0) {
     throw new Error("PROJECT GSS0 机体成长规则依赖加载失败");
   }
 
@@ -106,6 +106,7 @@
     attackSizeMultiplier: (level) => 1 + balance.moduleAttackSizePerLevel * effectLevel(level),
     collisionDoubleChance: (level) => reduction(level, balance.moduleCollisionDoubleChancePerLevel),
     projectileDoubleChance: (level) => reduction(level, balance.moduleProjectileDoubleChancePerLevel),
+    projectileBounceBonus: (level) => Math.max(0, Math.round(balance.moduleProjectileBouncesPerLevel * effectLevel(level))),
     repulseRangePixels: (level) => balance.moduleRepulseRangePerLevelPixels * effectLevel(level),
     armorCooldownRateBonus: (level) => balance.moduleArmorCooldownRatePerLevel * effectLevel(level),
     stabilizerSlowReduction: (level) => reduction(level, balance.moduleStabilizerSlowReductionPerLevel),
@@ -188,6 +189,7 @@
       case "arsenal": return [{ label: "攻击尺寸", value: effects.attackSizeMultiplier(level) - 1, format: formatPercent }];
       case "doublehit": return [{ label: "撞击伤害翻倍概率", value: effects.collisionDoubleChance(level), format: (value) => formatPercent(value, false) }];
       case "multishot": return [{ label: "子弹数量翻倍概率", value: effects.projectileDoubleChance(level), format: (value) => formatPercent(value, false) }];
+      case "rebound": return [{ label: "所有子弹反弹次数", value: effects.projectileBounceBonus(level), format: (value) => `+${formatNumber(value)}` }];
       case "echo": return [{ label: "撞击发射", value: effects.echoProjectileCount(level), format: (value) => `${value}枚` }];
       case "blade": return [{ label: "旋刃数量", value: effects.bladeCount(level), format: (value) => `${value}枚` }];
       case "repulse": return [{ label: "作用半径", value: effects.repulseRangePixels(level), format: (value) => `${formatNumber(value)}px` }];

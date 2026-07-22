@@ -79,6 +79,7 @@ export interface UltraEnemyView extends GridPoint {
   captured: number;
   permanentSlow: number;
   poisonStacks: number;
+  burningTicks: number;
   segments: GridPoint[];
 }
 

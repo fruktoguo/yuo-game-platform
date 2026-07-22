@@ -91,7 +91,7 @@ describe('客户端网络模块', () => {
         ],
         growth: null,
       }],
-      enemies: [{ id: 2, archetype: 'charger', behaviorState: 'roam', behaviorPhase: 0, col: 8, row: 9, angle: 1, color: '#ff5c62', captured: 0, permanentSlow: 0.4, poisonStacks: 2, segments: [{ col: 7.5, row: 9 }] }],
+      enemies: [{ id: 2, archetype: 'charger', behaviorState: 'roam', behaviorPhase: 0, col: 8, row: 9, angle: 1, color: '#ff5c62', captured: 0, permanentSlow: 0.4, poisonStacks: 2, burningTicks: 5, segments: [{ col: 7.5, row: 9 }] }],
       foods: [], projectiles: [], hazards: [],
       pendingSpawns: [{ id: 3, archetype: 'warden', color: '#d95cff', angle: Math.PI / 2, headCell: { col: 18, row: 4 }, bodyCells: [{ col: 17, row: 4 }], timer: 1, maxTimer: 1.5 }],
     };
@@ -106,7 +106,7 @@ describe('客户端网络模块', () => {
     expect(decoded.players[0].segments[0]).toMatchObject({ angle: 0, timer: 0, orbit: 0 });
     expect(decoded.players[0].segments[1]).toMatchObject({ module: 'blade', angle: 0, timer: 0 });
     expect(decoded.players[0].segments[1].orbit).toBeCloseTo(1.25, 3);
-    expect(decoded.enemies[0]).toMatchObject({ permanentSlow: 0.4, poisonStacks: 2 });
+    expect(decoded.enemies[0]).toMatchObject({ permanentSlow: 0.4, poisonStacks: 2, burningTicks: 5 });
     expect(decoded.pendingSpawns[0]).toMatchObject({ id: 3, archetype: 'warden', color: '#d95cff' });
     expect(decoded.pendingSpawns[0].angle).toBeCloseTo(Math.PI / 2, 3);
   });

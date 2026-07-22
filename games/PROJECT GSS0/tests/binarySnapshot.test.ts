@@ -68,6 +68,7 @@ describe('Ultra 二进制快照', () => {
       captured: enemyIndex,
       permanentSlow: 0.2,
       poisonStacks: 3,
+      burningTicks: 7,
       segments: Array.from({ length: 20 }, (_, segmentIndex) => ({
         col: 4 + enemyIndex % 16 - segmentIndex * 0.12,
         row: 2 + enemyIndex % 18,
@@ -136,7 +137,7 @@ function snapshotAt(tick: number, col: number): UltraSnapshot {
       segments: [{ col: col - 1, row: 5, angle: 0, module: null, moduleLevel: 0, neutral: true, tailGuard: false, experienceTier: 2, timer: 0, ready: true, cooldown: 0, orbit: 0, birthAge: null }],
       growth: null,
     }],
-    enemies: [{ id: 1, archetype: 'forager', behaviorState: 'forage', behaviorPhase: 0, col: col + 2, row: 6, angle: 0, color: '#ff5c62', captured: 0, permanentSlow: 0, poisonStacks: 0, segments: [{ col: col + 1, row: 6 }] }],
+    enemies: [{ id: 1, archetype: 'forager', behaviorState: 'forage', behaviorPhase: 0, col: col + 2, row: 6, angle: 0, color: '#ff5c62', captured: 0, permanentSlow: 0, poisonStacks: 0, burningTicks: 0, segments: [{ col: col + 1, row: 6 }] }],
     foods: [], projectiles: [], hazards: [], pendingSpawns: [],
   };
 }

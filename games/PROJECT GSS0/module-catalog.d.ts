@@ -9,7 +9,8 @@ export type GSS0ModuleId =
   | "collector" | "beacon" | "momentum" | "progressor" | "nursery" | "cache"
   | "insight" | "headstrike" | "vitality" | "renewal" | "plating" | "replicator"
   | "medkit" | "adrenaline" | "berserk" | "recovery" | "wallbreaker" | "tailguard"
-  | "deathburst" | "crisis" | "linkage" | "arsenal" | "doublehit" | "multishot";
+  | "deathburst" | "crisis" | "linkage" | "arsenal" | "doublehit" | "multishot"
+  | "rebound" | "incendiary";
 
 export type GSS0ModuleCategory = "攻击" | "生存" | "辅助" | "发育";
 export type GSS0ModuleShape = "triangle" | "diamond" | "hex" | "star" | "ring" | "capsule" | "square" | "circle";

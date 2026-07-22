@@ -388,11 +388,11 @@
     </div>
   </main>
 
-  <script src="enemy-codex.js?v=105"></script>
-  <script src="wave-director.js?v=105"></script>
-  <script src="designer-config.js?v=105"></script>
-  <script src="module-catalog.js?v=105"></script>
-  <script src="module-progression.js?v=105"></script>
+  <script src="enemy-codex.js?v=106"></script>
+  <script src="wave-director.js?v=106"></script>
+  <script src="designer-config.js?v=106"></script>
+  <script src="module-catalog.js?v=106"></script>
+  <script src="module-progression.js?v=106"></script>
   <script>
     (() => {
       "use strict";
@@ -529,10 +529,19 @@
         { key: "projectileSizeScale", group: "战斗", label: "全局子弹体积倍率", hint: "同时放大所有子弹的绘制尺寸与命中体积；2 表示基础尺寸的两倍", min: 0.1, max: 10, step: 0.05, unit: "倍" },
         { key: "playerCollisionDamage", group: "战斗", label: "玩家撞击伤害", hint: "玩家蛇头撞上敌蛇头部或身体时对敌蛇造成的基础伤害", min: 0, max: 1000, step: 1, unit: "点" },
         { key: "poisonTickInterval", group: "战斗", label: "毒伤间隔", hint: "每层永久中毒随机摧毁敌蛇身体节的结算间隔", min: 0.05, max: 30, step: 0.05, unit: "秒" },
+        { key: "burnTickInterval", group: "战斗", label: "燃烧摧毁间隔", hint: "燃烧状态连续随机摧毁敌蛇机体节的结算间隔", min: 0.05, max: 10, step: 0.05, unit: "秒" },
+        { key: "burnHealthFraction", moduleId: "incendiary", group: "焚身导弹节", label: "燃烧生命比例", hint: "命中伤害后，按敌蛇当前生命值生成燃烧摧毁次数的比例，并向上取整", min: 0, max: 1, step: 0.01, unit: "比例" },
+        { key: "enemyStatusParticleDensity", group: "表现", label: "状态粒子密度", hint: "冰冻、腐蚀与燃烧在敌蛇每节机体周围绘制的粒子数量", min: 1, max: 8, step: 1, unit: "枚/节" },
+        { key: "enemyStatusParticleSizeScale", group: "表现", label: "状态粒子尺寸", hint: "冰冻、腐蚀与燃烧粒子的统一尺寸倍率", min: 0.5, max: 4, step: 0.1, unit: "倍" },
+        { key: "enemyStatusParticleGlowScale", group: "表现", label: "状态粒子辉光", hint: "冰冻、腐蚀与燃烧粒子的统一辉光倍率", min: 0.5, max: 4, step: 0.1, unit: "倍" },
         { key: "activeSkillBaseCooldown", group: "战斗", label: "主动技能基础冷却", hint: "第二页各机体的冷却百分比均以此时间为 100%", min: 0.05, max: 30, step: 0.05, unit: "秒" },
         { key: "moduleAttackSizePerLevel", moduleId: "arsenal", group: "武装扩容节", label: "每级攻击尺寸", hint: "每一级增加的子弹、旋刃、爆炸范围与激光半径", min: 0, max: 1, step: 0.01, unit: "倍率/级" },
         { key: "moduleCollisionDoubleChancePerLevel", moduleId: "doublehit", group: "倍击撞针", label: "每级撞击翻倍概率", hint: "每次造成撞击伤害时，使该次伤害翻倍的概率", min: 0, max: 1, step: 0.01, unit: "概率/级" },
         { key: "moduleProjectileDoubleChancePerLevel", moduleId: "multishot", group: "齐射增殖节", label: "每级倍弹概率", hint: "每次发射子弹时，使该枚子弹复制为两枚的概率", min: 0, max: 1, step: 0.01, unit: "概率/级" },
+        { key: "moduleProjectileBouncesPerLevel", moduleId: "rebound", group: "跳弹增幅节", label: "每级反弹次数", hint: "每一级为所有有限反弹子弹增加的墙壁反弹次数", min: 0, max: 20, step: 1, unit: "次/级" },
+        { key: "moduleIncendiaryProjectileSpeed", moduleId: "incendiary", group: "焚身导弹节", label: "燃烧弹速度", hint: "全局子弹速度倍率生效前的燃烧弹基础速度", min: 1, max: 1000, step: 5, unit: "速度" },
+        { key: "moduleIncendiaryProjectileSize", moduleId: "incendiary", group: "焚身导弹节", label: "燃烧弹尺寸", hint: "全局子弹尺寸与攻击尺寸倍率生效前的燃烧弹基础尺寸", min: 1, max: 30, step: 0.5, unit: "px" },
+        { key: "moduleIncendiaryHoming", moduleId: "incendiary", group: "焚身导弹节", label: "燃烧弹追踪", hint: "燃烧弹每秒追向目标的最大转向弧度", min: 0, max: 20, step: 0.1, unit: "弧度/秒" },
         { key: "moduleFrostSlowPerHit", moduleId: "frost", group: "冰棱节", label: "永久减速", hint: "首次命中永久降低敌蛇的移动速度；后续冰晶弹命中不再叠加", min: 0, max: 1, step: 0.01, unit: "比例" },
         { key: "moduleEchoProjectilesPerLevel", moduleId: "echo", group: "回声弹匣", label: "每级撞击弹数", hint: "蛇头撞击敌蛇或墙壁时，每一级向随机方向发射的子弹数量", min: 0, max: 100, step: 1, unit: "枚/级" },
         { key: "moduleBarrageProjectileCount", moduleId: "barrage", group: "镜反弹幕节", label: "环形弹幕数量", hint: "每次触发时向四周均匀发射的无限反弹子弹数量", min: 1, max: 100, step: 1, unit: "枚" },
@@ -691,7 +700,7 @@
       const filePickerSupported = typeof window.showOpenFilePicker === "function";
 
       function normalizeConfig(value) {
-        const config = { schemaVersion: 34, balance: {}, waveEnemyCountSchedule: [], moduleCooldownPercentages: {}, moduleStates: {} };
+        const config = { schemaVersion: 35, balance: {}, waveEnemyCountSchedule: [], moduleCooldownPercentages: {}, moduleStates: {} };
         for (const definition of ALL_PARAMETER_DEFINITIONS) {
           const candidate = Number(value?.balance?.[definition.key]);
           config.balance[definition.key] = Number.isFinite(candidate) ? Math.max(definition.min, Math.min(definition.max, candidate)) : definition.min;
@@ -727,7 +736,7 @@
         const end = text.lastIndexOf("}");
         if (start < 0 || end <= start) throw new Error("配置内容不完整");
         const parsed = JSON.parse(text.slice(start, end + 1));
-        if (parsed?.schemaVersion !== 34) throw new Error("配置版本无效，需要 schemaVersion 34");
+        if (parsed?.schemaVersion !== 35) throw new Error("配置版本无效，需要 schemaVersion 35");
         return normalizeConfig(parsed);
       }
 

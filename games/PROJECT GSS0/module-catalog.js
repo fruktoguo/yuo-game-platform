@@ -93,7 +93,9 @@
     { id: "linkage", name: "延展耦合节", category: "辅助", color: "#62d8ff", shape: "capsule", cooldown: "被动效果", desc: "每级使自身机体连接距离提高20%。" },
     { id: "arsenal", name: "武装扩容节", category: "攻击", color: "#ffcf66", shape: "hex", cooldown: "被动效果", desc: "每级使攻击尺寸提高10%。" },
     { id: "doublehit", name: "倍击撞针", category: "攻击", color: "#ff5d73", shape: "triangle", cooldown: "被动效果", desc: "造成撞击伤害时，每级有20%概率使伤害翻倍。" },
-    { id: "multishot", name: "齐射增殖节", category: "攻击", color: "#72e5ff", shape: "star", cooldown: "被动效果", desc: "每次发射子弹时，每级有10%概率使发射数量翻倍。" }
+    { id: "multishot", name: "齐射增殖节", category: "攻击", color: "#72e5ff", shape: "star", cooldown: "被动效果", desc: "每次发射子弹时，每级有10%概率使发射数量翻倍。" },
+    { id: "rebound", name: "跳弹增幅节", category: "攻击", color: "#ffe36b", shape: "diamond", cooldown: "被动效果", desc: "每级使所有子弹的墙壁反弹次数+1。" },
+    { id: "incendiary", name: "焚身导弹节", category: "攻击", color: "#ff572f", shape: "triangle", cooldown: "", activeCooldown: true, desc: "瞄准生命值最高的敌蛇发射追踪燃烧弹；命中造成1伤害，存活时再燃烧摧毁其当前生命值50%向上取整的随机机体节。" }
   ];
 
   function describeModule(moduleId, balance = defaultBalance) {
@@ -191,6 +193,10 @@
         return `造成撞击伤害时，每级有${formatPercent(setting(balance, "moduleCollisionDoubleChancePerLevel", 0.2))}概率使伤害翻倍。`;
       case "multishot":
         return `每次发射子弹时，每级有${formatPercent(setting(balance, "moduleProjectileDoubleChancePerLevel", 0.1))}概率使发射数量翻倍。`;
+      case "rebound":
+        return `每级使所有子弹的墙壁反弹次数+${formatNumber(setting(balance, "moduleProjectileBouncesPerLevel", 1))}。`;
+      case "incendiary":
+        return `瞄准生命值最高的敌蛇发射追踪燃烧弹；命中造成1伤害，存活时再燃烧摧毁其当前生命值${formatPercent(setting(balance, "burnHealthFraction", 0.5))}向上取整的随机机体节。`;
       case "cache":
         return `每击破${formatNumber(setting(balance, "moduleCacheKillsPerTrigger", 5))}名敌人，按机体等级生成等量的球。`;
       default:

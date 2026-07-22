@@ -106,7 +106,7 @@
 
   const TAU = Math.PI * 2;
   const DESIGNER_CONFIG = globalThis.GSS0_DESIGNER_CONFIG || {};
-  if (DESIGNER_CONFIG.schemaVersion !== 34) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 34");
+  if (DESIGNER_CONFIG.schemaVersion !== 35) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 35");
   const DESIGNER_BALANCE = DESIGNER_CONFIG.balance || {};
   const MODULE_DESIGN_STATES = DESIGNER_CONFIG.moduleStates || {};
 
@@ -118,6 +118,14 @@
   }
 
   const POISON_TICK_INTERVAL = designerNumber("poisonTickInterval", 3, 0.05, 30);
+  const BURN_TICK_INTERVAL = designerNumber("burnTickInterval", 0.1, 0.05, 10);
+  const BURN_HEALTH_FRACTION = designerNumber("burnHealthFraction", 0.5, 0, 1);
+  const ENEMY_STATUS_PARTICLE_DENSITY = Math.round(designerNumber("enemyStatusParticleDensity", 3, 1, 8));
+  const ENEMY_STATUS_PARTICLE_SIZE_SCALE = designerNumber("enemyStatusParticleSizeScale", 1.6, 0.5, 4);
+  const ENEMY_STATUS_PARTICLE_GLOW_SCALE = designerNumber("enemyStatusParticleGlowScale", 1.8, 0.5, 4);
+  const MODULE_INCENDIARY_PROJECTILE_SPEED = designerNumber("moduleIncendiaryProjectileSpeed", 230, 1, 1000);
+  const MODULE_INCENDIARY_PROJECTILE_SIZE = designerNumber("moduleIncendiaryProjectileSize", 7, 1, 30);
+  const MODULE_INCENDIARY_HOMING = designerNumber("moduleIncendiaryHoming", 5, 0, 20);
   const XP_REQUIREMENT_BASE = designerNumber("xpRequirementBase", 5, 1, 100, true);
   const XP_REQUIREMENT_PER_LEVEL = designerNumber("xpRequirementPerLevel", 2, 0, 20, true);
 
@@ -160,7 +168,7 @@
     "frost", "prism", "tesla", "laser", "missile", "venom",
     "rail", "ricochet", "cluster", "fan", "gravity", "needle", "mortar", "sweep",
     "sniper", "flak", "fork", "anchor", "flare", "scatter", "lance", "execute",
-    "crossfire", "phasebolt"
+    "crossfire", "phasebolt", "incendiary"
   ]);
   const UNLIMITED_PROJECTILE_MODULES = new Set([
     "spark", "frost", "prism", "nova", "missile", "venom", "echo", "rail",
@@ -2549,6 +2557,7 @@
         captured: 0,
         permanentSlow: 0,
         poisonStacks: 0,
+        burningTicks: 0,
         dead: false
       };
       network.spawnViews.set(item.id, spawn);
@@ -2921,6 +2930,7 @@
       enemy.behaviorPhase = interpolateNumber(old?.behaviorPhase, item.behaviorPhase, amount);
       enemy.permanentSlow = item.permanentSlow || 0;
       enemy.poisonStacks = item.poisonStacks || 0;
+      enemy.burningTicks = item.burningTicks || 0;
       enemy.radius = arena.cellSize * ENEMY_HEAD_RADIUS_CELLS;
       enemy.dead = false;
       const currentSegments = projectedEnemySegments(item.segments, damageOperations, enemy.currentSegmentScratch ||= []);
@@ -3610,6 +3620,8 @@
       poisonStacks: 0,
       poisonTimer: 0,
       poisonColor: null,
+      burningTicks: 0,
+      burningApplications: [],
       sawCooldown: 0,
       collisionCooldown: 0,
       dead: false,
@@ -5042,6 +5054,20 @@
     return nearest;
   }
 
+  function highestHealthEnemyJoint(origin) {
+    let selected = null;
+    let highestHealth = -1;
+    for (const enemy of enemies) {
+      if (enemy.dead) continue;
+      const health = enemy.segments.length + 1;
+      const candidate = nearestJointOnEnemy(origin, enemy);
+      if (health < highestHealth || (health === highestHealth && selected && candidate.distanceSquared >= selected.distanceSquared)) continue;
+      highestHealth = health;
+      selected = candidate;
+    }
+    return selected;
+  }
+
   function nearestEnemy(origin, maxDistance = Infinity) {
     return nearestEnemyJoint(origin, maxDistance)?.enemy || null;
   }
@@ -5053,6 +5079,7 @@
 
   function createPlayerProjectile(origin, angle, options = {}) {
     const guidance = moduleCount("guidance");
+    const bounceBonus = MODULE_EFFECTS.projectileBounceBonus(moduleCount("rebound"));
     const guidanceMultiplier = 1 + MODULE_EFFECTS.guidanceProjectileSpeedBonus(guidance);
     const sizeMultiplier = attackSizeMultiplier();
     const scale = arenaVisualScale();
@@ -5072,11 +5099,12 @@
         color: options.color || "#dffcff",
         size: (options.size || 4) * PROJECTILE_SIZE_SCALE * scale * sizeMultiplier,
         pierce: options.pierce || 0,
-        bounces: options.bounces || 0,
+        bounces: (options.bounces || 0) < 0 ? options.bounces : (options.bounces || 0) + bounceBonus,
         blastRadius: (options.blastRadiusCells ? options.blastRadiusCells * arena.cellSize : (options.blastRadius || 0) * scale) * sizeMultiplier,
         slow: options.slow || 0,
         permanentSlow: options.permanentSlow || 0,
         poison: options.poison || 0,
+        burnOnHit: Boolean(options.burnOnHit),
         homing,
         target: homing > 0 ? target : null,
         targetSegmentIndex: homing > 0 && target ? targetSelection.segmentIndex : -1,
@@ -5236,7 +5264,7 @@
       }
 
       if (segment.timer > 0) continue;
-      const target = nearestEnemyJoint(segment);
+      const target = segment.module === "incendiary" ? highestHealthEnemyJoint(segment) : nearestEnemyJoint(segment);
       if (TARGET_REQUIRED_MODULES.has(segment.module) && !target) {
         segment.timer = 0;
         continue;
@@ -5370,6 +5398,16 @@
           if (spawnShot(segment, target, { color: MODULE_BY_ID.flare.color, speed: 270, size: 5.8, poison: 4 })) playSkillSound("flare");
           segment.timer = activeModuleCooldown("flare", segment.moduleLevel);
           break;
+        case "incendiary":
+          if (spawnShot(segment, target, {
+            color: MODULE_BY_ID.incendiary.color,
+            speed: MODULE_INCENDIARY_PROJECTILE_SPEED,
+            size: MODULE_INCENDIARY_PROJECTILE_SIZE,
+            homing: MODULE_INCENDIARY_HOMING,
+            burnOnHit: true
+          })) playSkillSound("incendiary");
+          segment.timer = activeModuleCooldown("incendiary", segment.moduleLevel);
+          break;
         case "scatter":
           if (target) {
             for (const offset of [-0.42, -0.28, -0.14, 0, 0.14, 0.28, 0.42]) {
@@ -5438,6 +5476,20 @@
             damageEnemy(enemy, 1, target.x, target.y, enemy.poisonColor || MODULE_BY_ID.venom.color, { hitSegmentIndex });
           }
         }
+      }
+      if (enemy.burningApplications?.length) {
+        for (const application of enemy.burningApplications) {
+          application.timer -= dt;
+          while (application.remaining > 0 && application.timer <= 0 && !enemy.dead) {
+            const nodeIndex = Math.floor(Math.random() * (enemy.segments.length + 1));
+            const target = nodeIndex === 0 ? enemy : enemy.segments[nodeIndex - 1];
+            damageEnemy(enemy, 1, target.x, target.y, application.color, { hitSegmentIndex: nodeIndex - 1 });
+            application.remaining -= 1;
+            application.timer += BURN_TICK_INTERVAL;
+          }
+        }
+        retainInPlace(enemy.burningApplications, (application) => application.remaining > 0 && !enemy.dead);
+        enemy.burningTicks = enemy.burningApplications.reduce((sum, application) => sum + application.remaining, 0);
       }
     }
   }
@@ -6174,6 +6226,13 @@
           enemy.poisonStacks += projectile.poison;
           if (enemy.poisonTimer <= 0) enemy.poisonTimer = POISON_TICK_INTERVAL;
           enemy.poisonColor = projectile.color;
+        }
+        if (!enemy.dead && projectile.burnOnHit) {
+          const remaining = Math.ceil((enemy.segments.length + 1) * BURN_HEALTH_FRACTION);
+          if (remaining > 0) {
+            enemy.burningApplications.push({ remaining, timer: BURN_TICK_INTERVAL, color: projectile.color });
+            enemy.burningTicks += remaining;
+          }
         }
         if (projectile.pierce > 0) projectile.pierce -= 1;
         else if (projectile.pierce === 0) {
@@ -7343,31 +7402,82 @@
   }
 
   function drawEnemyStatusParticles(enemy, pieceScale) {
-    if (!(enemy.permanentSlow > 0) && !(enemy.poisonStacks > 0)) return;
+    const frozen = enemy.permanentSlow > 0;
+    const corroded = enemy.poisonStacks > 0;
+    const burning = enemy.burningTicks > 0;
+    if (!frozen && !corroded && !burning) return;
     const nodes = [enemy, ...enemy.segments];
     ctx.save();
+    ctx.globalCompositeOperation = "lighter";
     for (let index = 0; index < nodes.length; index += 1) {
       const node = nodes[index];
-      if (renderWorldBounds.active && !pointIntersectsRenderBounds(node.x, node.y, 22 * pieceScale)) continue;
-      if (enemy.permanentSlow > 0) {
-        const angle = gameTime * 2.1 + index * 2.399;
-        const radius = (10 + (index % 3) * 2) * pieceScale;
-        ctx.fillStyle = "rgba(88,216,255,0.9)";
+      if (renderWorldBounds.active && !pointIntersectsRenderBounds(node.x, node.y, 30 * pieceScale)) continue;
+      if (frozen) {
+        const radius = (12 + (index % 3) * 2) * pieceScale;
+        ctx.strokeStyle = "rgba(112,226,255,0.72)";
         ctx.shadowColor = MODULE_BY_ID.frost.color;
-        ctx.shadowBlur = 7 * pieceScale;
+        ctx.shadowBlur = 8 * pieceScale * ENEMY_STATUS_PARTICLE_GLOW_SCALE;
+        ctx.lineWidth = 1.4 * pieceScale * ENEMY_STATUS_PARTICLE_SIZE_SCALE;
         ctx.beginPath();
-        ctx.arc(node.x + Math.cos(angle) * radius, node.y + Math.sin(angle) * radius, 1.7 * pieceScale, 0, TAU);
-        ctx.fill();
+        ctx.arc(node.x, node.y, radius * 0.8, 0, TAU);
+        ctx.stroke();
+        for (let particleIndex = 0; particleIndex < ENEMY_STATUS_PARTICLE_DENSITY; particleIndex += 1) {
+          const angle = gameTime * 2.1 + index * 2.399 + particleIndex * TAU / ENEMY_STATUS_PARTICLE_DENSITY;
+          const size = 2.1 * pieceScale * ENEMY_STATUS_PARTICLE_SIZE_SCALE;
+          ctx.save();
+          ctx.translate(node.x + Math.cos(angle) * radius, node.y + Math.sin(angle) * radius);
+          ctx.rotate(angle + Math.PI / 4);
+          ctx.fillStyle = "rgba(150,238,255,0.96)";
+          ctx.fillRect(-size, -size, size * 2, size * 2);
+          ctx.restore();
+        }
       }
-      if (enemy.poisonStacks > 0) {
-        const angle = -gameTime * 1.7 + index * 1.618;
-        const radius = (8 + (index % 4) * 1.5) * pieceScale;
-        ctx.fillStyle = "rgba(139,224,78,0.92)";
+      if (corroded) {
+        const radius = (10 + (index % 4) * 1.5) * pieceScale;
+        ctx.fillStyle = "rgba(105,205,48,0.2)";
         ctx.shadowColor = enemy.poisonColor || MODULE_BY_ID.venom.color;
-        ctx.shadowBlur = 8 * pieceScale;
+        ctx.shadowBlur = 10 * pieceScale * ENEMY_STATUS_PARTICLE_GLOW_SCALE;
         ctx.beginPath();
-        ctx.arc(node.x + Math.cos(angle) * radius, node.y + Math.sin(angle) * radius, 1.9 * pieceScale, 0, TAU);
+        ctx.arc(node.x, node.y, radius, 0, TAU);
         ctx.fill();
+        for (let particleIndex = 0; particleIndex < ENEMY_STATUS_PARTICLE_DENSITY; particleIndex += 1) {
+          const angle = -gameTime * 1.7 + index * 1.618 + particleIndex * TAU / ENEMY_STATUS_PARTICLE_DENSITY;
+          const size = (2.2 + particleIndex % 2) * pieceScale * ENEMY_STATUS_PARTICLE_SIZE_SCALE;
+          const x = node.x + Math.cos(angle) * radius;
+          const y = node.y + Math.sin(angle) * radius;
+          ctx.fillStyle = "rgba(158,245,82,0.96)";
+          ctx.beginPath();
+          ctx.arc(x, y, size, 0, TAU);
+          ctx.fill();
+          ctx.fillStyle = "rgba(214,255,133,0.7)";
+          ctx.beginPath();
+          ctx.arc(x - size * 0.3, y - size * 0.45, size * 0.35, 0, TAU);
+          ctx.fill();
+        }
+      }
+      if (burning) {
+        const radius = (11 + index % 3) * pieceScale;
+        const flicker = 0.72 + Math.sin(gameTime * 12 + index) * 0.12;
+        ctx.fillStyle = `rgba(255,86,35,${flicker * 0.24})`;
+        ctx.shadowColor = MODULE_BY_ID.incendiary.color;
+        ctx.shadowBlur = 12 * pieceScale * ENEMY_STATUS_PARTICLE_GLOW_SCALE;
+        ctx.beginPath();
+        ctx.arc(node.x, node.y, radius, 0, TAU);
+        ctx.fill();
+        for (let particleIndex = 0; particleIndex < ENEMY_STATUS_PARTICLE_DENSITY; particleIndex += 1) {
+          const phase = (gameTime * 2.1 + particleIndex / ENEMY_STATUS_PARTICLE_DENSITY + index * 0.17) % 1;
+          const x = node.x + Math.sin(gameTime * 5 + index + particleIndex * 2.4) * radius * 0.62;
+          const y = node.y + radius * 0.55 - phase * radius * 1.8;
+          const size = (2.7 - phase) * pieceScale * ENEMY_STATUS_PARTICLE_SIZE_SCALE;
+          ctx.fillStyle = phase > 0.55 ? "rgba(255,224,92,0.92)" : "rgba(255,91,40,0.98)";
+          ctx.beginPath();
+          ctx.moveTo(x, y - size * 1.5);
+          ctx.lineTo(x + size, y + size);
+          ctx.lineTo(x, y + size * 0.45);
+          ctx.lineTo(x - size, y + size);
+          ctx.closePath();
+          ctx.fill();
+        }
       }
     }
     ctx.restore();

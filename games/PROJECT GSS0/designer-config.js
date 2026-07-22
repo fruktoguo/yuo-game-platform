@@ -1,5 +1,5 @@
 globalThis.GSS0_DESIGNER_CONFIG = {
-  "schemaVersion": 34,
+  "schemaVersion": 35,
   "balance": {
     "playerBaseSpeed": 5,
     "snakeBodySizeScale": 0.775,
@@ -120,10 +120,19 @@ globalThis.GSS0_DESIGNER_CONFIG = {
     "projectileSizeScale": 2,
     "playerCollisionDamage": 1,
     "poisonTickInterval": 3,
+    "burnTickInterval": 0.1,
+    "burnHealthFraction": 0.5,
+    "enemyStatusParticleDensity": 3,
+    "enemyStatusParticleSizeScale": 1.6,
+    "enemyStatusParticleGlowScale": 1.8,
     "activeSkillBaseCooldown": 6,
     "moduleAttackSizePerLevel": 0.1,
     "moduleCollisionDoubleChancePerLevel": 0.2,
     "moduleProjectileDoubleChancePerLevel": 0.12,
+    "moduleProjectileBouncesPerLevel": 1,
+    "moduleIncendiaryProjectileSpeed": 230,
+    "moduleIncendiaryProjectileSize": 7,
+    "moduleIncendiaryHoming": 5,
     "moduleFrostSlowPerHit": 0.5,
     "moduleEchoProjectilesPerLevel": 2,
     "moduleBarrageProjectileCount": 16,
@@ -282,7 +291,8 @@ globalThis.GSS0_DESIGNER_CONFIG = {
     "crossfire": 310,
     "phasebolt": 400,
     "barrage": 1000,
-    "nursery": 800
+    "nursery": 800,
+    "incendiary": 360
   },
   "moduleStates": {
     "spark": "normal",
@@ -361,6 +371,8 @@ globalThis.GSS0_DESIGNER_CONFIG = {
     "linkage": "normal",
     "arsenal": "normal",
     "doublehit": "normal",
-    "multishot": "normal"
+    "multishot": "normal",
+    "rebound": "normal",
+    "incendiary": "normal"
   }
 };

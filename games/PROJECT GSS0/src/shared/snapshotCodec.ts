@@ -14,7 +14,7 @@ import type {
 } from './protocol';
 
 const MAGIC = 0x5553_4e50;
-export const SNAPSHOT_PROTOCOL_VERSION = 14;
+export const SNAPSHOT_PROTOCOL_VERSION = 15;
 const COORDINATE_SCALE = 65_535;
 const COORDINATE_PADDING = 2;
 const VELOCITY_SCALE = 64;
@@ -204,7 +204,7 @@ function writeEnemy(writer: BinaryWriter, enemy: UltraEnemyView, arenaSize: numb
   if (archetypeIndex === undefined || behaviorIndex === undefined) throw new Error('无法编码未知敌人类型或行为');
   writer.u16(enemy.id); writer.u8(archetypeIndex); writer.u8(behaviorIndex); writer.u8(clampInteger(Math.round(enemy.behaviorPhase * 255), 0, 255));
   writeCoordinate(writer, enemy.col, arenaSize); writeCoordinate(writer, enemy.row, arenaSize); writeAngle(writer, enemy.angle);
-  writer.color(enemy.color); writer.u16(enemy.captured); writer.u8(clampInteger(Math.round(enemy.permanentSlow * 100), 0, 99)); writer.u32(enemy.poisonStacks); writer.u16(enemy.segments.length);
+  writer.color(enemy.color); writer.u16(enemy.captured); writer.u8(clampInteger(Math.round(enemy.permanentSlow * 100), 0, 99)); writer.u32(enemy.poisonStacks); writer.u32(enemy.burningTicks); writer.u16(enemy.segments.length);
   for (const segment of enemy.segments) { writeCoordinate(writer, segment.col, arenaSize); writeCoordinate(writer, segment.row, arenaSize); }
 }
 
@@ -217,7 +217,7 @@ function readEnemy(reader: BinaryReader, arenaSize: number): UltraEnemyView {
   const enemy: UltraEnemyView = {
     id, archetype, behaviorState, behaviorPhase,
     col: readCoordinate(reader, arenaSize), row: readCoordinate(reader, arenaSize), angle: readAngle(reader),
-    color: reader.color(), captured: reader.u16(), permanentSlow: reader.u8() / 100, poisonStacks: reader.u32(), segments: [],
+    color: reader.color(), captured: reader.u16(), permanentSlow: reader.u8() / 100, poisonStacks: reader.u32(), burningTicks: reader.u32(), segments: [],
   };
   const count = reader.u16();
   for (let index = 0; index < count; index += 1) enemy.segments.push({ col: readCoordinate(reader, arenaSize), row: readCoordinate(reader, arenaSize) });

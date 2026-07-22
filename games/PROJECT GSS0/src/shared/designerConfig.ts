@@ -11,7 +11,7 @@ interface DesignerConfigSource {
 }
 
 const source = (globalThis as typeof globalThis & { GSS0_DESIGNER_CONFIG?: DesignerConfigSource }).GSS0_DESIGNER_CONFIG;
-if (source?.schemaVersion !== 34) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 34');
+if (source?.schemaVersion !== 35) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 35');
 
 function numberSetting(key: string, fallback: number, minimum: number, maximum: number, integer = false): number {
   const candidate = source?.balance?.[key];
@@ -145,10 +145,19 @@ export const DESIGNER_BALANCE = Object.freeze({
   projectileSpeedScale: numberSetting('projectileSpeedScale', 3, 0.1, 10),
   projectileSizeScale: numberSetting('projectileSizeScale', 2, 0.1, 10),
   poisonTickInterval: numberSetting('poisonTickInterval', 3, 0.05, 30),
+  burnTickInterval: numberSetting('burnTickInterval', 0.1, 0.05, 10),
+  burnHealthFraction: numberSetting('burnHealthFraction', 0.5, 0, 1),
+  enemyStatusParticleDensity: numberSetting('enemyStatusParticleDensity', 3, 1, 8, true),
+  enemyStatusParticleSizeScale: numberSetting('enemyStatusParticleSizeScale', 1.6, 0.5, 4),
+  enemyStatusParticleGlowScale: numberSetting('enemyStatusParticleGlowScale', 1.8, 0.5, 4),
   activeSkillBaseCooldown: numberSetting('activeSkillBaseCooldown', 3, 0.05, 30),
   moduleAttackSizePerLevel: numberSetting('moduleAttackSizePerLevel', 0.1, 0, 1),
   moduleCollisionDoubleChancePerLevel: numberSetting('moduleCollisionDoubleChancePerLevel', 0.2, 0, 1),
   moduleProjectileDoubleChancePerLevel: numberSetting('moduleProjectileDoubleChancePerLevel', 0.12, 0, 1),
+  moduleProjectileBouncesPerLevel: numberSetting('moduleProjectileBouncesPerLevel', 1, 0, 20, true),
+  moduleIncendiaryProjectileSpeed: numberSetting('moduleIncendiaryProjectileSpeed', 230, 1, 1_000),
+  moduleIncendiaryProjectileSize: numberSetting('moduleIncendiaryProjectileSize', 7, 1, 30),
+  moduleIncendiaryHoming: numberSetting('moduleIncendiaryHoming', 5, 0, 20),
   moduleRepulseRangePerLevelPixels: numberSetting('moduleRepulseRangePerLevelPixels', 110, 1, 1_000),
   moduleArmorCooldownRatePerLevel: numberSetting('moduleArmorCooldownRatePerLevel', 0.18, 0, 5),
   moduleStabilizerSlowReductionPerLevel: numberSetting('moduleStabilizerSlowReductionPerLevel', 0.25, 0, 1),
