@@ -388,11 +388,11 @@
     </div>
   </main>
 
-  <script src="enemy-codex.js?v=93"></script>
-  <script src="wave-director.js?v=93"></script>
-  <script src="designer-config.js?v=93"></script>
-  <script src="module-catalog.js?v=93"></script>
-  <script src="module-progression.js?v=93"></script>
+  <script src="enemy-codex.js?v=94"></script>
+  <script src="wave-director.js?v=94"></script>
+  <script src="designer-config.js?v=94"></script>
+  <script src="module-catalog.js?v=94"></script>
+  <script src="module-progression.js?v=94"></script>
   <script>
     (() => {
       "use strict";
@@ -578,6 +578,9 @@
         { key: "arenaBaseArea", group: "场地", label: "基础场地面积", hint: "0级时场地的实际面积；运行时按平方根换算场地边长", min: 64, max: 4096, step: 0.1, unit: "格²" },
         { key: "arenaAreaPerLevel", group: "场地", label: "每级场地面积成长", hint: "单人按当前等级、多人按所有在场玩家总等级增加的场地面积倍率", min: 0, max: 0.5, step: 0.005, unit: "倍率/级" },
         { key: "arenaResizeRate", group: "场地", label: "场地缩放速度", hint: "场地面积目标变化后的平滑追随速度", min: 0.1, max: 10, step: 0.1, unit: "速率" },
+        { key: "cameraFollowZoomMin", group: "摄像机", label: "跟随视角最小缩放", hint: "跟随蛇头模式使用滚轮缩小时允许达到的最低倍率", min: 0.25, max: 5, step: 0.05, unit: "倍" },
+        { key: "cameraFollowZoomDefault", group: "摄像机", label: "跟随视角默认缩放", hint: "首次启用跟随蛇头模式时使用的缩放倍率，并受最小与最大值约束", min: 0.25, max: 5, step: 0.05, unit: "倍" },
+        { key: "cameraFollowZoomMax", group: "摄像机", label: "跟随视角最大缩放", hint: "跟随蛇头模式使用滚轮放大时允许达到的最高倍率", min: 0.25, max: 5, step: 0.05, unit: "倍" },
         { key: "maxRenderFps", group: "性能", label: "最高绘制帧率", hint: "只限制 Canvas 和界面动效绘制，不降低逻辑与网络输入频率", min: 30, max: 240, step: 1, unit: "FPS" },
         { key: "maxRenderDpr", group: "性能", label: "最高渲染像素倍率", hint: "限制 Canvas 内部像素密度；界面文字仍由浏览器原生清晰绘制", min: 1, max: 2, step: 0.05, unit: "DPR" },
         { key: "networkPlayerStateHz", group: "性能", label: "玩家状态同步频率", hint: "手动玩家每秒向服务器发送完整蛇身状态的次数", min: 5, max: 60, step: 1, unit: "Hz" },
@@ -667,7 +670,7 @@
       const filePickerSupported = typeof window.showOpenFilePicker === "function";
 
       function normalizeConfig(value) {
-        const config = { schemaVersion: 25, balance: {}, waveEnemyCountSchedule: [], moduleCooldownPercentages: {}, moduleStates: {} };
+        const config = { schemaVersion: 26, balance: {}, waveEnemyCountSchedule: [], moduleCooldownPercentages: {}, moduleStates: {} };
         for (const definition of ALL_PARAMETER_DEFINITIONS) {
           const candidate = Number(value?.balance?.[definition.key]);
           config.balance[definition.key] = Number.isFinite(candidate) ? Math.max(definition.min, Math.min(definition.max, candidate)) : definition.min;
@@ -703,7 +706,7 @@
         const end = text.lastIndexOf("}");
         if (start < 0 || end <= start) throw new Error("配置内容不完整");
         const parsed = JSON.parse(text.slice(start, end + 1));
-        if (parsed?.schemaVersion !== 25) throw new Error("配置版本无效，需要 schemaVersion 25");
+        if (parsed?.schemaVersion !== 26) throw new Error("配置版本无效，需要 schemaVersion 26");
         return normalizeConfig(parsed);
       }
 

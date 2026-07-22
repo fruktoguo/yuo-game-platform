@@ -73,6 +73,13 @@
     motionSlider: document.querySelector("#motion-slider"),
     motionOutput: document.querySelector("#motion-output"),
     motionPopover: document.querySelector("#motion-popover"),
+    cameraButton: document.querySelector("#camera-button"),
+    cameraPopover: document.querySelector("#camera-popover"),
+    cameraModeOutput: document.querySelector("#camera-mode-output"),
+    cameraModeFixed: document.querySelector("#camera-mode-fixed"),
+    cameraModeFollow: document.querySelector("#camera-mode-follow"),
+    cameraZoomStatus: document.querySelector("#camera-zoom-status"),
+    cameraZoomOutput: document.querySelector("#camera-zoom-output"),
     backgroundPauseButton: document.querySelector("#background-pause-button"),
     backgroundPauseToggle: document.querySelector("#background-pause-toggle"),
     backgroundPausePopover: document.querySelector("#background-pause-popover"),
@@ -94,7 +101,7 @@
 
   const TAU = Math.PI * 2;
   const DESIGNER_CONFIG = globalThis.GSS0_DESIGNER_CONFIG || {};
-  if (DESIGNER_CONFIG.schemaVersion !== 25) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 25");
+  if (DESIGNER_CONFIG.schemaVersion !== 26) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 26");
   const DESIGNER_BALANCE = DESIGNER_CONFIG.balance || {};
   const MODULE_DESIGN_STATES = DESIGNER_CONFIG.moduleStates || {};
 
@@ -168,6 +175,15 @@
   const ARENA_BASE_SIZE = Math.sqrt(designerNumber("arenaBaseArea", 345.6, 64, 4096));
   const ARENA_AREA_PER_LEVEL = designerNumber("arenaAreaPerLevel", 0.03, 0, 0.5);
   const ARENA_RESIZE_RATE = designerNumber("arenaResizeRate", 2.4, 0.1, 10);
+  const cameraFollowZoomFirst = designerNumber("cameraFollowZoomMin", 0.75, 0.25, 5);
+  const cameraFollowZoomLast = designerNumber("cameraFollowZoomMax", 2.5, 0.25, 5);
+  const CAMERA_FOLLOW_ZOOM_MIN = Math.min(cameraFollowZoomFirst, cameraFollowZoomLast);
+  const CAMERA_FOLLOW_ZOOM_MAX = Math.max(cameraFollowZoomFirst, cameraFollowZoomLast);
+  const CAMERA_FOLLOW_ZOOM_DEFAULT = clamp(
+    designerNumber("cameraFollowZoomDefault", 1.5, 0.25, 5),
+    CAMERA_FOLLOW_ZOOM_MIN,
+    CAMERA_FOLLOW_ZOOM_MAX
+  );
   const FOOD_WALL_MARGIN = 2;
   const ENEMY_SPAWN_WARNING_TIME = designerNumber("enemySpawnWarning", 1.5, 0, 10);
   const ENEMY_SPAWN_ACTIVATION_DURATION = designerNumber("enemySpawnActivationDuration", 0.38, 0.05, 3);
@@ -178,7 +194,6 @@
   const KNOCKBACK_DECAY = 8;
   const BOUNCE_SLOW_TIME = 0.78;
   const BOUNCE_LOCK_TIME = 0.34;
-  const CAMERA_ZOOM = 1;
   const WAVE_BASE_INTERVAL = designerNumber("waveInterval", 6, 0.5, 120);
   const FOODS_PER_PLAYER_PER_WAVE = designerNumber("foodsPerPlayerPerWave", 2, 0, 20, true);
   const ENEMY_PRESSURE_WAVE_INTERVAL = designerNumber("enemyPressureWaveInterval", 5, 0, 50, true);
@@ -371,6 +386,13 @@
   let soundVolume = loadSetting("ultra-snake-volume", 1, 0, SOUND_MAX_VOLUME);
   let fontScale = loadSetting("ultra-snake-font-scale", 1.5, 0.5, 2);
   let uiMotionStrength = loadSetting("gss0-ui-motion-strength", 1, 1, 3);
+  let cameraMode = loadSetting("gss0-camera-mode", 0, 0, 1) >= 0.5 ? "follow" : "fixed";
+  let followCameraZoom = loadSetting(
+    "gss0-follow-camera-zoom",
+    CAMERA_FOLLOW_ZOOM_DEFAULT,
+    CAMERA_FOLLOW_ZOOM_MIN,
+    CAMERA_FOLLOW_ZOOM_MAX
+  );
   let backgroundPauseEnabled = loadSetting("gss0-background-pause", 1, 0, 1) >= 0.5;
   let automaticModeEnabled = loadSetting("gss0-automatic-mode", 0, 0, 1) >= 0.5;
   let automaticModeSyncRevision = 0;
@@ -768,6 +790,28 @@
     if (persist) saveSetting("gss0-ui-motion-strength", uiMotionStrength);
   }
 
+  function applyFollowCameraZoom(value, persist = true) {
+    followCameraZoom = clamp(value, CAMERA_FOLLOW_ZOOM_MIN, CAMERA_FOLLOW_ZOOM_MAX);
+    ui.cameraZoomOutput.textContent = `${Math.round(followCameraZoom * 100)}%`;
+    if (persist) saveSetting("gss0-follow-camera-zoom", followCameraZoom);
+  }
+
+  function applyCameraMode(value, persist = true) {
+    cameraMode = value === "follow" ? "follow" : "fixed";
+    const followsHead = cameraMode === "follow";
+    const label = followsHead ? "跟随蛇头" : "固定视角";
+    ui.cameraModeFixed.checked = !followsHead;
+    ui.cameraModeFollow.checked = followsHead;
+    ui.cameraModeOutput.textContent = label;
+    ui.cameraZoomStatus.classList.toggle("is-visible", followsHead);
+    ui.cameraZoomStatus.setAttribute("aria-hidden", String(!followsHead));
+    ui.cameraButton.classList.toggle("is-follow", followsHead);
+    ui.shell.classList.toggle("is-follow-camera", followsHead);
+    updateSettingButtonLabel(ui.cameraButton, `摄像机模式，当前${label}`, `摄像机 ${label}`);
+    pointer.active = false;
+    if (persist) saveSetting("gss0-camera-mode", followsHead ? 1 : 0);
+  }
+
   function applyBackgroundPause(enabled, persist = true) {
     backgroundPauseEnabled = Boolean(enabled);
     ui.backgroundPauseToggle.checked = backgroundPauseEnabled;
@@ -852,6 +896,7 @@
       [ui.fontButton, ui.fontPopover],
       [ui.soundButton, ui.soundPopover],
       [ui.motionButton, ui.motionPopover],
+      [ui.cameraButton, ui.cameraPopover],
       [ui.backgroundPauseButton, ui.backgroundPausePopover],
       [ui.automaticModeButton, ui.automaticModePopover]
     ]) {
@@ -1035,17 +1080,33 @@
   }
 
   function cameraPosition() {
-    const halfView = arena.width / (2 * CAMERA_ZOOM);
-    return {
-      x: clamp(player?.x || arena.centerX, arena.left + halfView, arena.right - halfView),
-      y: clamp(player?.y || arena.centerY, arena.top + halfView, arena.bottom - halfView)
-    };
+    if (cameraMode === "follow" && player) return { x: player.x, y: player.y };
+    return { x: arena.centerX, y: arena.centerY };
+  }
+
+  function cameraZoom() {
+    return cameraMode === "follow" ? followCameraZoom : 1;
+  }
+
+  function cameraViewportBounds() {
+    if (cameraMode === "follow") {
+      return { left: 0, top: 0, right: width, bottom: height, width, height, centerX: width / 2, centerY: height / 2 };
+    }
+    return arena;
+  }
+
+  function applyCameraViewportClip() {
+    const viewport = cameraViewportBounds();
+    ctx.beginPath();
+    ctx.rect(viewport.left, viewport.top, viewport.width, viewport.height);
+    ctx.clip();
   }
 
   function applyCameraTransform() {
     const camera = cameraPosition();
+    const zoom = cameraZoom();
     ctx.translate(arena.centerX, arena.centerY);
-    ctx.scale(CAMERA_ZOOM, CAMERA_ZOOM);
+    ctx.scale(zoom, zoom);
     ctx.translate(-camera.x, -camera.y);
   }
 
@@ -1091,18 +1152,20 @@
 
   function screenToWorld(x, y) {
     const camera = cameraPosition();
+    const zoom = cameraZoom();
     const point = unprojectArenaPoint(x, y);
     return {
-      x: camera.x + (point.x - arena.centerX) / CAMERA_ZOOM,
-      y: camera.y + (point.y - arena.centerY) / CAMERA_ZOOM
+      x: camera.x + (point.x - arena.centerX) / zoom,
+      y: camera.y + (point.y - arena.centerY) / zoom
     };
   }
 
   function worldToScreen(x, y) {
     const camera = cameraPosition();
+    const zoom = cameraZoom();
     return projectArenaPoint(
-      arena.centerX + (x - camera.x) * CAMERA_ZOOM,
-      arena.centerY + (y - camera.y) * CAMERA_ZOOM
+      arena.centerX + (x - camera.x) * zoom,
+      arena.centerY + (y - camera.y) * zoom
     );
   }
 
@@ -6331,6 +6394,10 @@
 
     ctx.save();
     applyArenaPerspectiveTransform();
+    if (cameraMode === "follow") {
+      applyCameraViewportClip();
+      applyCameraTransform();
+    }
     ctx.drawImage(
       arenaShadowCanvas,
       0,
@@ -6342,10 +6409,10 @@
       arena.width + ARENA_SHADOW_PADDING * 2,
       arena.height + ARENA_SHADOW_PADDING * 2
     );
-    ctx.beginPath();
-    ctx.rect(arena.left, arena.top, arena.width, arena.height);
-    ctx.clip();
-    applyCameraTransform();
+    if (cameraMode !== "follow") {
+      applyCameraViewportClip();
+      applyCameraTransform();
+    }
     ctx.drawImage(
       arenaTextureCanvas,
       0,
@@ -6383,18 +6450,16 @@
 
     ctx.save();
     applyArenaPerspectiveTransform();
-    ctx.beginPath();
-    ctx.rect(arena.left, arena.top, arena.width, arena.height);
-    ctx.clip();
+    applyCameraViewportClip();
     applyCameraTransform();
     ctx.shadowColor = "rgba(0, 0, 0, 0.65)";
     ctx.shadowBlur = 8;
     ctx.strokeStyle = "rgba(239, 242, 242, 0.6)";
-    ctx.lineWidth = 1 / CAMERA_ZOOM;
+    ctx.lineWidth = 1 / cameraZoom();
     ctx.strokeRect(arena.left + 0.5, arena.top + 0.5, arena.width - 1, arena.height - 1);
     ctx.shadowBlur = 0;
     ctx.strokeStyle = "#f3c600";
-    ctx.lineWidth = 3 / CAMERA_ZOOM;
+    ctx.lineWidth = 3 / cameraZoom();
     const mark = Math.max(16, arena.cellSize * 0.8);
     ctx.beginPath();
     ctx.moveTo(arena.left, arena.top + mark);
@@ -7394,22 +7459,23 @@
 
   function drawOffscreenIndicators(time) {
     const inset = 13;
-    const left = arena.left + inset;
-    const right = arena.right - inset;
-    const top = arena.top + inset;
-    const bottom = arena.bottom - inset;
+    const viewport = cameraViewportBounds();
+    const left = viewport.left + inset;
+    const right = viewport.right - inset;
+    const top = viewport.top + inset;
+    const bottom = viewport.bottom - inset;
 
     function marker(x, y, color, kind) {
       const screen = worldToScreen(x, y);
       if (screen.x >= left && screen.x <= right && screen.y >= top && screen.y <= bottom) return;
-      const dx = screen.x - arena.centerX;
-      const dy = screen.y - arena.centerY;
+      const dx = screen.x - viewport.centerX;
+      const dy = screen.y - viewport.centerY;
       const scale = Math.min(
-        Math.abs(dx) > 0.001 ? (arena.width / 2 - inset) / Math.abs(dx) : Infinity,
-        Math.abs(dy) > 0.001 ? (arena.height / 2 - inset) / Math.abs(dy) : Infinity
+        Math.abs(dx) > 0.001 ? (viewport.width / 2 - inset) / Math.abs(dx) : Infinity,
+        Math.abs(dy) > 0.001 ? (viewport.height / 2 - inset) / Math.abs(dy) : Infinity
       );
-      const markerX = arena.centerX + dx * scale;
-      const markerY = arena.centerY + dy * scale;
+      const markerX = viewport.centerX + dx * scale;
+      const markerY = viewport.centerY + dy * scale;
       ctx.save();
       ctx.translate(markerX, markerY);
       ctx.shadowColor = color;
@@ -7437,9 +7503,7 @@
     }
 
     ctx.save();
-    ctx.beginPath();
-    ctx.rect(arena.left, arena.top, arena.width, arena.height);
-    ctx.clip();
+    applyCameraViewportClip();
     for (const food of foods) if (!food.networkHidden) marker(food.x, food.y, food.color, "food");
     for (const enemy of enemies) if (!enemy.dead) marker(enemy.x, enemy.y, enemy.color, "enemy");
     for (const spawn of pendingEnemySpawns) {
@@ -7454,9 +7518,7 @@
     drawBackground(visualTime);
     ctx.save();
     applyArenaPerspectiveTransform();
-    ctx.beginPath();
-    ctx.rect(arena.left, arena.top, arena.width, arena.height);
-    ctx.clip();
+    applyCameraViewportClip();
     if (shake > 0) ctx.translate(random(-shake, shake), random(-shake, shake));
     applyCameraTransform();
     drawFood(visualTime);
@@ -7639,6 +7701,13 @@
     updatePointer(event);
   });
 
+  canvas.addEventListener("wheel", (event) => {
+    if (cameraMode !== "follow" || state === "menu" || event.deltaY === 0) return;
+    event.preventDefault();
+    const zoomFactor = event.deltaY < 0 ? 1.1 : 1 / 1.1;
+    applyFollowCameraZoom(followCameraZoom * zoomFactor);
+  }, { passive: false });
+
   function endPointer(event) {
     if (event.pointerType === "touch" && pointer.touchId === event.pointerId) {
       pointer.active = false;
@@ -7779,6 +7848,16 @@
     sound("ui");
   });
 
+  ui.cameraButton.addEventListener("click", (event) => {
+    event.stopPropagation();
+    ensureAudio();
+    const control = ui.cameraButton.closest(".setting-control");
+    const open = !control.classList.contains("is-open");
+    closeSettingPopovers(control);
+    setSettingPopover(ui.cameraButton, ui.cameraPopover, open);
+    sound("ui");
+  });
+
   ui.automaticModeButton.addEventListener("click", (event) => {
     event.stopPropagation();
     ensureAudio();
@@ -7792,6 +7871,7 @@
   ui.fontPopover.addEventListener("click", (event) => event.stopPropagation());
   ui.soundPopover.addEventListener("click", (event) => event.stopPropagation());
   ui.motionPopover.addEventListener("click", (event) => event.stopPropagation());
+  ui.cameraPopover.addEventListener("click", (event) => event.stopPropagation());
   ui.backgroundPausePopover.addEventListener("click", (event) => event.stopPropagation());
   ui.automaticModePopover.addEventListener("click", (event) => event.stopPropagation());
   ui.fontSlider.addEventListener("input", () => applyFontScale(Number(ui.fontSlider.value) / 100));
@@ -7814,6 +7894,18 @@
     applyBackgroundPause(ui.backgroundPauseToggle.checked);
     sound("ui");
   });
+  ui.cameraModeFixed.addEventListener("change", () => {
+    if (!ui.cameraModeFixed.checked) return;
+    ensureAudio();
+    applyCameraMode("fixed");
+    sound("ui");
+  });
+  ui.cameraModeFollow.addEventListener("change", () => {
+    if (!ui.cameraModeFollow.checked) return;
+    ensureAudio();
+    applyCameraMode("follow");
+    sound("ui");
+  });
   ui.automaticModeToggle.addEventListener("change", () => {
     ensureAudio();
     setAutomaticMode(ui.automaticModeToggle.checked);
@@ -7825,6 +7917,8 @@
   applyFontScale(fontScale, false);
   applySoundVolume(soundVolume, false);
   applyUIMotionStrength(uiMotionStrength, false);
+  applyFollowCameraZoom(followCameraZoom, false);
+  applyCameraMode(cameraMode, false);
   applyBackgroundPause(backgroundPauseEnabled, false);
   setAutomaticMode(automaticModeEnabled, false, false);
   setNetworkButtonsDisabled(false);

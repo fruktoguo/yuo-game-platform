@@ -458,6 +458,17 @@ input:focus-visible {
   background: var(--ink);
 }
 
+.camera-mode-icon span {
+  font-size: calc(19px * var(--font-scale));
+  font-weight: 900;
+  line-height: 1;
+}
+
+.camera-mode-icon.is-follow {
+  border-color: var(--cyan);
+  color: var(--cyan);
+}
+
 .lobby-icon span {
   position: relative;
   display: block;
@@ -647,6 +658,78 @@ input:focus-visible {
 
 .toggle-popover {
   width: 190px;
+}
+
+.camera-popover {
+  width: 238px;
+}
+
+.camera-mode-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border: 1px solid #687073;
+  background: #9ca2a4;
+}
+
+.camera-mode-options label {
+  position: relative;
+  cursor: pointer;
+}
+
+.camera-mode-options input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.camera-mode-options span {
+  display: grid;
+  min-height: 34px;
+  place-items: center;
+  padding: 0 8px;
+  color: #303638;
+  font-size: calc(10px * var(--font-scale));
+  font-weight: 900;
+}
+
+.camera-mode-options label + label span {
+  border-left: 1px solid #687073;
+}
+
+.camera-mode-options input:checked + span {
+  background: var(--ink);
+  color: var(--yellow);
+}
+
+.camera-mode-options input:focus-visible + span {
+  outline: 2px solid var(--yellow);
+  outline-offset: -3px;
+}
+
+.camera-zoom-status {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 11px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(8, 10, 11, 0.24);
+  font-size: calc(10px * var(--font-scale));
+  font-weight: 900;
+}
+
+.camera-zoom-status.is-visible {
+  display: flex;
+}
+
+.camera-zoom-status output {
+  min-width: 48px;
+  padding: 3px 5px;
+  background: var(--ink);
+  color: var(--cyan);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 
 .toggle-row {

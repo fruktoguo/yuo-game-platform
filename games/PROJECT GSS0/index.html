@@ -19,7 +19,7 @@
           <strong>代号：几何贪吃蛇</strong>
         </div>
         <span class="signature">by 四季鸽</span>
-        <span class="brand-version" aria-label="游戏版本 V93">V93</span>
+        <span class="brand-version" aria-label="游戏版本 V94">V94</span>
       </div>
 
       <div class="run-stats">
@@ -73,6 +73,28 @@
           <div id="motion-popover" class="setting-popover" role="group" aria-label="动态透视强度" aria-hidden="true">
             <div class="setting-heading"><span>动态透视</span><output id="motion-output" for="motion-slider">100%</output></div>
             <input id="motion-slider" type="range" min="100" max="300" step="25" value="100" aria-label="动态透视强度百分比">
+          </div>
+        </div>
+        <div class="setting-control" data-tooltip="摄像机 固定视角">
+          <button id="camera-button" class="icon-button camera-mode-icon" type="button" aria-label="摄像机模式，当前固定视角" aria-expanded="false" aria-controls="camera-popover">
+            <span aria-hidden="true">⌖</span>
+          </button>
+          <div id="camera-popover" class="setting-popover camera-popover" role="group" aria-label="摄像机模式" aria-hidden="true">
+            <div class="setting-heading"><span>摄像机模式</span><output id="camera-mode-output">固定视角</output></div>
+            <div class="camera-mode-options" role="radiogroup" aria-label="摄像机模式选项">
+              <label>
+                <input id="camera-mode-fixed" type="radio" name="camera-mode" value="fixed" checked>
+                <span>固定视角</span>
+              </label>
+              <label>
+                <input id="camera-mode-follow" type="radio" name="camera-mode" value="follow">
+                <span>跟随蛇头</span>
+              </label>
+            </div>
+            <div id="camera-zoom-status" class="camera-zoom-status" aria-hidden="true">
+              <span>跟随缩放</span>
+              <output id="camera-zoom-output">150%</output>
+            </div>
           </div>
         </div>
         <div class="setting-control" data-tooltip="后台暂停已开启">
@@ -157,7 +179,7 @@
 
     <section id="start-screen" class="modal-layer start-screen is-visible" aria-labelledby="game-title">
       <div class="start-glow" aria-hidden="true"></div>
-          <div class="start-version" aria-label="游戏版本 V93"><span>BUILD</span><strong>V93</strong></div>
+          <div class="start-version" aria-label="游戏版本 V94"><span>BUILD</span><strong>V94</strong></div>
       <div class="start-layout">
         <div class="start-content">
           <div id="network-status" class="title-kicker">TACTICAL SURVIVAL / LOCAL</div>
@@ -258,6 +280,22 @@
           <button id="changelog-close-button" class="icon-button codex-close-button" type="button" aria-label="关闭更新日志" title="关闭更新日志">×</button>
         </header>
         <div class="changelog-list">
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V94</strong></div>
+              <time datetime="2026-07-22">2026.07.22</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">摄像机</span>
+              <h3>新增蛇头跟随摄像机</h3>
+              <ul>
+                <li>右上角设置新增“固定视角”与“跟随蛇头”两种摄像机模式，新存档默认使用固定视角。</li>
+                <li>跟随蛇头模式始终将玩家蛇头置于画面中心，并让场景延伸到左右侧界面下方。</li>
+                <li>跟随蛇头模式支持使用鼠标滚轮调整缩放，缩放值会独立保存。</li>
+                <li>设计控制台新增跟随视角的默认、最小与最大缩放参数，初始分别为1.5、0.75与2.5倍。</li>
+              </ul>
+            </div>
+          </article>
           <article class="changelog-entry">
             <header>
               <div class="changelog-version"><span>BUILD</span><strong>V93</strong></div>
@@ -1429,20 +1467,20 @@
     </section>
   </main>
 
-  <script src="designer-config.js?v=93"></script>
-  <script src="module-catalog.js?v=93"></script>
-  <script src="module-progression.js?v=93"></script>
-  <script src="wave-director.js?v=93"></script>
-  <script src="spawn-planner.js?v=93"></script>
-  <script src="network-codec.js?v=93"></script>
-  <script src="network-player-prediction.js?v=93"></script>
-  <script src="network-player-state-codec.js?v=93"></script>
-  <script src="network-player-collisions.js?v=93"></script>
-  <script src="network-head-collisions.js?v=93"></script>
-  <script src="network-food-claims.js?v=93"></script>
-  <script src="network-projectiles.js?v=93"></script>
-  <script src="lobby-navigation.js?v=93"></script>
-  <script src="enemy-codex.js?v=93"></script>
-  <script src="game.js?v=93"></script>
+  <script src="designer-config.js?v=94"></script>
+  <script src="module-catalog.js?v=94"></script>
+  <script src="module-progression.js?v=94"></script>
+  <script src="wave-director.js?v=94"></script>
+  <script src="spawn-planner.js?v=94"></script>
+  <script src="network-codec.js?v=94"></script>
+  <script src="network-player-prediction.js?v=94"></script>
+  <script src="network-player-state-codec.js?v=94"></script>
+  <script src="network-player-collisions.js?v=94"></script>
+  <script src="network-head-collisions.js?v=94"></script>
+  <script src="network-food-claims.js?v=94"></script>
+  <script src="network-projectiles.js?v=94"></script>
+  <script src="lobby-navigation.js?v=94"></script>
+  <script src="enemy-codex.js?v=94"></script>
+  <script src="game.js?v=94"></script>
 </body>
 </html>

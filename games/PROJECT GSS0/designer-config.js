@@ -1,5 +1,5 @@
 globalThis.GSS0_DESIGNER_CONFIG = {
-  "schemaVersion": 25,
+  "schemaVersion": 26,
   "balance": {
     "playerBaseSpeed": 5,
     "snakeBodySizeScale": 0.775,
@@ -169,6 +169,9 @@ globalThis.GSS0_DESIGNER_CONFIG = {
     "arenaBaseArea": 345.6,
     "arenaAreaPerLevel": 0.1,
     "arenaResizeRate": 2.4,
+    "cameraFollowZoomMin": 0.75,
+    "cameraFollowZoomDefault": 1.5,
+    "cameraFollowZoomMax": 2.5,
     "maxRenderFps": 160,
     "maxRenderDpr": 1.25,
     "networkPlayerStateHz": 20,
