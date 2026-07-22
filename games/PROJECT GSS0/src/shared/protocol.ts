@@ -262,6 +262,8 @@ export type InputPayload = Uint8Array;
 
 export type PlayerCollisionClaim =
   | { kind: 'wall'; normalCol: number; normalRow: number }
+  | { kind: 'self-body' }
+  | { kind: 'player-body'; targetId: number; segmentIndex: number }
   | { kind: 'enemy-head' | 'enemy-protected'; targetId: number; normalCol: number; normalRow: number }
   | { kind: 'enemy-body' | 'enemy-hit-body'; targetId: number; segmentIndex: number }
   | { kind: 'mine'; targetId: number; normalCol: number; normalRow: number }

@@ -2895,6 +2895,8 @@
       return;
     }
     if (collision.kind === "self") {
+      const claimed = reportNetworkCollision({ kind: "self-body" }, "self-body");
+      if (claimed && player.invulnerable <= 0) predictNetworkPlayerHurt(PLAYER_WALL_COLLISION_DAMAGE);
       bounceNetworkSelf(player.col - collision.point.col, player.row - collision.point.row, "#f4ffdc", 1, true);
       return;
     }
@@ -2916,6 +2918,11 @@
     }
     if (collision.kind === "player-body") {
       const other = visiblePlayers.find((item) => item.entityId === collision.targetId);
+      const claimed = reportNetworkCollision(
+        { kind: "player-body", targetId: collision.targetId, segmentIndex: collision.segmentIndex },
+        `player-body:${collision.targetId}`
+      );
+      if (claimed && player.invulnerable <= 0) predictNetworkPlayerHurt(PLAYER_WALL_COLLISION_DAMAGE);
       bounceNetworkSelf(
         player.col - collision.point.col,
         player.row - collision.point.row,
@@ -6145,7 +6152,9 @@
     if (player.collisionCooldown <= 0) {
       const ownBodyHit = findSelfCollision(player, PLAYER_SELF_COLLISION_RANGE);
       if (ownBodyHit) {
-        bounceEntity(player, player.col - ownBodyHit.col, player.row - ownBodyHit.row, "#f4ffdc", SNAKE_SEGMENT_SPACING, 1, true);
+        triggerCollisionEcho();
+        damagePlayer(PLAYER_WALL_COLLISION_DAMAGE);
+        if (state === "running") bounceEntity(player, player.col - ownBodyHit.col, player.row - ownBodyHit.row, "#f4ffdc", SNAKE_SEGMENT_SPACING, 1, true);
         return;
       }
     }

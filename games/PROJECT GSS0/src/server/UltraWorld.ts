@@ -554,8 +554,15 @@ export class UltraWorld {
       this.damagePlayer(player, PLAYER_WALL_COLLISION_DAMAGE, now, '撞上墙壁');
       return true;
     }
+    if (claim.kind === 'self-body') {
+      if (!findSelfCollision(player, PLAYER_SELF_COLLISION_RANGE)) return false;
+      this.triggerCollisionEcho(player);
+      this.damagePlayer(player, PLAYER_WALL_COLLISION_DAMAGE, now, '撞上自己的身体');
+      return true;
+    }
     if (!Number.isSafeInteger(claim.targetId) || claim.targetId <= 0) return false;
     if (claim.kind === 'player-head') return this.applyPlayerHeadCollisionClaim(player, claim, now);
+    if (claim.kind === 'player-body') return this.applyPlayerBodyCollisionClaim(player, claim, now);
     if (claim.kind === 'mine') {
       const hazard = this.hazards.find((item) => item.id === claim.targetId && item.ownerEntityId === player.entityId && item.kind === 'mine');
       if (!hazard || hazard.life <= 0 || hazard.arm > 0 || distanceSquared(player, hazard) > 9) return false;
@@ -645,6 +652,24 @@ export class UltraWorld {
       this.bounceEntity(target, -event.normalCol, -event.normalRow, PLAYER_COLORS[target.colorIndex], SNAKE_SEGMENT_SPACING, 1, true);
     }
     this.callbacks.onPlayerHeadCollision?.(event);
+    return true;
+  }
+
+  private applyPlayerBodyCollisionClaim(
+    source: PlayerEntity,
+    claim: Extract<PlayerCollisionClaim, { kind: 'player-body' }>,
+    now: number,
+  ): boolean {
+    const target = this.playersByEntity.get(claim.targetId);
+    if (!target?.alive || target.ghost || target === source || !Number.isSafeInteger(claim.segmentIndex) || claim.segmentIndex < 0) return false;
+    if (distanceSquared(source, target) < (this.playerHeadRadiusCells() * 2) ** 2) return false;
+    const segment = target.segments[claim.segmentIndex];
+    if (!segment) return false;
+    const previous = claim.segmentIndex > 0 ? target.segments[claim.segmentIndex - 1] : target;
+    const collisionPoint = closestPointOnGridSegment(source, previous, segment);
+    if (distanceSquared(source, collisionPoint) > 9) return false;
+    this.triggerCollisionEcho(source);
+    this.damagePlayer(source, PLAYER_WALL_COLLISION_DAMAGE, now, '撞上其他玩家的身体');
     return true;
   }
 
@@ -3474,7 +3499,9 @@ export class UltraWorld {
       if (player.collisionCooldown <= 0) {
         const ownBody = findSelfCollision(player, PLAYER_SELF_COLLISION_RANGE);
         if (ownBody) {
-          this.bounceEntity(player, player.col - ownBody.col, player.row - ownBody.row, '#f4ffdc', SNAKE_SEGMENT_SPACING, 1, true);
+          this.triggerCollisionEcho(player);
+          this.damagePlayer(player, PLAYER_WALL_COLLISION_DAMAGE, now, '撞上自己的身体');
+          if (player.alive) this.bounceEntity(player, player.col - ownBody.col, player.row - ownBody.row, '#f4ffdc', SNAKE_SEGMENT_SPACING, 1, true);
           continue;
         }
       }
@@ -3508,15 +3535,21 @@ export class UltraWorld {
         if (attacker === defender || !this.isPlayerProtected(defender)) continue;
         const contact = this.protectedPlayerContact(attacker, defender);
         if (!contact) continue;
-        this.bounceEntity(
-          attacker,
-          attacker.col - contact.col,
-          attacker.row - contact.row,
-          PLAYER_COLORS[defender.colorIndex],
-          SNAKE_SEGMENT_SPACING,
-          1,
-          true,
-        );
+        if (contact.part === 'body') {
+          this.triggerCollisionEcho(attacker);
+          this.damagePlayer(attacker, PLAYER_WALL_COLLISION_DAMAGE, now, '撞上其他玩家的身体');
+        }
+        if (attacker.alive) {
+          this.bounceEntity(
+            attacker,
+            attacker.col - contact.point.col,
+            attacker.row - contact.point.row,
+            PLAYER_COLORS[defender.colorIndex],
+            SNAKE_SEGMENT_SPACING,
+            1,
+            true,
+          );
+        }
         break;
       }
     }
@@ -3527,8 +3560,8 @@ export class UltraWorld {
       for (let rightIndex = leftIndex + 1; rightIndex < players.length; rightIndex += 1) {
         const right = players[rightIndex];
         if (!right.alive || this.isPlayerProtected(right)) continue;
-        this.checkPlayerBodyHit(left, right);
-        if (left.alive && right.alive) this.checkPlayerBodyHit(right, left);
+        this.checkPlayerBodyHit(left, right, now);
+        if (left.alive && right.alive) this.checkPlayerBodyHit(right, left, now);
         if (!left.alive || !right.alive || left.collisionCooldown > 0 || right.collisionCooldown > 0 || Math.hypot(left.col - right.col, left.row - right.row) >= this.playerHeadRadiusCells() * 2) continue;
         const normal = collisionNormal(left, right);
         this.bounceEntity(left, normal.col, normal.row, PLAYER_COLORS[left.colorIndex], SNAKE_SEGMENT_SPACING, 1, true);
@@ -3541,7 +3574,7 @@ export class UltraWorld {
       if (!attacker.alive || attacker.collisionCooldown > 0) continue;
       for (const defender of presentPlayers) {
         if (defender.autopilot || attacker === defender || !defender.alive || this.isPlayerProtected(defender)) continue;
-        this.checkPlayerBodyHit(attacker, defender);
+        this.checkPlayerBodyHit(attacker, defender, now);
         if (!attacker.alive || Math.hypot(attacker.col - defender.col, attacker.row - defender.row) >= this.playerHeadRadiusCells() * 2) continue;
         const normal = collisionNormal(attacker, defender);
         this.bounceEntity(attacker, normal.col, normal.row, PLAYER_COLORS[attacker.colorIndex], SNAKE_SEGMENT_SPACING, 1, true);
@@ -3555,13 +3588,14 @@ export class UltraWorld {
     return player.paused || player.choosingUpgrade || player.invulnerable > 0;
   }
 
-  private protectedPlayerContact(attacker: PlayerEntity, defender: PlayerEntity): GridPoint | null {
+  private protectedPlayerContact(attacker: PlayerEntity, defender: PlayerEntity): { point: GridPoint; part: 'head' | 'body' } | null {
     const headRange = this.playerHeadRadiusCells() * 2;
-    if (distanceSquared(attacker, defender) < headRange * headRange) return defender;
-    return bodyConnectionContact(attacker, defender, SNAKE_BODY_CONTACT_RANGE)?.point ?? null;
+    if (distanceSquared(attacker, defender) < headRange * headRange) return { point: defender, part: 'head' };
+    const contact = bodyConnectionContact(attacker, defender, SNAKE_BODY_CONTACT_RANGE);
+    return contact ? { point: contact.point, part: 'body' } : null;
   }
 
-  private checkPlayerBodyHit(attacker: PlayerEntity, defender: PlayerEntity): void {
+  private checkPlayerBodyHit(attacker: PlayerEntity, defender: PlayerEntity, now: number): void {
     if (
       attacker.invulnerable > 0
       || defender.invulnerable > 0
@@ -3574,7 +3608,9 @@ export class UltraWorld {
     if (distanceSquared(attacker, defender) < (this.playerHeadRadiusCells() * 2) ** 2) return;
     const contact = bodyConnectionContact(attacker, defender, SNAKE_BODY_CONTACT_RANGE);
     if (!contact) return;
-    this.bounceEntity(attacker, attacker.col - contact.point.col, attacker.row - contact.point.row, PLAYER_COLORS[defender.colorIndex], SNAKE_SEGMENT_SPACING, 1, true);
+    this.triggerCollisionEcho(attacker);
+    this.damagePlayer(attacker, PLAYER_WALL_COLLISION_DAMAGE, now, '撞上其他玩家的身体');
+    if (attacker.alive) this.bounceEntity(attacker, attacker.col - contact.point.col, attacker.row - contact.point.row, PLAYER_COLORS[defender.colorIndex], SNAKE_SEGMENT_SPACING, 1, true);
   }
 
   private consumeDefense(player: PlayerEntity): boolean {

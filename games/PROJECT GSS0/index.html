@@ -19,7 +19,7 @@
           <strong>代号：几何贪吃蛇</strong>
         </div>
         <span class="signature">by 四季鸽</span>
-        <span class="brand-version" aria-label="游戏版本 V94">V94</span>
+        <span class="brand-version" aria-label="游戏版本 V95">V95</span>
       </div>
 
       <div class="run-stats">
@@ -179,7 +179,7 @@
 
     <section id="start-screen" class="modal-layer start-screen is-visible" aria-labelledby="game-title">
       <div class="start-glow" aria-hidden="true"></div>
-          <div class="start-version" aria-label="游戏版本 V94"><span>BUILD</span><strong>V94</strong></div>
+          <div class="start-version" aria-label="游戏版本 V95"><span>BUILD</span><strong>V95</strong></div>
       <div class="start-layout">
         <div class="start-content">
           <div id="network-status" class="title-kicker">TACTICAL SURVIVAL / LOCAL</div>
@@ -218,12 +218,12 @@
             <h2 id="start-guide-title">行动简报</h2>
           </header>
           <section>
-            <strong><span>01</span> 单人行动</strong>
-            <p><span>初始拥有 15 点耐久，每秒恢复 0.25 点</span><span>蛇头撞敌蛇会造成 1 点伤害并弹开</span><span>撞敌蛇身体受到 10 点伤害，撞墙受到 5 点伤害</span><span>敌人会抢球，摧毁敌人后全部爆出</span></p>
+            <strong>【单人模式】</strong>
+            <p><span>吃球升级</span><span>我撞敌蛇头：造成1伤害</span><span>我撞敌身体：造成1伤害并受到10伤害</span><span>我撞墙/撞自己身体：受到5伤害</span><span>敌撞我：直接摧毁</span><span>敌蛇会吃球，摧毁后全部爆出</span></p>
           </section>
           <section>
-            <strong><span>02</span> 多人共斗</strong>
-            <p><span>进入多人模式即加入联机共享世界</span><span>波次规模随人数增加</span><span>玩家技能不会误伤其他玩家</span><span>撞上其他玩家的身体不会受伤</span><span>只要仍有人存活，其他玩家可无限复活；全员成为幽灵时本轮结束</span></p>
+            <strong>【多人模式】</strong>
+            <p><span>波次规模随人数增加</span><span>我撞其他玩家身体：受到5点伤害</span><span>机体技能不会误伤其他玩家</span><span>阵亡后的玩家可由其它玩家复活。</span></p>
           </section>
         </aside>
       </div>
@@ -280,6 +280,20 @@
           <button id="changelog-close-button" class="icon-button codex-close-button" type="button" aria-label="关闭更新日志" title="关闭更新日志">×</button>
         </header>
         <div class="changelog-list">
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V95</strong></div>
+              <time datetime="2026-07-22">2026.07.22</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">碰撞规则</span>
+              <h3>玩家身体碰撞规则统一</h3>
+              <ul>
+                <li>玩家撞到自己的身体或其他玩家的身体时，会受到5点伤害，并触发与撞墙相同的碰撞效果。</li>
+                <li>行动简报已按最新单人碰撞、敌蛇拦截、多人误伤与队友复活规则重新编写。</li>
+              </ul>
+            </div>
+          </article>
           <article class="changelog-entry">
             <header>
               <div class="changelog-version"><span>BUILD</span><strong>V94</strong></div>
@@ -1467,20 +1481,20 @@
     </section>
   </main>
 
-  <script src="designer-config.js?v=94"></script>
-  <script src="module-catalog.js?v=94"></script>
-  <script src="module-progression.js?v=94"></script>
-  <script src="wave-director.js?v=94"></script>
-  <script src="spawn-planner.js?v=94"></script>
-  <script src="network-codec.js?v=94"></script>
-  <script src="network-player-prediction.js?v=94"></script>
-  <script src="network-player-state-codec.js?v=94"></script>
-  <script src="network-player-collisions.js?v=94"></script>
-  <script src="network-head-collisions.js?v=94"></script>
-  <script src="network-food-claims.js?v=94"></script>
-  <script src="network-projectiles.js?v=94"></script>
-  <script src="lobby-navigation.js?v=94"></script>
-  <script src="enemy-codex.js?v=94"></script>
-  <script src="game.js?v=94"></script>
+  <script src="designer-config.js?v=95"></script>
+  <script src="module-catalog.js?v=95"></script>
+  <script src="module-progression.js?v=95"></script>
+  <script src="wave-director.js?v=95"></script>
+  <script src="spawn-planner.js?v=95"></script>
+  <script src="network-codec.js?v=95"></script>
+  <script src="network-player-prediction.js?v=95"></script>
+  <script src="network-player-state-codec.js?v=95"></script>
+  <script src="network-player-collisions.js?v=95"></script>
+  <script src="network-head-collisions.js?v=95"></script>
+  <script src="network-food-claims.js?v=95"></script>
+  <script src="network-projectiles.js?v=95"></script>
+  <script src="lobby-navigation.js?v=95"></script>
+  <script src="enemy-codex.js?v=95"></script>
+  <script src="game.js?v=95"></script>
 </body>
 </html>

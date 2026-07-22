@@ -91,6 +91,9 @@
     for (const other of players || []) {
       if (other === player || other.isSelf || other.ghost || !other.protectedState || player.collisionCooldown > 0) continue;
       const contact = contactWithSnake(player, other, playerHeadRangeSquared, bodyRangeSquared);
+      if (contact?.part === "body") {
+        return { kind: "player-body", targetId: other.entityId, segmentIndex: contact.segmentIndex, point: contact.point };
+      }
       if (contact) return { kind: "protected-player", targetId: other.entityId, point: contact.point };
     }
 
