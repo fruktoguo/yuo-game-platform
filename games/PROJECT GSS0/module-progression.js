@@ -18,6 +18,7 @@
     balance.moduleSlotUnlockLevel3,
     balance.moduleSlotUnlockLevel4
   ].map((level) => Math.max(1, Math.round(level))).sort((left, right) => left - right));
+  const moduleSlotGrowthIntervalAfterFullUnlock = Math.max(1, Math.round(Number(balance.moduleSlotGrowthIntervalAfterFullUnlock) || 10));
   const experienceTiers = Object.freeze([
     Object.freeze({ tier: 0, value: 1, color: "#c7cdcf", accent: "#f4f7f7", name: "灰色经验机体" }),
     Object.freeze({ tier: 1, value: compressionBase, color: "#38a9ff", accent: "#dff5ff", name: "蓝色经验机体" }),
@@ -53,6 +54,8 @@
     const level = Math.max(0, Math.floor(Number(playerLevel) || 0));
     let capacity = Math.max(1, Math.round(balance.initialModuleSlots));
     for (const unlockLevel of slotUnlockLevels) if (level >= unlockLevel) capacity += 1;
+    const fullUnlockLevel = slotUnlockLevels[slotUnlockLevels.length - 1];
+    capacity += Math.floor(Math.max(0, level - fullUnlockLevel) / moduleSlotGrowthIntervalAfterFullUnlock);
     return capacity;
   }
 

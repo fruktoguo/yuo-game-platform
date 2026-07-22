@@ -11,7 +11,7 @@ interface DesignerConfigSource {
 }
 
 const source = (globalThis as typeof globalThis & { GSS0_DESIGNER_CONFIG?: DesignerConfigSource }).GSS0_DESIGNER_CONFIG;
-if (source?.schemaVersion !== 30) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 30');
+if (source?.schemaVersion !== 31) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 31');
 
 function numberSetting(key: string, fallback: number, minimum: number, maximum: number, integer = false): number {
   const candidate = source?.balance?.[key];
@@ -66,6 +66,7 @@ export const DESIGNER_BALANCE = Object.freeze({
   moduleSlotUnlockLevel2: numberSetting('moduleSlotUnlockLevel2', 12, 1, 100, true),
   moduleSlotUnlockLevel3: numberSetting('moduleSlotUnlockLevel3', 18, 1, 100, true),
   moduleSlotUnlockLevel4: numberSetting('moduleSlotUnlockLevel4', 25, 1, 100, true),
+  moduleSlotGrowthIntervalAfterFullUnlock: numberSetting('moduleSlotGrowthIntervalAfterFullUnlock', 10, 1, 100, true),
   playerTurnRate: numberSetting('playerTurnRate', 4.2, 0.5, 12),
   enemyBaseSpeed: numberSetting('enemyBaseSpeed', 4, 0.5, 12),
   enemySpeedPerWave: numberSetting('enemySpeedPerWave', 0.01, 0, 0.1),
@@ -217,7 +218,7 @@ export const DESIGNER_BALANCE = Object.freeze({
   multiplayerGhostPulseStrength: numberSetting('multiplayerGhostPulseStrength', 0.12, 0, 0.4),
   multiplayerGhostPulseRate: numberSetting('multiplayerGhostPulseRate', 1.1, 0.1, 5),
   multiplayerReviveContactRange: numberSetting('multiplayerReviveContactRange', 0.46, 0.1, 1.5),
-  multiplayerReviveHealthRatio: numberSetting('multiplayerReviveHealthRatio', 0.5, 0.01, 1),
+  multiplayerReviveHealth: numberSetting('multiplayerReviveHealth', 1, 0.1, 100),
   multiplayerReviveInvulnerabilityDuration: numberSetting('multiplayerReviveInvulnerabilityDuration', 2, 0, 10),
   playerDamageEffectDuration: numberSetting('playerDamageEffectDuration', 0.65, 0.1, 5),
   playerDamageFlashStrength: numberSetting('playerDamageFlashStrength', 0.55, 0, 2),

@@ -102,7 +102,7 @@
 
   const TAU = Math.PI * 2;
   const DESIGNER_CONFIG = globalThis.GSS0_DESIGNER_CONFIG || {};
-  if (DESIGNER_CONFIG.schemaVersion !== 30) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 30");
+  if (DESIGNER_CONFIG.schemaVersion !== 31) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 31");
   const DESIGNER_BALANCE = DESIGNER_CONFIG.balance || {};
   const MODULE_DESIGN_STATES = DESIGNER_CONFIG.moduleStates || {};
 
@@ -392,7 +392,7 @@
   let soundVolume = loadSetting("ultra-snake-volume", 1, 0, SOUND_MAX_VOLUME);
   let fontScale = loadSetting("ultra-snake-font-scale", 1.5, 0.5, 2);
   let uiMotionStrength = loadSetting("gss0-ui-motion-strength", 1, 1, 3);
-  let cameraMode = loadSetting("gss0-camera-mode", 0, 0, 1) >= 0.5 ? "follow" : "fixed";
+  let cameraMode = loadSetting("gss0-camera-mode", 1, 0, 1) >= 0.5 ? "follow" : "fixed";
   let followCameraZoom = loadSetting(
     "gss0-follow-camera-zoom",
     CAMERA_FOLLOW_ZOOM_DEFAULT,
@@ -3536,8 +3536,8 @@
     return 1;
   }
 
-  function fieldPopulationCount() {
-    return foods.length + enemies.reduce((total, enemy) => total + Number(!enemy.dead), 0);
+  function fieldEnemyCount() {
+    return enemies.reduce((total, enemy) => total + Number(!enemy.dead), 0);
   }
 
   function chooseEnemyArchetype() {
@@ -4506,9 +4506,10 @@
 
     setText(ui.time, formatTime(gameTime));
     setText(ui.kills, kills);
-    const population = fieldPopulationCount();
+    const foodCount = foods.length;
+    const enemyCount = fieldEnemyCount();
     const nextWave = waveCount ? (network.enabled ? Math.max(0, waveTimer) : Math.max(0, waveTimer) / waveCountdownRate()).toFixed(1) : "--";
-    setText(ui.wave, `${waveCount}/${population} · ${nextWave}`);
+    setText(ui.wave, `${waveCount}/${foodCount}/${enemyCount} · ${nextWave}`);
     setText(ui.score, Math.floor(score).toLocaleString("zh-CN"));
     setText(ui.level, level);
     const currentHealth = Math.max(0, player?.health || 0);

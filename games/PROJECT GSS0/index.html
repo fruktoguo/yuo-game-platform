@@ -19,7 +19,7 @@
           <strong>代号：几何贪吃蛇</strong>
         </div>
         <span class="signature">by 四季鸽</span>
-        <span class="brand-version" aria-label="游戏版本 V100">V100</span>
+        <span class="brand-version" aria-label="游戏版本 V101">V101</span>
       </div>
 
       <div class="run-stats">
@@ -32,8 +32,8 @@
           <strong id="kill-value">0</strong>
         </div>
         <div class="stat stat-wave">
-          <span>波次 / 球敌 · 下波</span>
-          <strong id="wave-value">0/0 · --</strong>
+          <span>波次 / 球数 / 敌数 · 下波</span>
+          <strong id="wave-value">0/0/0 · --</strong>
         </div>
         <div class="stat stat-score">
           <span>得分</span>
@@ -75,19 +75,19 @@
             <input id="motion-slider" type="range" min="100" max="300" step="25" value="100" aria-label="动态透视强度百分比">
           </div>
         </div>
-        <div class="setting-control" data-tooltip="摄像机 固定视角">
-          <button id="camera-button" class="icon-button camera-mode-icon" type="button" aria-label="摄像机模式，当前固定视角" aria-expanded="false" aria-controls="camera-popover">
+        <div class="setting-control" data-tooltip="摄像机 跟随蛇头">
+          <button id="camera-button" class="icon-button camera-mode-icon is-follow" type="button" aria-label="摄像机模式，当前跟随蛇头" aria-expanded="false" aria-controls="camera-popover">
             <span aria-hidden="true">⌖</span>
           </button>
           <div id="camera-popover" class="setting-popover camera-popover" role="group" aria-label="摄像机模式" aria-hidden="true">
-            <div class="setting-heading"><span>摄像机模式</span><output id="camera-mode-output">固定视角</output></div>
+            <div class="setting-heading"><span>摄像机模式</span><output id="camera-mode-output">跟随蛇头</output></div>
             <div class="camera-mode-options" role="radiogroup" aria-label="摄像机模式选项">
               <label>
-                <input id="camera-mode-fixed" type="radio" name="camera-mode" value="fixed" checked>
+                <input id="camera-mode-fixed" type="radio" name="camera-mode" value="fixed">
                 <span>固定视角</span>
               </label>
               <label>
-                <input id="camera-mode-follow" type="radio" name="camera-mode" value="follow">
+                <input id="camera-mode-follow" type="radio" name="camera-mode" value="follow" checked>
                 <span>跟随蛇头</span>
               </label>
             </div>
@@ -184,7 +184,7 @@
 
     <section id="start-screen" class="modal-layer start-screen is-visible" aria-labelledby="game-title">
       <div class="start-glow" aria-hidden="true"></div>
-          <div class="start-version" aria-label="游戏版本 V100"><span>BUILD</span><strong>V100</strong></div>
+          <div class="start-version" aria-label="游戏版本 V101"><span>BUILD</span><strong>V101</strong></div>
       <div class="start-layout">
         <div class="start-content">
           <div id="network-status" class="title-kicker">TACTICAL SURVIVAL / LOCAL</div>
@@ -285,6 +285,22 @@
           <button id="changelog-close-button" class="icon-button codex-close-button" type="button" aria-label="关闭更新日志" title="关闭更新日志">×</button>
         </header>
         <div class="changelog-list">
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V101</strong></div>
+              <time datetime="2026-07-22">2026.07.22</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">规则调整</span>
+              <h3>挂机成长与对局信息更新</h3>
+              <ul>
+                <li>联机玩家复活后现在仅保留1点生命值，新存档的摄像机模式默认改为跟随蛇头。</li>
+                <li>左侧对局信息将球数与敌数分开显示，波次信息更加清晰。</li>
+                <li>25级解锁9个机体槽位后，每提升10级可继续获得1个机体槽位，且不设上限。</li>
+                <li>设计控制台同步开放联机复活生命值与满槽后扩容间隔参数。</li>
+              </ul>
+            </div>
+          </article>
           <article class="changelog-entry">
             <header>
               <div class="changelog-version"><span>BUILD</span><strong>V100</strong></div>
@@ -1560,20 +1576,20 @@
     </section>
   </main>
 
-  <script src="designer-config.js?v=100"></script>
-  <script src="module-catalog.js?v=100"></script>
-  <script src="module-progression.js?v=100"></script>
-  <script src="wave-director.js?v=100"></script>
-  <script src="spawn-planner.js?v=100"></script>
-  <script src="network-codec.js?v=100"></script>
-  <script src="network-player-prediction.js?v=100"></script>
-  <script src="network-player-state-codec.js?v=100"></script>
-  <script src="network-player-collisions.js?v=100"></script>
-  <script src="network-head-collisions.js?v=100"></script>
-  <script src="network-food-claims.js?v=100"></script>
-  <script src="network-projectiles.js?v=100"></script>
-  <script src="lobby-navigation.js?v=100"></script>
-  <script src="enemy-codex.js?v=100"></script>
-  <script src="game.js?v=100"></script>
+  <script src="designer-config.js?v=101"></script>
+  <script src="module-catalog.js?v=101"></script>
+  <script src="module-progression.js?v=101"></script>
+  <script src="wave-director.js?v=101"></script>
+  <script src="spawn-planner.js?v=101"></script>
+  <script src="network-codec.js?v=101"></script>
+  <script src="network-player-prediction.js?v=101"></script>
+  <script src="network-player-state-codec.js?v=101"></script>
+  <script src="network-player-collisions.js?v=101"></script>
+  <script src="network-head-collisions.js?v=101"></script>
+  <script src="network-food-claims.js?v=101"></script>
+  <script src="network-projectiles.js?v=101"></script>
+  <script src="lobby-navigation.js?v=101"></script>
+  <script src="enemy-codex.js?v=101"></script>
+  <script src="game.js?v=101"></script>
 </body>
 </html>

@@ -1,5 +1,5 @@
 globalThis.GSS0_DESIGNER_CONFIG = {
-  "schemaVersion": 30,
+  "schemaVersion": 31,
   "balance": {
     "playerBaseSpeed": 5,
     "snakeBodySizeScale": 0.775,
@@ -19,6 +19,7 @@ globalThis.GSS0_DESIGNER_CONFIG = {
     "moduleSlotUnlockLevel2": 12,
     "moduleSlotUnlockLevel3": 18,
     "moduleSlotUnlockLevel4": 25,
+    "moduleSlotGrowthIntervalAfterFullUnlock": 10,
     "playerTurnRate": 4.2,
     "upgradeInvulnerabilityDuration": 1,
     "respawnLocatorConvergeDuration": 1,
@@ -30,7 +31,7 @@ globalThis.GSS0_DESIGNER_CONFIG = {
     "multiplayerGhostPulseStrength": 0.12,
     "multiplayerGhostPulseRate": 1.1,
     "multiplayerReviveContactRange": 0.46,
-    "multiplayerReviveHealthRatio": 0.5,
+    "multiplayerReviveHealth": 1,
     "multiplayerReviveInvulnerabilityDuration": 2,
     "playerDamageEffectDuration": 0.65,
     "playerDamageFlashStrength": 0.55,

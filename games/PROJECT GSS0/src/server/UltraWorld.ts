@@ -38,7 +38,7 @@ import {
   MODULE_BLADE_ORBIT_SPEED,
   MULTIPLAYER_GHOST_SPEED,
   MULTIPLAYER_REVIVE_CONTACT_RANGE,
-  MULTIPLAYER_REVIVE_HEALTH_RATIO,
+  MULTIPLAYER_REVIVE_HEALTH,
   MULTIPLAYER_REVIVE_INVULNERABILITY_DURATION,
   NETWORK_COLLISION_CLAIM_COOLDOWN_MS,
   NETWORK_COLLISION_HISTORY_MS,
@@ -3501,7 +3501,7 @@ export class UltraWorld {
       for (const rescuer of presentPlayers) {
         if (rescuer === ghost || rescuer.ghost || !this.playersTouch(rescuer, ghost)) continue;
         ghost.ghost = false;
-        ghost.health = ghost.maxHealth * MULTIPLAYER_REVIVE_HEALTH_RATIO;
+        ghost.health = MULTIPLAYER_REVIVE_HEALTH;
         ghost.invulnerable = MULTIPLAYER_REVIVE_INVULNERABILITY_DURATION;
         ghost.speed = this.playerBaseSpeed(ghost);
         ghost.slow = 0;

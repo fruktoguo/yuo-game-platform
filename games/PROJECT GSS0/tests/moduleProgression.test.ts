@@ -13,9 +13,9 @@ describe('机体成长规则', () => {
     expect(MODULE_PROGRESSION.findCompressionIndexes(segments, 1)).toEqual([]);
   });
 
-  it('在 8、12、18、25 级依次扩容并封顶为九槽', () => {
-    expect([0, 7, 8, 11, 12, 17, 18, 24, 25, 99].map(MODULE_PROGRESSION.moduleSlotCapacity)).toEqual([
-      5, 5, 6, 6, 7, 7, 8, 8, 9, 9,
+  it('在 25 级达到九槽，此后每十级继续扩容且不封顶', () => {
+    expect([0, 7, 8, 11, 12, 17, 18, 24, 25, 34, 35, 45, 105].map(MODULE_PROGRESSION.moduleSlotCapacity)).toEqual([
+      5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 11, 17,
     ]);
   });
 

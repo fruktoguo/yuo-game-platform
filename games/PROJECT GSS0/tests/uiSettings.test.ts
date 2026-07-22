@@ -10,7 +10,7 @@ describe('界面设置', () => {
   it('使用正式游戏名并在左上品牌卡显示当前版本', () => {
     expect(indexHtml).toContain('<title>代号：几何贪吃蛇</title>');
     expect(indexHtml).toContain('<h1 id="game-title"><span>代号：几何贪吃蛇</span></h1>');
-    expect(indexHtml).toContain('<span class="brand-version" aria-label="游戏版本 V100">V100</span>');
+    expect(indexHtml).toContain('<span class="brand-version" aria-label="游戏版本 V101">V101</span>');
     expect(styles).toContain('.brand-version');
     const brandTitleRule = styles.match(/\.brand-lockup strong\s*\{([^}]*)\}/)?.[1];
     const brandVersionRule = styles.match(/\.brand-version\s*\{([^}]*)\}/)?.[1];
@@ -27,11 +27,11 @@ describe('界面设置', () => {
     expect(indexHtml).toContain('id="font-slider" type="range" min="50" max="200" step="10" value="150"');
   });
 
-  it('摄像机默认固定视角并可切换蛇头跟随与滚轮缩放', () => {
+  it('新存档默认跟随蛇头并可切换固定视角与滚轮缩放', () => {
     expect(indexHtml).toContain('id="camera-button"');
-    expect(indexHtml).toContain('id="camera-mode-fixed" type="radio" name="camera-mode" value="fixed" checked');
-    expect(indexHtml).toContain('id="camera-mode-follow" type="radio" name="camera-mode" value="follow"');
-    expect(gameSource).toContain('loadSetting("gss0-camera-mode", 0, 0, 1)');
+    expect(indexHtml).toContain('id="camera-mode-fixed" type="radio" name="camera-mode" value="fixed"');
+    expect(indexHtml).toContain('id="camera-mode-follow" type="radio" name="camera-mode" value="follow" checked');
+    expect(gameSource).toContain('loadSetting("gss0-camera-mode", 1, 0, 1)');
     expect(gameSource).toContain('if (cameraMode === "follow" && player) return { x: player.x, y: player.y };');
     expect(gameSource).toContain('return { left: 0, top: 0, right: width, bottom: height, width, height, centerX: width / 2, centerY: height / 2 };');
     expect(gameSource).toContain('canvas.addEventListener("wheel"');
@@ -41,6 +41,13 @@ describe('界面设置', () => {
     expect(gameSource).toContain('CAMERA_FOLLOW_ENEMY_INDICATOR_LIMIT');
     expect(styles.match(/#game\s*\{([^}]*)\}/u)?.[1]).toContain('z-index: 0;');
     expect(styles.match(/\.hud\s*\{([^}]*)\}/u)?.[1]).toContain('z-index: 10;');
+  });
+
+  it('左侧波次信息分别显示球数、敌数与下波倒计时', () => {
+    expect(indexHtml).toContain('<span>波次 / 球数 / 敌数 · 下波</span>');
+    expect(indexHtml).toContain('<strong id="wave-value">0/0/0 · --</strong>');
+    expect(gameSource).toContain('const foodCount = foods.length;');
+    expect(gameSource).toContain('setText(ui.wave, `${waveCount}/${foodCount}/${enemyCount} · ${nextWave}`);');
   });
 
   it('玩家铭牌的全部几何尺寸跟随字体比例', () => {
@@ -64,7 +71,7 @@ describe('界面设置', () => {
   });
 
   it('升级卡展示机体等级变化且机体架显示槽位占用', () => {
-    expect(indexHtml).toContain('src="module-progression.js?v=100"');
+    expect(indexHtml).toContain('src="module-progression.js?v=101"');
     expect(gameSource).toContain('MODULE_PROGRESSION.moduleUpgradePreview');
     expect(gameSource).toContain('progression.levelLabel');
     expect(gameSource).toContain('ui.rack.dataset.capacity');
@@ -162,7 +169,7 @@ describe('界面设置', () => {
     expect(tooltipRule).not.toContain('transition');
     expect(indexHtml).not.toContain('id="description-button"');
     expect(indexHtml).not.toContain('id="description-toggle"');
-    expect(indexHtml).toContain('src="module-catalog.js?v=100"');
+    expect(indexHtml).toContain('src="module-catalog.js?v=101"');
     expect(gameSource).toContain('const MODULE_CATALOG = globalThis.GSS0ModuleCatalog;');
     expect(gameSource).not.toContain('SHORT_MODULE_DESCRIPTIONS');
     expect(gameSource).not.toContain('gss0-detailed-descriptions');
