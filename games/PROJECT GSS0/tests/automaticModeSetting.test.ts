@@ -11,6 +11,7 @@ const protocolSource = readFileSync(new URL('../src/shared/protocol.ts', import.
 interface AutomaticModeTestPlayer {
   autopilot: boolean;
   autoSelectModules: boolean;
+  autoRestart: boolean;
   choosingUpgrade: boolean;
   upgradePending: boolean;
   upgradeOffer: UpgradeOffer | null;
@@ -30,12 +31,14 @@ describe('自动模式设置', () => {
     expect(indexHtml).not.toContain('id="auto-test-button"');
   });
 
-  it('右上角开关与 A 键热切换自动移动、升级和重开', () => {
+  it('右上角开关与 A 键热切换自动移动，并独立控制选机和重开', () => {
     expect(indexHtml).toContain('id="automatic-mode-toggle"');
-    expect(indexHtml).toContain('id="automatic-module-selection-toggle" type="checkbox" checked');
+    expect(indexHtml).toContain('id="automatic-module-selection-toggle" type="checkbox"');
+    expect(indexHtml).toContain('id="automatic-restart-toggle" type="checkbox"');
     expect(indexHtml).toContain('<kbd class="setting-shortcut">A</kbd>');
     expect(gameSource).toContain('loadSetting("gss0-automatic-mode", 0, 0, 1)');
-    expect(gameSource).toContain('loadSetting("gss0-automatic-module-selection", 1, 0, 1)');
+    expect(gameSource).toContain('loadSetting("gss0-automatic-module-selection", 0, 0, 1)');
+    expect(gameSource).toContain('loadSetting("gss0-automatic-restart", 0, 0, 1)');
     expect(gameSource).toContain('event.code === "KeyA" && !event.altKey && !event.ctrlKey && !event.metaKey');
     expect(gameSource).toContain('setAutomaticMode(!automaticModeEnabled);');
     expect(gameSource).toContain('automaticModeControl.addEventListener("mouseenter"');
@@ -45,13 +48,14 @@ describe('自动模式设置', () => {
     expect(gameSource).toContain('player.desiredAngle = testAutopilotAngle();');
     expect(gameSource).toContain('function scheduleAutomaticUpgrade()');
     expect(gameSource).toContain('MODULE_PROGRESSION.chooseAutomaticUpgradeIds');
-    expect(gameSource).toContain('if (automaticModeEnabled) startGame();');
+    expect(gameSource).toContain('if (automaticModeEnabled && automaticRestartEnabled) startGame();');
     expect(gameSource).toContain('emitNetworkAction("ultra:autopilot", automaticModePreferences())');
     expect(gameSource).toContain('networkPlayerPredictionRuntime.adoptLocal(player);');
     expect(serverSource).toContain('if (enabled && autoSelectModules && player.choosingUpgrade && player.upgradeOffer)');
     expect(serverSource).toContain('player.autopilot && player.autoSelectModules');
     expect(serverSource).toContain('MODULE_PROGRESSION.chooseAutomaticUpgradeIds');
     expect(protocolSource).toContain("'ultra:autopilot': (preferences: AutopilotPreferences");
+    expect(protocolSource).toContain('autoRestart: boolean;');
     expect(gameSource).toContain('let damage = playerHeadDamage(hitHead);');
     expect(serverSource).toContain('let damage = this.playerHeadDamage(player, hitHead);');
     expect(gameSource).not.toContain('repel(enemy, 3.2, 3.5);');
@@ -71,10 +75,11 @@ describe('自动模式设置', () => {
     });
     world.connectPlayer('account-a', '玩家甲', 0, 'player-a');
     expect(world.spawn('account-a', 0)).toBe(true);
-    expect(world.setAutopilot('account-a', true, false)).toBe(true);
+    expect(world.setAutopilot('account-a', true, false, false)).toBe(true);
 
     const player = (Reflect.get(world, 'playersByAccount') as Map<string, AutomaticModeTestPlayer>).get('account-a')!;
     expect(player.autoSelectModules).toBe(false);
+    expect(player.autoRestart).toBe(false);
     player.upgradePending = true;
     const offerUpgrade = Reflect.get(world, 'offerUpgrade') as (owner: AutomaticModeTestPlayer, now: number) => void;
     offerUpgrade.call(world, player, 0);
@@ -84,7 +89,7 @@ describe('自动模式设置', () => {
     expect(player.level).toBe(0);
     expect(deliveredOffers.at(-1)).not.toBeNull();
 
-    expect(world.setAutopilot('account-a', true, true)).toBe(true);
+    expect(world.setAutopilot('account-a', true, true, false)).toBe(true);
     expect(player.autoSelectModules).toBe(true);
     expect(player.choosingUpgrade).toBe(false);
     expect(player.upgradeOffer).toBeNull();
@@ -106,6 +111,8 @@ describe('自动模式设置', () => {
     expect(autopilotSource.indexOf('for (const enemy of this.enemies)')).toBeLessThan(autopilotSource.indexOf('if (!hasHigherPriorityTarget)'));
     expect(autopilotSource.indexOf('if (!hasHigherPriorityTarget)')).toBeLessThan(autopilotSource.indexOf('const targetCol = target.col - player.col;'));
     expect(autopilotSource).toContain('if (other === player || !other.ghost) continue;');
-    expect(autopilotSource).toContain('if (other === player || other.ghost || other.paused || other.choosingUpgrade) continue;');
+    expect(autopilotSource).toContain('if (other === player || other.ghost) continue;');
+    expect(autopilotSource).toContain('AUTOMATIC_TEAMMATE_AVOIDANCE_STRENGTH');
+    expect(autopilotSource).toContain('AUTOMATIC_SHARP_TURN_THRESHOLD');
   });
 });

@@ -1,4 +1,9 @@
 import {
+  AUTOMATIC_SELF_AVOIDANCE_RANGE,
+  AUTOMATIC_SELF_AVOIDANCE_STRENGTH,
+  AUTOMATIC_SHARP_TURN_THRESHOLD,
+  AUTOMATIC_TEAMMATE_AVOIDANCE_RANGE,
+  AUTOMATIC_TEAMMATE_AVOIDANCE_STRENGTH,
   ARENA_AREA_PER_LEVEL,
   ARENA_BASE_SIZE,
   ARENA_RESIZE_RATE,
@@ -120,6 +125,7 @@ interface PlayerEntity extends UltraPlayerView {
   playerId: string;
   autopilot: boolean;
   autoSelectModules: boolean;
+  autoRestart: boolean;
   disconnectedAt: number | null;
   speed: number;
   slow: number;
@@ -461,11 +467,12 @@ export class UltraWorld {
     return true;
   }
 
-  setAutopilot(accountId: string, enabled: boolean, autoSelectModules: boolean): boolean {
+  setAutopilot(accountId: string, enabled: boolean, autoSelectModules: boolean, autoRestart: boolean): boolean {
     const player = this.playersByAccount.get(accountId);
     if (!player?.connected) return false;
     player.autopilot = enabled;
     player.autoSelectModules = autoSelectModules;
+    player.autoRestart = autoRestart;
     if (enabled && autoSelectModules && player.choosingUpgrade && player.upgradeOffer) {
       const automaticOptions = this.chooseUpgradeOptions(player, true);
       const options = automaticOptions.length > 0 ? automaticOptions : player.upgradeOffer.options;
@@ -1053,7 +1060,8 @@ export class UltraWorld {
       accountId,
       playerId: normalizePlayerId(playerId),
       autopilot: false,
-      autoSelectModules: true,
+      autoSelectModules: false,
+      autoRestart: false,
       name: normalizeName(name),
       colorIndex: this.choosePlayerColor(),
       connected: true,
@@ -1354,16 +1362,20 @@ export class UltraWorld {
       vectorRow += awayRow * factor;
     };
 
-    for (let index = 3; index < player.segments.length; index += 1) repel(player.segments[index], 1.4, 2.4);
     for (const enemy of this.enemies) {
       if (enemy.dead) continue;
       for (const segment of enemy.segments) repel(segment, 2.4, 2.8);
     }
     for (const other of presentPlayers) {
-      if (other === player || other.ghost || other.paused || other.choosingUpgrade) continue;
-      repel(other, 3.2, 3.5);
-      for (const segment of other.segments) repel(segment, 2.8, 3);
+      if (other === player || other.ghost) continue;
+      repel(other, AUTOMATIC_TEAMMATE_AVOIDANCE_STRENGTH, AUTOMATIC_TEAMMATE_AVOIDANCE_RANGE);
+      for (const segment of other.segments) repel(segment, AUTOMATIC_TEAMMATE_AVOIDANCE_STRENGTH, AUTOMATIC_TEAMMATE_AVOIDANCE_RANGE);
     }
+    const plannedAngle = Math.hypot(vectorCol, vectorRow) > 0.001 ? Math.atan2(vectorRow, vectorCol) : player.angle;
+    const sharpTurn = Math.abs(angleDifference(player.angle, plannedAngle)) >= AUTOMATIC_SHARP_TURN_THRESHOLD;
+    const selfAvoidanceStrength = sharpTurn ? AUTOMATIC_SELF_AVOIDANCE_STRENGTH : 1.4;
+    const selfAvoidanceRange = sharpTurn ? AUTOMATIC_SELF_AVOIDANCE_RANGE : 2.4;
+    for (let index = 3; index < player.segments.length; index += 1) repel(player.segments[index], selfAvoidanceStrength, selfAvoidanceRange);
 
     return Math.hypot(vectorCol, vectorRow) > 0.001 ? Math.atan2(vectorRow, vectorCol) : player.angle;
   }
@@ -4016,7 +4028,7 @@ export class UltraWorld {
 
   private respawnAutopilotPlayers(now: number): void {
     for (const player of this.playersByEntity.values()) {
-      if (!player.connected || !player.autopilot || player.alive || player.respawnAt === null || player.respawnAt > now) continue;
+      if (!player.connected || !player.autopilot || !player.autoRestart || player.alive || player.respawnAt === null || player.respawnAt > now) continue;
       this.spawn(player.accountId, now);
     }
   }

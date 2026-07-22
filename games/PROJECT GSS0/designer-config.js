@@ -1,5 +1,5 @@
 globalThis.GSS0_DESIGNER_CONFIG = {
-  "schemaVersion": 31,
+  "schemaVersion": 32,
   "balance": {
     "playerBaseSpeed": 5,
     "snakeBodySizeScale": 0.775,
@@ -21,6 +21,11 @@ globalThis.GSS0_DESIGNER_CONFIG = {
     "moduleSlotUnlockLevel4": 25,
     "moduleSlotGrowthIntervalAfterFullUnlock": 10,
     "playerTurnRate": 4.2,
+    "automaticSharpTurnThresholdDegrees": 70,
+    "automaticSelfAvoidanceStrength": 3.2,
+    "automaticSelfAvoidanceRange": 3.2,
+    "automaticTeammateAvoidanceStrength": 3.4,
+    "automaticTeammateAvoidanceRange": 3.5,
     "upgradeInvulnerabilityDuration": 1,
     "respawnLocatorConvergeDuration": 1,
     "respawnLocatorFadeDuration": 3,

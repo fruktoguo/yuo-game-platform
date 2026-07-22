@@ -86,6 +86,7 @@
     automaticModeButton: document.querySelector("#automatic-mode-button"),
     automaticModeToggle: document.querySelector("#automatic-mode-toggle"),
     automaticModuleSelectionToggle: document.querySelector("#automatic-module-selection-toggle"),
+    automaticRestartToggle: document.querySelector("#automatic-restart-toggle"),
     automaticModePopover: document.querySelector("#automatic-mode-popover"),
     resumeButton: document.querySelector("#resume-button"),
     pauseRestart: document.querySelector("#pause-restart-button"),
@@ -102,7 +103,7 @@
 
   const TAU = Math.PI * 2;
   const DESIGNER_CONFIG = globalThis.GSS0_DESIGNER_CONFIG || {};
-  if (DESIGNER_CONFIG.schemaVersion !== 31) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 31");
+  if (DESIGNER_CONFIG.schemaVersion !== 32) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 32");
   const DESIGNER_BALANCE = DESIGNER_CONFIG.balance || {};
   const MODULE_DESIGN_STATES = DESIGNER_CONFIG.moduleStates || {};
 
@@ -219,6 +220,11 @@
   const PLAYER_COLLISION_DAMAGE = designerNumber("playerCollisionDamage", 1, 0, 1000, true);
   const ENEMY_COLLISION_DAMAGE = designerNumber("enemyCollisionDamage", 1, 0, 1000, true);
   const PLAYER_TURN_RATE = designerNumber("playerTurnRate", 4.2, 0.5, 12);
+  const AUTOMATIC_SHARP_TURN_THRESHOLD = designerNumber("automaticSharpTurnThresholdDegrees", 70, 0, 180) * Math.PI / 180;
+  const AUTOMATIC_SELF_AVOIDANCE_STRENGTH = designerNumber("automaticSelfAvoidanceStrength", 3.2, 0, 20);
+  const AUTOMATIC_SELF_AVOIDANCE_RANGE = designerNumber("automaticSelfAvoidanceRange", 3.2, 0, 10);
+  const AUTOMATIC_TEAMMATE_AVOIDANCE_STRENGTH = designerNumber("automaticTeammateAvoidanceStrength", 3.4, 0, 20);
+  const AUTOMATIC_TEAMMATE_AVOIDANCE_RANGE = designerNumber("automaticTeammateAvoidanceRange", 3.5, 0, 10);
   const ENEMY_BASE_SPEED = designerNumber("enemyBaseSpeed", 4, 0.5, 12);
   const ENEMY_SPEED_GROWTH_PER_WAVE = designerNumber("enemySpeedPerWave", 0.01, 0, 0.1);
   const ENEMY_SPEED_MAX_MULTIPLIER = designerNumber("enemySpeedMaxMultiplier", 1.12, 1, 3);
@@ -401,7 +407,8 @@
   );
   let backgroundPauseEnabled = loadSetting("gss0-background-pause", 1, 0, 1) >= 0.5;
   let automaticModeEnabled = loadSetting("gss0-automatic-mode", 0, 0, 1) >= 0.5;
-  let automaticModuleSelectionEnabled = loadSetting("gss0-automatic-module-selection", 1, 0, 1) >= 0.5;
+  let automaticModuleSelectionEnabled = loadSetting("gss0-automatic-module-selection", 0, 0, 1) >= 0.5;
+  let automaticRestartEnabled = loadSetting("gss0-automatic-restart", 0, 0, 1) >= 0.5;
   let automaticModeSyncRevision = 0;
   let bestScore = loadBestScore();
   let recentPicks = [];
@@ -848,7 +855,8 @@
   function automaticModePreferences() {
     return {
       enabled: automaticModeEnabled,
-      autoSelectModules: automaticModuleSelectionEnabled
+      autoSelectModules: automaticModuleSelectionEnabled,
+      autoRestart: automaticRestartEnabled
     };
   }
 
@@ -857,6 +865,20 @@
     ui.automaticModuleSelectionToggle.checked = automaticModuleSelectionEnabled;
     if (automaticModeEnabled && automaticModuleSelectionEnabled && state === "upgrade") scheduleAutomaticUpgrade();
     if (persist) saveSetting("gss0-automatic-module-selection", automaticModuleSelectionEnabled ? 1 : 0);
+  }
+
+  function scheduleAutomaticRestart() {
+    if (!automaticModeEnabled || !automaticRestartEnabled || network.enabled || state !== "gameover") return;
+    window.setTimeout(() => {
+      if (automaticModeEnabled && automaticRestartEnabled && !network.enabled && state === "gameover") startGame();
+    }, 0);
+  }
+
+  function applyAutomaticRestart(enabled, persist = true) {
+    automaticRestartEnabled = Boolean(enabled);
+    ui.automaticRestartToggle.checked = automaticRestartEnabled;
+    scheduleAutomaticRestart();
+    if (persist) saveSetting("gss0-automatic-restart", automaticRestartEnabled ? 1 : 0);
   }
 
   function updateAutomaticModeState(enabled, persist = true) {
@@ -876,11 +898,7 @@
     if (automaticModeEnabled) {
       if (!network.enabled && state === "upgrade") showUpgrade();
       else scheduleAutomaticUpgrade();
-      if (!network.enabled && state === "gameover") {
-        window.setTimeout(() => {
-          if (automaticModeEnabled && !network.enabled && state === "gameover") startGame();
-        }, 0);
-      }
+      scheduleAutomaticRestart();
     }
     if (persist) saveSetting("gss0-automatic-mode", automaticModeEnabled ? 1 : 0);
   }
@@ -889,10 +907,12 @@
     if (!network.enabled) return;
     if (automaticModeEnabled) {
       resetNetworkPredictionInput();
-      if (state === "gameover") {
+      if (automaticRestartEnabled && state === "gameover") {
         enterRunningState();
         ui.gameOver.classList.remove("is-visible");
       }
+      const self = network.snapshot?.players.find((item) => item.entityId === network.selfEntityId);
+      if (self && !self.alive && !automaticRestartEnabled && state !== "menu" && state !== "gameover") showNetworkGameOver(self);
       return;
     }
     if (player?.alive && state === "running") {
@@ -932,6 +952,22 @@
         applyAutomaticModuleSelection(previous, persist);
         setNetworkStatus("error", `ULTRA LINK / ${result?.error || "无法同步自动选机设置"}`);
       }
+    });
+  }
+
+  function setAutomaticRestart(enabled, persist = true, synchronizeNetwork = true) {
+    const previous = automaticRestartEnabled;
+    applyAutomaticRestart(enabled, persist);
+    if (!synchronizeNetwork || !network.enabled || !network.socket?.connected) return;
+    const revision = ++automaticModeSyncRevision;
+    void emitNetworkAction("ultra:autopilot", automaticModePreferences()).then((result) => {
+      if (revision !== automaticModeSyncRevision) return;
+      if (!result?.ok) {
+        applyAutomaticRestart(previous, persist);
+        setNetworkStatus("error", `ULTRA LINK / ${result?.error || "无法同步自动重开设置"}`);
+        return;
+      }
+      reconcileAutomaticNetworkState();
     });
   }
 
@@ -1702,7 +1738,7 @@
     }
     const selfAlive = Boolean(self?.alive);
     if (network.lastSelfAlive && self && !self.alive && state !== "menu" && state !== "gameover") {
-      if (automaticModeEnabled) {
+      if (automaticModeEnabled && automaticRestartEnabled) {
         enterRunningState();
         ui.upgrade.classList.remove("is-visible");
         ui.gameOver.classList.remove("is-visible");
@@ -3726,7 +3762,7 @@
     ui.best.textContent = Math.floor(bestScore).toLocaleString("zh-CN");
     window.setTimeout(() => {
       if (state !== "gameover") return;
-      if (automaticModeEnabled) startGame();
+      if (automaticModeEnabled && automaticRestartEnabled) startGame();
       else ui.gameOver.classList.add("is-visible");
     }, 330);
   }
@@ -4588,18 +4624,22 @@
       vectorY += awayY * factor;
     };
 
-    for (let index = 3; index < player.segments.length; index += 1) repel(player.segments[index], 1.4, 2.4);
     for (const enemy of enemies) {
       if (enemy.dead) continue;
       for (const segment of enemy.segments) repel(segment, 2.4, 2.8);
     }
     if (network.enabled) {
       for (const other of visiblePlayers) {
-        if (other === player || other.protectedState) continue;
-        repel(other, 3.2, 3.5);
-        for (const segment of other.segments) repel(segment, 2.8, 3);
+        if (other === player || other.ghost) continue;
+        repel(other, AUTOMATIC_TEAMMATE_AVOIDANCE_STRENGTH, AUTOMATIC_TEAMMATE_AVOIDANCE_RANGE);
+        for (const segment of other.segments) repel(segment, AUTOMATIC_TEAMMATE_AVOIDANCE_STRENGTH, AUTOMATIC_TEAMMATE_AVOIDANCE_RANGE);
       }
     }
+    const plannedAngle = Math.hypot(vectorX, vectorY) > 0.001 ? Math.atan2(vectorY, vectorX) : player.angle;
+    const sharpTurn = Math.abs(angleDelta(player.angle, plannedAngle)) >= AUTOMATIC_SHARP_TURN_THRESHOLD;
+    const selfAvoidanceStrength = sharpTurn ? AUTOMATIC_SELF_AVOIDANCE_STRENGTH : 1.4;
+    const selfAvoidanceRange = sharpTurn ? AUTOMATIC_SELF_AVOIDANCE_RANGE : 2.4;
+    for (let index = 3; index < player.segments.length; index += 1) repel(player.segments[index], selfAvoidanceStrength, selfAvoidanceRange);
 
     return Math.atan2(vectorY, vectorX);
   }
@@ -8360,6 +8400,11 @@
     setAutomaticModuleSelection(ui.automaticModuleSelectionToggle.checked);
     sound("ui");
   });
+  ui.automaticRestartToggle.addEventListener("change", () => {
+    ensureAudio();
+    setAutomaticRestart(ui.automaticRestartToggle.checked);
+    sound("ui");
+  });
   document.addEventListener("contextmenu", (event) => event.preventDefault());
   document.addEventListener("click", () => closeSettingPopovers());
 
@@ -8370,6 +8415,7 @@
   applyCameraMode(cameraMode, false);
   applyBackgroundPause(backgroundPauseEnabled, false);
   applyAutomaticModuleSelection(automaticModuleSelectionEnabled, false);
+  applyAutomaticRestart(automaticRestartEnabled, false);
   setAutomaticMode(automaticModeEnabled, false, false);
   setNetworkButtonsDisabled(false);
   ui.best.textContent = Math.floor(bestScore).toLocaleString("zh-CN");

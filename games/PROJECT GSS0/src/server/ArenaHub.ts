@@ -229,8 +229,9 @@ export class ArenaHub {
       || typeof preferences !== 'object'
       || typeof preferences.enabled !== 'boolean'
       || typeof preferences.autoSelectModules !== 'boolean'
+      || typeof preferences.autoRestart !== 'boolean'
     ) return ack({ ok: false, error: '自动战斗设置无效' });
-    if (!this.world.setAutopilot(accountId, preferences.enabled, preferences.autoSelectModules)) {
+    if (!this.world.setAutopilot(accountId, preferences.enabled, preferences.autoSelectModules, preferences.autoRestart)) {
       return ack({ ok: false, error: '当前无法切换自动战斗' });
     }
     ack({ ok: true });

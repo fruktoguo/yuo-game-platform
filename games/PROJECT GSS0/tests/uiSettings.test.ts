@@ -10,7 +10,7 @@ describe('界面设置', () => {
   it('使用正式游戏名并在左上品牌卡显示当前版本', () => {
     expect(indexHtml).toContain('<title>代号：几何贪吃蛇</title>');
     expect(indexHtml).toContain('<h1 id="game-title"><span>代号：几何贪吃蛇</span></h1>');
-    expect(indexHtml).toContain('<span class="brand-version" aria-label="游戏版本 V101">V101</span>');
+    expect(indexHtml).toContain('<span class="brand-version" aria-label="游戏版本 V102">V102</span>');
     expect(styles).toContain('.brand-version');
     const brandTitleRule = styles.match(/\.brand-lockup strong\s*\{([^}]*)\}/)?.[1];
     const brandVersionRule = styles.match(/\.brand-version\s*\{([^}]*)\}/)?.[1];
@@ -71,7 +71,7 @@ describe('界面设置', () => {
   });
 
   it('升级卡展示机体等级变化且机体架显示槽位占用', () => {
-    expect(indexHtml).toContain('src="module-progression.js?v=101"');
+    expect(indexHtml).toContain('src="module-progression.js?v=102"');
     expect(gameSource).toContain('MODULE_PROGRESSION.moduleUpgradePreview');
     expect(gameSource).toContain('progression.levelLabel');
     expect(gameSource).toContain('ui.rack.dataset.capacity');
@@ -144,6 +144,15 @@ describe('界面设置', () => {
     expect(indexHtml).toContain('生命归零化身幽灵，等待队友接触复活');
   });
 
+  it('自动选机和自动重开在新存档中均默认关闭', () => {
+    expect(indexHtml).toContain('id="automatic-module-selection-toggle" type="checkbox"');
+    expect(indexHtml).toContain('id="automatic-restart-toggle" type="checkbox"');
+    expect(indexHtml).not.toContain('id="automatic-module-selection-toggle" type="checkbox" checked');
+    expect(indexHtml).not.toContain('id="automatic-restart-toggle" type="checkbox" checked');
+    expect(gameSource).toContain('loadSetting("gss0-automatic-module-selection", 0, 0, 1)');
+    expect(gameSource).toContain('loadSetting("gss0-automatic-restart", 0, 0, 1)');
+  });
+
   it('八个右上角按钮使用零延迟自定义提示', () => {
     const settingButtonIds = [
       'lobby-button',
@@ -169,7 +178,7 @@ describe('界面设置', () => {
     expect(tooltipRule).not.toContain('transition');
     expect(indexHtml).not.toContain('id="description-button"');
     expect(indexHtml).not.toContain('id="description-toggle"');
-    expect(indexHtml).toContain('src="module-catalog.js?v=101"');
+    expect(indexHtml).toContain('src="module-catalog.js?v=102"');
     expect(gameSource).toContain('const MODULE_CATALOG = globalThis.GSS0ModuleCatalog;');
     expect(gameSource).not.toContain('SHORT_MODULE_DESCRIPTIONS');
     expect(gameSource).not.toContain('gss0-detailed-descriptions');

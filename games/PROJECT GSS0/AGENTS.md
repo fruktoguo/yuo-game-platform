@@ -9,14 +9,14 @@
 - This is a small game with fast player playtesting; keep verification proportional and do not impose commercial-scale test ceremony on routine changes.
 - This remains a fully local static game. Players may open `index.html` directly; do not add or require a production server.
 - For Codex browser verification, never navigate to a `file://` URL. Before the first browser action, start an ephemeral localhost static server, test through `http://127.0.0.1:<port>`, and stop that server after verification.
-- For Codex gameplay verification, enable the top-right `自动模式` setting and enter through the required `单人模式` or `多人模式` button. Do not test gameplay through normal mouse steering.
+- For Codex gameplay verification, enable the top-right `自动模式` setting and enter through the required `单人模式` or `多人模式` button. For unattended verification, also explicitly enable `自动选择机体` and `自动重开`. Do not test gameplay through normal mouse steering.
 - Keep normal play and automatic testing on the same `index.html` entry. Do not reintroduce URL query parameters for test mode.
-- Automatic mode must only steer the snake independently of manual input, automatically choose upgrades, and automatically restart after death. It must respect the separate background-pause setting; disable background pause explicitly for unattended verification.
+- Automatic mode must only steer the snake independently of manual input. Automatic module selection and automatic restart must follow their separate switches, both of which default to off for new saves. Automatic mode must respect the separate background-pause setting; disable background pause explicitly for unattended verification.
 
 # Project Version
 
 - The main menu must always display the current game version in its lower-left corner.
-- The current game version is `V101`.
+- The current game version is `V102`.
 - For every future user request that modifies this project, increment the integer version exactly once and update both the main-menu label and the current-version line in this file as part of the same change.
 - Whenever the version changes, update every classic runtime script query in `index.html` and `balance-editor.html` to `?v=<version integer>` so mutable client files cannot be mixed across browser or CDN caches.
 

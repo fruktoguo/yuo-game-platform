@@ -306,6 +306,7 @@ export interface FoodClaimResult {
 export interface AutopilotPreferences {
   enabled: boolean;
   autoSelectModules: boolean;
+  autoRestart: boolean;
 }
 
 export interface ArenaEvent {

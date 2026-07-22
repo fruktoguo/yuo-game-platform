@@ -19,7 +19,7 @@
           <strong>代号：几何贪吃蛇</strong>
         </div>
         <span class="signature">by 四季鸽</span>
-        <span class="brand-version" aria-label="游戏版本 V101">V101</span>
+        <span class="brand-version" aria-label="游戏版本 V102">V102</span>
       </div>
 
       <div class="run-stats">
@@ -121,7 +121,12 @@
             </label>
             <label class="toggle-row" for="automatic-module-selection-toggle">
               <span>自动选择机体</span>
-              <input id="automatic-module-selection-toggle" type="checkbox" checked>
+              <input id="automatic-module-selection-toggle" type="checkbox">
+              <i aria-hidden="true"></i>
+            </label>
+            <label class="toggle-row" for="automatic-restart-toggle">
+              <span>自动重开</span>
+              <input id="automatic-restart-toggle" type="checkbox">
               <i aria-hidden="true"></i>
             </label>
           </div>
@@ -184,7 +189,7 @@
 
     <section id="start-screen" class="modal-layer start-screen is-visible" aria-labelledby="game-title">
       <div class="start-glow" aria-hidden="true"></div>
-          <div class="start-version" aria-label="游戏版本 V101"><span>BUILD</span><strong>V101</strong></div>
+          <div class="start-version" aria-label="游戏版本 V102"><span>BUILD</span><strong>V102</strong></div>
       <div class="start-layout">
         <div class="start-content">
           <div id="network-status" class="title-kicker">TACTICAL SURVIVAL / LOCAL</div>
@@ -285,6 +290,21 @@
           <button id="changelog-close-button" class="icon-button codex-close-button" type="button" aria-label="关闭更新日志" title="关闭更新日志">×</button>
         </header>
         <div class="changelog-list">
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V102</strong></div>
+              <time datetime="2026-07-22">2026.07.22</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">自动战斗</span>
+              <h3>自动战斗安全与重开控制</h3>
+              <ul>
+                <li>自动移动现在会主动避开队友的蛇头与身体，并在大角度转弯时加强对自身身体的规避。</li>
+                <li>自动重开从自动战斗中拆分为独立开关，默认关闭；自动选择机体也调整为默认关闭。</li>
+                <li>设计控制台新增自动移动急转弯、自体规避与队友规避参数。</li>
+              </ul>
+            </div>
+          </article>
           <article class="changelog-entry">
             <header>
               <div class="changelog-version"><span>BUILD</span><strong>V101</strong></div>
@@ -1576,20 +1596,20 @@
     </section>
   </main>
 
-  <script src="designer-config.js?v=101"></script>
-  <script src="module-catalog.js?v=101"></script>
-  <script src="module-progression.js?v=101"></script>
-  <script src="wave-director.js?v=101"></script>
-  <script src="spawn-planner.js?v=101"></script>
-  <script src="network-codec.js?v=101"></script>
-  <script src="network-player-prediction.js?v=101"></script>
-  <script src="network-player-state-codec.js?v=101"></script>
-  <script src="network-player-collisions.js?v=101"></script>
-  <script src="network-head-collisions.js?v=101"></script>
-  <script src="network-food-claims.js?v=101"></script>
-  <script src="network-projectiles.js?v=101"></script>
-  <script src="lobby-navigation.js?v=101"></script>
-  <script src="enemy-codex.js?v=101"></script>
-  <script src="game.js?v=101"></script>
+  <script src="designer-config.js?v=102"></script>
+  <script src="module-catalog.js?v=102"></script>
+  <script src="module-progression.js?v=102"></script>
+  <script src="wave-director.js?v=102"></script>
+  <script src="spawn-planner.js?v=102"></script>
+  <script src="network-codec.js?v=102"></script>
+  <script src="network-player-prediction.js?v=102"></script>
+  <script src="network-player-state-codec.js?v=102"></script>
+  <script src="network-player-collisions.js?v=102"></script>
+  <script src="network-head-collisions.js?v=102"></script>
+  <script src="network-food-claims.js?v=102"></script>
+  <script src="network-projectiles.js?v=102"></script>
+  <script src="lobby-navigation.js?v=102"></script>
+  <script src="enemy-codex.js?v=102"></script>
+  <script src="game.js?v=102"></script>
 </body>
 </html>
