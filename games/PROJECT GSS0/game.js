@@ -106,7 +106,7 @@
 
   const TAU = Math.PI * 2;
   const DESIGNER_CONFIG = globalThis.GSS0_DESIGNER_CONFIG || {};
-  if (DESIGNER_CONFIG.schemaVersion !== 32) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 32");
+  if (DESIGNER_CONFIG.schemaVersion !== 33) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 33");
   const DESIGNER_BALANCE = DESIGNER_CONFIG.balance || {};
   const MODULE_DESIGN_STATES = DESIGNER_CONFIG.moduleStates || {};
 
@@ -316,6 +316,13 @@
   const NETWORK_SNAPSHOT_BUFFER_SIZE = 6;
   const NETWORK_MAX_EXTRAPOLATION_MS = 90;
   const NETWORK_INPUT_INTERVAL_MS = 1000 / designerNumber("networkPlayerStateHz", 20, 5, 60, true);
+  const NETWORK_REMOTE_CORRECTION_THRESHOLD_CELLS = designerNumber("networkRemoteCorrectionThresholdCells", 0.75, 0.1, 10);
+  const NETWORK_REMOTE_CORRECTION_SPEED_CELLS_PER_SECOND = designerNumber("networkRemoteCorrectionSpeedCellsPerSecond", 18, 1, 100);
+  const networkRemoteCorrectionMinMs = designerNumber("networkRemoteCorrectionMinMs", 120, 0, 1000, true);
+  const networkRemoteCorrectionMaxMs = designerNumber("networkRemoteCorrectionMaxMs", 450, 50, 2000, true);
+  const NETWORK_REMOTE_CORRECTION_MIN_MS = Math.min(networkRemoteCorrectionMinMs, networkRemoteCorrectionMaxMs);
+  const NETWORK_REMOTE_CORRECTION_MAX_MS = Math.max(networkRemoteCorrectionMinMs, networkRemoteCorrectionMaxMs);
+  const NETWORK_REMOTE_PRESENTATION_INTERVAL_MS = 1000 / designerNumber("networkRemotePresentationHz", 60, 15, 240, true);
   const NETWORK_COLLISION_CLAIM_COOLDOWN_MS = designerNumber("networkCollisionClaimCooldownMs", 500, 100, 2000, true);
   const NETWORK_INTERPOLATION_MIN_MS = designerNumber("networkInterpolationMinMs", 90, 40, 300, true);
   const NETWORK_INTERPOLATION_MAX_MS = designerNumber("networkInterpolationMaxMs", 120, 40, 400, true);
@@ -477,6 +484,7 @@
     lastResyncRequestAt: -Infinity,
     renderServerTime: NaN,
     lastPresentationAt: 0,
+    nextRemotePresentationAt: 0,
     presentationSnapshot: null,
     lastHudTick: -1,
     lastSelfAlive: false,
@@ -1583,7 +1591,11 @@
           setNetworkButtonsDisabled(true);
           return;
         }
-        if (!validateNetworkSnapshotProtocol(result.data.snapshotProtocolVersion, socket)) return;
+        if (!validateNetworkProtocols(
+          result.data.snapshotProtocolVersion,
+          result.data.playerStateProtocolVersion,
+          socket
+        )) return;
         network.enabled = true;
         network.connecting = false;
         network.selfEntityId = result.data.selfEntityId;
@@ -1608,6 +1620,7 @@
         network.lastResyncRequestAt = -Infinity;
         network.renderServerTime = NaN;
         network.lastPresentationAt = 0;
+        network.nextRemotePresentationAt = 0;
         const joinedSelf = result.data.snapshot.players.find((item) => item.entityId === network.selfEntityId);
         network.localDesiredAngle = joinedSelf?.desiredAngle ?? NaN;
         if (joinedSelf?.alive) {
@@ -1622,7 +1635,9 @@
         setNetworkButtonsDisabled(false);
         setNetworkStatus("online", `ULTRA LINK / @${network.principal.username}`);
         renderNetworkRoster(result.data.snapshot.players);
-        applyNetworkPresentation(result.data.snapshot, result.data.snapshot, network.snapshotBuffer[0].indexes, 1);
+        const joinedAt = performance.now();
+        applyNetworkPresentation(result.data.snapshot, result.data.snapshot, network.snapshotBuffer[0].indexes, 1, joinedAt);
+        network.nextRemotePresentationAt = joinedAt + NETWORK_REMOTE_PRESENTATION_INTERVAL_MS;
         void emitNetworkAction("ultra:autopilot", automaticModePreferences()).then((modeResult) => {
           if (!modeResult?.ok) {
             setNetworkStatus("error", `ULTRA LINK / ${modeResult?.error || "无法同步自动模式"}`);
@@ -1689,9 +1704,15 @@
 
   const NETWORK_PROTOCOL_REFRESH_KEY = "gss0-network-protocol-refresh";
 
-  function validateNetworkSnapshotProtocol(serverVersion, socket) {
-    const clientVersion = networkSnapshotCodec.version;
-    if (Number.isSafeInteger(serverVersion) && serverVersion === clientVersion) {
+  function validateNetworkProtocols(snapshotServerVersion, playerStateServerVersion, socket) {
+    const snapshotClientVersion = networkSnapshotCodec.version;
+    const playerStateClientVersion = networkPlayerStateCodec.version;
+    if (
+      Number.isSafeInteger(snapshotServerVersion)
+      && snapshotServerVersion === snapshotClientVersion
+      && Number.isSafeInteger(playerStateServerVersion)
+      && playerStateServerVersion === playerStateClientVersion
+    ) {
       try {
         window.sessionStorage.removeItem(NETWORK_PROTOCOL_REFRESH_KEY);
       } catch {
@@ -1701,7 +1722,12 @@
     }
     network.connecting = false;
     setNetworkButtonsDisabled(false);
-    const signature = `${clientVersion ?? "unknown"}:${serverVersion ?? "unknown"}`;
+    const signature = [
+      snapshotClientVersion ?? "unknown",
+      snapshotServerVersion ?? "unknown",
+      playerStateClientVersion ?? "unknown",
+      playerStateServerVersion ?? "unknown"
+    ].join(":");
     let shouldReload = false;
     try {
       shouldReload = window.sessionStorage.getItem(NETWORK_PROTOCOL_REFRESH_KEY) !== signature;
@@ -2315,6 +2341,7 @@
 
   function clearNetworkViews() {
     network.presentationSnapshot = null;
+    network.nextRemotePresentationAt = 0;
     network.lastHudTick = -1;
     network.playerViews.clear();
     network.enemyViews.clear();
@@ -2688,6 +2715,53 @@
     views.length = items.length;
   }
 
+  function applyNetworkRemotePlayerCorrection(view, displayedCol, displayedRow, sourceChanged, now) {
+    let correction = view.remoteCorrection;
+    if (sourceChanged && Number.isFinite(displayedCol) && Number.isFinite(displayedRow)) {
+      const offsetCol = displayedCol - view.col;
+      const offsetRow = displayedRow - view.row;
+      const distance = Math.hypot(offsetCol, offsetRow);
+      const remainingDuration = correction ? Math.max(0, correction.endsAt - now) : 0;
+      if (distance >= NETWORK_REMOTE_CORRECTION_THRESHOLD_CELLS || remainingDuration > 0) {
+        const duration = remainingDuration > 0
+          ? remainingDuration
+          : clamp(
+              distance / NETWORK_REMOTE_CORRECTION_SPEED_CELLS_PER_SECOND * 1000,
+              NETWORK_REMOTE_CORRECTION_MIN_MS,
+              NETWORK_REMOTE_CORRECTION_MAX_MS
+            );
+        correction = {
+          col: offsetCol,
+          row: offsetRow,
+          startedAt: now,
+          duration,
+          endsAt: now + duration
+        };
+        view.remoteCorrection = correction;
+      } else {
+        correction = null;
+        view.remoteCorrection = null;
+      }
+    }
+    if (!correction) return;
+    const progress = correction.duration > 0 ? clamp((now - correction.startedAt) / correction.duration, 0, 1) : 1;
+    if (progress >= 1) {
+      view.remoteCorrection = null;
+      return;
+    }
+    const remaining = 1 - progress * progress * (3 - 2 * progress);
+    const correctionCol = correction.col * remaining;
+    const correctionRow = correction.row * remaining;
+    view.col += correctionCol;
+    view.row += correctionRow;
+    syncNodePosition(view);
+    for (const segment of view.segments) {
+      segment.col += correctionCol;
+      segment.row += correctionRow;
+      syncNodePosition(segment);
+    }
+  }
+
   function pruneNetworkViews(views, activeTick, onPrune = null) {
     for (const [id, view] of views) {
       if (view.seenAtTick === activeTick) continue;
@@ -2749,7 +2823,7 @@
     }
   }
 
-  function applyNetworkPresentation(previous, current, previousIndexes, amount) {
+  function applyNetworkPresentation(previous, current, previousIndexes, amount, now = performance.now()) {
     const snapshotChanged = network.presentationSnapshot !== current;
     const activeTick = current.tick;
     setArenaWorldSize(interpolateNumber(previous?.arenaSize, current.arenaSize, amount));
@@ -2768,6 +2842,8 @@
         view = { segments: [] };
         network.playerViews.set(item.entityId, view);
       }
+      const displayedCol = view.col;
+      const displayedRow = view.row;
       const hadSource = Boolean(view.source);
       const wasGhost = hadSource ? Boolean(view.ghost) : Boolean(item.ghost);
       const sourceChanged = view.source !== item;
@@ -2783,6 +2859,7 @@
       const experienceSettled = Boolean(view.experienceSettled);
       syncNetworkSegments(view.segments, item.segments, old?.segments, playerAmount, experienceSettled);
       if (view.isSelf && !automaticModeEnabled && !item.paused && !item.choosingUpgrade) applyNetworkSelfPrediction(view);
+      else if (!view.isSelf) applyNetworkRemotePlayerCorrection(view, displayedCol, displayedRow, sourceChanged, now);
       view.protectedState = item.paused || item.choosingUpgrade || view.invulnerable > 0;
       if (hadSource && wasGhost && !item.ghost) playGhostRevivePresentation(view);
       else if (!wasGhost && item.ghost) view.nextGhostPleaAt = -Infinity;
@@ -2961,13 +3038,17 @@
     if (network.receivedAt > 0 && now - network.receivedAt >= NETWORK_SNAPSHOT_STALL_TIMEOUT_MS) {
       requestNetworkSnapshotResync(now);
     }
-    const presentation = selectNetworkPresentation();
-    if (presentation) applyNetworkPresentation(
-      presentation.previous.snapshot,
-      presentation.current.snapshot,
-      presentation.previous.indexes,
-      presentation.amount
-    );
+    if (now >= network.nextRemotePresentationAt) {
+      network.nextRemotePresentationAt = now + NETWORK_REMOTE_PRESENTATION_INTERVAL_MS;
+      const presentation = selectNetworkPresentation();
+      if (presentation) applyNetworkPresentation(
+        presentation.previous.snapshot,
+        presentation.current.snapshot,
+        presentation.previous.indexes,
+        presentation.amount,
+        now
+      );
+    }
     flushPendingNetworkVisualEffects();
     processNetworkPlayerHeadCollisionEvents(now);
     updateFoodBirthAnimations(dt);

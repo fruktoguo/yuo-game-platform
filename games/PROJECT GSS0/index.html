@@ -19,7 +19,7 @@
           <strong>代号：几何贪吃蛇</strong>
         </div>
         <span class="signature">by 四季鸽</span>
-        <span class="brand-version" aria-label="游戏版本 V103">V103</span>
+        <span class="brand-version" aria-label="游戏版本 V104">V104</span>
       </div>
 
       <div class="run-stats">
@@ -201,7 +201,7 @@
 
     <section id="start-screen" class="modal-layer start-screen is-visible" aria-labelledby="game-title">
       <div class="start-glow" aria-hidden="true"></div>
-          <div class="start-version" aria-label="游戏版本 V103"><span>BUILD</span><strong>V103</strong></div>
+          <div class="start-version" aria-label="游戏版本 V104"><span>BUILD</span><strong>V104</strong></div>
       <div class="start-layout">
         <div class="start-content">
           <div id="network-status" class="title-kicker">TACTICAL SURVIVAL / LOCAL</div>
@@ -302,6 +302,21 @@
           <button id="changelog-close-button" class="icon-button codex-close-button" type="button" aria-label="关闭更新日志" title="关闭更新日志">×</button>
         </header>
         <div class="changelog-list">
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V104</strong></div>
+              <time datetime="2026-07-22">2026.07.22</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">多人联机</span>
+              <h3>多人同步与性能优化</h3>
+              <ul>
+                <li>手动玩家继续保持本地即时操控；服务器现在限制失联玩家的远端预测时间并约束场地边界，避免其他玩家直线飞出场外后突然回跳。</li>
+                <li>远端玩家的大幅位置修正改为平滑追位，高刷新率设备同步降低重复全场插值开销。</li>
+                <li>战斗表现消息改为可丢弃传输，玩家身体上行状态采用紧凑坐标编码，并新增服务器网络负载指标。</li>
+              </ul>
+            </div>
+          </article>
           <article class="changelog-entry">
             <header>
               <div class="changelog-version"><span>BUILD</span><strong>V103</strong></div>
@@ -1622,20 +1637,20 @@
     </section>
   </main>
 
-  <script src="designer-config.js?v=103"></script>
-  <script src="module-catalog.js?v=103"></script>
-  <script src="module-progression.js?v=103"></script>
-  <script src="wave-director.js?v=103"></script>
-  <script src="spawn-planner.js?v=103"></script>
-  <script src="network-codec.js?v=103"></script>
-  <script src="network-player-prediction.js?v=103"></script>
-  <script src="network-player-state-codec.js?v=103"></script>
-  <script src="network-player-collisions.js?v=103"></script>
-  <script src="network-head-collisions.js?v=103"></script>
-  <script src="network-food-claims.js?v=103"></script>
-  <script src="network-projectiles.js?v=103"></script>
-  <script src="lobby-navigation.js?v=103"></script>
-  <script src="enemy-codex.js?v=103"></script>
-  <script src="game.js?v=103"></script>
+  <script src="designer-config.js?v=104"></script>
+  <script src="module-catalog.js?v=104"></script>
+  <script src="module-progression.js?v=104"></script>
+  <script src="wave-director.js?v=104"></script>
+  <script src="spawn-planner.js?v=104"></script>
+  <script src="network-codec.js?v=104"></script>
+  <script src="network-player-prediction.js?v=104"></script>
+  <script src="network-player-state-codec.js?v=104"></script>
+  <script src="network-player-collisions.js?v=104"></script>
+  <script src="network-head-collisions.js?v=104"></script>
+  <script src="network-food-claims.js?v=104"></script>
+  <script src="network-projectiles.js?v=104"></script>
+  <script src="lobby-navigation.js?v=104"></script>
+  <script src="enemy-codex.js?v=104"></script>
+  <script src="game.js?v=104"></script>
 </body>
 </html>

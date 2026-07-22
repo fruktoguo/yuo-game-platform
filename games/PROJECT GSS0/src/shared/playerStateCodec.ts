@@ -1,10 +1,11 @@
 import type { GridPoint } from './protocol';
 
 const MAGIC = 0x4753;
-const VERSION = 1;
+export const PLAYER_STATE_PROTOCOL_VERSION = 2;
 const HEADER_BYTES = 46;
-const SEGMENT_BYTES = 12;
+const SEGMENT_BYTES = 4;
 const MAX_SEGMENTS = 512;
+const SEGMENT_COORDINATE_SCALE = 128;
 
 export interface PlayerMovementSegment extends GridPoint {
   angle: number;
@@ -27,7 +28,7 @@ export function encodePlayerMovementState(state: PlayerMovementState): Uint8Arra
   const bytes = new Uint8Array(HEADER_BYTES + segmentCount * SEGMENT_BYTES);
   const view = new DataView(bytes.buffer);
   view.setUint16(0, MAGIC, true);
-  view.setUint8(2, VERSION);
+  view.setUint8(2, PLAYER_STATE_PROTOCOL_VERSION);
   view.setUint8(3, 0);
   view.setUint32(4, state.sequence, true);
   const values = [
@@ -46,9 +47,8 @@ export function encodePlayerMovementState(state: PlayerMovementState): Uint8Arra
   let offset = HEADER_BYTES;
   for (let index = 0; index < segmentCount; index += 1) {
     const segment = state.segments[index];
-    view.setFloat32(offset, segment.col, true);
-    view.setFloat32(offset + 4, segment.row, true);
-    view.setFloat32(offset + 8, segment.angle, true);
+    view.setInt16(offset, fixedCoordinate(segment.col), true);
+    view.setInt16(offset + 2, fixedCoordinate(segment.row), true);
     offset += SEGMENT_BYTES;
   }
   return bytes;
@@ -60,7 +60,7 @@ export function decodePlayerMovementState(payload: ArrayBuffer | ArrayBufferView
     : new Uint8Array(payload.buffer, payload.byteOffset, payload.byteLength);
   if (bytes.byteLength < HEADER_BYTES) throw new Error('Player movement packet is incomplete');
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  if (view.getUint16(0, true) !== MAGIC || view.getUint8(2) !== VERSION) throw new Error('Player movement packet version is invalid');
+  if (view.getUint16(0, true) !== MAGIC || view.getUint8(2) !== PLAYER_STATE_PROTOCOL_VERSION) throw new Error('Player movement packet version is invalid');
   const segmentCount = view.getUint16(44, true);
   if (segmentCount > MAX_SEGMENTS || bytes.byteLength !== HEADER_BYTES + segmentCount * SEGMENT_BYTES) {
     throw new Error('Player movement packet length is invalid');
@@ -81,11 +81,15 @@ export function decodePlayerMovementState(payload: ArrayBuffer | ArrayBufferView
   let offset = HEADER_BYTES;
   for (let index = 0; index < segmentCount; index += 1) {
     state.segments.push({
-      col: view.getFloat32(offset, true),
-      row: view.getFloat32(offset + 4, true),
-      angle: view.getFloat32(offset + 8, true),
+      col: view.getInt16(offset, true) / SEGMENT_COORDINATE_SCALE,
+      row: view.getInt16(offset + 2, true) / SEGMENT_COORDINATE_SCALE,
+      angle: 0,
     });
     offset += SEGMENT_BYTES;
   }
   return state;
+}
+
+function fixedCoordinate(value: number): number {
+  return Math.max(-32_768, Math.min(32_767, Math.round(value * SEGMENT_COORDINATE_SCALE)));
 }

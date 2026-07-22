@@ -45,6 +45,7 @@ import {
   MULTIPLAYER_REVIVE_CONTACT_RANGE,
   MULTIPLAYER_REVIVE_HEALTH,
   MULTIPLAYER_REVIVE_INVULNERABILITY_DURATION,
+  NETWORK_MANUAL_PREDICTION_MS,
   NETWORK_COLLISION_CLAIM_COOLDOWN_MS,
   NETWORK_COLLISION_HISTORY_MS,
   NETWORK_HEAD_COLLISION_CONTACT_ALLOWANCE,
@@ -136,6 +137,7 @@ interface PlayerEntity extends UltraPlayerView {
   bloomCooldown: number;
   cacheKills: number;
   lastInputSequence: number;
+  lastManualStateAt: number;
   movementHistory: PlayerMovementSample[];
   recentPicks: ModuleId[];
   growthQueue: Array<{ color: string; special: boolean; spawnTailFood: boolean }>;
@@ -395,6 +397,7 @@ export class UltraWorld {
       existing.name = normalizeName(name);
       existing.playerId = normalizePlayerId(playerId);
       existing.lastInputSequence = -1;
+      existing.lastManualStateAt = now;
       existing.movementHistory.length = 0;
       this.clearPlayerHeadCollisionRecords(existing.entityId);
       this.recordPlayerMovement(existing, now);
@@ -423,7 +426,7 @@ export class UltraWorld {
     if (!player?.connected || player.alive || (player.respawnAt !== null && player.respawnAt > now)) return false;
     if (this.alivePlayers().length === 0) this.resetSharedWorld();
     const spawn = this.findPlayerSpawn();
-    this.resetPlayerRun(player, spawn);
+    this.resetPlayerRun(player, spawn, now);
     this.recordPlayerMovement(player, now);
     this.now = now;
     this.effectSound('start', player.entityId);
@@ -440,7 +443,7 @@ export class UltraWorld {
     player.growthQueue = [];
     player.upgradeOffer = null;
     if (this.alivePlayers().length === 0) this.resetSharedWorld();
-    this.resetPlayerRun(player, this.findPlayerSpawn());
+    this.resetPlayerRun(player, this.findPlayerSpawn(), now);
     this.recordPlayerMovement(player, now);
     this.effectSound('start', player.entityId);
     this.now = now;
@@ -471,6 +474,7 @@ export class UltraWorld {
     const player = this.playersByAccount.get(accountId);
     if (!player?.connected) return false;
     player.autopilot = enabled;
+    if (!enabled) player.lastManualStateAt = this.now;
     player.autoSelectModules = autoSelectModules;
     player.autoRestart = autoRestart;
     if (enabled && autoSelectModules && player.choosingUpgrade && player.upgradeOffer) {
@@ -529,8 +533,13 @@ export class UltraWorld {
       ) return false;
     }
     player.lastInputSequence = payload.sequence;
-    player.col = payload.col;
-    player.row = payload.row;
+    player.lastManualStateAt = now;
+    const arenaMinimum = this.arenaMinimum();
+    const arenaMaximum = this.arenaMaximum();
+    player.col = clamp(payload.col, arenaMinimum, arenaMaximum);
+    player.row = clamp(payload.row, arenaMinimum, arenaMaximum);
+    const boundaryShiftCol = player.col - payload.col;
+    const boundaryShiftRow = player.row - payload.row;
     player.angle = normalizeAngle(payload.angle);
     player.desiredAngle = normalizeAngle(payload.desiredAngle);
     player.speed = player.ghost ? MULTIPLAYER_GHOST_SPEED : payload.speed;
@@ -538,12 +547,14 @@ export class UltraWorld {
     player.knockbackY = player.ghost ? 0 : payload.knockbackY;
     player.collisionCooldown = player.ghost ? 0 : payload.collisionCooldown;
     player.slow = player.ghost ? 0 : payload.slow;
+    let previousNode: GridPoint = player;
     for (let index = 0; index < player.segments.length; index += 1) {
       const source = payload.segments[index];
       const segment = player.segments[index];
-      segment.col = source.col;
-      segment.row = source.row;
-      segment.angle = normalizeAngle(source.angle);
+      segment.col = clamp(source.col + boundaryShiftCol, arenaMinimum, arenaMaximum);
+      segment.row = clamp(source.row + boundaryShiftRow, arenaMinimum, arenaMaximum);
+      segment.angle = Math.atan2(previousNode.row - segment.row, previousNode.col - segment.col);
+      previousNode = segment;
     }
     this.recordPlayerMovement(player, now);
     return true;
@@ -885,8 +896,11 @@ export class UltraWorld {
       if (!player.autopilot || player.collisionCooldown > 0) continue;
       player.desiredAngle = player.ghost ? this.ghostAutopilotAngle(player, living) : this.autopilotAngle(player, present);
     }
-    for (const player of moving) this.movePlayer(player, worldDelta);
-    for (const player of moving) this.recordPlayerMovement(player, now);
+    for (const player of moving) {
+      if (!player.autopilot && now - player.lastManualStateAt > NETWORK_MANUAL_PREDICTION_MS) continue;
+      this.movePlayer(player, worldDelta);
+      this.recordPlayerMovement(player, now);
+    }
     if (this.reviveGhostPlayers(now, present)) {
       living.length = 0;
       active.length = 0;
@@ -1088,6 +1102,7 @@ export class UltraWorld {
       bloomCooldown: 0,
       cacheKills: 0,
       lastInputSequence: -1,
+      lastManualStateAt: this.now,
       movementHistory: [],
       score: 0,
       kills: 0,
@@ -1109,7 +1124,7 @@ export class UltraWorld {
     };
   }
 
-  private resetPlayerRun(player: PlayerEntity, spawn: GridPoint): void {
+  private resetPlayerRun(player: PlayerEntity, spawn: GridPoint, now: number): void {
     player.alive = true;
     player.ghost = false;
     player.paused = false;
@@ -1132,6 +1147,7 @@ export class UltraWorld {
     player.bloomCooldown = 0;
     player.cacheKills = 0;
     player.lastInputSequence = -1;
+    player.lastManualStateAt = now;
     player.movementHistory.length = 0;
     this.clearPlayerHeadCollisionRecords(player.entityId);
     player.score = 0;
@@ -1410,8 +1426,10 @@ export class UltraWorld {
     else player.angle = rotateToward(player.angle, player.desiredAngle, PLAYER_TURN_RATE * (1 + MODULE_PROGRESSION.effects.hasteTurnRateBonus(this.moduleCount(player, 'haste'))) * delta);
     const slowMultiplier = player.slow > 0 ? 0.48 : 1;
     player.speed = this.playerBaseSpeed(player) * slowMultiplier;
-    player.col += (Math.cos(player.angle) * player.speed + player.knockbackX) * delta;
-    player.row += (Math.sin(player.angle) * player.speed + player.knockbackY) * delta;
+    const nextCol = player.col + (Math.cos(player.angle) * player.speed + player.knockbackX) * delta;
+    const nextRow = player.row + (Math.sin(player.angle) * player.speed + player.knockbackY) * delta;
+    player.col = player.autopilot ? nextCol : clamp(nextCol, this.arenaMinimum(), this.arenaMaximum());
+    player.row = player.autopilot ? nextRow : clamp(nextRow, this.arenaMinimum(), this.arenaMaximum());
     this.applyKnockbackDecay(player, delta);
     followContinuousSegments(player.col, player.row, player.segments, this.playerSegmentSpacing(player));
   }

@@ -48,6 +48,12 @@ describe('设计配置', () => {
       automaticSelfAvoidanceRange: 3.2,
       automaticTeammateAvoidanceStrength: 3.4,
       automaticTeammateAvoidanceRange: 3.5,
+      networkManualPredictionMs: 180,
+      networkRemoteCorrectionThresholdCells: 0.75,
+      networkRemoteCorrectionSpeedCellsPerSecond: 18,
+      networkRemoteCorrectionMinMs: 120,
+      networkRemoteCorrectionMaxMs: 450,
+      networkRemotePresentationHz: 60,
       enemyBaseSpeed: 3,
       enemySpeedPerWave: 0.01,
       enemySpeedMaxMultiplier: 2,
@@ -228,8 +234,8 @@ describe('设计配置', () => {
 
     expect(parameterKeys.sort()).toEqual(Object.keys(DESIGNER_BALANCE).sort());
     expect(moduleIds.sort()).toEqual(MODULES.map((module) => module.id).sort());
-    expect(moduleProgressionSource).toContain('config?.schemaVersion !== 32');
-    expect(new Set(parameterKeys).size).toBe(213);
+    expect(moduleProgressionSource).toContain('config?.schemaVersion !== 33');
+    expect(new Set(parameterKeys).size).toBe(219);
     expect(parameterKeys).not.toContain('playerSpeedPerLevel');
     expect(parameterKeys).not.toContain('moduleEffectReductionMaximum');
     expect(parameterKeys).not.toContain('newModuleOfferChance');
@@ -258,8 +264,8 @@ describe('设计配置', () => {
     expect(MODULES.some((module) => ['输出', '进攻', '防御', '恢复'].includes(module.category as string))).toBe(false);
     expect(MODULES.every((module) => ['攻击', '生存', '辅助', '发育'].includes(module.category))).toBe(true);
     expect(MODULES.filter((module) => module.category === '发育')).toHaveLength(9);
-    expect(editorHtml).toContain('src="module-catalog.js?v=103"');
-    expect(editorHtml).toContain('src="module-progression.js?v=103"');
+    expect(editorHtml).toContain('src="module-catalog.js?v=104"');
+    expect(editorHtml).toContain('src="module-progression.js?v=104"');
     expect(editorHtml).toContain('const MODULES = moduleCatalog;');
     expect(editorHtml).toContain('descriptionText.textContent = describeModule(module.id, draft.balance);');
     expect(editorHtml).toContain('ID: ${module.id}');

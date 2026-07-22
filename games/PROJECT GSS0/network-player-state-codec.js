@@ -2,10 +2,11 @@
   "use strict";
 
   const MAGIC = 0x4753;
-  const VERSION = 1;
+  const VERSION = 2;
   const HEADER_BYTES = 46;
-  const SEGMENT_BYTES = 12;
+  const SEGMENT_BYTES = 4;
   const MAX_SEGMENTS = 512;
+  const SEGMENT_COORDINATE_SCALE = 128;
 
   function encode(sequence, player) {
     const segments = player?.segments || [];
@@ -32,13 +33,16 @@
     let offset = HEADER_BYTES;
     for (let index = 0; index < segmentCount; index += 1) {
       const segment = segments[index];
-      view.setFloat32(offset, segment.col, true);
-      view.setFloat32(offset + 4, segment.row, true);
-      view.setFloat32(offset + 8, segment.angle || 0, true);
+      view.setInt16(offset, fixedCoordinate(segment.col), true);
+      view.setInt16(offset + 2, fixedCoordinate(segment.row), true);
       offset += SEGMENT_BYTES;
     }
     return bytes;
   }
 
-  root.GSS0PlayerStateCodec = Object.freeze({ encode });
+  function fixedCoordinate(value) {
+    return Math.max(-32768, Math.min(32767, Math.round(value * SEGMENT_COORDINATE_SCALE)));
+  }
+
+  root.GSS0PlayerStateCodec = Object.freeze({ version: VERSION, encode });
 })(globalThis);

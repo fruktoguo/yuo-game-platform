@@ -19,7 +19,7 @@ runInThisContext(readFileSync(new URL('../network-projectiles.js', import.meta.u
 const clientGlobals = globalThis as typeof globalThis & {
   GSS0NetworkCodec: { decode: (payload: ArrayBuffer | ArrayBufferView, modules: typeof MODULES, target?: UltraSnapshot) => UltraSnapshot };
   GSS0PlayerPrediction: { create: (options?: Record<string, number>) => ClientPlayerPredictionRuntime };
-  GSS0PlayerStateCodec: { encode: (sequence: number, player: Record<string, unknown>) => Uint8Array };
+  GSS0PlayerStateCodec: { version: number; encode: (sequence: number, player: Record<string, unknown>) => Uint8Array };
   GSS0PlayerCollisions: { detect: (...args: unknown[]) => Record<string, unknown> | null };
   GSS0NetworkHeadCollisions: { create: (options?: Record<string, number>) => ClientHeadCollisionRuntime };
   GSS0FoodClaimRuntime: { create: (options?: { maximumBatchSize?: number; retryAfterMs?: number }) => ClientFoodClaimRuntime };
@@ -150,9 +150,12 @@ describe('客户端网络模块', () => {
     expect(runtime.state.row).toBe(predictedRow);
   });
 
-  it('完整蛇身状态使用紧凑二进制包往返，碰撞只按客户端可见距离触发', () => {
+  it('完整蛇身状态使用紧凑定点坐标包往返，碰撞只按客户端可见距离触发', () => {
     const player = snapshotAt(9, 5).players[0];
-    const decoded = decodePlayerMovementState(clientGlobals.GSS0PlayerStateCodec.encode(10, player as unknown as Record<string, unknown>));
+    const encoded = clientGlobals.GSS0PlayerStateCodec.encode(10, player as unknown as Record<string, unknown>);
+    const decoded = decodePlayerMovementState(encoded);
+    expect(clientGlobals.GSS0PlayerStateCodec.version).toBe(2);
+    expect(encoded.byteLength).toBe(50);
     expect(decoded.sequence).toBe(10);
     expect(decoded.col).toBeCloseTo(player.col, FLOAT32_DECIMAL_PRECISION);
     expect(decoded.row).toBeCloseTo(player.row, FLOAT32_DECIMAL_PRECISION);
@@ -164,9 +167,8 @@ describe('客户端网络模块', () => {
     expect(decoded.collisionCooldown).toBeCloseTo(player.collisionCooldown, FLOAT32_DECIMAL_PRECISION);
     expect(decoded.slow).toBeCloseTo(player.slow, FLOAT32_DECIMAL_PRECISION);
     expect(decoded.segments).toHaveLength(1);
-    expect(decoded.segments[0].col).toBeCloseTo(player.segments[0].col, FLOAT32_DECIMAL_PRECISION);
-    expect(decoded.segments[0].row).toBeCloseTo(player.segments[0].row, FLOAT32_DECIMAL_PRECISION);
-    expect(decoded.segments[0].angle).toBeCloseTo(player.segments[0].angle, FLOAT32_DECIMAL_PRECISION);
+    expect(decoded.segments[0].col).toBeCloseTo(player.segments[0].col, 2);
+    expect(decoded.segments[0].row).toBeCloseTo(player.segments[0].row, 2);
 
     const options = { worldMin: 0, worldMax: 23, selfRange: 0.5, bodyRange: 0.42, playerHeadRange: 1.05, enemyHeadRange: 0.81 };
     const far = clientGlobals.GSS0PlayerCollisions.detect(player, [{ id: 2, col: 5.9, row: 5, angle: Math.PI, segments: [], dead: false }], [player], options);

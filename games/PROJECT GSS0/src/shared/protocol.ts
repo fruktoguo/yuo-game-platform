@@ -248,6 +248,7 @@ export interface LeaderboardEntry {
 export interface ArenaJoinData {
   selfEntityId: number;
   snapshotProtocolVersion: number;
+  playerStateProtocolVersion: number;
   foodRevision: number;
   profile: UltraProfileView;
   snapshot: UltraSnapshot;

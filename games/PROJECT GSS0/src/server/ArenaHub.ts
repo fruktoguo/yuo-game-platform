@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
 import type { Server, Socket } from 'socket.io';
 import { IntervalGate } from '@yuo-platform/realtime';
-import { decodePlayerMovementState } from '../shared/playerStateCodec';
+import { decodePlayerMovementState, PLAYER_STATE_PROTOCOL_VERSION } from '../shared/playerStateCodec';
 import {
   MAX_CHAT_HISTORY,
   MAX_CHAT_LENGTH,
@@ -28,6 +28,7 @@ import type {
   SocketData,
   UltraEffect,
   UltraFoodDelta,
+  UltraSnapshot,
   UltraWorldObjectDelta,
   UltraProjectileEvent,
   UpgradeOffer,
@@ -46,15 +47,6 @@ const MAX_FOOD_CLAIMS_PER_BATCH = 32;
 const RESYNC_MIN_INTERVAL_MS = 500;
 const COALESCED_SOUND_KINDS = new Set(['shoot', 'skill', 'frost', 'electric', 'hit', 'foodSpawn', 'bounce']);
 
-function isDroppableSharedEffect(effect: UltraEffect): boolean {
-  return effect.type === 'burst'
-    || effect.type === 'ring'
-    || effect.type === 'beam'
-    || effect.type === 'lightning'
-    || effect.type === 'text'
-    || (effect.type === 'sound' && effect.kind === 'bounce');
-}
-
 export class ArenaHub {
   private readonly socketsByAccount = new Map<string, string>();
   private readonly socketsByEntity = new Map<number, string>();
@@ -67,6 +59,15 @@ export class ArenaHub {
   private persistenceTimer: NodeJS.Timeout | null = null;
   private lastStepAt = performance.now();
   private ticksSinceSnapshot = 0;
+  private recentTickMs = 0;
+  private peakTickMs = 0;
+  private recentWorldStepMs = 0;
+  private peakWorldStepMs = 0;
+  private recentSnapshotEncodeMs = 0;
+  private peakSnapshotEncodeMs = 0;
+  private recentSnapshotBytes = 0;
+  private peakSnapshotBytes = 0;
+  private overBudgetTickCount = 0;
   private dirty = false;
 
   private constructor(
@@ -127,8 +128,20 @@ export class ArenaHub {
     await this.profiles.save();
   }
 
-  getHealth(): { tick: number; online: number; alive: number; enemies: number } {
-    return { tick: this.world.currentTick, online: this.world.onlineCount, alive: this.world.aliveCount, enemies: this.world.enemyCount };
+  getHealth() {
+    return {
+      tick: this.world.currentTick,
+      online: this.world.onlineCount,
+      alive: this.world.aliveCount,
+      enemies: this.world.enemyCount,
+      performance: {
+        tickMs: metricSnapshot(this.recentTickMs, this.peakTickMs),
+        worldStepMs: metricSnapshot(this.recentWorldStepMs, this.peakWorldStepMs),
+        snapshotEncodeMs: metricSnapshot(this.recentSnapshotEncodeMs, this.peakSnapshotEncodeMs),
+        snapshotBytes: { recent: this.recentSnapshotBytes, peak: this.peakSnapshotBytes },
+        overBudgetTickCount: this.overBudgetTickCount,
+      },
+    };
   }
 
   private register(socket: UltraSocket): void {
@@ -173,6 +186,7 @@ export class ArenaHub {
       data: {
         selfEntityId: player.entityId,
         snapshotProtocolVersion: SNAPSHOT_PROTOCOL_VERSION,
+        playerStateProtocolVersion: PLAYER_STATE_PROTOCOL_VERSION,
         foodRevision: this.world.getFoodRevision(),
         profile: this.profiles.get(principal.accountId),
         snapshot,
@@ -183,14 +197,14 @@ export class ArenaHub {
         events: this.events.slice(-MAX_EVENT_HISTORY),
       },
     });
-    socket.emit('ultra:snapshot', encodeUltraSnapshot(snapshot).slice());
+    socket.emit('ultra:snapshot', this.encodeSnapshot(snapshot).slice());
     this.broadcastMeta();
   }
 
   private handleResync(socket: UltraSocket): void {
     if (!this.getJoinedAccountId(socket) || !this.resyncGate.allow(socket.id, Date.now())) return;
     const snapshot = this.world.getSnapshot(Date.now(), false);
-    socket.emit('ultra:snapshot', encodeUltraSnapshot(snapshot).slice());
+    socket.emit('ultra:snapshot', this.encodeSnapshot(snapshot).slice());
   }
 
   private handleSpawn(socket: UltraSocket, ack: (result: ActionResult) => void): void {
@@ -326,15 +340,35 @@ export class ArenaHub {
 
   private tick(): void {
     const now = Date.now();
-    const monotonicNow = performance.now();
-    const delta = (monotonicNow - this.lastStepAt) / 1_000;
-    this.lastStepAt = monotonicNow;
+    const tickStartedAt = performance.now();
+    const elapsedSincePreviousTickMs = tickStartedAt - this.lastStepAt;
+    const delta = elapsedSincePreviousTickMs / 1_000;
+    this.lastStepAt = tickStartedAt;
+    const worldStepStartedAt = performance.now();
     this.world.step(delta, now);
+    this.recentWorldStepMs = performance.now() - worldStepStartedAt;
+    this.peakWorldStepMs = Math.max(this.peakWorldStepMs, this.recentWorldStepMs);
     this.ticksSinceSnapshot += 1;
     if (this.socketsByAccount.size > 0 && this.ticksSinceSnapshot >= SNAPSHOT_TICK_INTERVAL) {
       this.ticksSinceSnapshot = 0;
-      this.io.volatile.emit('ultra:snapshot', encodeUltraSnapshot(this.world.getNetworkSnapshot(now)));
+      this.io.volatile.emit('ultra:snapshot', this.encodeSnapshot(this.world.getNetworkSnapshot(now)));
     }
+    this.recentTickMs = performance.now() - tickStartedAt;
+    this.peakTickMs = Math.max(this.peakTickMs, this.recentTickMs);
+    const tickBudgetMs = 1_000 / SIMULATION_HZ;
+    if (this.recentTickMs > tickBudgetMs || elapsedSincePreviousTickMs > tickBudgetMs * 1.5) {
+      this.overBudgetTickCount += 1;
+    }
+  }
+
+  private encodeSnapshot(snapshot: UltraSnapshot): Uint8Array {
+    const startedAt = performance.now();
+    const payload = encodeUltraSnapshot(snapshot);
+    this.recentSnapshotEncodeMs = performance.now() - startedAt;
+    this.peakSnapshotEncodeMs = Math.max(this.peakSnapshotEncodeMs, this.recentSnapshotEncodeMs);
+    this.recentSnapshotBytes = payload.byteLength;
+    this.peakSnapshotBytes = Math.max(this.peakSnapshotBytes, payload.byteLength);
+    return payload;
   }
 
   private broadcastMeta(): void {
@@ -342,8 +376,7 @@ export class ArenaHub {
   }
 
   private publishEffects(effects: UltraEffect[]): void {
-    let sharedReliable: UltraEffect[] | null = null;
-    let sharedVolatile: UltraEffect[] | null = null;
+    let shared: UltraEffect[] | null = null;
     let sharedBounceSoundQueued = false;
     const sharedSoundKeys = new Set<string>();
     const targeted = new Map<number, UltraEffect[]>();
@@ -354,26 +387,21 @@ export class ArenaHub {
           if (sharedSoundKeys.has(soundKey)) continue;
           sharedSoundKeys.add(soundKey);
         }
-        if (isDroppableSharedEffect(effect)) {
-          if (effect.type === 'sound' && effect.kind === 'bounce') {
-            if (sharedBounceSoundQueued) continue;
-            sharedBounceSoundQueued = true;
-          }
-          (sharedVolatile ??= []).push(effect);
-        } else {
-          (sharedReliable ??= []).push(effect);
+        if (effect.type === 'sound' && effect.kind === 'bounce') {
+          if (sharedBounceSoundQueued) continue;
+          sharedBounceSoundQueued = true;
         }
+        (shared ??= []).push(effect);
         continue;
       }
       const audience = targeted.get(effect.audienceEntityId);
       if (audience) audience.push(effect);
       else targeted.set(effect.audienceEntityId, [effect]);
     }
-    if (sharedReliable) this.io.emit('ultra:effects', sharedReliable);
-    if (sharedVolatile) this.io.volatile.emit('ultra:effects', sharedVolatile);
+    if (shared) this.io.volatile.emit('ultra:effects', shared);
     for (const [entityId, items] of targeted) {
       const socketId = this.socketsByEntity.get(entityId);
-      if (socketId) this.io.sockets.sockets.get(socketId)?.emit('ultra:effects', items);
+      if (socketId) this.io.sockets.sockets.get(socketId)?.volatile.emit('ultra:effects', items);
     }
   }
 
@@ -438,4 +466,8 @@ export class ArenaHub {
 function pushLimited<T>(target: T[], item: T, maximum: number): void {
   target.push(item);
   if (target.length > maximum) target.splice(0, target.length - maximum);
+}
+
+function metricSnapshot(recent: number, peak: number): { recent: number; peak: number } {
+  return { recent: Number(recent.toFixed(3)), peak: Number(peak.toFixed(3)) };
 }
