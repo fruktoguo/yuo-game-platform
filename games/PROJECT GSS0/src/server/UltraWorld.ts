@@ -2072,8 +2072,8 @@ export class UltraWorld {
   private queueEnemySpawn(archetype: EnemyArchetypeDefinition, assignedHealth: number, playerCount = this.activePlayers().length, occupied = this.occupiedCellCodes()): boolean {
     const totalLength = Math.max(1, Math.round(assignedHealth));
     const multiplayerScale = playerCount <= 1 ? 1 : Math.max(0.35, 1 / Math.sqrt(playerCount));
-    const fastestPlayer = this.livingPlayers().reduce((maximum, player) => Math.max(maximum, this.playerBaseSpeed(player)), PLAYER_BASE_SPEED);
-    const placement = this.chooseEnemySpawn(totalLength - 1, fastestPlayer * 2 * multiplayerScale, occupied);
+    // Movement bonuses must not expand the safety radius beyond the arena's available space.
+    const placement = this.chooseEnemySpawn(totalLength - 1, PLAYER_BASE_SPEED * 2 * multiplayerScale, occupied);
     if (!placement) return false;
     const color = ENEMY_COLORS[(this.nextEnemyId - 1) % ENEMY_COLORS.length];
     this.addPendingSpawn({

@@ -3090,7 +3090,8 @@
     if (!player) return;
     const totalLength = Math.max(1, Math.round(assignedHealth));
     const bodySegmentCount = totalLength - 1;
-    const placement = chooseEnemySpawn(bodySegmentCount, playerBaseSpeed() * 2, occupied);
+    // Movement bonuses must not expand the safety radius beyond the arena's available space.
+    const placement = chooseEnemySpawn(bodySegmentCount, PLAYER_BASE_SPEED * 2, occupied);
     if (!placement) return false;
     const headCell = placement.head;
     const nextCell = placement.next;
