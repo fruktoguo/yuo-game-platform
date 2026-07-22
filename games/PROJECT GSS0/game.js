@@ -439,10 +439,14 @@
   let foods = [];
   const locallyPulledFoods = new Set();
   const localFoodContacts = new Map();
+  const activeEnemyFoods = new Set();
   let enemies = [];
   const enemySpatialBuckets = new Map();
   const enemySpatialBucketPool = [];
+  const enemyMovementStart = { col: 0, row: 0 };
+  const enemyMovementEnd = { col: 0, row: 0 };
   let projectiles = [];
+  const projectileContactBuffer = [];
   let hazards = [];
   let particles = [];
   const particlePool = [];
@@ -744,11 +748,18 @@
     for (let index = firstSegmentIndex; index < snake.segments.length; index += 1) {
       const segment = snake.segments[index];
       const previous = index > 0 ? snake.segments[index - 1] : snake;
-      const contactPoint = closestPointOnGridSegment(point, previous, segment);
-      const deltaCol = point.col - contactPoint.col;
-      const deltaRow = point.row - contactPoint.row;
+      const connectionCol = segment.col - previous.col;
+      const connectionRow = segment.row - previous.row;
+      const connectionLengthSquared = connectionCol * connectionCol + connectionRow * connectionRow;
+      const progress = connectionLengthSquared > 0.000001
+        ? clamp(((point.col - previous.col) * connectionCol + (point.row - previous.row) * connectionRow) / connectionLengthSquared, 0, 1)
+        : 0;
+      const contactCol = previous.col + connectionCol * progress;
+      const contactRow = previous.row + connectionRow * progress;
+      const deltaCol = point.col - contactCol;
+      const deltaRow = point.row - contactRow;
       if (deltaCol * deltaCol + deltaRow * deltaRow < rangeSquared) {
-        return { point: contactPoint, segment, segmentIndex: index };
+        return { point: { col: contactCol, row: contactRow }, segment, segmentIndex: index };
       }
     }
     return null;
@@ -5099,8 +5110,16 @@
     return selected;
   }
 
-  function nearestEnemy(origin, maxDistance = Infinity) {
-    return nearestEnemyJoint(origin, maxDistance)?.enemy || null;
+  function hasEnemyJointWithinDistance(origin, maxDistance) {
+    const maximumDistanceSquared = maxDistance * maxDistance;
+    for (const enemy of enemies) {
+      if (enemy.dead) continue;
+      if (distanceSquared(origin, enemy) < maximumDistanceSquared) return true;
+      for (const segment of enemy.segments) {
+        if (distanceSquared(origin, segment) < maximumDistanceSquared) return true;
+      }
+    }
+    return false;
   }
 
   function resolveEnemyTargetNode(enemy, segmentIndex) {
@@ -5714,7 +5733,8 @@
     }
     enemySpatialBuckets.clear();
     const bucketSize = ENEMY_BEHAVIOR_TUNING.bodyAvoidanceRange;
-    for (const owner of enemies) {
+    for (let ownerIndex = 0; ownerIndex < enemies.length; ownerIndex += 1) {
+      const owner = enemies[ownerIndex];
       if (owner.dead) continue;
       for (let nodeIndex = -1; nodeIndex < owner.segments.length; nodeIndex += 1) {
         const node = nodeIndex < 0 ? owner : owner.segments[nodeIndex];
@@ -5730,10 +5750,11 @@
         let entry = bucket.entries[bucket.count];
         if (entry) {
           entry.owner = owner;
+          entry.ownerIndex = ownerIndex;
           entry.node = node;
           entry.isHead = nodeIndex < 0;
         } else {
-          entry = { owner, node, isHead: nodeIndex < 0 };
+          entry = { owner, ownerIndex, node, isHead: nodeIndex < 0 };
           bucket.entries.push(entry);
         }
         bucket.count += 1;
@@ -5790,40 +5811,62 @@
   function resolveEnemyCollisions() {
     const collisionDamageAmount = ENEMY_COLLISION_DAMAGE * (1 + MODULE_EFFECTS.enemyWallDamageBonus(moduleCount("wallbreaker")));
     const collisionKnockback = 1 + MODULE_EFFECTS.enemyWallKnockbackBonus(moduleCount("wallbreaker"));
+    const bucketSize = ENEMY_BEHAVIOR_TUNING.bodyAvoidanceRange;
+    const headContactRange = ENEMY_HEAD_RADIUS_CELLS * 2;
+    rebuildEnemySpatialBuckets();
     for (let firstIndex = 0; firstIndex < enemies.length; firstIndex += 1) {
       const first = enemies[firstIndex];
       if (first.dead || first.collisionCooldown > 0) continue;
 
-      for (let secondIndex = firstIndex + 1; secondIndex < enemies.length; secondIndex += 1) {
-        const second = enemies[secondIndex];
-        if (second.dead || second.collisionCooldown > 0) continue;
-
-        let normalX = first.col - second.col;
-        let normalY = first.row - second.row;
-        const hitDistance = (first.radius + second.radius) / arena.cellSize;
-        if (normalX * normalX + normalY * normalY >= hitDistance * hitDistance) continue;
-
-        if (Math.hypot(normalX, normalY) < 0.001) {
-          normalX = Math.cos(first.angle) - Math.cos(second.angle);
-          normalY = Math.sin(first.angle) - Math.sin(second.angle);
+      let second = null;
+      let secondIndex = Infinity;
+      const minimumBucketCol = Math.floor((first.col - headContactRange) / bucketSize);
+      const maximumBucketCol = Math.floor((first.col + headContactRange) / bucketSize);
+      const minimumBucketRow = Math.floor((first.row - headContactRange) / bucketSize);
+      const maximumBucketRow = Math.floor((first.row + headContactRange) / bucketSize);
+      for (let bucketCol = minimumBucketCol; bucketCol <= maximumBucketCol; bucketCol += 1) {
+        for (let bucketRow = minimumBucketRow; bucketRow <= maximumBucketRow; bucketRow += 1) {
+          const bucket = enemySpatialBuckets.get(enemySpatialBucketCode(bucketCol, bucketRow));
+          if (!bucket) continue;
+          for (let entryIndex = 0; entryIndex < bucket.count; entryIndex += 1) {
+            const entry = bucket.entries[entryIndex];
+            if (
+              !entry.isHead
+              || entry.ownerIndex <= firstIndex
+              || entry.ownerIndex >= secondIndex
+              || entry.owner.dead
+              || entry.owner.collisionCooldown > 0
+            ) continue;
+            const normalX = first.col - entry.owner.col;
+            const normalY = first.row - entry.owner.row;
+            const hitDistance = (first.radius + entry.owner.radius) / arena.cellSize;
+            if (normalX * normalX + normalY * normalY >= hitDistance * hitDistance) continue;
+            second = entry.owner;
+            secondIndex = entry.ownerIndex;
+          }
         }
-        if (Math.hypot(normalX, normalY) < 0.001) {
-          normalX = -Math.cos(first.angle);
-          normalY = -Math.sin(first.angle);
-        }
-
-        const collisionDamage = MODULE_PROGRESSION.rollLinearRewards(collisionDamageAmount, Math.random);
-        damageEnemy(first, collisionDamage, first.x, first.y, second.color, { rewardSelf: false, hitSegmentIndex: -1 });
-        damageEnemy(second, collisionDamage, second.x, second.y, first.color, { rewardSelf: false, hitSegmentIndex: -1 });
-        if (!first.dead) bounceEntity(first, normalX, normalY, first.color, SNAKE_SEGMENT_SPACING, collisionKnockback);
-        if (!second.dead) bounceEntity(second, -normalX, -normalY, second.color, SNAKE_SEGMENT_SPACING, collisionKnockback);
-        break;
       }
+      if (!second) continue;
+
+      let normalX = first.col - second.col;
+      let normalY = first.row - second.row;
+      if (normalX * normalX + normalY * normalY < 0.000001) {
+        normalX = Math.cos(first.angle) - Math.cos(second.angle);
+        normalY = Math.sin(first.angle) - Math.sin(second.angle);
+      }
+      if (normalX * normalX + normalY * normalY < 0.000001) {
+        normalX = -Math.cos(first.angle);
+        normalY = -Math.sin(first.angle);
+      }
+
+      const collisionDamage = MODULE_PROGRESSION.rollLinearRewards(collisionDamageAmount, Math.random);
+      damageEnemy(first, collisionDamage, first.x, first.y, second.color, { rewardSelf: false, hitSegmentIndex: -1 });
+      damageEnemy(second, collisionDamage, second.x, second.y, first.color, { rewardSelf: false, hitSegmentIndex: -1 });
+      if (!first.dead) bounceEntity(first, normalX, normalY, first.color, SNAKE_SEGMENT_SPACING, collisionKnockback);
+      if (!second.dead) bounceEntity(second, -normalX, -normalY, second.color, SNAKE_SEGMENT_SPACING, collisionKnockback);
     }
 
-    rebuildEnemySpatialBuckets();
     const bodyRangeSquared = ENEMY_BODY_CONTACT_RANGE ** 2;
-    const bucketSize = ENEMY_BEHAVIOR_TUNING.bodyAvoidanceRange;
     for (const enemy of enemies) {
       if (enemy.dead || enemy.collisionCooldown > 0) continue;
       let bodyHit = null;
@@ -5994,7 +6037,8 @@
     const chronosMultiplier = 1 - MODULE_EFFECTS.chronosSlowReduction(moduleCount("chronos"));
     const waveSpeedMultiplier = enemyWaveDirector.speedMultiplier(waveCount);
     const repulseRange = repulseRangePixels();
-    const activeFoods = new Set(foods);
+    activeEnemyFoods.clear();
+    for (const food of foods) activeEnemyFoods.add(food);
     rebuildEnemySpatialBuckets();
     for (const enemy of enemies) {
       if (enemy.dead) continue;
@@ -6005,7 +6049,7 @@
           enemy.think = random(Math.min(ENEMY_THINK_INTERVAL_MIN, ENEMY_THINK_INTERVAL_MAX), Math.max(ENEMY_THINK_INTERVAL_MIN, ENEMY_THINK_INTERVAL_MAX));
           chooseEnemyIntent(enemy);
         }
-        steerEnemy(enemy, activeFoods);
+        steerEnemy(enemy, activeEnemyFoods);
 
         const avoidance = ENEMY_PLAYER_BODY_AVOIDANCE.has(enemy.archetype) ? playerBodyAvoidance(enemy) : null;
         if (avoidance) {
@@ -6036,15 +6080,18 @@
       }
       const statusMultiplier = (enemy.slow > 0 ? 0.55 : 1) * (1 - (enemy.permanentSlow || 0));
       const speed = enemy.speed * waveSpeedMultiplier * chronosMultiplier * statusMultiplier;
-      const previousPosition = { col: enemy.col, row: enemy.row };
+      enemyMovementStart.col = enemy.col;
+      enemyMovementStart.row = enemy.row;
       const nextCol = enemy.col + (Math.cos(enemy.angle) * speed + enemy.knockbackX) * dt;
       const nextRow = enemy.row + (Math.sin(enemy.angle) * speed + enemy.knockbackY) * dt;
+      enemyMovementEnd.col = nextCol;
+      enemyMovementEnd.row = nextRow;
       let playerCollision = null;
       const protectedPlayer = player.invulnerable > 0;
       if ((protectedPlayer || player.collisionCooldown <= 0) && enemy.collisionCooldown <= 0) {
         const headProgress = sweptContactProgress(
-          previousPosition,
-          { col: nextCol, row: nextRow },
+          enemyMovementStart,
+          enemyMovementEnd,
           player,
           (player.radius + enemy.radius) / arena.cellSize
         );
@@ -6057,16 +6104,16 @@
         const segment = player.segments[segmentIndex];
         const previousSegment = segmentIndex > 0 ? player.segments[segmentIndex - 1] : player;
         const progress = sweptCapsuleContactProgress(
-          previousPosition,
-          { col: nextCol, row: nextRow },
+          enemyMovementStart,
+          enemyMovementEnd,
           previousSegment,
           segment,
           ENEMY_BODY_CONTACT_RANGE
         );
         if (progress === null || (playerCollision && playerCollision.progress <= progress)) continue;
         const collisionPosition = {
-          col: previousPosition.col + (nextCol - previousPosition.col) * progress,
-          row: previousPosition.row + (nextRow - previousPosition.row) * progress
+          col: enemyMovementStart.col + (nextCol - enemyMovementStart.col) * progress,
+          row: enemyMovementStart.row + (nextRow - enemyMovementStart.row) * progress
         };
         const point = closestPointOnGridSegment(collisionPosition, previousSegment, segment);
         syncNodePosition(point);
@@ -6075,8 +6122,8 @@
           : { kind: "body", point, progress };
       }
       if (playerCollision) {
-        enemy.col = previousPosition.col + (nextCol - previousPosition.col) * playerCollision.progress;
-        enemy.row = previousPosition.row + (nextRow - previousPosition.row) * playerCollision.progress;
+        enemy.col = enemyMovementStart.col + (nextCol - enemyMovementStart.col) * playerCollision.progress;
+        enemy.row = enemyMovementStart.row + (nextRow - enemyMovementStart.row) * playerCollision.progress;
         syncNodePosition(enemy);
         updateEnemyHitBounds(enemy);
         if (playerCollision.kind === "protected") {
@@ -6147,7 +6194,7 @@
         localFoodSpatialRuntime.untrackFood(food.id);
         locallyPulledFoods.delete(food);
         foods.splice(index, 1);
-        activeFoods.delete(food);
+        activeEnemyFoods.delete(food);
         enemy.captured += 1;
         enemy.target = null;
         burst(collector.x, collector.y, enemy.color, 5, 55);
@@ -6234,6 +6281,41 @@
     return (point.x - closestX) ** 2 + (point.y - closestY) ** 2 < radius * radius ? progress : null;
   }
 
+  function sweptPathIntersectsEnemyBounds(startX, startY, endX, endY, radius, enemy) {
+    const bounds = enemy.hitBounds;
+    return !bounds
+      || Math.max(startX, endX) + radius >= bounds.minX
+      && Math.min(startX, endX) - radius <= bounds.maxX
+      && Math.max(startY, endY) + radius >= bounds.minY
+      && Math.min(startY, endY) - radius <= bounds.maxY;
+  }
+
+  function appendProjectileContact(contactCount, enemy, node, progress, head) {
+    let contact = projectileContactBuffer[contactCount];
+    if (contact) {
+      contact.enemy = enemy;
+      contact.node = node;
+      contact.progress = progress;
+      contact.head = head;
+    } else {
+      contact = { enemy, node, progress, head };
+      projectileContactBuffer.push(contact);
+    }
+    return contactCount + 1;
+  }
+
+  function sortProjectileContacts(contactCount) {
+    for (let index = 1; index < contactCount; index += 1) {
+      const contact = projectileContactBuffer[index];
+      let insertAt = index;
+      while (insertAt > 0 && projectileContactBuffer[insertAt - 1].progress > contact.progress) {
+        projectileContactBuffer[insertAt] = projectileContactBuffer[insertAt - 1];
+        insertAt -= 1;
+      }
+      projectileContactBuffer[insertAt] = contact;
+    }
+  }
+
   function updateProjectiles(dt) {
     for (const projectile of projectiles) {
       projectile.life -= dt;
@@ -6280,20 +6362,39 @@
         }
       }
 
-      const contacts = [];
+      let contactCount = 0;
+      const segmentRadius = enemySegmentRadiusPixels();
       for (const enemy of enemies) {
         if (enemy.dead) continue;
-        const nodes = [enemy, ...enemy.segments];
-        for (let nodeIndex = 0; nodeIndex < nodes.length; nodeIndex += 1) {
-          const node = nodes[nodeIndex];
-          if (projectile.hitNodes.has(node)) continue;
-          const radius = projectile.size + (nodeIndex === 0 ? enemy.radius : enemySegmentRadiusPixels());
-          const progress = sweptPixelContactProgress(startX, startY, projectile.x, projectile.y, node, radius);
-          if (progress !== null) contacts.push({ enemy, node, progress, head: nodeIndex === 0 });
+        const broadRadius = projectile.size + Math.max(enemy.radius, segmentRadius);
+        if (!sweptPathIntersectsEnemyBounds(startX, startY, projectile.x, projectile.y, broadRadius, enemy)) continue;
+        if (!projectile.hitNodes.has(enemy)) {
+          const headProgress = sweptPixelContactProgress(
+            startX,
+            startY,
+            projectile.x,
+            projectile.y,
+            enemy,
+            projectile.size + enemy.radius
+          );
+          if (headProgress !== null) contactCount = appendProjectileContact(contactCount, enemy, enemy, headProgress, true);
+        }
+        for (const segment of enemy.segments) {
+          if (projectile.hitNodes.has(segment)) continue;
+          const progress = sweptPixelContactProgress(
+            startX,
+            startY,
+            projectile.x,
+            projectile.y,
+            segment,
+            projectile.size + segmentRadius
+          );
+          if (progress !== null) contactCount = appendProjectileContact(contactCount, enemy, segment, progress, false);
         }
       }
-      contacts.sort((left, right) => left.progress - right.progress);
-      for (const contact of contacts) {
+      if (contactCount > 1) sortProjectileContacts(contactCount);
+      for (let contactIndex = 0; contactIndex < contactCount; contactIndex += 1) {
+        const contact = projectileContactBuffer[contactIndex];
         const { enemy, node } = contact;
         if (enemy.dead || projectile.hitNodes.has(node)) continue;
         if (projectile.blastRadius) {
@@ -6361,7 +6462,7 @@
 
       hazard.arm -= dt;
       if (hazard.arm > 0) continue;
-      const enemyTrigger = nearestEnemy(hazard, hazard.radius);
+      const enemyTrigger = hasEnemyJointWithinDistance(hazard, hazard.radius);
       const playerTrigger = Math.hypot(player.x - hazard.x, player.y - hazard.y) < player.radius + 6 * arenaVisualScale();
       if (!enemyTrigger && !playerTrigger) continue;
       effects.push({ type: "ring", x: hazard.x, y: hazard.y, color: hazard.color, life: 0.5, maxLife: 0.5, radius: 10, endRadius: hazard.radius });
@@ -6854,15 +6955,16 @@
       node.renderY = clamp(node.y + Math.sin(time * 0.13 + node.phase) * 0.027, 0.025, 0.975) * layerHeight;
     }
     const connectionDistance = Math.min(layerWidth, layerHeight) * 0.24;
+    const connectionDistanceSquared = connectionDistance * connectionDistance;
     ambientCtx.lineWidth = 0.65;
+    ambientCtx.strokeStyle = "rgb(8, 199, 220)";
     for (let first = 0; first < ambientNodes.length; first += 1) {
       for (let second = first + 1; second < ambientNodes.length; second += 1) {
         const dx = ambientNodes[first].renderX - ambientNodes[second].renderX;
         const dy = ambientNodes[first].renderY - ambientNodes[second].renderY;
-        const distance = Math.hypot(dx, dy);
-        if (distance >= connectionDistance) continue;
-        const alpha = (1 - distance / connectionDistance) * 0.15;
-        ambientCtx.strokeStyle = `rgba(8, 199, 220, ${alpha.toFixed(3)})`;
+        const distanceSquaredValue = dx * dx + dy * dy;
+        if (distanceSquaredValue >= connectionDistanceSquared) continue;
+        ambientCtx.globalAlpha = (1 - Math.sqrt(distanceSquaredValue) / connectionDistance) * 0.15;
         ambientCtx.beginPath();
         ambientCtx.moveTo(ambientNodes[first].renderX, ambientNodes[first].renderY);
         ambientCtx.lineTo(ambientNodes[second].renderX, ambientNodes[second].renderY);
@@ -6870,6 +6972,7 @@
       }
     }
 
+    ambientCtx.globalAlpha = 1;
     for (let index = 0; index < ambientNodes.length; index += 1) {
       const node = ambientNodes[index];
       const pulse = 0.55 + Math.sin(time * 1.2 + node.phase) * 0.25;
@@ -7443,8 +7546,7 @@
     else window.setTimeout(runBatch, 0);
   }
 
-  function drawEnemySegment(enemy, segment, pieceScale) {
-    const sprite = enemySprite("segment", enemy);
+  function drawEnemySegment(segment, pieceScale, sprite) {
     ctx.save();
     ctx.translate(segment.x, segment.y);
     ctx.scale(pieceScale, pieceScale);
@@ -7453,7 +7555,7 @@
     ctx.restore();
   }
 
-  function drawEnemyHead(enemy, pieceScale) {
+  function drawEnemyHead(enemy, pieceScale, bodySprite = null) {
     const headSprite = enemySprite("head", enemy);
     const reform = enemy.headReform;
     const reformProgress = reform
@@ -7467,7 +7569,7 @@
     if (reform && reformProgress < 1) {
       const eased = 1 - (1 - reformProgress) ** 3;
       const pulse = Math.sin(reformProgress * Math.PI);
-      const bodySprite = enemySprite("segment", enemy);
+      bodySprite ||= enemySprite("segment", enemy);
       ctx.save();
       ctx.globalAlpha = (1 - eased) * 0.92;
       ctx.scale(1 + pulse * 0.16, 1 + pulse * 0.16);
@@ -7498,11 +7600,10 @@
     const corroded = enemy.poisonStacks > 0;
     const burning = enemy.burningTicks > 0;
     if (!frozen && !corroded && !burning) return;
-    const nodes = [enemy, ...enemy.segments];
     ctx.save();
     ctx.globalCompositeOperation = "lighter";
-    for (let index = 0; index < nodes.length; index += 1) {
-      const node = nodes[index];
+    for (let index = 0; index <= enemy.segments.length; index += 1) {
+      const node = index === 0 ? enemy : enemy.segments[index - 1];
       if (renderWorldBounds.active && !pointIntersectsRenderBounds(node.x, node.y, 30 * pieceScale)) continue;
       if (frozen) {
         const radius = (12 + (index % 3) * 2) * pieceScale;
@@ -7585,12 +7686,13 @@
     }
     drawLinkedPath(enemy, enemy.segments, "rgba(4, 6, 7, 0.92)", (enemy.archetype === "warden" ? 14 : 11) * pieceScale);
     drawLinkedPath(enemy, enemy.segments, enemy.color, (enemy.archetype === "cutter" ? 3.4 : 2.2) * pieceScale, 0.72);
+    const segmentSprite = enemy.segments.length > 0 ? enemySprite("segment", enemy) : null;
     for (let index = enemy.segments.length - 1; index >= 0; index -= 1) {
       const segment = enemy.segments[index];
-      if (!renderWorldBounds.active || pointIntersectsRenderBounds(segment.x, segment.y, 22 * pieceScale)) drawEnemySegment(enemy, segment, pieceScale);
+      if (!renderWorldBounds.active || pointIntersectsRenderBounds(segment.x, segment.y, 22 * pieceScale)) drawEnemySegment(segment, pieceScale, segmentSprite);
     }
     const headVisible = !renderWorldBounds.active || pointIntersectsRenderBounds(enemy.x, enemy.y, 42 * pieceScale);
-    if (headVisible) drawEnemyHead(enemy, pieceScale);
+    if (headVisible) drawEnemyHead(enemy, pieceScale, segmentSprite);
     if (!spawning) drawEnemyStatusParticles(enemy, pieceScale);
 
     if (!spawning && enemy.captured > 0 && headVisible) {
