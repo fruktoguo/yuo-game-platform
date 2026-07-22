@@ -50,6 +50,8 @@ import {
   PLAYER_COLORS,
   PLAYER_ENEMY_BODY_COLLISION_DAMAGE,
   PLAYER_HEALTH_REGEN_PER_SECOND,
+  PLAYER_KNOCKBACK_REAR_BLOCKED_ANGLE,
+  PLAYER_KNOCKBACK_REAR_CORRECTION_ANGLE,
   PLAYER_MAX_HEALTH,
   PLAYER_TURN_RATE,
   PLAYER_WALL_COLLISION_DAMAGE,
@@ -4082,8 +4084,10 @@ export class UltraWorld {
       normalY = -Math.sin(entity.angle);
       length = 1;
     }
-    const nx = normalX / length;
-    const ny = normalY / length;
+    const isPlayer = 'accountId' in entity;
+    let nx = normalX / length;
+    let ny = normalY / length;
+    if (isPlayer) ({ col: nx, row: ny } = correctedPlayerKnockbackNormal(entity.angle, nx, ny));
     const velocityX = Math.cos(entity.angle);
     const velocityY = Math.sin(entity.angle);
     const approach = velocityX * nx + velocityY * ny;
@@ -4092,7 +4096,6 @@ export class UltraWorld {
     bounceX += nx * 0.5;
     bounceY += ny * 0.5;
     const bounceAngle = Math.atan2(bounceY, bounceX);
-    const isPlayer = 'accountId' in entity;
     const collisionReduction = isPlayer && mitigatePlayerCollision
       ? MODULE_PROGRESSION.effects.bufferCollisionReduction(this.moduleCount(entity, 'buffer'))
       : 0;
@@ -4635,6 +4638,15 @@ function collisionNormal(left: { col: number; row: number; angle: number }, righ
 
 function angleDifference(from: number, to: number): number {
   return Math.atan2(Math.sin(to - from), Math.cos(to - from));
+}
+
+function correctedPlayerKnockbackNormal(heading: number, normalCol: number, normalRow: number): GridPoint {
+  if (PLAYER_KNOCKBACK_REAR_BLOCKED_ANGLE <= 0) return { col: normalCol, row: normalRow };
+  const relativeAngle = angleDifference(heading, Math.atan2(normalRow, normalCol));
+  const distanceFromRear = Math.abs(Math.PI - Math.abs(relativeAngle));
+  if (distanceFromRear > PLAYER_KNOCKBACK_REAR_BLOCKED_ANGLE * 0.5) return { col: normalCol, row: normalRow };
+  const correctedAngle = heading + (relativeAngle < 0 ? -PLAYER_KNOCKBACK_REAR_CORRECTION_ANGLE : PLAYER_KNOCKBACK_REAR_CORRECTION_ANGLE);
+  return { col: Math.cos(correctedAngle), row: Math.sin(correctedAngle) };
 }
 
 function normalizeName(value: string): string {

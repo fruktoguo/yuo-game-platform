@@ -1,5 +1,5 @@
 globalThis.GSS0_DESIGNER_CONFIG = {
-  "schemaVersion": 28,
+  "schemaVersion": 29,
   "balance": {
     "playerBaseSpeed": 5,
     "snakeBodySizeScale": 0.775,
@@ -8,6 +8,8 @@ globalThis.GSS0_DESIGNER_CONFIG = {
     "playerHealthRegenPerSecond": 0.25,
     "playerEnemyBodyCollisionDamage": 10,
     "playerWallCollisionDamage": 5,
+    "playerKnockbackRearBlockedAngleDegrees": 60,
+    "playerKnockbackRearCorrectionAngleDegrees": 150,
     "xpRequirementBase": 5,
     "xpRequirementPerLevel": 2,
     "experienceCompressionBase": 5,

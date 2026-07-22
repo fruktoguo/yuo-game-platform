@@ -19,7 +19,7 @@
           <strong>代号：几何贪吃蛇</strong>
         </div>
         <span class="signature">by 四季鸽</span>
-        <span class="brand-version" aria-label="游戏版本 V97">V97</span>
+        <span class="brand-version" aria-label="游戏版本 V98">V98</span>
       </div>
 
       <div class="run-stats">
@@ -179,7 +179,7 @@
 
     <section id="start-screen" class="modal-layer start-screen is-visible" aria-labelledby="game-title">
       <div class="start-glow" aria-hidden="true"></div>
-          <div class="start-version" aria-label="游戏版本 V97"><span>BUILD</span><strong>V97</strong></div>
+          <div class="start-version" aria-label="游戏版本 V98"><span>BUILD</span><strong>V98</strong></div>
       <div class="start-layout">
         <div class="start-content">
           <div id="network-status" class="title-kicker">TACTICAL SURVIVAL / LOCAL</div>
@@ -280,6 +280,20 @@
           <button id="changelog-close-button" class="icon-button codex-close-button" type="button" aria-label="关闭更新日志" title="关闭更新日志">×</button>
         </header>
         <div class="changelog-list">
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V98</strong></div>
+              <time datetime="2026-07-22">2026.07.22</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">碰撞优化</span>
+              <h3>玩家击退后方角度修正</h3>
+              <ul>
+                <li>玩家受到击退时，正后方60度范围内的击退方向会按左右修正到后方150度边界，避免蛇头被直接推回自己的身体。</li>
+                <li>设计控制台新增玩家后方击退屏蔽角与修正角参数。</li>
+              </ul>
+            </div>
+          </article>
           <article class="changelog-entry">
             <header>
               <div class="changelog-version"><span>BUILD</span><strong>V97</strong></div>
@@ -1511,20 +1525,20 @@
     </section>
   </main>
 
-  <script src="designer-config.js?v=97"></script>
-  <script src="module-catalog.js?v=97"></script>
-  <script src="module-progression.js?v=97"></script>
-  <script src="wave-director.js?v=97"></script>
-  <script src="spawn-planner.js?v=97"></script>
-  <script src="network-codec.js?v=97"></script>
-  <script src="network-player-prediction.js?v=97"></script>
-  <script src="network-player-state-codec.js?v=97"></script>
-  <script src="network-player-collisions.js?v=97"></script>
-  <script src="network-head-collisions.js?v=97"></script>
-  <script src="network-food-claims.js?v=97"></script>
-  <script src="network-projectiles.js?v=97"></script>
-  <script src="lobby-navigation.js?v=97"></script>
-  <script src="enemy-codex.js?v=97"></script>
-  <script src="game.js?v=97"></script>
+  <script src="designer-config.js?v=98"></script>
+  <script src="module-catalog.js?v=98"></script>
+  <script src="module-progression.js?v=98"></script>
+  <script src="wave-director.js?v=98"></script>
+  <script src="spawn-planner.js?v=98"></script>
+  <script src="network-codec.js?v=98"></script>
+  <script src="network-player-prediction.js?v=98"></script>
+  <script src="network-player-state-codec.js?v=98"></script>
+  <script src="network-player-collisions.js?v=98"></script>
+  <script src="network-head-collisions.js?v=98"></script>
+  <script src="network-food-claims.js?v=98"></script>
+  <script src="network-projectiles.js?v=98"></script>
+  <script src="lobby-navigation.js?v=98"></script>
+  <script src="enemy-codex.js?v=98"></script>
+  <script src="game.js?v=98"></script>
 </body>
 </html>

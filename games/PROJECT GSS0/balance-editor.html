@@ -388,11 +388,11 @@
     </div>
   </main>
 
-  <script src="enemy-codex.js?v=97"></script>
-  <script src="wave-director.js?v=97"></script>
-  <script src="designer-config.js?v=97"></script>
-  <script src="module-catalog.js?v=97"></script>
-  <script src="module-progression.js?v=97"></script>
+  <script src="enemy-codex.js?v=98"></script>
+  <script src="wave-director.js?v=98"></script>
+  <script src="designer-config.js?v=98"></script>
+  <script src="module-catalog.js?v=98"></script>
+  <script src="module-progression.js?v=98"></script>
   <script>
     (() => {
       "use strict";
@@ -417,6 +417,8 @@
         { key: "playerHealthRegenPerSecond", group: "玩家", label: "玩家生命恢复", hint: "存活并正常行动时每秒恢复的生命值", min: 0, max: 1, step: 0.1, unit: "点/秒" },
         { key: "playerEnemyBodyCollisionDamage", group: "玩家", label: "撞敌蛇身体受伤", hint: "玩家蛇头撞上敌蛇身体时受到的伤害", min: 0, max: 10000, step: 1, unit: "点" },
         { key: "playerWallCollisionDamage", group: "玩家", label: "撞墙受伤", hint: "玩家蛇头撞上场地边界时受到的伤害", min: 0, max: 10000, step: 1, unit: "点" },
+        { key: "playerKnockbackRearBlockedAngleDegrees", group: "玩家", label: "后方击退屏蔽角", hint: "以蛇头朝向为0度，正后方进入角度修正的扇区总宽度；0表示关闭修正", min: 0, max: 180, step: 1, unit: "度" },
+        { key: "playerKnockbackRearCorrectionAngleDegrees", group: "玩家", label: "后方击退修正角", hint: "击退方向进入正后方屏蔽区时，按原方向所在左右侧修正到的相对角度", min: 90, max: 180, step: 1, unit: "度" },
         { key: "xpRequirementBase", group: "玩家", label: "升级基础经验需求", hint: "0 级升到 1 级所需的经验球数量", min: 1, max: 100, step: 1, unit: "球" },
         { key: "xpRequirementPerLevel", group: "玩家", label: "升级每级经验增长", hint: "需求公式为：基础需求 + 当前等级 × 此数值", min: 0, max: 20, step: 1, unit: "球/级" },
         { key: "experienceCompressionBase", group: "成长系统", label: "经验压缩进位数", hint: "达到该数量的同级经验机体后，自动压缩成一节高一级经验机体", min: 2, max: 10, step: 1, unit: "节" },
@@ -677,7 +679,7 @@
       const filePickerSupported = typeof window.showOpenFilePicker === "function";
 
       function normalizeConfig(value) {
-        const config = { schemaVersion: 28, balance: {}, waveEnemyCountSchedule: [], moduleCooldownPercentages: {}, moduleStates: {} };
+        const config = { schemaVersion: 29, balance: {}, waveEnemyCountSchedule: [], moduleCooldownPercentages: {}, moduleStates: {} };
         for (const definition of ALL_PARAMETER_DEFINITIONS) {
           const candidate = Number(value?.balance?.[definition.key]);
           config.balance[definition.key] = Number.isFinite(candidate) ? Math.max(definition.min, Math.min(definition.max, candidate)) : definition.min;
@@ -713,7 +715,7 @@
         const end = text.lastIndexOf("}");
         if (start < 0 || end <= start) throw new Error("配置内容不完整");
         const parsed = JSON.parse(text.slice(start, end + 1));
-        if (parsed?.schemaVersion !== 28) throw new Error("配置版本无效，需要 schemaVersion 28");
+        if (parsed?.schemaVersion !== 29) throw new Error("配置版本无效，需要 schemaVersion 29");
         return normalizeConfig(parsed);
       }
 

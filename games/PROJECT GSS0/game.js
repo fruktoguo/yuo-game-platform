@@ -101,7 +101,7 @@
 
   const TAU = Math.PI * 2;
   const DESIGNER_CONFIG = globalThis.GSS0_DESIGNER_CONFIG || {};
-  if (DESIGNER_CONFIG.schemaVersion !== 28) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 28");
+  if (DESIGNER_CONFIG.schemaVersion !== 29) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 29");
   const DESIGNER_BALANCE = DESIGNER_CONFIG.balance || {};
   const MODULE_DESIGN_STATES = DESIGNER_CONFIG.moduleStates || {};
 
@@ -213,6 +213,8 @@
   const PLAYER_HEALTH_REGEN_PER_SECOND = designerNumber("playerHealthRegenPerSecond", 1, 0, 1);
   const PLAYER_ENEMY_BODY_COLLISION_DAMAGE = designerNumber("playerEnemyBodyCollisionDamage", 10, 0, 10000);
   const PLAYER_WALL_COLLISION_DAMAGE = designerNumber("playerWallCollisionDamage", 5, 0, 10000);
+  const PLAYER_KNOCKBACK_REAR_BLOCKED_ANGLE = designerNumber("playerKnockbackRearBlockedAngleDegrees", 60, 0, 180) * Math.PI / 180;
+  const PLAYER_KNOCKBACK_REAR_CORRECTION_ANGLE = designerNumber("playerKnockbackRearCorrectionAngleDegrees", 150, 90, 180) * Math.PI / 180;
   const PLAYER_COLLISION_DAMAGE = designerNumber("playerCollisionDamage", 1, 0, 1000, true);
   const ENEMY_COLLISION_DAMAGE = designerNumber("enemyCollisionDamage", 1, 0, 1000, true);
   const PLAYER_TURN_RATE = designerNumber("playerTurnRate", 4.2, 0.5, 12);
@@ -4656,6 +4658,15 @@
     return reconnectActive;
   }
 
+  function correctPlayerKnockbackNormal(heading, normalX, normalY) {
+    if (PLAYER_KNOCKBACK_REAR_BLOCKED_ANGLE <= 0) return { x: normalX, y: normalY };
+    const relativeAngle = Math.atan2(Math.sin(Math.atan2(normalY, normalX) - heading), Math.cos(Math.atan2(normalY, normalX) - heading));
+    const distanceFromRear = Math.abs(Math.PI - Math.abs(relativeAngle));
+    if (distanceFromRear > PLAYER_KNOCKBACK_REAR_BLOCKED_ANGLE * 0.5) return { x: normalX, y: normalY };
+    const correctedAngle = heading + (relativeAngle < 0 ? -PLAYER_KNOCKBACK_REAR_CORRECTION_ANGLE : PLAYER_KNOCKBACK_REAR_CORRECTION_ANGLE);
+    return { x: Math.cos(correctedAngle), y: Math.sin(correctedAngle) };
+  }
+
   function bounceEntity(entity, normalX, normalY, color, segmentSpacing, extraImpulseMultiplier = 1, mitigatePlayerCollision = false) {
     let normalLength = Math.hypot(normalX, normalY);
     if (normalLength < 0.001) {
@@ -4663,8 +4674,9 @@
       normalY = -Math.sin(entity.angle);
       normalLength = 1;
     }
-    const nx = normalX / normalLength;
-    const ny = normalY / normalLength;
+    let nx = normalX / normalLength;
+    let ny = normalY / normalLength;
+    if (entity === player) ({ x: nx, y: ny } = correctPlayerKnockbackNormal(entity.angle, nx, ny));
     const velocityX = Math.cos(entity.angle);
     const velocityY = Math.sin(entity.angle);
     const approach = velocityX * nx + velocityY * ny;
