@@ -19,7 +19,7 @@
           <strong>代号：几何贪吃蛇</strong>
         </div>
         <span class="signature">by 四季鸽</span>
-        <span class="brand-version" aria-label="游戏版本 V108">V108</span>
+        <span class="brand-version" aria-label="游戏版本 V109">V109</span>
       </div>
 
       <div class="run-stats">
@@ -201,7 +201,7 @@
 
     <section id="start-screen" class="modal-layer start-screen is-visible" aria-labelledby="game-title">
       <div class="start-glow" aria-hidden="true"></div>
-          <div class="start-version" aria-label="游戏版本 V108"><span>BUILD</span><strong>V108</strong></div>
+          <div class="start-version" aria-label="游戏版本 V109"><span>BUILD</span><strong>V109</strong></div>
       <div class="start-layout">
         <div class="start-content">
           <div id="network-status" class="title-kicker">TACTICAL SURVIVAL / LOCAL</div>
@@ -302,6 +302,22 @@
           <button id="changelog-close-button" class="icon-button codex-close-button" type="button" aria-label="关闭更新日志" title="关闭更新日志">×</button>
         </header>
         <div class="changelog-list">
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V109</strong></div>
+              <time datetime="2026-07-23">2026.07.23</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">敌人生态</span>
+              <h3>敌群避障与巡猎者重做</h3>
+              <ul>
+                <li>盘踞者更名为“巡猎者”，移除球群盘旋机制，改为在抢球范围内持续觅食并主动避开玩家身体。</li>
+                <li>守卫者移除护卫队友逻辑，改为随机游荡、顺手追逐附近球，并保留主动避障与强化头撞。</li>
+                <li>所有敌人现在都会主动避让其他敌蛇的头部与身体，降低敌群因互撞损血而自行减员的频率。</li>
+                <li>同步调整冲角者、截断者、巡猎者、守卫者的解锁时间与战斗参数，并将基础场地面积调整为300。</li>
+              </ul>
+            </div>
+          </article>
           <article class="changelog-entry">
             <header>
               <div class="changelog-version"><span>BUILD</span><strong>V108</strong></div>
@@ -1695,20 +1711,20 @@
     </section>
   </main>
 
-  <script src="designer-config.js?v=108"></script>
-  <script src="module-catalog.js?v=108"></script>
-  <script src="module-progression.js?v=108"></script>
-  <script src="wave-director.js?v=108"></script>
-  <script src="spawn-planner.js?v=108"></script>
-  <script src="network-codec.js?v=108"></script>
-  <script src="network-player-prediction.js?v=108"></script>
-  <script src="network-player-state-codec.js?v=108"></script>
-  <script src="network-player-collisions.js?v=108"></script>
-  <script src="network-head-collisions.js?v=108"></script>
-  <script src="network-food-claims.js?v=108"></script>
-  <script src="network-projectiles.js?v=108"></script>
-  <script src="lobby-navigation.js?v=108"></script>
-  <script src="enemy-codex.js?v=108"></script>
-  <script src="game.js?v=108"></script>
+  <script src="designer-config.js?v=109"></script>
+  <script src="module-catalog.js?v=109"></script>
+  <script src="module-progression.js?v=109"></script>
+  <script src="wave-director.js?v=109"></script>
+  <script src="spawn-planner.js?v=109"></script>
+  <script src="network-codec.js?v=109"></script>
+  <script src="network-player-prediction.js?v=109"></script>
+  <script src="network-player-state-codec.js?v=109"></script>
+  <script src="network-player-collisions.js?v=109"></script>
+  <script src="network-head-collisions.js?v=109"></script>
+  <script src="network-food-claims.js?v=109"></script>
+  <script src="network-projectiles.js?v=109"></script>
+  <script src="lobby-navigation.js?v=109"></script>
+  <script src="enemy-codex.js?v=109"></script>
+  <script src="game.js?v=109"></script>
 </body>
 </html>

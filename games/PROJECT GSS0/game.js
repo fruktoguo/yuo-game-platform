@@ -106,7 +106,7 @@
 
   const TAU = Math.PI * 2;
   const DESIGNER_CONFIG = globalThis.GSS0_DESIGNER_CONFIG || {};
-  if (DESIGNER_CONFIG.schemaVersion !== 36) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 36");
+  if (DESIGNER_CONFIG.schemaVersion !== 37) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 37");
   const DESIGNER_BALANCE = DESIGNER_CONFIG.balance || {};
   const MODULE_DESIGN_STATES = DESIGNER_CONFIG.moduleStates || {};
 
@@ -185,7 +185,7 @@
   const ENEMY_BODY_CONTACT_RANGE = 0.46 * SNAKE_BODY_SIZE_SCALE;
   const PLAYER_SELF_COLLISION_RANGE = 0.5 * SNAKE_BODY_SIZE_SCALE;
   const ENEMY_SELF_COLLISION_RANGE = 0.48 * SNAKE_BODY_SIZE_SCALE;
-  const ARENA_BASE_SIZE = Math.sqrt(designerNumber("arenaBaseArea", 345.6, 64, 4096));
+  const ARENA_BASE_SIZE = Math.sqrt(designerNumber("arenaBaseArea", 300, 64, 4096));
   const ARENA_AREA_PER_LEVEL = designerNumber("arenaAreaPerLevel", 0.03, 0, 0.5);
   const ARENA_RESIZE_RATE = designerNumber("arenaResizeRate", 2.4, 0.1, 10);
   const cameraFollowZoomFirst = designerNumber("cameraFollowZoomMin", 0.75, 0.25, 5);
@@ -279,23 +279,23 @@
     enemyArchetype("scout", "Scout", { unlockSeconds: 0, spawnWeight: 10, healthWeight: 1, speedMultiplier: 1, turnMultiplier: 1 }),
     enemyArchetype("forager", "Forager", { unlockSeconds: 0, spawnWeight: 5, healthWeight: 2, speedMultiplier: 0.75, turnMultiplier: 1 }),
     enemyArchetype("courier", "Courier", { unlockSeconds: 120, spawnWeight: 2.5, healthWeight: 4, speedMultiplier: 0.6, turnMultiplier: 1 }),
-    enemyArchetype("charger", "Charger", { unlockSeconds: 90, spawnWeight: 2.5, healthWeight: 2, speedMultiplier: 1.5, turnMultiplier: 1.5 }),
-    enemyArchetype("cutter", "Cutter", { unlockSeconds: 180, spawnWeight: 1.25, healthWeight: 2, speedMultiplier: 2, turnMultiplier: 2 }),
-    enemyArchetype("coiler", "Coiler", { unlockSeconds: 300, spawnWeight: 1.25, healthWeight: 6, speedMultiplier: 0.75, turnMultiplier: 1.5 }),
-    enemyArchetype("warden", "Warden", { unlockSeconds: 420, spawnWeight: 1.25, healthWeight: 8, speedMultiplier: 0.6, turnMultiplier: 0.6 })
+    enemyArchetype("charger", "Charger", { unlockSeconds: 60, spawnWeight: 3, healthWeight: 1, speedMultiplier: 1.5, turnMultiplier: 0.5 }),
+    enemyArchetype("cutter", "Cutter", { unlockSeconds: 120, spawnWeight: 1.5, healthWeight: 2, speedMultiplier: 1.8, turnMultiplier: 1.8 }),
+    enemyArchetype("coiler", "Coiler", { unlockSeconds: 180, spawnWeight: 2, healthWeight: 2, speedMultiplier: 1.5, turnMultiplier: 2 }),
+    enemyArchetype("warden", "Warden", { unlockSeconds: 240, spawnWeight: 1, healthWeight: 8, speedMultiplier: 0.6, turnMultiplier: 0.9 })
   ]);
   const ENEMY_ARCHETYPE_BY_ID = Object.freeze(Object.fromEntries(ENEMY_ARCHETYPES.map((entry) => [entry.id, entry])));
   const ENEMY_PLAYER_BODY_AVOIDANCE = new Set(["courier", "charger", "cutter", "coiler", "warden"]);
   const ENEMY_ARCHETYPE_GLYPHS = Object.freeze({ scout: "·", forager: "F", courier: "◆", charger: "!", cutter: "×", coiler: "◎", warden: "▣" });
   const ENEMY_BEHAVIOR_TUNING = Object.freeze({
+    bodyAvoidanceRange: designerNumber("enemyBodyAvoidanceRange", 3.2, 0.5, 10),
     scoutFoodRange: designerNumber("enemyScoutFoodRange", 6, 0, 30),
     courierFoodClusterRadius: designerNumber("enemyCourierFoodClusterRadius", 2.5, 0.5, 10),
     chargerTrackingWobble: designerNumber("enemyChargerTrackingWobble", 0.16, 0, 0.6),
     cutterLeadDistance: designerNumber("enemyCutterLeadDistance", 3.2, 0.5, 12),
     cutterLateralDistance: designerNumber("enemyCutterLateralDistance", 2.4, 0.5, 12),
-    coilerOrbitRadius: designerNumber("enemyCoilerOrbitRadius", 2.7, 0.5, 10),
-    coilerRadialCorrection: designerNumber("enemyCoilerRadialCorrection", 0.9, 0, 2),
-    wardenEscortDistance: designerNumber("enemyWardenEscortDistance", 2, 0.5, 10),
+    coilerFoodRange: designerNumber("enemyCoilerFoodRange", 6, 0, 30),
+    wardenFoodRange: designerNumber("enemyWardenFoodRange", 6, 0, 30),
     wardenKnockbackMultiplier: designerNumber("enemyWardenKnockbackMultiplier", 2, 1, 4)
   });
   const UPGRADE_INVULNERABILITY_DURATION = designerNumber("upgradeInvulnerabilityDuration", 0.5, 0, 10);
@@ -5656,7 +5656,7 @@
 
   function playerBodyAvoidance(enemy) {
     if (!player.segments.length) return null;
-    const range = 3.2;
+    const range = ENEMY_BEHAVIOR_TUNING.bodyAvoidanceRange;
     const forwardX = Math.cos(enemy.desiredAngle);
     const forwardY = Math.sin(enemy.desiredAngle);
     const probeCol = enemy.col + forwardX * 0.7;
@@ -5685,6 +5685,41 @@
       angle: Math.atan2(awayY, awayX),
       strength: clamp(totalWeight * 1.85, 0.28, 0.96) * decoyMultiplier,
       priorityStrength: decoyMultiplier
+    };
+  }
+
+  function enemyBodyAvoidance(enemy) {
+    const range = ENEMY_BEHAVIOR_TUNING.bodyAvoidanceRange;
+    const forwardX = Math.cos(enemy.desiredAngle);
+    const forwardY = Math.sin(enemy.desiredAngle);
+    const probeCol = enemy.col + forwardX * 0.7;
+    const probeRow = enemy.row + forwardY * 0.7;
+    let awayX = 0;
+    let awayY = 0;
+    let totalWeight = 0;
+
+    for (const other of enemies) {
+      if (other === enemy || other.dead) continue;
+      for (let nodeIndex = -1; nodeIndex < other.segments.length; nodeIndex += 1) {
+        const node = nodeIndex < 0 ? other : other.segments[nodeIndex];
+        const toBodyX = node.col - probeCol;
+        const toBodyY = node.row - probeRow;
+        const distance = Math.hypot(toBodyX, toBodyY);
+        if (distance <= 0.001 || distance >= range) continue;
+        const ahead = (toBodyX * forwardX + toBodyY * forwardY) / distance;
+        if (ahead < -0.35) continue;
+        const proximity = 1 - distance / range;
+        const weight = proximity * proximity * (0.7 + Math.max(0, ahead) * 1.15);
+        awayX -= toBodyX / distance * weight;
+        awayY -= toBodyY / distance * weight;
+        totalWeight += weight;
+      }
+    }
+
+    if (totalWeight < 0.02) return null;
+    return {
+      angle: Math.atan2(awayY, awayX),
+      strength: clamp(totalWeight * 1.85, 0.28, 0.96)
     };
   }
 
@@ -5817,9 +5852,13 @@
     }
     const candidates = nearestFoodsForEnemy(enemy, ENEMY_FOOD_SEARCH_LIMIT);
     switch (enemy.archetype) {
-      case "scout": {
+      case "scout":
+      case "warden": {
         const target = candidates[0];
-        enemy.target = target && distanceSquared(enemy, target) <= ENEMY_BEHAVIOR_TUNING.scoutFoodRange ** 2 ? target : null;
+        const foodRange = enemy.archetype === "warden"
+          ? ENEMY_BEHAVIOR_TUNING.wardenFoodRange
+          : ENEMY_BEHAVIOR_TUNING.scoutFoodRange;
+        enemy.target = target && distanceSquared(enemy, target) <= foodRange ** 2 ? target : null;
         enemy.behaviorState = enemy.target ? "forage" : "roam";
         break;
       }
@@ -5827,14 +5866,15 @@
         enemy.target = densestEnemyFood(enemy, candidates, ENEMY_BEHAVIOR_TUNING.courierFoodClusterRadius);
         enemy.behaviorState = enemy.target ? "forage" : "roam";
         break;
-      case "coiler":
-        enemy.target = densestEnemyFood(enemy, candidates, ENEMY_BEHAVIOR_TUNING.coilerOrbitRadius);
-        enemy.behaviorState = enemy.target ? "orbit" : "roam";
+      case "coiler": {
+        const foodRangeSquared = ENEMY_BEHAVIOR_TUNING.coilerFoodRange ** 2;
+        const nearbyFoods = candidates.filter((food) => distanceSquared(enemy, food) <= foodRangeSquared);
+        enemy.target = nearbyFoods.length
+          ? nearbyFoods[Math.floor(Math.pow(Math.random(), 1.8) * nearbyFoods.length)]
+          : null;
+        enemy.behaviorState = enemy.target ? "forage" : "roam";
         break;
-      case "warden":
-        enemy.target = candidates[0] || null;
-        enemy.behaviorState = "escort";
-        break;
+      }
       default:
         enemy.target = candidates.length ? candidates[Math.floor(Math.pow(Math.random(), 1.8) * candidates.length)] : null;
         enemy.behaviorState = enemy.target ? "forage" : "roam";
@@ -5864,34 +5904,6 @@
       enemy.desiredAngle = Math.atan2(targetRow - enemy.row, targetCol - enemy.col);
       enemy.behaviorPhase = 0.5 + side * 0.5;
       return;
-    }
-    if (enemy.behaviorState === "orbit" && enemy.target && activeFoods.has(enemy.target)) {
-      const radialAngle = Math.atan2(enemy.target.row - enemy.row, enemy.target.col - enemy.col);
-      const distance = Math.sqrt(distanceSquared(enemy, enemy.target));
-      const orbitDirection = enemy.id % 2 === 0 ? 1 : -1;
-      const tangent = radialAngle + orbitDirection * Math.PI / 2;
-      const radialError = (distance - ENEMY_BEHAVIOR_TUNING.coilerOrbitRadius) / ENEMY_BEHAVIOR_TUNING.coilerOrbitRadius;
-      const correctionTarget = radialError >= 0 ? radialAngle : radialAngle + Math.PI;
-      const correction = clamp(Math.abs(radialError) * ENEMY_BEHAVIOR_TUNING.coilerRadialCorrection, 0, 0.88);
-      enemy.desiredAngle = tangent + angleDelta(tangent, correctionTarget) * correction;
-      enemy.behaviorPhase = (gameTime * 0.25 + enemy.id * 0.17) % 1;
-      return;
-    }
-    if (enemy.behaviorState === "escort") {
-      let carrier = null;
-      for (const candidate of enemies) {
-        if (candidate === enemy || candidate.dead || candidate.captured <= 0) continue;
-        if (!carrier || candidate.captured > carrier.captured) carrier = candidate;
-      }
-      if (carrier) {
-        const side = enemy.id % 2 === 0 ? 1 : -1;
-        const angle = carrier.angle + side * Math.PI / 2;
-        const targetCol = carrier.col + Math.cos(angle) * ENEMY_BEHAVIOR_TUNING.wardenEscortDistance;
-        const targetRow = carrier.row + Math.sin(angle) * ENEMY_BEHAVIOR_TUNING.wardenEscortDistance;
-        enemy.desiredAngle = Math.atan2(targetRow - enemy.row, targetCol - enemy.col);
-        enemy.behaviorPhase = clamp(carrier.captured / 8, 0, 1);
-        return;
-      }
     }
     if (enemy.target && activeFoods.has(enemy.target)) {
       const ideal = Math.atan2(enemy.target.row - enemy.row, enemy.target.col - enemy.col);
@@ -5943,6 +5955,10 @@
             ? avoidance.priorityStrength
             : avoidance.strength;
           enemy.desiredAngle += angleDelta(enemy.desiredAngle, avoidance.angle) * priorityStrength;
+        }
+        const enemyAvoidance = enemyBodyAvoidance(enemy);
+        if (enemyAvoidance) {
+          enemy.desiredAngle += angleDelta(enemy.desiredAngle, enemyAvoidance.angle) * enemyAvoidance.strength;
         }
 
         if (repulseRange > 0) {

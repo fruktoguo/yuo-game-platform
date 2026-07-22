@@ -388,11 +388,11 @@
     </div>
   </main>
 
-  <script src="enemy-codex.js?v=108"></script>
-  <script src="wave-director.js?v=108"></script>
-  <script src="designer-config.js?v=108"></script>
-  <script src="module-catalog.js?v=108"></script>
-  <script src="module-progression.js?v=108"></script>
+  <script src="enemy-codex.js?v=109"></script>
+  <script src="wave-director.js?v=109"></script>
+  <script src="designer-config.js?v=109"></script>
+  <script src="module-catalog.js?v=109"></script>
+  <script src="module-progression.js?v=109"></script>
   <script>
     (() => {
       "use strict";
@@ -468,6 +468,7 @@
         { key: "enemyThinkIntervalMax", group: "敌人全局", label: "AI 思考间隔上界", hint: "敌人重新选择目标和路线的最长间隔", min: 0.05, max: 5, step: 0.01, unit: "秒" },
         { key: "enemyFoodSearchLimit", group: "敌人全局", label: "AI 候选球数量", hint: "敌人每次决策最多评估的附近球数量", min: 1, max: 32, step: 1, unit: "枚" },
         { key: "enemyWallAvoidanceDistance", group: "敌人全局", label: "墙壁规避距离", hint: "所有敌人开始主动转离墙壁的最低距离，并按速度自动增加前瞻", min: 0.5, max: 6, step: 0.05, unit: "格" },
+        { key: "enemyBodyAvoidanceRange", group: "敌人全局", label: "敌蛇身体避障范围", hint: "所有敌人躲避其他敌蛇的检测距离；具备玩家避障特性的敌人也使用此范围", min: 0.5, max: 10, step: 0.05, unit: "格" },
         { key: "enemySpawnSafetyDistance", group: "敌人全局", label: "出生安全距离", hint: "敌蛇头部刷新时与最近玩家保持的最低距离；不受玩家移动速度影响", min: 0, max: 30, step: 0.25, unit: "格" },
         { key: "enemySpawnForwardPathHalfWidth", group: "敌人全局", label: "前进通道半宽", hint: "玩家朝向前方禁止刷新敌蛇预警轮廓的通道半宽；0 表示关闭路径规避", min: 0, max: 10, step: 0.25, unit: "格" },
         { key: "enemyCollisionDamage", group: "敌人全局", label: "敌人碰撞伤害", hint: "敌蛇撞墙或撞上其他敌蛇时受到的伤害", min: 0, max: 1000, step: 1, unit: "点" },
@@ -511,19 +512,18 @@
         { key: "enemyCutterTurnMultiplier", group: "截断者", label: "转向倍率", hint: "截断者相对全局敌人转向速度的倍率", min: 0.1, max: 3, step: 0.01, unit: "倍" },
         { key: "enemyCutterLeadDistance", group: "截断者", label: "前方预测距离", hint: "截断者瞄准玩家移动方向前方的距离", min: 0.5, max: 12, step: 0.1, unit: "格" },
         { key: "enemyCutterLateralDistance", group: "截断者", label: "横切偏移距离", hint: "在预测点侧方追加的横向封路距离", min: 0.5, max: 12, step: 0.1, unit: "格" },
-        { key: "enemyCoilerUnlockSeconds", group: "盘踞者", label: "解锁时间", hint: "盘踞者加入刷新池的游戏时间", min: 0, max: 3600, step: 5, unit: "秒" },
-        { key: "enemyCoilerSpawnWeight", group: "盘踞者", label: "刷新权重", hint: "盘踞者在可用敌人中的相对抽取权重", min: 0, max: 20, step: 0.05, unit: "权重" },
-        { key: "enemyCoilerHealthWeight", group: "盘踞者", label: "生命权重", hint: "盘踞者在同波总威胁分配中的相对生命份额", min: 0.01, max: 20, step: 0.05, unit: "权重" },
-        { key: "enemyCoilerSpeedMultiplier", group: "盘踞者", label: "速度倍率", hint: "盘踞者相对全局敌人速度的倍率", min: 0.1, max: 3, step: 0.01, unit: "倍" },
-        { key: "enemyCoilerTurnMultiplier", group: "盘踞者", label: "转向倍率", hint: "盘踞者相对全局敌人转向速度的倍率", min: 0.1, max: 3, step: 0.01, unit: "倍" },
-        { key: "enemyCoilerOrbitRadius", group: "盘踞者", label: "盘旋半径", hint: "围绕选中球团持续巡航的目标半径", min: 0.5, max: 10, step: 0.1, unit: "格" },
-        { key: "enemyCoilerRadialCorrection", group: "盘踞者", label: "半径修正强度", hint: "偏离盘旋半径时向内或向外修正的强度", min: 0, max: 2, step: 0.01, unit: "强度" },
+        { key: "enemyCoilerUnlockSeconds", group: "巡猎者", label: "解锁时间", hint: "巡猎者加入刷新池的游戏时间", min: 0, max: 3600, step: 5, unit: "秒" },
+        { key: "enemyCoilerSpawnWeight", group: "巡猎者", label: "刷新权重", hint: "巡猎者在可用敌人中的相对抽取权重", min: 0, max: 20, step: 0.05, unit: "权重" },
+        { key: "enemyCoilerHealthWeight", group: "巡猎者", label: "生命权重", hint: "巡猎者在同波总威胁分配中的相对生命份额", min: 0.01, max: 20, step: 0.05, unit: "权重" },
+        { key: "enemyCoilerSpeedMultiplier", group: "巡猎者", label: "速度倍率", hint: "巡猎者相对全局敌人速度的倍率", min: 0.1, max: 3, step: 0.01, unit: "倍" },
+        { key: "enemyCoilerTurnMultiplier", group: "巡猎者", label: "转向倍率", hint: "巡猎者相对全局敌人转向速度的倍率", min: 0.1, max: 3, step: 0.01, unit: "倍" },
+        { key: "enemyCoilerFoodRange", group: "巡猎者", label: "抢球范围", hint: "巡猎者持续搜索并追逐球的最大距离", min: 0, max: 30, step: 0.1, unit: "格" },
         { key: "enemyWardenUnlockSeconds", group: "守卫者", label: "解锁时间", hint: "守卫者加入刷新池的游戏时间", min: 0, max: 3600, step: 5, unit: "秒" },
         { key: "enemyWardenSpawnWeight", group: "守卫者", label: "刷新权重", hint: "守卫者在可用敌人中的相对抽取权重", min: 0, max: 20, step: 0.05, unit: "权重" },
         { key: "enemyWardenHealthWeight", group: "守卫者", label: "生命权重", hint: "守卫者在同波总威胁分配中的相对生命份额", min: 0.01, max: 20, step: 0.05, unit: "权重" },
         { key: "enemyWardenSpeedMultiplier", group: "守卫者", label: "速度倍率", hint: "守卫者相对全局敌人速度的倍率", min: 0.1, max: 3, step: 0.01, unit: "倍" },
         { key: "enemyWardenTurnMultiplier", group: "守卫者", label: "转向倍率", hint: "守卫者相对全局敌人转向速度的倍率", min: 0.1, max: 3, step: 0.01, unit: "倍" },
-        { key: "enemyWardenEscortDistance", group: "守卫者", label: "护卫距离", hint: "守卫者围绕持球最多敌人保持的目标距离", min: 0.5, max: 10, step: 0.1, unit: "格" },
+        { key: "enemyWardenFoodRange", group: "守卫者", label: "抢球范围", hint: "球进入该距离后，守卫者才会停止游荡并顺手追逐", min: 0, max: 30, step: 0.1, unit: "格" },
         { key: "enemyWardenKnockbackMultiplier", group: "守卫者", label: "头撞击退倍率", hint: "玩家与守卫者蛇头碰撞时受到的额外击退倍率", min: 1, max: 4, step: 0.05, unit: "倍" },
         { key: "projectileSpeedScale", group: "战斗", label: "全局子弹速度倍率", hint: "作用于所有以速度参数发射的投射物", min: 0.1, max: 10, step: 0.05, unit: "倍" },
         { key: "projectileSizeScale", group: "战斗", label: "全局子弹体积倍率", hint: "同时放大所有子弹的绘制尺寸与命中体积；2 表示基础尺寸的两倍", min: 0.1, max: 10, step: 0.05, unit: "倍" },
@@ -701,7 +701,7 @@
       const filePickerSupported = typeof window.showOpenFilePicker === "function";
 
       function normalizeConfig(value) {
-        const config = { schemaVersion: 36, balance: {}, waveEnemyCountSchedule: [], moduleCooldownPercentages: {}, moduleStates: {} };
+        const config = { schemaVersion: 37, balance: {}, waveEnemyCountSchedule: [], moduleCooldownPercentages: {}, moduleStates: {} };
         for (const definition of ALL_PARAMETER_DEFINITIONS) {
           const candidate = Number(value?.balance?.[definition.key]);
           config.balance[definition.key] = Number.isFinite(candidate) ? Math.max(definition.min, Math.min(definition.max, candidate)) : definition.min;
@@ -737,7 +737,7 @@
         const end = text.lastIndexOf("}");
         if (start < 0 || end <= start) throw new Error("配置内容不完整");
         const parsed = JSON.parse(text.slice(start, end + 1));
-        if (parsed?.schemaVersion !== 36) throw new Error("配置版本无效，需要 schemaVersion 36");
+        if (parsed?.schemaVersion !== 37) throw new Error("配置版本无效，需要 schemaVersion 37");
         return normalizeConfig(parsed);
       }
 

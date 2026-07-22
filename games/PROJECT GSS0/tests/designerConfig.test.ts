@@ -71,15 +71,15 @@ describe('设计配置', () => {
       enemyScoutFoodRange: 6,
       enemyForagerHealthWeight: 2,
       enemyCourierHealthWeight: 4,
-      enemyChargerHealthWeight: 2,
+      enemyChargerHealthWeight: 1,
       enemyChargerTrackingWobble: 0.16,
       enemyCutterHealthWeight: 2,
-      enemyCoilerHealthWeight: 6,
+      enemyCoilerHealthWeight: 2,
       enemyWardenHealthWeight: 8,
-      enemyChargerUnlockSeconds: 90,
-      enemyCutterUnlockSeconds: 180,
-      enemyCoilerUnlockSeconds: 300,
-      enemyWardenUnlockSeconds: 420,
+      enemyChargerUnlockSeconds: 60,
+      enemyCutterUnlockSeconds: 120,
+      enemyCoilerUnlockSeconds: 180,
+      enemyWardenUnlockSeconds: 240,
       waveInterval: 6,
       foodsPerPlayerPerWave: 2,
       projectileSpeedScale: 3,
@@ -119,7 +119,7 @@ describe('设计配置', () => {
       moduleFoodHealPerLevel: 0.5,
       moduleCacheKillsPerTrigger: 5,
       moduleCrisisRegenPerLevel: 0.5,
-      arenaBaseArea: 345.6,
+      arenaBaseArea: 300,
       arenaAreaPerLevel: 0.1,
       cameraFollowZoomMin: 0.75,
       cameraFollowZoomDefault: 1.5,
@@ -234,7 +234,7 @@ describe('设计配置', () => {
 
     expect(parameterKeys.sort()).toEqual(Object.keys(DESIGNER_BALANCE).sort());
     expect(moduleIds.sort()).toEqual(MODULES.map((module) => module.id).sort());
-    expect(moduleProgressionSource).toContain('config?.schemaVersion !== 36');
+    expect(moduleProgressionSource).toContain('config?.schemaVersion !== 37');
     expect(new Set(parameterKeys).size).toBe(228);
     expect(parameterKeys).not.toContain('playerSpeedPerLevel');
     expect(parameterKeys).not.toContain('moduleEffectReductionMaximum');
@@ -265,8 +265,8 @@ describe('设计配置', () => {
     expect(MODULES.some((module) => ['输出', '进攻', '防御', '恢复'].includes(module.category as string))).toBe(false);
     expect(MODULES.every((module) => ['攻击', '生存', '辅助', '发育'].includes(module.category))).toBe(true);
     expect(MODULES.filter((module) => module.category === '发育')).toHaveLength(9);
-    expect(editorHtml).toContain('src="module-catalog.js?v=108"');
-    expect(editorHtml).toContain('src="module-progression.js?v=108"');
+    expect(editorHtml).toContain('src="module-catalog.js?v=109"');
+    expect(editorHtml).toContain('src="module-progression.js?v=109"');
     expect(editorHtml).toContain('const MODULES = moduleCatalog;');
     expect(editorHtml).toContain('descriptionText.textContent = describeModule(module.id, draft.balance);');
     expect(editorHtml).toContain('ID: ${module.id}');

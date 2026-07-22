@@ -50,21 +50,21 @@
     }),
     Object.freeze({
       id: "coiler",
-      code: "COILER",
-      name: "盘踞者",
-      role: "区域盘旋",
+      code: "HUNTER",
+      name: "巡猎者",
+      role: "高速觅食",
       color: "#08c7dc",
-      description: "寻找密集球群并围绕目标持续盘旋。它会逐渐把身体铺在资源周围，迫使玩家改变进入和撤离路线。",
-      traits: Object.freeze(["围绕球群盘旋", "转向灵活", "会主动避障"])
+      description: "持续寻找并追逐抢球范围内的球，凭借强化的速度与转向能力快速觅食；接近玩家身体时会主动避障。",
+      traits: Object.freeze(["持续追逐附近球", "速度与转向强化", "会主动避障"])
     }),
     Object.freeze({
       id: "warden",
       code: "WARDEN",
       name: "守卫者",
-      role: "重装护卫",
+      role: "重装游荡",
       color: "#70d6ff",
-      description: "优先护卫携带球最多的敌人；没有护卫目标时才自行觅食。厚重身体和强力头撞会把玩家推得更远。",
-      traits: Object.freeze(["保护高价值敌人", "生命和身体长度较高", "会主动避障"])
+      description: "在场地中随机游荡，只有球进入抢球范围后才顺手追逐；会主动避开玩家身体，厚重头部仍能造成更强击退。",
+      traits: Object.freeze(["随机游荡", "范围内顺手抢球", "会主动避障"])
     })
   ]);
   const byId = Object.freeze(Object.fromEntries(entries.map((entry) => [entry.id, entry])));

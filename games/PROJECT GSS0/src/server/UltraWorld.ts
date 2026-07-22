@@ -3007,9 +3007,13 @@ export class UltraWorld {
     }
     const candidates = this.nearestFoods(enemy, ENEMY_FOOD_SEARCH_LIMIT);
     switch (enemy.archetype) {
-      case 'scout': {
+      case 'scout':
+      case 'warden': {
         const target = candidates[0];
-        enemy.targetFoodId = target && distanceSquared(enemy, target) <= DESIGNER_BALANCE.enemyScoutFoodRange ** 2 ? target.id : null;
+        const foodRange = enemy.archetype === 'warden'
+          ? DESIGNER_BALANCE.enemyWardenFoodRange
+          : DESIGNER_BALANCE.enemyScoutFoodRange;
+        enemy.targetFoodId = target && distanceSquared(enemy, target) <= foodRange ** 2 ? target.id : null;
         enemy.behaviorState = enemy.targetFoodId === null ? 'roam' : 'forage';
         break;
       }
@@ -3020,15 +3024,14 @@ export class UltraWorld {
         break;
       }
       case 'coiler': {
-        const target = this.densestFood(enemy, candidates, DESIGNER_BALANCE.enemyCoilerOrbitRadius);
-        enemy.targetFoodId = target?.id ?? null;
-        enemy.behaviorState = target ? 'orbit' : 'roam';
+        const foodRangeSquared = DESIGNER_BALANCE.enemyCoilerFoodRange ** 2;
+        const nearbyFoods = candidates.filter((food) => distanceSquared(enemy, food) <= foodRangeSquared);
+        enemy.targetFoodId = nearbyFoods.length > 0
+          ? nearbyFoods[Math.floor(Math.pow(this.random(), 1.8) * nearbyFoods.length)].id
+          : null;
+        enemy.behaviorState = enemy.targetFoodId === null ? 'roam' : 'forage';
         break;
       }
-      case 'warden':
-        enemy.targetFoodId = candidates[0]?.id ?? null;
-        enemy.behaviorState = 'escort';
-        break;
       default:
         enemy.targetFoodId = candidates.length > 0
           ? candidates[Math.floor(Math.pow(this.random(), 1.8) * candidates.length)].id
@@ -3066,34 +3069,6 @@ export class UltraWorld {
       enemy.desiredAngle = Math.atan2(targetRow - enemy.row, targetCol - enemy.col);
       enemy.behaviorPhase = 0.5 + side * 0.5;
       return;
-    }
-    if (enemy.behaviorState === 'orbit' && targetFood) {
-      const radialAngle = Math.atan2(targetFood.row - enemy.row, targetFood.col - enemy.col);
-      const distance = Math.sqrt(distanceSquared(enemy, targetFood));
-      const orbitDirection = enemy.id % 2 === 0 ? 1 : -1;
-      const tangent = radialAngle + orbitDirection * Math.PI / 2;
-      const radialError = (distance - DESIGNER_BALANCE.enemyCoilerOrbitRadius) / DESIGNER_BALANCE.enemyCoilerOrbitRadius;
-      const correctionTarget = radialError >= 0 ? radialAngle : radialAngle + Math.PI;
-      const correction = clamp(Math.abs(radialError) * DESIGNER_BALANCE.enemyCoilerRadialCorrection, 0, 0.88);
-      enemy.desiredAngle = tangent + angleDifference(tangent, correctionTarget) * correction;
-      enemy.behaviorPhase = (this.gameTime * 0.25 + enemy.id * 0.17) % 1;
-      return;
-    }
-    if (enemy.behaviorState === 'escort') {
-      let carrier: EnemyEntity | null = null;
-      for (const candidate of this.enemies) {
-        if (candidate === enemy || candidate.dead || candidate.captured <= 0) continue;
-        if (!carrier || candidate.captured > carrier.captured) carrier = candidate;
-      }
-      if (carrier) {
-        const side = enemy.id % 2 === 0 ? 1 : -1;
-        const angle = carrier.angle + side * Math.PI / 2;
-        const targetCol = carrier.col + Math.cos(angle) * DESIGNER_BALANCE.enemyWardenEscortDistance;
-        const targetRow = carrier.row + Math.sin(angle) * DESIGNER_BALANCE.enemyWardenEscortDistance;
-        enemy.desiredAngle = Math.atan2(targetRow - enemy.row, targetCol - enemy.col);
-        enemy.behaviorPhase = clamp(carrier.captured / 8, 0, 1);
-        return;
-      }
     }
     if (targetFood) {
       const ideal = Math.atan2(targetFood.row - enemy.row, targetFood.col - enemy.col);
@@ -3148,6 +3123,10 @@ export class UltraWorld {
             ? avoidance.priorityStrength
             : avoidance.strength;
           enemy.desiredAngle += angleDifference(enemy.desiredAngle, avoidance.angle) * priorityStrength;
+        }
+        const enemyAvoidance = this.enemyBodyAvoidance(enemy);
+        if (enemyAvoidance) {
+          enemy.desiredAngle += angleDifference(enemy.desiredAngle, enemyAvoidance.angle) * enemyAvoidance.strength;
         }
         this.steerEnemyAwayFromWalls(enemy);
         enemy.angle = rotateToward(enemy.angle, enemy.desiredAngle, delta * enemy.turnRate * waveSpeedMultiplier);
@@ -3366,10 +3345,10 @@ export class UltraWorld {
         const toBodyX = segment.col - probeCol;
         const toBodyY = segment.row - probeRow;
         const distance = Math.hypot(toBodyX, toBodyY);
-        if (distance <= 0.001 || distance >= 3.2) continue;
+        if (distance <= 0.001 || distance >= DESIGNER_BALANCE.enemyBodyAvoidanceRange) continue;
         const ahead = (toBodyX * forwardX + toBodyY * forwardY) / distance;
         if (ahead < -0.35) continue;
-        const proximity = 1 - distance / 3.2;
+        const proximity = 1 - distance / DESIGNER_BALANCE.enemyBodyAvoidanceRange;
         const weight = proximity * proximity * (0.7 + Math.max(0, ahead) * 1.15);
         awayX -= toBodyX / distance * weight;
         awayY -= toBodyY / distance * weight;
@@ -3387,6 +3366,41 @@ export class UltraWorld {
       angle: Math.atan2(combinedY, combinedX),
       strength: clamp(combinedWeight * 1.85, 0.28, 0.96),
       priorityStrength: clamp(combinedWeight / Math.max(0.001, rawCombinedWeight), 0, 1),
+    };
+  }
+
+  private enemyBodyAvoidance(enemy: EnemyEntity): { angle: number; strength: number } | null {
+    const range = DESIGNER_BALANCE.enemyBodyAvoidanceRange;
+    const forwardX = Math.cos(enemy.desiredAngle);
+    const forwardY = Math.sin(enemy.desiredAngle);
+    const probeCol = enemy.col + forwardX * 0.7;
+    const probeRow = enemy.row + forwardY * 0.7;
+    let awayX = 0;
+    let awayY = 0;
+    let totalWeight = 0;
+
+    for (const other of this.enemies) {
+      if (other === enemy || other.dead) continue;
+      for (let nodeIndex = -1; nodeIndex < other.segments.length; nodeIndex += 1) {
+        const node: GridPoint = nodeIndex < 0 ? other : other.segments[nodeIndex];
+        const toBodyX = node.col - probeCol;
+        const toBodyY = node.row - probeRow;
+        const distance = Math.hypot(toBodyX, toBodyY);
+        if (distance <= 0.001 || distance >= range) continue;
+        const ahead = (toBodyX * forwardX + toBodyY * forwardY) / distance;
+        if (ahead < -0.35) continue;
+        const proximity = 1 - distance / range;
+        const weight = proximity * proximity * (0.7 + Math.max(0, ahead) * 1.15);
+        awayX -= toBodyX / distance * weight;
+        awayY -= toBodyY / distance * weight;
+        totalWeight += weight;
+      }
+    }
+
+    if (totalWeight < 0.02) return null;
+    return {
+      angle: Math.atan2(awayY, awayX),
+      strength: clamp(totalWeight * 1.85, 0.28, 0.96),
     };
   }
 
