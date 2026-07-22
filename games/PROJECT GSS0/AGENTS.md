@@ -4,7 +4,7 @@
 - For gameplay, balance, networking, simulation, server, or non-UI configuration changes, do not run automated tests or automated gameplay verification; the user will perform gameplay validation.
 - When a request combines UI/UX and gameplay work, test only because UI/UX is in scope and keep verification focused on the affected interface flows.
 - For UI/UX verification, target desktop PC viewports with a 16:9 aspect ratio. Do not test narrow, mobile, or responsive layouts unless the user explicitly requests them.
-- Syntax checks, typechecks, production builds, and the deployment checks below are not considered automated tests and may still be run when required for delivery safety.
+- Syntax checks, typechecks, and production builds are not considered automated tests, but they must still stay proportional to the requested change and should be scoped to the affected files or PROJECT GSS0 package.
 - Do not add or run automated tests for low-risk copy edits, designer-number changes, module category/status changes, or similarly mechanical metadata updates when the edited code is straightforward.
 - This is a small game with fast player playtesting; keep verification proportional and do not impose commercial-scale test ceremony on routine changes.
 - This remains a fully local static game. Players may open `index.html` directly; do not add or require a production server.
@@ -17,7 +17,8 @@
 
 - The main menu must always display the current game version in its lower-left corner.
 - The current game version is `V110`.
-- For every future user request that modifies this project, increment the integer version exactly once and update both the main-menu label and the current-version line in this file as part of the same change.
+- For every future user request that changes player-facing game code, content, balance, configuration, or UI, increment the integer version exactly once and update both the main-menu label and the current-version line in this file as part of the same change.
+- Workflow-only maintenance limited to `AGENTS.md`, documentation, comments, or developer-process instructions does not change the game version, changelog, or runtime cache queries.
 - Whenever the version changes, update every classic runtime script query in `index.html` and `balance-editor.html` to `?v=<version integer>` so mutable client files cannot be mixed across browser or CDN caches.
 
 # Changelog
@@ -34,12 +35,13 @@
 - Do not include unrelated workspace changes or generated caches in that commit.
 - Do not push the commit unless the user explicitly requests a push.
 
-# Deployment Gate
+# Lightweight Delivery Verification
 
-- PROJECT GSS0 automated unit tests are not a deployment gate. Do not require `npm test` before committing, pushing, or deploying this project.
-- Before any push that includes PROJECT GSS0, run the remaining production verification stages from the repository root: `npm run build` and `npm run check:limits`.
-- Both commands must complete successfully against the exact commit being pushed. A scoped typecheck, syntax check, or earlier successful run is not a substitute.
-- If any required command cannot run because of sandbox, permission, dependency, or tooling limits, explicitly report that the commit is not deployment-verified and do not push it.
+- PROJECT GSS0 is a small game project with rapid player playtesting. There is no fixed deployment gate for routine commits or pushes.
+- Verify only what the current change can reasonably affect. Prefer syntax checks, targeted UI tests, a scoped typecheck, or the PROJECT GSS0 package build when those checks are relevant.
+- Do not run the repository-wide `npm run build`, `npm run check:limits`, Docker, container, infrastructure, or deployment checks for routine PROJECT GSS0 work unless the user explicitly requests them.
+- Missing unrelated build, Docker, deployment, or infrastructure tooling must not block a PROJECT GSS0 commit or push after the relevant scoped checks have passed.
+- Do not require `npm test` before committing or pushing. Follow the UI/UX-only automated-testing rules above.
 - Keep production classic-script assets derived automatically from the local script references in `index.html`; do not reintroduce a manually maintained filename allowlist in `vite.config.ts`.
 
 # Forward-Only Development
