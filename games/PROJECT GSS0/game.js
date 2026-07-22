@@ -4207,6 +4207,19 @@
     title.textContent = entry.name;
     const description = document.createElement("p");
     description.textContent = entry.description;
+    const parameters = document.createElement("dl");
+    parameters.className = "enemy-codex-parameters";
+    parameters.setAttribute("aria-label", `${entry.name}参数`);
+    for (const parameter of window.GSS0EnemyCodex.resolveParameters(entry.id, DESIGNER_BALANCE)) {
+      const parameterItem = document.createElement("div");
+      parameterItem.className = "enemy-codex-parameter";
+      const label = document.createElement("dt");
+      label.textContent = parameter.label;
+      const value = document.createElement("dd");
+      value.textContent = parameter.value;
+      parameterItem.append(label, value);
+      parameters.append(parameterItem);
+    }
     const traits = document.createElement("ul");
     for (const trait of entry.traits) {
       const item = document.createElement("li");
@@ -4216,7 +4229,7 @@
     const archive = document.createElement("span");
     archive.className = "enemy-codex-archive";
     archive.textContent = `敌对档案 ${String(index + 1).padStart(2, "0")}`;
-    copy.append(role, title, description, traits, archive);
+    copy.append(role, title, description, parameters, traits, archive);
     card.append(visual, copy);
     window.GSS0EnemyCodex.drawPreview(canvas, entry.id);
     return card;

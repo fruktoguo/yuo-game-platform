@@ -2368,6 +2368,39 @@ input:focus-visible {
   overflow-wrap: anywhere;
 }
 
+.enemy-codex-parameters {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 16px 0 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+  border-left: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.enemy-codex-parameter {
+  min-width: 0;
+  padding: 9px 10px 8px;
+  border-right: 1px solid rgba(255, 255, 255, 0.14);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.enemy-codex-parameter dt {
+  overflow-wrap: anywhere;
+  color: #899398;
+  font-size: calc(8px * var(--font-scale));
+  font-weight: 900;
+  line-height: 1.25;
+}
+
+.enemy-codex-parameter dd {
+  margin: 5px 0 0;
+  overflow-wrap: anywhere;
+  color: var(--white);
+  font-size: calc(12px * var(--font-scale));
+  font-weight: 1000;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
 .enemy-codex-copy ul {
   display: grid;
   gap: 7px;
@@ -3179,6 +3212,10 @@ input:focus-visible {
   .hud-actions {
     grid-column: 1 / -1;
     justify-self: end;
+  }
+
+  .enemy-codex-parameters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
