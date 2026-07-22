@@ -10,7 +10,7 @@ describe('界面设置', () => {
   it('使用正式游戏名并在左上品牌卡显示当前版本', () => {
     expect(indexHtml).toContain('<title>代号：几何贪吃蛇</title>');
     expect(indexHtml).toContain('<h1 id="game-title"><span>代号：几何贪吃蛇</span></h1>');
-    expect(indexHtml).toContain('<span class="brand-version" aria-label="游戏版本 V96">V96</span>');
+    expect(indexHtml).toContain('<span class="brand-version" aria-label="游戏版本 V97">V97</span>');
     expect(styles).toContain('.brand-version');
     const brandTitleRule = styles.match(/\.brand-lockup strong\s*\{([^}]*)\}/)?.[1];
     const brandVersionRule = styles.match(/\.brand-version\s*\{([^}]*)\}/)?.[1];
@@ -36,6 +36,9 @@ describe('界面设置', () => {
     expect(gameSource).toContain('return { left: 0, top: 0, right: width, bottom: height, width, height, centerX: width / 2, centerY: height / 2 };');
     expect(gameSource).toContain('canvas.addEventListener("wheel"');
     expect(gameSource).toContain('applyFollowCameraZoom(followCameraZoom * zoomFactor);');
+    expect(gameSource).toContain('function updateRenderWorldBounds()');
+    expect(gameSource).toContain('CAMERA_FOLLOW_FOOD_INDICATOR_LIMIT');
+    expect(gameSource).toContain('CAMERA_FOLLOW_ENEMY_INDICATOR_LIMIT');
     expect(styles.match(/#game\s*\{([^}]*)\}/u)?.[1]).toContain('z-index: 0;');
     expect(styles.match(/\.hud\s*\{([^}]*)\}/u)?.[1]).toContain('z-index: 10;');
   });
@@ -61,7 +64,7 @@ describe('界面设置', () => {
   });
 
   it('升级卡展示机体等级变化且机体架显示槽位占用', () => {
-    expect(indexHtml).toContain('src="module-progression.js?v=96"');
+    expect(indexHtml).toContain('src="module-progression.js?v=97"');
     expect(gameSource).toContain('MODULE_PROGRESSION.moduleUpgradePreview');
     expect(gameSource).toContain('progression.levelLabel');
     expect(gameSource).toContain('ui.rack.dataset.capacity');
@@ -115,7 +118,7 @@ describe('界面设置', () => {
 
   it('联机入口从一名玩家起始终显示共享世界界面', () => {
     expect(gameSource).toContain('ui.shell.classList.toggle("is-multiplayer", network.enabled);');
-    expect(gameSource).toContain('if (network.enabled) drawPlayerIdLabel(player, pieceScale);');
+    expect(gameSource).toContain('if (network.enabled && (!renderWorldBounds.active || pointIntersectsRenderBounds(player.x, player.y, 100 * pieceScale))) drawPlayerIdLabel(player, pieceScale);');
     expect(gameSource).not.toContain('connected.length > 1');
     expect(gameSource).not.toContain('network.multiplayer');
     expect(styles).not.toMatch(/#game-shell\.is-multiplayer\s+\.module-rack\s*\{[^}]*display:\s*none;/u);
@@ -158,7 +161,7 @@ describe('界面设置', () => {
     expect(tooltipRule).not.toContain('transition');
     expect(indexHtml).not.toContain('id="description-button"');
     expect(indexHtml).not.toContain('id="description-toggle"');
-    expect(indexHtml).toContain('src="module-catalog.js?v=96"');
+    expect(indexHtml).toContain('src="module-catalog.js?v=97"');
     expect(gameSource).toContain('const MODULE_CATALOG = globalThis.GSS0ModuleCatalog;');
     expect(gameSource).not.toContain('SHORT_MODULE_DESCRIPTIONS');
     expect(gameSource).not.toContain('gss0-detailed-descriptions');

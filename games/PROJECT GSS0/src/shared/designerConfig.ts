@@ -11,7 +11,7 @@ interface DesignerConfigSource {
 }
 
 const source = (globalThis as typeof globalThis & { GSS0_DESIGNER_CONFIG?: DesignerConfigSource }).GSS0_DESIGNER_CONFIG;
-if (source?.schemaVersion !== 27) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 27');
+if (source?.schemaVersion !== 28) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 28');
 
 function numberSetting(key: string, fallback: number, minimum: number, maximum: number, integer = false): number {
   const candidate = source?.balance?.[key];
@@ -201,6 +201,9 @@ export const DESIGNER_BALANCE = Object.freeze({
   cameraFollowZoomMin: numberSetting('cameraFollowZoomMin', 0.75, 0.25, 5),
   cameraFollowZoomDefault: numberSetting('cameraFollowZoomDefault', 1.5, 0.25, 5),
   cameraFollowZoomMax: numberSetting('cameraFollowZoomMax', 2.5, 0.25, 5),
+  cameraFollowRenderOverscanPixels: numberSetting('cameraFollowRenderOverscanPixels', 120, 0, 600, true),
+  cameraFollowFoodIndicatorLimit: numberSetting('cameraFollowFoodIndicatorLimit', 6, 0, 100, true),
+  cameraFollowEnemyIndicatorLimit: numberSetting('cameraFollowEnemyIndicatorLimit', 8, 0, 100, true),
   upgradeInvulnerabilityDuration: numberSetting('upgradeInvulnerabilityDuration', 0.5, 0, 10),
   respawnLocatorConvergeDuration: numberSetting('respawnLocatorConvergeDuration', 1, 0.1, 10),
   respawnLocatorFadeDuration: numberSetting('respawnLocatorFadeDuration', 3, 0.1, 20),

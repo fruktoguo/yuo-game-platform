@@ -101,7 +101,7 @@
 
   const TAU = Math.PI * 2;
   const DESIGNER_CONFIG = globalThis.GSS0_DESIGNER_CONFIG || {};
-  if (DESIGNER_CONFIG.schemaVersion !== 27) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 27");
+  if (DESIGNER_CONFIG.schemaVersion !== 28) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 28");
   const DESIGNER_BALANCE = DESIGNER_CONFIG.balance || {};
   const MODULE_DESIGN_STATES = DESIGNER_CONFIG.moduleStates || {};
 
@@ -184,6 +184,9 @@
     CAMERA_FOLLOW_ZOOM_MIN,
     CAMERA_FOLLOW_ZOOM_MAX
   );
+  const CAMERA_FOLLOW_RENDER_OVERSCAN_PIXELS = designerNumber("cameraFollowRenderOverscanPixels", 120, 0, 600, true);
+  const CAMERA_FOLLOW_FOOD_INDICATOR_LIMIT = designerNumber("cameraFollowFoodIndicatorLimit", 6, 0, 100, true);
+  const CAMERA_FOLLOW_ENEMY_INDICATOR_LIMIT = designerNumber("cameraFollowEnemyIndicatorLimit", 8, 0, 100, true);
   const FOOD_WALL_MARGIN = 2;
   const ENEMY_SPAWN_WARNING_TIME = designerNumber("enemySpawnWarning", 1.5, 0, 10);
   const ENEMY_SPAWN_ACTIVATION_DURATION = designerNumber("enemySpawnActivationDuration", 0.38, 0.05, 3);
@@ -419,6 +422,23 @@
   let upgradeRevealTimer = 0;
   let respawnLocatorStartedAt = -Infinity;
   let lastAmbientRender = -Infinity;
+  const renderWorldBounds = {
+    active: false,
+    left: -Infinity,
+    top: -Infinity,
+    right: Infinity,
+    bottom: Infinity,
+    viewportLeft: -Infinity,
+    viewportTop: -Infinity,
+    viewportRight: Infinity,
+    viewportBottom: Infinity
+  };
+  const foodIndicatorCandidates = [];
+  const foodIndicatorDistances = [];
+  const enemyIndicatorCandidates = [];
+  const enemyIndicatorDistances = [];
+  let indicatorCameraX = 0;
+  let indicatorCameraY = 0;
 
   const network = {
     enabled: false,
@@ -1167,6 +1187,104 @@
       arena.centerX + (x - camera.x) * zoom,
       arena.centerY + (y - camera.y) * zoom
     );
+  }
+
+  function updateRenderWorldBounds() {
+    if (cameraMode !== "follow") {
+      renderWorldBounds.active = false;
+      return;
+    }
+    const topLeft = screenToWorld(0, 0);
+    const topRight = screenToWorld(width, 0);
+    const bottomLeft = screenToWorld(0, height);
+    const bottomRight = screenToWorld(width, height);
+    const viewportLeft = Math.min(topLeft.x, topRight.x, bottomLeft.x, bottomRight.x);
+    const viewportTop = Math.min(topLeft.y, topRight.y, bottomLeft.y, bottomRight.y);
+    const viewportRight = Math.max(topLeft.x, topRight.x, bottomLeft.x, bottomRight.x);
+    const viewportBottom = Math.max(topLeft.y, topRight.y, bottomLeft.y, bottomRight.y);
+    const overscan = CAMERA_FOLLOW_RENDER_OVERSCAN_PIXELS / cameraZoom();
+    renderWorldBounds.active = true;
+    renderWorldBounds.viewportLeft = viewportLeft;
+    renderWorldBounds.viewportTop = viewportTop;
+    renderWorldBounds.viewportRight = viewportRight;
+    renderWorldBounds.viewportBottom = viewportBottom;
+    renderWorldBounds.left = viewportLeft - overscan;
+    renderWorldBounds.top = viewportTop - overscan;
+    renderWorldBounds.right = viewportRight + overscan;
+    renderWorldBounds.bottom = viewportBottom + overscan;
+  }
+
+  function pointIntersectsRenderBounds(x, y, radius = 0) {
+    return !renderWorldBounds.active
+      || x + radius >= renderWorldBounds.left
+      && x - radius <= renderWorldBounds.right
+      && y + radius >= renderWorldBounds.top
+      && y - radius <= renderWorldBounds.bottom;
+  }
+
+  function lineIntersectsRenderBounds(from, to, margin = 0) {
+    return !renderWorldBounds.active
+      || Math.max(from.x, to.x) + margin >= renderWorldBounds.left
+      && Math.min(from.x, to.x) - margin <= renderWorldBounds.right
+      && Math.max(from.y, to.y) + margin >= renderWorldBounds.top
+      && Math.min(from.y, to.y) - margin <= renderWorldBounds.bottom;
+  }
+
+  function rectIntersectsRenderBounds(left, top, right, bottom, margin = 0) {
+    return !renderWorldBounds.active
+      || right + margin >= renderWorldBounds.left
+      && left - margin <= renderWorldBounds.right
+      && bottom + margin >= renderWorldBounds.top
+      && top - margin <= renderWorldBounds.bottom;
+  }
+
+  function snakeIntersectsRenderBounds(head, segments, margin = 0) {
+    if (!renderWorldBounds.active || pointIntersectsRenderBounds(head.x, head.y, margin)) return true;
+    let previous = head;
+    for (const segment of segments) {
+      if (pointIntersectsRenderBounds(segment.x, segment.y, margin)
+        || lineIntersectsRenderBounds(previous, segment, margin)) return true;
+      previous = segment;
+    }
+    return false;
+  }
+
+  function pointIsOutsideCameraViewport(x, y) {
+    return renderWorldBounds.active && (
+      x < renderWorldBounds.viewportLeft
+      || x > renderWorldBounds.viewportRight
+      || y < renderWorldBounds.viewportTop
+      || y > renderWorldBounds.viewportBottom
+    );
+  }
+
+  function resetOffscreenIndicatorCandidates() {
+    foodIndicatorCandidates.length = 0;
+    foodIndicatorDistances.length = 0;
+    enemyIndicatorCandidates.length = 0;
+    enemyIndicatorDistances.length = 0;
+    if (renderWorldBounds.active) {
+      const camera = cameraPosition();
+      indicatorCameraX = camera.x;
+      indicatorCameraY = camera.y;
+    }
+  }
+
+  function trackNearestOffscreenIndicator(target, candidates, distances, limit) {
+    if (limit <= 0 || !pointIsOutsideCameraViewport(target.x, target.y)) return;
+    const distance = (target.x - indicatorCameraX) ** 2 + (target.y - indicatorCameraY) ** 2;
+    if (candidates.length < limit) {
+      candidates.push(target);
+      distances.push(distance);
+      return;
+    }
+    let farthestIndex = 0;
+    for (let index = 1; index < distances.length; index += 1) {
+      if (distances[index] > distances[farthestIndex]) farthestIndex = index;
+    }
+    if (distance >= distances[farthestIndex]) return;
+    candidates[farthestIndex] = target;
+    distances[farthestIndex] = distance;
   }
 
   function cellCenter(col, row) {
@@ -6412,6 +6530,41 @@
     lastAmbientRender = time;
   }
 
+  function cameraViewTouchesArenaBorder(padding = 0) {
+    if (!renderWorldBounds.active) return true;
+    return rectIntersectsRenderBounds(arena.left - padding, arena.top - padding, arena.left + padding, arena.bottom + padding)
+      || rectIntersectsRenderBounds(arena.right - padding, arena.top - padding, arena.right + padding, arena.bottom + padding)
+      || rectIntersectsRenderBounds(arena.left - padding, arena.top - padding, arena.right + padding, arena.top + padding)
+      || rectIntersectsRenderBounds(arena.left - padding, arena.bottom - padding, arena.right + padding, arena.bottom + padding);
+  }
+
+  function drawVisibleArenaTexture() {
+    if (!renderWorldBounds.active) {
+      ctx.drawImage(
+        arenaTextureCanvas,
+        0,
+        0,
+        arenaTextureCanvas.width,
+        arenaTextureCanvas.height,
+        arena.left,
+        arena.top,
+        arena.width,
+        arena.height
+      );
+      return;
+    }
+    const left = clamp(renderWorldBounds.left, arena.left, arena.right);
+    const top = clamp(renderWorldBounds.top, arena.top, arena.bottom);
+    const right = clamp(renderWorldBounds.right, arena.left, arena.right);
+    const bottom = clamp(renderWorldBounds.bottom, arena.top, arena.bottom);
+    if (right <= left || bottom <= top) return;
+    const sourceX = (left - arena.left) / arena.width * arenaTextureCanvas.width;
+    const sourceY = (top - arena.top) / arena.height * arenaTextureCanvas.height;
+    const sourceWidth = (right - left) / arena.width * arenaTextureCanvas.width;
+    const sourceHeight = (bottom - top) / arena.height * arenaTextureCanvas.height;
+    ctx.drawImage(arenaTextureCanvas, sourceX, sourceY, sourceWidth, sourceHeight, left, top, right - left, bottom - top);
+  }
+
   function drawBackground(time) {
     if (time - lastAmbientRender >= AMBIENT_RENDER_INTERVAL) renderAmbientLayer(time);
     ctx.drawImage(ambientCanvas, 0, 0, ambientCanvas.width, ambientCanvas.height, 0, 0, width, height);
@@ -6422,39 +6575,37 @@
       applyCameraViewportClip();
       applyCameraTransform();
     }
-    ctx.drawImage(
-      arenaShadowCanvas,
-      0,
-      0,
-      arenaShadowCanvas.width,
-      arenaShadowCanvas.height,
-      arena.left - ARENA_SHADOW_PADDING,
-      arena.top - ARENA_SHADOW_PADDING,
-      arena.width + ARENA_SHADOW_PADDING * 2,
-      arena.height + ARENA_SHADOW_PADDING * 2
-    );
+    if (cameraViewTouchesArenaBorder(ARENA_SHADOW_PADDING)) {
+      ctx.drawImage(
+        arenaShadowCanvas,
+        0,
+        0,
+        arenaShadowCanvas.width,
+        arenaShadowCanvas.height,
+        arena.left - ARENA_SHADOW_PADDING,
+        arena.top - ARENA_SHADOW_PADDING,
+        arena.width + ARENA_SHADOW_PADDING * 2,
+        arena.height + ARENA_SHADOW_PADDING * 2
+      );
+    }
     if (cameraMode !== "follow") {
       applyCameraViewportClip();
       applyCameraTransform();
     }
-    ctx.drawImage(
-      arenaTextureCanvas,
-      0,
-      0,
-      arenaTextureCanvas.width,
-      arenaTextureCanvas.height,
-      arena.left,
-      arena.top,
-      arena.width,
-      arena.height
-    );
+    drawVisibleArenaTexture();
 
     drawArenaFloorPattern();
 
     ctx.fillStyle = "rgba(243, 198, 0, 0.055)";
     const stripePhase = (time * arena.cellSize * 0.12) % (arena.cellSize * 3);
+    const stripeMargin = arena.cellSize * 0.2;
+    const minimumStripeDifference = renderWorldBounds.left - renderWorldBounds.bottom - stripeMargin;
+    const maximumStripeDifference = renderWorldBounds.right - renderWorldBounds.top + stripeMargin;
     for (let index = -Math.ceil(arena.worldSize); index < Math.ceil(arena.worldSize) * 2; index += 3) {
       const offset = index * arena.cellSize + stripePhase;
+      const stripeDifference = arena.left + offset - arena.top;
+      if (renderWorldBounds.active
+        && (stripeDifference < minimumStripeDifference || stripeDifference > maximumStripeDifference)) continue;
       ctx.save();
       ctx.translate(arena.left + offset, arena.top);
       ctx.rotate(Math.PI / 4);
@@ -6463,15 +6614,22 @@
     }
 
     const scanY = arena.top + (time * 0.045 % 1) * arena.height;
-    const scanGradient = ctx.createLinearGradient(0, scanY - arena.cellSize * 1.4, 0, scanY + arena.cellSize * 1.4);
-    scanGradient.addColorStop(0, "rgba(8, 199, 220, 0)");
-    scanGradient.addColorStop(0.5, "rgba(8, 199, 220, 0.045)");
-    scanGradient.addColorStop(1, "rgba(8, 199, 220, 0)");
-    ctx.fillStyle = scanGradient;
-    ctx.fillRect(arena.left, scanY - arena.cellSize * 1.4, arena.width, arena.cellSize * 2.8);
+    const scanRadius = arena.cellSize * 1.4;
+    if (rectIntersectsRenderBounds(arena.left, scanY - scanRadius, arena.right, scanY + scanRadius)) {
+      const scanGradient = ctx.createLinearGradient(0, scanY - scanRadius, 0, scanY + scanRadius);
+      scanGradient.addColorStop(0, "rgba(8, 199, 220, 0)");
+      scanGradient.addColorStop(0.5, "rgba(8, 199, 220, 0.045)");
+      scanGradient.addColorStop(1, "rgba(8, 199, 220, 0)");
+      ctx.fillStyle = scanGradient;
+      const scanLeft = renderWorldBounds.active ? Math.max(arena.left, renderWorldBounds.left) : arena.left;
+      const scanRight = renderWorldBounds.active ? Math.min(arena.right, renderWorldBounds.right) : arena.right;
+      ctx.fillRect(scanLeft, scanY - scanRadius, Math.max(0, scanRight - scanLeft), scanRadius * 2);
+    }
 
     ctx.restore();
 
+    const mark = Math.max(16, arena.cellSize * 0.8);
+    if (!cameraViewTouchesArenaBorder(mark)) return;
     ctx.save();
     applyArenaPerspectiveTransform();
     applyCameraViewportClip();
@@ -6484,7 +6642,6 @@
     ctx.shadowBlur = 0;
     ctx.strokeStyle = "#f3c600";
     ctx.lineWidth = 3 / cameraZoom();
-    const mark = Math.max(16, arena.cellSize * 0.8);
     ctx.beginPath();
     ctx.moveTo(arena.left, arena.top + mark);
     ctx.lineTo(arena.left, arena.top);
@@ -6516,14 +6673,73 @@
   function drawArenaFloorPattern() {
     const firstLine = Math.floor(arena.worldMin);
     const lastLine = Math.ceil(arena.worldMax + 1);
-    for (let index = firstLine; index <= lastLine; index += 1) {
+    if (!renderWorldBounds.active) {
+      for (let index = firstLine; index <= lastLine; index += 1) {
+        const offset = arena.left + (index - arena.worldMin) * arena.cellSize;
+        const major = ((index % 6) + 6) % 6 === 0;
+        ctx.beginPath();
+        ctx.moveTo(offset, arena.top);
+        ctx.lineTo(offset, arena.bottom);
+        ctx.moveTo(arena.left, offset - arena.left + arena.top);
+        ctx.lineTo(arena.right, offset - arena.left + arena.top);
+        ctx.lineWidth = major ? 1.35 : 0.7;
+        ctx.strokeStyle = major ? "rgba(231, 235, 235, 0.18)" : "rgba(198, 205, 207, 0.065)";
+        ctx.stroke();
+      }
+      ctx.fillStyle = "rgba(235, 238, 238, 0.35)";
+      ctx.font = `700 ${Math.max(7, arena.cellSize * 0.23)}px Bahnschrift, Arial Narrow, sans-serif`;
+      ctx.textAlign = "left";
+      ctx.textBaseline = "top";
+      for (let index = firstLine; index < lastLine; index += 1) {
+        if (((index % 4) + 4) % 4 !== 0) continue;
+        const offset = (index - arena.worldMin) * arena.cellSize;
+        const label = String(((index % 100) + 100) % 100 + 1).padStart(2, "0");
+        ctx.fillText(label, arena.left + offset + 3, arena.top + 3);
+        ctx.save();
+        ctx.translate(arena.left + 3, arena.top + offset + arena.cellSize - 3);
+        ctx.rotate(-Math.PI / 2);
+        ctx.fillText(label, 0, 0);
+        ctx.restore();
+      }
+      ctx.fillStyle = "rgba(0, 0, 0, 0.22)";
+      ctx.fillRect(arena.left, arena.top, arena.width, arena.cellSize * 0.18);
+      ctx.fillRect(arena.left, arena.bottom - arena.cellSize * 0.18, arena.width, arena.cellSize * 0.18);
+      return;
+    }
+    const visibleLeft = renderWorldBounds.active ? Math.max(arena.left, renderWorldBounds.left) : arena.left;
+    const visibleTop = renderWorldBounds.active ? Math.max(arena.top, renderWorldBounds.top) : arena.top;
+    const visibleRight = renderWorldBounds.active ? Math.min(arena.right, renderWorldBounds.right) : arena.right;
+    const visibleBottom = renderWorldBounds.active ? Math.min(arena.bottom, renderWorldBounds.bottom) : arena.bottom;
+    if (visibleRight <= visibleLeft || visibleBottom <= visibleTop) return;
+    const firstVerticalLine = renderWorldBounds.active
+      ? Math.max(firstLine, Math.floor(arena.worldMin + (visibleLeft - arena.left) / arena.cellSize) - 1)
+      : firstLine;
+    const lastVerticalLine = renderWorldBounds.active
+      ? Math.min(lastLine, Math.ceil(arena.worldMin + (visibleRight - arena.left) / arena.cellSize) + 1)
+      : lastLine;
+    const firstHorizontalLine = renderWorldBounds.active
+      ? Math.max(firstLine, Math.floor(arena.worldMin + (visibleTop - arena.top) / arena.cellSize) - 1)
+      : firstLine;
+    const lastHorizontalLine = renderWorldBounds.active
+      ? Math.min(lastLine, Math.ceil(arena.worldMin + (visibleBottom - arena.top) / arena.cellSize) + 1)
+      : lastLine;
+
+    for (let index = firstVerticalLine; index <= lastVerticalLine; index += 1) {
       const offset = arena.left + (index - arena.worldMin) * arena.cellSize;
       const major = ((index % 6) + 6) % 6 === 0;
       ctx.beginPath();
-      ctx.moveTo(offset, arena.top);
-      ctx.lineTo(offset, arena.bottom);
-      ctx.moveTo(arena.left, offset - arena.left + arena.top);
-      ctx.lineTo(arena.right, offset - arena.left + arena.top);
+      ctx.moveTo(offset, visibleTop);
+      ctx.lineTo(offset, visibleBottom);
+      ctx.lineWidth = major ? 1.35 : 0.7;
+      ctx.strokeStyle = major ? "rgba(231, 235, 235, 0.18)" : "rgba(198, 205, 207, 0.065)";
+      ctx.stroke();
+    }
+    for (let index = firstHorizontalLine; index <= lastHorizontalLine; index += 1) {
+      const offset = arena.top + (index - arena.worldMin) * arena.cellSize;
+      const major = ((index % 6) + 6) % 6 === 0;
+      ctx.beginPath();
+      ctx.moveTo(visibleLeft, offset);
+      ctx.lineTo(visibleRight, offset);
       ctx.lineWidth = major ? 1.35 : 0.7;
       ctx.strokeStyle = major ? "rgba(231, 235, 235, 0.18)" : "rgba(198, 205, 207, 0.065)";
       ctx.stroke();
@@ -6533,26 +6749,49 @@
     ctx.font = `700 ${Math.max(7, arena.cellSize * 0.23)}px Bahnschrift, Arial Narrow, sans-serif`;
     ctx.textAlign = "left";
     ctx.textBaseline = "top";
-    for (let index = firstLine; index < lastLine; index += 1) {
-      if (((index % 4) + 4) % 4 !== 0) continue;
-      const offset = (index - arena.worldMin) * arena.cellSize;
-      const label = String(((index % 100) + 100) % 100 + 1).padStart(2, "0");
-      ctx.fillText(label, arena.left + offset + 3, arena.top + 3);
-      ctx.save();
-      ctx.translate(arena.left + 3, arena.top + offset + arena.cellSize - 3);
-      ctx.rotate(-Math.PI / 2);
-      ctx.fillText(label, 0, 0);
-      ctx.restore();
+    if (!renderWorldBounds.active || arena.top + arena.cellSize >= renderWorldBounds.top) {
+      for (let index = firstVerticalLine; index < lastVerticalLine; index += 1) {
+        if (((index % 4) + 4) % 4 !== 0) continue;
+        const offset = (index - arena.worldMin) * arena.cellSize;
+        const label = String(((index % 100) + 100) % 100 + 1).padStart(2, "0");
+        ctx.fillText(label, arena.left + offset + 3, arena.top + 3);
+      }
+    }
+    if (!renderWorldBounds.active || arena.left + arena.cellSize >= renderWorldBounds.left) {
+      for (let index = firstHorizontalLine; index < lastHorizontalLine; index += 1) {
+        if (((index % 4) + 4) % 4 !== 0) continue;
+        const offset = (index - arena.worldMin) * arena.cellSize;
+        const label = String(((index % 100) + 100) % 100 + 1).padStart(2, "0");
+        ctx.save();
+        ctx.translate(arena.left + 3, arena.top + offset + arena.cellSize - 3);
+        ctx.rotate(-Math.PI / 2);
+        ctx.fillText(label, 0, 0);
+        ctx.restore();
+      }
     }
 
     ctx.fillStyle = "rgba(0, 0, 0, 0.22)";
-    ctx.fillRect(arena.left, arena.top, arena.width, arena.cellSize * 0.18);
-    ctx.fillRect(arena.left, arena.bottom - arena.cellSize * 0.18, arena.width, arena.cellSize * 0.18);
+    const edgeBandHeight = arena.cellSize * 0.18;
+    if (rectIntersectsRenderBounds(arena.left, arena.top, arena.right, arena.top + edgeBandHeight)) {
+      ctx.fillRect(visibleLeft, arena.top, visibleRight - visibleLeft, edgeBandHeight);
+    }
+    if (rectIntersectsRenderBounds(arena.left, arena.bottom - edgeBandHeight, arena.right, arena.bottom)) {
+      ctx.fillRect(visibleLeft, arena.bottom - edgeBandHeight, visibleRight - visibleLeft, edgeBandHeight);
+    }
   }
 
   function drawFood(time) {
     for (const food of foods) {
       if (food.networkHidden) continue;
+      if (renderWorldBounds.active) {
+        trackNearestOffscreenIndicator(
+          food,
+          foodIndicatorCandidates,
+          foodIndicatorDistances,
+          CAMERA_FOLLOW_FOOD_INDICATOR_LIMIT
+        );
+        if (!pointIntersectsRenderBounds(food.x, food.y, food.radius * 2 + 12)) continue;
+      }
       const pulse = 1 + Math.sin(time * 5 + food.phase) * 0.08;
       const birthProgress = food.birthAge == null ? 1 : clamp(food.birthAge / FOOD_BIRTH_DURATION, 0, 1);
       const birthEase = 1 - (1 - birthProgress) ** 3;
@@ -6623,6 +6862,7 @@
   }
 
   function drawLink(from, to, color, widthValue, alpha = 1) {
+    if (renderWorldBounds.active && !lineIntersectsRenderBounds(from, to, widthValue / 2)) return;
     ctx.save();
     ctx.globalAlpha = alpha;
     ctx.lineCap = "round";
@@ -6644,9 +6884,23 @@
     ctx.lineWidth = widthValue;
     ctx.strokeStyle = color;
     ctx.beginPath();
-    ctx.moveTo(head.x, head.y);
-    for (const segment of segments) ctx.lineTo(segment.x, segment.y);
-    ctx.stroke();
+    if (!renderWorldBounds.active) {
+      ctx.moveTo(head.x, head.y);
+      for (const segment of segments) ctx.lineTo(segment.x, segment.y);
+      ctx.stroke();
+    } else {
+      let previous = head;
+      let drewPath = false;
+      for (const segment of segments) {
+        if (lineIntersectsRenderBounds(previous, segment, widthValue / 2)) {
+          ctx.moveTo(previous.x, previous.y);
+          ctx.lineTo(segment.x, segment.y);
+          drewPath = true;
+        }
+        previous = segment;
+      }
+      if (drewPath) ctx.stroke();
+    }
     ctx.restore();
   }
 
@@ -6889,6 +7143,7 @@
     ctx.save();
     for (let index = 0; index < nodes.length; index += 1) {
       const node = nodes[index];
+      if (renderWorldBounds.active && !pointIntersectsRenderBounds(node.x, node.y, 22 * pieceScale)) continue;
       if (enemy.permanentSlow > 0) {
         const angle = gameTime * 2.1 + index * 2.399;
         const radius = (10 + (index % 3) * 2) * pieceScale;
@@ -6914,19 +7169,24 @@
   }
 
   function drawEnemy(enemy, time = gameTime, spawning = false) {
+    const pieceScale = arenaPieceScale();
+    if (renderWorldBounds.active && !snakeIntersectsRenderBounds(enemy, enemy.segments, 48 * pieceScale)) return;
     ctx.save();
     if (spawning) {
       const blink = 0.48 + Math.abs(Math.sin(time * 12)) * 0.52;
       ctx.globalAlpha *= 0.2 + blink * 0.48;
     }
-    const pieceScale = arenaPieceScale();
     drawLinkedPath(enemy, enemy.segments, "rgba(4, 6, 7, 0.92)", (enemy.archetype === "warden" ? 14 : 11) * pieceScale);
     drawLinkedPath(enemy, enemy.segments, enemy.color, (enemy.archetype === "cutter" ? 3.4 : 2.2) * pieceScale, 0.72);
-    for (let index = enemy.segments.length - 1; index >= 0; index -= 1) drawEnemySegment(enemy, enemy.segments[index], pieceScale);
-    drawEnemyHead(enemy, pieceScale);
+    for (let index = enemy.segments.length - 1; index >= 0; index -= 1) {
+      const segment = enemy.segments[index];
+      if (!renderWorldBounds.active || pointIntersectsRenderBounds(segment.x, segment.y, 22 * pieceScale)) drawEnemySegment(enemy, segment, pieceScale);
+    }
+    const headVisible = !renderWorldBounds.active || pointIntersectsRenderBounds(enemy.x, enemy.y, 42 * pieceScale);
+    if (headVisible) drawEnemyHead(enemy, pieceScale);
     if (!spawning) drawEnemyStatusParticles(enemy, pieceScale);
 
-    if (!spawning && enemy.captured > 0) {
+    if (!spawning && enemy.captured > 0 && headVisible) {
       ctx.save();
       ctx.translate(enemy.x, enemy.y - 25 * pieceScale);
       ctx.scale(pieceScale, pieceScale);
@@ -7087,8 +7347,21 @@
     const previousGrowth = activeGrowth;
     player = target;
     activeGrowth = target.growth || (target === previousPlayer ? previousGrowth : null);
-    ctx.save();
     const pieceScale = arenaPieceScale();
+    const repulseRange = repulseRangePixels();
+    const bladeRenderMargin = renderWorldBounds.active && moduleCount("blade") > 0
+      ? bladeOrbitRadius() + 32 * pieceScale * attackSizeMultiplier()
+      : 0;
+    const bodyVisible = !renderWorldBounds.active
+      || snakeIntersectsRenderBounds(player, player.segments, Math.max(36 * pieceScale, bladeRenderMargin));
+    const repulseVisible = repulseRange > 0
+      && (!renderWorldBounds.active || pointIntersectsRenderBounds(player.x, player.y, repulseRange + 4));
+    if (!bodyVisible && !repulseVisible) {
+      player = previousPlayer;
+      activeGrowth = previousGrowth;
+      return;
+    }
+    ctx.save();
     const ghostVisual = Boolean(player.ghost);
     const protectedVisual = player.protectedState || player.invulnerable > 0;
     const damageVisual = Number.isFinite(player.damageFlashUntil) && performance.now() < player.damageFlashUntil;
@@ -7103,8 +7376,7 @@
       ctx.filter = `grayscale(0.78) brightness(1.7) drop-shadow(0 0 ${Math.max(5, (player.radius || playerHeadRadiusPixels()) * 0.7)}px rgba(116,232,255,0.9))`;
     } else if (protectedVisual) ctx.globalAlpha = 0.48 + Math.sin(gameTime * 28) * 0.28;
     else if (damageVisual) ctx.globalAlpha = 0.58 + Math.abs(Math.sin(performance.now() * 0.035)) * 0.42;
-    const repulseRange = repulseRangePixels();
-    if (repulseRange > 0) {
+    if (repulseVisible) {
       ctx.save();
       ctx.globalAlpha = 0.12 + Math.sin(gameTime * 2.2) * 0.025;
       ctx.strokeStyle = MODULE_BY_ID.repulse.color;
@@ -7128,19 +7400,20 @@
 
     for (let index = player.segments.length - 1; index >= 0; index -= 1) {
       const segment = player.segments[index];
-      const growthPulse = growthPulseForNode(index + 1);
-      const visualScale = segmentBirthScale(segment) * (1 + growthPulse * 0.46);
-      ctx.save();
-      ctx.translate(segment.x, segment.y);
-      ctx.scale(pieceScale * visualScale, pieceScale * visualScale);
-      ctx.rotate(segment.angle);
-      if (growthPulse > 0) {
-        ctx.shadowColor = activeGrowth.color;
-        ctx.shadowBlur = 12 + growthPulse * 10;
-      }
+      if (!renderWorldBounds.active || pointIntersectsRenderBounds(segment.x, segment.y, 28 * pieceScale)) {
+        const growthPulse = growthPulseForNode(index + 1);
+        const visualScale = segmentBirthScale(segment) * (1 + growthPulse * 0.46);
+        ctx.save();
+        ctx.translate(segment.x, segment.y);
+        ctx.scale(pieceScale * visualScale, pieceScale * visualScale);
+        ctx.rotate(segment.angle);
+        if (growthPulse > 0) {
+          ctx.shadowColor = activeGrowth.color;
+          ctx.shadowBlur = 12 + growthPulse * 10;
+        }
 
-      const module = segment.module ? MODULE_BY_ID[segment.module] : null;
-      if (module) {
+        const module = segment.module ? MODULE_BY_ID[segment.module] : null;
+        if (module) {
         ctx.shadowColor = module.color;
         ctx.shadowBlur = 10;
         ctx.fillStyle = "#151a1d";
@@ -7196,7 +7469,7 @@
           ctx.arc(0, 0, 14.5, -Math.PI / 2, -Math.PI / 2 + TAU * progress);
           ctx.stroke();
         }
-      } else if (segment.neutral) {
+        } else if (segment.neutral) {
         const experience = MODULE_PROGRESSION.experienceTier(segment.experienceTier || 0);
         const experienceBaseAlpha = ctx.globalAlpha;
         ctx.shadowColor = experience.color;
@@ -7228,14 +7501,15 @@
           ctx.lineWidth = 1;
           ctx.stroke();
         }
-      } else {
+        } else {
         ctx.fillStyle = segment.tailGuard ? "#f4f7f7" : "#343b3e";
         ctx.strokeStyle = segment.tailGuard ? "#ffffff" : "#a9afb1";
         ctx.lineWidth = 1.2;
         ctx.fillRect(-8, -7, 16, 14);
         ctx.strokeRect(-8, -7, 16, 14);
+        }
+        ctx.restore();
       }
-      ctx.restore();
 
       if (segment.module === "blade") {
         const orbitRadius = bladeOrbitRadius();
@@ -7245,6 +7519,7 @@
           const angle = segment.orbit + bladeIndex * TAU / bladeCount;
           const x = segment.x + Math.cos(angle) * orbitRadius;
           const y = segment.y + Math.sin(angle) * orbitRadius;
+          if (renderWorldBounds.active && !pointIntersectsRenderBounds(x, y, 24 * bladeScale)) continue;
           ctx.save();
           ctx.translate(x, y);
           ctx.scale(bladeScale, bladeScale);
@@ -7266,50 +7541,53 @@
       }
     }
 
-    ctx.save();
-    ctx.translate(player.x, player.y);
-    const headGrowthPulse = growthPulseForNode(0);
-    const headScale = 1 + headGrowthPulse * 0.44;
-    ctx.scale(pieceScale * headScale, pieceScale * headScale);
-    ctx.rotate(player.angle);
-    ctx.shadowColor = damageVisual ? "#ff355e" : (headGrowthPulse > 0 ? activeGrowth.color : (player.playerColor || "rgba(243,198,0,0.7)"));
-    ctx.shadowBlur = 14 + headGrowthPulse * 9;
-    ctx.fillStyle = "#e7e9e8";
-    ctx.strokeStyle = "#090b0c";
-    ctx.lineWidth = 1.8;
-    ctx.beginPath();
-    ctx.moveTo(19, 0);
-    ctx.lineTo(9, 13);
-    ctx.lineTo(-7, 12);
-    ctx.lineTo(-16, 6);
-    ctx.lineTo(-12, 0);
-    ctx.lineTo(-16, -6);
-    ctx.lineTo(-7, -12);
-    ctx.lineTo(9, -13);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = "#15191b";
-    ctx.beginPath();
-    ctx.moveTo(18, 0);
-    ctx.lineTo(7, 7);
-    ctx.lineTo(1, 5);
-    ctx.lineTo(1, -5);
-    ctx.lineTo(7, -7);
-    ctx.closePath();
-    ctx.fill();
-    ctx.fillStyle = player.playerColor || "#f3c600";
-    ctx.fillRect(-12, -9, 4, 18);
-    ctx.fillStyle = "#08c7dc";
-    ctx.fillRect(4, -6, 7, 3);
-    ctx.fillRect(4, 3, 7, 3);
-    ctx.fillStyle = "rgba(255,255,255,0.85)";
-    ctx.fillRect(-5, -10, 8, 2);
+    const headVisible = !renderWorldBounds.active || pointIntersectsRenderBounds(player.x, player.y, 44 * pieceScale);
+    if (headVisible) {
+      ctx.save();
+      ctx.translate(player.x, player.y);
+      const headGrowthPulse = growthPulseForNode(0);
+      const headScale = 1 + headGrowthPulse * 0.44;
+      ctx.scale(pieceScale * headScale, pieceScale * headScale);
+      ctx.rotate(player.angle);
+      ctx.shadowColor = damageVisual ? "#ff355e" : (headGrowthPulse > 0 ? activeGrowth.color : (player.playerColor || "rgba(243,198,0,0.7)"));
+      ctx.shadowBlur = 14 + headGrowthPulse * 9;
+      ctx.fillStyle = "#e7e9e8";
+      ctx.strokeStyle = "#090b0c";
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.moveTo(19, 0);
+      ctx.lineTo(9, 13);
+      ctx.lineTo(-7, 12);
+      ctx.lineTo(-16, 6);
+      ctx.lineTo(-12, 0);
+      ctx.lineTo(-16, -6);
+      ctx.lineTo(-7, -12);
+      ctx.lineTo(9, -13);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = "#15191b";
+      ctx.beginPath();
+      ctx.moveTo(18, 0);
+      ctx.lineTo(7, 7);
+      ctx.lineTo(1, 5);
+      ctx.lineTo(1, -5);
+      ctx.lineTo(7, -7);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = player.playerColor || "#f3c600";
+      ctx.fillRect(-12, -9, 4, 18);
+      ctx.fillStyle = "#08c7dc";
+      ctx.fillRect(4, -6, 7, 3);
+      ctx.fillRect(4, 3, 7, 3);
+      ctx.fillStyle = "rgba(255,255,255,0.85)";
+      ctx.fillRect(-5, -10, 8, 2);
+      ctx.restore();
+    }
     ctx.restore();
-    ctx.restore();
-    if (ghostVisual) drawGhostBeacon(player, pieceScale);
-    if (network.enabled) drawPlayerIdLabel(player, pieceScale);
+    if (ghostVisual && headVisible) drawGhostBeacon(player, pieceScale);
+    if (network.enabled && (!renderWorldBounds.active || pointIntersectsRenderBounds(player.x, player.y, 100 * pieceScale))) drawPlayerIdLabel(player, pieceScale);
     player = previousPlayer;
     activeGrowth = previousGrowth;
   }
@@ -7328,6 +7606,8 @@
 
   function drawHazards(time) {
     for (const hazard of hazards) {
+      const renderRadius = hazard.kind === "gravity" ? hazard.radius + 20 : 26;
+      if (renderWorldBounds.active && !pointIntersectsRenderBounds(hazard.x, hazard.y, renderRadius)) continue;
       const pulse = 1 + Math.sin(time * 8 + hazard.phase) * 0.12;
       ctx.save();
       ctx.translate(hazard.x, hazard.y);
@@ -7374,6 +7654,7 @@
 
   function drawProjectiles() {
     for (const projectile of projectiles) {
+      if (renderWorldBounds.active && !pointIntersectsRenderBounds(projectile.x, projectile.y, 36 + projectile.size * 3)) continue;
       ctx.save();
       const velocity = Math.hypot(projectile.vx, projectile.vy) || 1;
       const directionX = projectile.vx / velocity;
@@ -7402,8 +7683,30 @@
     }
   }
 
+  function effectIntersectsRenderBounds(effect) {
+    if (!renderWorldBounds.active) return true;
+    if (effect.type === "beam" || effect.type === "lightning") {
+      return lineIntersectsRenderBounds(effect, { x: effect.x2, y: effect.y2 }, (effect.width || 4) + 12);
+    }
+    if (effect.type === "ring") {
+      return pointIntersectsRenderBounds(effect.x, effect.y, Math.max(effect.radius || 0, effect.endRadius || 0) + 8);
+    }
+    if (effect.type === "text") {
+      return pointIntersectsRenderBounds(effect.x, effect.y, COMBAT_TEXT_FONT_SIZE * 4);
+    }
+    if (effect.type === "experienceCompress") {
+      if (pointIntersectsRenderBounds(effect.x, effect.y, effect.toTier >= 2 ? 66 : 46)) return true;
+      for (const source of effect.sources) {
+        if (lineIntersectsRenderBounds(source, effect, 12)) return true;
+      }
+      return false;
+    }
+    return pointIntersectsRenderBounds(effect.x, effect.y, Math.max(effect.radius || 0, effect.endRadius || 0) + 32);
+  }
+
   function drawEffects() {
     for (const particle of particles) {
+      if (renderWorldBounds.active && !pointIntersectsRenderBounds(particle.x, particle.y, particle.size + 2)) continue;
       ctx.globalAlpha = clamp(particle.life / particle.maxLife, 0, 1);
       ctx.fillStyle = particle.color;
       ctx.fillRect(particle.x - particle.size / 2, particle.y - particle.size / 2, particle.size, particle.size);
@@ -7412,6 +7715,7 @@
 
     for (const effect of effects) {
       if ((effect.delay || 0) > 0) continue;
+      if (renderWorldBounds.active && !effectIntersectsRenderBounds(effect)) continue;
       const progress = 1 - effect.life / effect.maxLife;
       const alpha = clamp(effect.life / effect.maxLife, 0, 1);
       ctx.save();
@@ -7422,6 +7726,7 @@
         for (const source of effect.sources) {
           const x = source.x + (effect.x - source.x) * eased;
           const y = source.y + (effect.y - source.y) * eased;
+          if (renderWorldBounds.active && !pointIntersectsRenderBounds(x, y, 16)) continue;
           ctx.fillStyle = progress < 0.58 ? sourceTier.color : effect.color;
           ctx.shadowColor = effect.color;
           ctx.shadowBlur = 8 + progress * 12;
@@ -7482,6 +7787,7 @@
   }
 
   function drawOffscreenIndicators(time) {
+    if (!renderWorldBounds.active) return;
     const inset = 13;
     const viewport = cameraViewportBounds();
     const left = viewport.left + inset;
@@ -7528,8 +7834,8 @@
 
     ctx.save();
     applyCameraViewportClip();
-    for (const food of foods) if (!food.networkHidden) marker(food.x, food.y, food.color, "food");
-    for (const enemy of enemies) if (!enemy.dead) marker(enemy.x, enemy.y, enemy.color, "enemy");
+    for (const food of foodIndicatorCandidates) marker(food.x, food.y, food.color, "food");
+    for (const enemy of enemyIndicatorCandidates) marker(enemy.x, enemy.y, enemy.color, "enemy");
     for (const spawn of pendingEnemySpawns) {
       const point = cellCenter(spawn.headCell.col, spawn.headCell.row);
       marker(point.x, point.y, "#ff3d5d", "warning");
@@ -7539,6 +7845,8 @@
 
   function render(now) {
     const visualTime = now / 1000;
+    updateRenderWorldBounds();
+    resetOffscreenIndicatorCandidates();
     drawBackground(visualTime);
     ctx.save();
     applyArenaPerspectiveTransform();
@@ -7548,7 +7856,17 @@
     drawFood(visualTime);
     drawEnemySpawnWarnings(visualTime);
     drawHazards(visualTime);
-    for (const enemy of enemies) drawEnemy(enemy);
+    for (const enemy of enemies) {
+      if (renderWorldBounds.active && !enemy.dead) {
+        trackNearestOffscreenIndicator(
+          enemy,
+          enemyIndicatorCandidates,
+          enemyIndicatorDistances,
+          CAMERA_FOLLOW_ENEMY_INDICATOR_LIMIT
+        );
+      }
+      drawEnemy(enemy);
+    }
     if (network.enabled) {
       for (const networkPlayer of visiblePlayers) drawPlayer(networkPlayer);
     } else if (player) {

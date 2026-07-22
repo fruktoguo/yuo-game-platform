@@ -388,11 +388,11 @@
     </div>
   </main>
 
-  <script src="enemy-codex.js?v=96"></script>
-  <script src="wave-director.js?v=96"></script>
-  <script src="designer-config.js?v=96"></script>
-  <script src="module-catalog.js?v=96"></script>
-  <script src="module-progression.js?v=96"></script>
+  <script src="enemy-codex.js?v=97"></script>
+  <script src="wave-director.js?v=97"></script>
+  <script src="designer-config.js?v=97"></script>
+  <script src="module-catalog.js?v=97"></script>
+  <script src="module-progression.js?v=97"></script>
   <script>
     (() => {
       "use strict";
@@ -585,6 +585,9 @@
         { key: "cameraFollowZoomMin", group: "摄像机", label: "跟随视角最小缩放", hint: "跟随蛇头模式使用滚轮缩小时允许达到的最低倍率", min: 0.25, max: 5, step: 0.05, unit: "倍" },
         { key: "cameraFollowZoomDefault", group: "摄像机", label: "跟随视角默认缩放", hint: "首次启用跟随蛇头模式时使用的缩放倍率，并受最小与最大值约束", min: 0.25, max: 5, step: 0.05, unit: "倍" },
         { key: "cameraFollowZoomMax", group: "摄像机", label: "跟随视角最大缩放", hint: "跟随蛇头模式使用滚轮放大时允许达到的最高倍率", min: 0.25, max: 5, step: 0.05, unit: "倍" },
+        { key: "cameraFollowRenderOverscanPixels", group: "性能", label: "跟随视角渲染缓冲", hint: "跟随蛇头模式在屏幕边缘外继续绘制的缓冲宽度，增大可减少高速移动时的边缘跳入", min: 0, max: 600, step: 10, unit: "px" },
+        { key: "cameraFollowFoodIndicatorLimit", group: "性能", label: "跟随视角球提示上限", hint: "跟随蛇头模式最多显示的最近离屏球提示数量", min: 0, max: 100, step: 1, unit: "个" },
+        { key: "cameraFollowEnemyIndicatorLimit", group: "性能", label: "跟随视角敌人提示上限", hint: "跟随蛇头模式最多显示的最近离屏敌人提示数量；预生成警告不受此限制", min: 0, max: 100, step: 1, unit: "个" },
         { key: "maxRenderFps", group: "性能", label: "最高绘制帧率", hint: "只限制 Canvas 和界面动效绘制，不降低逻辑与网络输入频率", min: 30, max: 240, step: 1, unit: "FPS" },
         { key: "maxRenderDpr", group: "性能", label: "最高渲染像素倍率", hint: "限制 Canvas 内部像素密度；界面文字仍由浏览器原生清晰绘制", min: 1, max: 2, step: 0.05, unit: "DPR" },
         { key: "networkPlayerStateHz", group: "性能", label: "玩家状态同步频率", hint: "手动玩家每秒向服务器发送完整蛇身状态的次数", min: 5, max: 60, step: 1, unit: "Hz" },
@@ -674,7 +677,7 @@
       const filePickerSupported = typeof window.showOpenFilePicker === "function";
 
       function normalizeConfig(value) {
-        const config = { schemaVersion: 27, balance: {}, waveEnemyCountSchedule: [], moduleCooldownPercentages: {}, moduleStates: {} };
+        const config = { schemaVersion: 28, balance: {}, waveEnemyCountSchedule: [], moduleCooldownPercentages: {}, moduleStates: {} };
         for (const definition of ALL_PARAMETER_DEFINITIONS) {
           const candidate = Number(value?.balance?.[definition.key]);
           config.balance[definition.key] = Number.isFinite(candidate) ? Math.max(definition.min, Math.min(definition.max, candidate)) : definition.min;
@@ -710,7 +713,7 @@
         const end = text.lastIndexOf("}");
         if (start < 0 || end <= start) throw new Error("配置内容不完整");
         const parsed = JSON.parse(text.slice(start, end + 1));
-        if (parsed?.schemaVersion !== 27) throw new Error("配置版本无效，需要 schemaVersion 27");
+        if (parsed?.schemaVersion !== 28) throw new Error("配置版本无效，需要 schemaVersion 28");
         return normalizeConfig(parsed);
       }
 
