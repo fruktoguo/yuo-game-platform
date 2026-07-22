@@ -11,7 +11,7 @@ interface DesignerConfigSource {
 }
 
 const source = (globalThis as typeof globalThis & { GSS0_DESIGNER_CONFIG?: DesignerConfigSource }).GSS0_DESIGNER_CONFIG;
-if (source?.schemaVersion !== 26) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 26');
+if (source?.schemaVersion !== 27) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 27');
 
 function numberSetting(key: string, fallback: number, minimum: number, maximum: number, integer = false): number {
   const candidate = source?.balance?.[key];
@@ -138,6 +138,9 @@ export const DESIGNER_BALANCE = Object.freeze({
   projectileSizeScale: numberSetting('projectileSizeScale', 2, 0.1, 10),
   poisonTickInterval: numberSetting('poisonTickInterval', 3, 0.05, 30),
   activeSkillBaseCooldown: numberSetting('activeSkillBaseCooldown', 3, 0.05, 30),
+  moduleAttackSizePerLevel: numberSetting('moduleAttackSizePerLevel', 0.1, 0, 1),
+  moduleCollisionDoubleChancePerLevel: numberSetting('moduleCollisionDoubleChancePerLevel', 0.2, 0, 1),
+  moduleProjectileDoubleChancePerLevel: numberSetting('moduleProjectileDoubleChancePerLevel', 0.1, 0, 1),
   moduleRepulseRangePerLevelPixels: numberSetting('moduleRepulseRangePerLevelPixels', 110, 1, 1_000),
   moduleArmorCooldownRatePerLevel: numberSetting('moduleArmorCooldownRatePerLevel', 0.18, 0, 5),
   moduleStabilizerSlowReductionPerLevel: numberSetting('moduleStabilizerSlowReductionPerLevel', 0.25, 0, 1),
@@ -169,6 +172,7 @@ export const DESIGNER_BALANCE = Object.freeze({
   moduleFrostSlowPerHit: numberSetting('moduleFrostSlowPerHit', 0.2, 0, 1),
   moduleFrostMinimumSpeedMultiplier: numberSetting('moduleFrostMinimumSpeedMultiplier', 0.05, 0.01, 1),
   moduleBladeBaseSizePixels: numberSetting('moduleBladeBaseSizePixels', 10, 1, 100),
+  moduleBladeOrbitRadiusCells: numberSetting('moduleBladeOrbitRadiusCells', 2.9, 0.5, 10),
   moduleBladeOrbitSpeed: numberSetting('moduleBladeOrbitSpeed', 2.28, 0, 20),
   modulePulseRadiusCells: numberSetting('modulePulseRadiusCells', 6, 0.1, 30),
   moduleClusterBlastRadiusCells: numberSetting('moduleClusterBlastRadiusCells', 5, 0.1, 30),

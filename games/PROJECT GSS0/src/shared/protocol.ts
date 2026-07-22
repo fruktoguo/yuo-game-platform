@@ -187,7 +187,7 @@ export interface UltraEffectAnchor {
 export type UltraEffect = UltraEffectBase & (
   | ({ type: 'burst'; col: number; row: number; color: string; count: number; speed: number } & UltraEffectAnchor)
   | ({ type: 'ring'; col: number; row: number; color: string; life: number; radius: number; endRadius: number; endRadiusUnit: 'pixels' | 'cells' } & UltraEffectAnchor)
-  | ({ type: 'beam' | 'lightning'; col: number; row: number; col2: number; row2: number; color: string; life: number } & UltraEffectAnchor)
+  | ({ type: 'beam' | 'lightning'; col: number; row: number; col2: number; row2: number; color: string; life: number; width?: number } & UltraEffectAnchor)
   | ({ type: 'text'; col: number; row: number; text: string; color: string; life: number; emphasis?: boolean; damageNumber?: boolean } & UltraEffectAnchor)
   | { id: string; type: 'experienceCompress'; sources: GridPoint[]; target: GridPoint; fromTier: number; toTier: number; delay: number; ownerEntityId: number; audienceEntityId?: number }
   | { id: string; type: 'experienceSettle'; ownerEntityId: number }

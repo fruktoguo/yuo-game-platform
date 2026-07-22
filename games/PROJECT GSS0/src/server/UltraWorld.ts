@@ -1283,6 +1283,10 @@ export class UltraWorld {
     return Math.min(MODULE_PROGRESSION.maxModuleLevel, count);
   }
 
+  private attackSizeMultiplier(player: PlayerEntity): number {
+    return MODULE_PROGRESSION.effects.attackSizeMultiplier(this.moduleCount(player, 'arsenal'));
+  }
+
   private playerSegmentSpacing(player: PlayerEntity): number {
     return SNAKE_SEGMENT_SPACING * (1 + MODULE_PROGRESSION.effects.segmentSpacingBonus(this.moduleCount(player, 'linkage')));
   }
@@ -2398,10 +2402,13 @@ export class UltraWorld {
   ): void {
     if (enemy.dead) return;
     this.triggerCollisionEcho(player);
+    let damage = this.playerHeadDamage(player, hitHead);
+    const doubleChance = MODULE_PROGRESSION.effects.collisionDoubleChance(this.moduleCount(player, 'doublehit'));
+    if (doubleChance > 0 && this.random() < doubleChance) damage *= 2;
     this.damageTarget(
       player,
       enemy,
-      this.playerHeadDamage(player, hitHead),
+      damage,
       point,
       PLAYER_COLORS[player.colorIndex],
       segmentIndex,
@@ -2460,10 +2467,11 @@ export class UltraWorld {
 
       if (segment.module === 'blade') {
         const bladeCount = MODULE_PROGRESSION.effects.bladeCount(segment.moduleLevel);
-        const bladeRadius = this.pixelsToCells(MODULE_PROGRESSION.effects.bladeBaseSizePixels() * PROJECTILE_SIZE_SCALE);
+        const bladeRadius = this.pixelsToCells(MODULE_PROGRESSION.effects.bladeBaseSizePixels() * PROJECTILE_SIZE_SCALE * this.attackSizeMultiplier(player));
         for (let bladeIndex = 0; bladeIndex < bladeCount; bladeIndex += 1) {
           const angle = segment.orbit + bladeIndex * TAU / bladeCount;
-          const blade = { col: segment.col + Math.cos(angle) * 2.9, row: segment.row + Math.sin(angle) * 2.9 };
+          const orbitRadius = MODULE_PROGRESSION.effects.bladeOrbitRadiusCells();
+          const blade = { col: segment.col + Math.cos(angle) * orbitRadius, row: segment.row + Math.sin(angle) * orbitRadius };
           for (const target of this.enemies) {
             if (target.dead) continue;
             const hitSegmentIndex = this.bladeHitSegmentIndex(target, blade, bladeRadius);
@@ -2478,11 +2486,11 @@ export class UltraWorld {
           if (
             target.dead
             || (target.sawCooldownsByPlayer.get(player.entityId) ?? 0) > 0
-            || !this.pointHitsTarget(segment, 0.82, target)
+            || !this.pointHitsTarget(segment, 0.82 * this.attackSizeMultiplier(player), target)
           ) continue;
           target.sawCooldownsByPlayer.set(player.entityId, this.activeModuleCooldown(player, 'saw', segment.moduleLevel));
           this.damageTarget(player, target, 1, segment, MODULE_BY_ID.saw.color);
-          this.ring(segment.col, segment.row, MODULE_BY_ID.saw.color, 0.3, 5, 0.82, player.entityId);
+          this.ring(segment.col, segment.row, MODULE_BY_ID.saw.color, 0.3, 5, 0.82 * this.attackSizeMultiplier(player), player.entityId);
           this.playSkillSound(player, 'saw');
         }
         continue;
@@ -2553,7 +2561,7 @@ export class UltraWorld {
         case 'laser':
           if (target) {
             this.damageTarget(player, target.enemy, 1, target.node, MODULE_BY_ID.laser.color);
-            this.beam('beam', segment, target.node, MODULE_BY_ID.laser.color, 0.2, player.entityId);
+            this.beam('beam', segment, target.node, MODULE_BY_ID.laser.color, 0.2, player.entityId, 4 * this.attackSizeMultiplier(player));
             this.playSkillSound(player, 'laser');
           }
           segment.timer = this.activeModuleCooldown(player, 'laser', segment.moduleLevel);
@@ -2563,7 +2571,7 @@ export class UltraWorld {
           segment.timer = this.activeModuleCooldown(player, 'missile', segment.moduleLevel);
           break;
         case 'mine':
-          this.addHazard({ id: this.allocateHazardId(), ownerEntityId: player.entityId, kind: 'mine', col: segment.col, row: segment.row, life: Number.POSITIVE_INFINITY, arm: 0.55, radius: this.pixelsToCells(62), color: MODULE_BY_ID.mine.color, phase: this.randomBetween(0, TAU) });
+          this.addHazard({ id: this.allocateHazardId(), ownerEntityId: player.entityId, kind: 'mine', col: segment.col, row: segment.row, life: Number.POSITIVE_INFINITY, arm: 0.55, radius: this.pixelsToCells(62) * this.attackSizeMultiplier(player), color: MODULE_BY_ID.mine.color, phase: this.randomBetween(0, TAU) });
           this.playSkillSound(player, 'mine');
           segment.timer = this.activeModuleCooldown(player, 'mine', segment.moduleLevel);
           break;
@@ -2618,7 +2626,7 @@ export class UltraWorld {
         case 'sniper':
           if (target) {
             this.damageTarget(player, target.enemy, 2, target.node, MODULE_BY_ID.sniper.color);
-            this.beam('beam', segment, target.node, MODULE_BY_ID.sniper.color, 0.28, player.entityId);
+            this.beam('beam', segment, target.node, MODULE_BY_ID.sniper.color, 0.28, player.entityId, 4 * this.attackSizeMultiplier(player));
             this.playSkillSound(player, 'sniper');
           }
           segment.timer = this.activeModuleCooldown(player, 'sniper', segment.moduleLevel);
@@ -2661,7 +2669,7 @@ export class UltraWorld {
             break;
           }
           this.damageTarget(player, executionTarget.enemy, 1, executionTarget.node, MODULE_BY_ID.execute.color, -1);
-          this.beam('beam', segment, executionTarget.node, MODULE_BY_ID.execute.color, 0.2, player.entityId);
+          this.beam('beam', segment, executionTarget.node, MODULE_BY_ID.execute.color, 0.2, player.entityId, 4 * this.attackSizeMultiplier(player));
           this.playSkillSound(player, 'execute');
           segment.timer = this.activeModuleCooldown(player, 'execute', segment.moduleLevel);
           break;
@@ -2706,8 +2714,15 @@ export class UltraWorld {
   }
 
   private createProjectile(player: PlayerEntity, origin: GridPoint, angle: number, options: ShotOptions, target: TargetRef | null = null): void {
+    this.createProjectileInstance(player, origin, angle, options, target);
+    const doubleChance = MODULE_PROGRESSION.effects.projectileDoubleChance(this.moduleCount(player, 'multishot'));
+    if (doubleChance > 0 && this.random() < doubleChance) this.createProjectileInstance(player, origin, angle, options, target);
+  }
+
+  private createProjectileInstance(player: PlayerEntity, origin: GridPoint, angle: number, options: ShotOptions, target: TargetRef | null): void {
     const guidance = this.moduleCount(player, 'guidance');
     const guidanceMultiplier = 1 + MODULE_PROGRESSION.effects.guidanceProjectileSpeedBonus(guidance);
+    const sizeMultiplier = this.attackSizeMultiplier(player);
     const speed = this.pixelsToCells((options.speed ?? 300) * guidanceMultiplier * PROJECTILE_SPEED_SCALE);
     const projectile: ProjectileEntity = {
       id: this.allocateProjectileId(),
@@ -2719,10 +2734,10 @@ export class UltraWorld {
       speed,
       life: Number.POSITIVE_INFINITY,
       color: options.color ?? '#dffcff',
-      size: (options.size ?? 4) * PROJECTILE_SIZE_SCALE,
+      size: (options.size ?? 4) * PROJECTILE_SIZE_SCALE * sizeMultiplier,
       pierce: options.pierce ?? 0,
       bounces: options.bounces ?? 0,
-      blastRadius: options.blastRadiusCells ?? (options.blastRadius ? this.pixelsToCells(options.blastRadius) : 0),
+      blastRadius: (options.blastRadiusCells ?? (options.blastRadius ? this.pixelsToCells(options.blastRadius) : 0)) * sizeMultiplier,
       slow: options.slow ?? 0,
       poison: options.poison ?? 0,
       permanentSlow: options.permanentSlow ?? 0,
@@ -2792,7 +2807,7 @@ export class UltraWorld {
   }
 
   private firePulse(player: PlayerEntity, origin: GridPoint): void {
-    const radius = MODULE_PROGRESSION.effects.pulseRadiusCells();
+    const radius = MODULE_PROGRESSION.effects.pulseRadiusCells() * this.attackSizeMultiplier(player);
     this.ring(origin.col, origin.row, MODULE_BY_ID.pulse.color, 0.55, 16, radius, player.entityId);
     for (const target of this.enemies) {
       if (target.dead) continue;
@@ -2808,19 +2823,20 @@ export class UltraWorld {
     const range = this.arenaSize * 1.15;
     const end = { col: origin.col + directionX * range, row: origin.row + directionY * range };
     let hits = 0;
+    const halfWidth = this.pixelsToCells(26) * this.attackSizeMultiplier(player);
     for (const hostile of this.enemies) {
       if (hostile.dead) continue;
-      const hitIndexes = this.lineTargetHitIndexes(origin, directionX, directionY, range, this.pixelsToCells(26), hostile);
+      const hitIndexes = this.lineTargetHitIndexes(origin, directionX, directionY, range, halfWidth, hostile);
       if (hitIndexes.length === 0) continue;
       this.damageTargetParts(player, hostile, hitIndexes, hostile, MODULE_BY_ID.sweep.color);
       hits += hitIndexes.length;
     }
-    this.beam('beam', origin, end, MODULE_BY_ID.sweep.color, 0.24, player.entityId);
+    this.beam('beam', origin, end, MODULE_BY_ID.sweep.color, 0.24, player.entityId, 52 * this.attackSizeMultiplier(player));
     return hits > 0;
   }
 
   private fireFlakBurst(player: PlayerEntity, target: EnemyTargetSelection): boolean {
-    const radius = this.pixelsToCells(84);
+    const radius = this.pixelsToCells(84) * this.attackSizeMultiplier(player);
     let hits = 0;
     this.ring(target.node.col, target.node.row, MODULE_BY_ID.flak.color, 0.5, 8, radius, player.entityId);
     this.burst(target.node.col, target.node.row, MODULE_BY_ID.flak.color, 18, 155, player.entityId);
@@ -4138,8 +4154,8 @@ export class UltraWorld {
     this.pendingEffects.push({ id: this.effectId(), type: 'feedback', kind, audienceEntityId });
   }
 
-  private beam(type: 'beam' | 'lightning', from: GridPoint, to: GridPoint, color: string, life: number, audienceEntityId?: number): void {
-    this.pendingEffects.push({ id: this.effectId(), type, col: from.col, row: from.row, col2: to.col, row2: to.row, color, life, audienceEntityId });
+  private beam(type: 'beam' | 'lightning', from: GridPoint, to: GridPoint, color: string, life: number, audienceEntityId?: number, width?: number): void {
+    this.pendingEffects.push({ id: this.effectId(), type, col: from.col, row: from.row, col2: to.col, row2: to.row, color, life, audienceEntityId, width });
   }
 
   private textEffect(

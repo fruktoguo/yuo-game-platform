@@ -339,7 +339,7 @@
         <header class="view-head"><div><span>MODULE ARCHIVE</span><h2>机体状态图鉴</h2></div><output id="module-count" class="view-count"></output></header>
         <div class="module-toolbar">
           <input id="module-search" class="filter-input" type="search" placeholder="搜索名称或 ID" aria-label="搜索机体">
-          <select id="category-filter" aria-label="筛选分类"><option value="all">全部分类</option><option>进攻</option><option>生存</option><option>辅助</option><option>发育</option></select>
+          <select id="category-filter" aria-label="筛选分类"><option value="all">全部分类</option><option>攻击</option><option>生存</option><option>辅助</option><option>发育</option></select>
           <select id="status-filter" aria-label="筛选状态"><option value="all">全部状态</option><option value="normal">正常</option><option value="tune">需调数值</option><option value="rework">需大改</option><option value="disabled">禁用</option></select>
         </div>
         <div class="module-bulk-actions" aria-label="批量设置机体状态">
@@ -388,11 +388,11 @@
     </div>
   </main>
 
-  <script src="enemy-codex.js?v=95"></script>
-  <script src="wave-director.js?v=95"></script>
-  <script src="designer-config.js?v=95"></script>
-  <script src="module-catalog.js?v=95"></script>
-  <script src="module-progression.js?v=95"></script>
+  <script src="enemy-codex.js?v=96"></script>
+  <script src="wave-director.js?v=96"></script>
+  <script src="designer-config.js?v=96"></script>
+  <script src="module-catalog.js?v=96"></script>
+  <script src="module-progression.js?v=96"></script>
   <script>
     (() => {
       "use strict";
@@ -522,9 +522,13 @@
         { key: "playerCollisionDamage", group: "战斗", label: "玩家撞击伤害", hint: "玩家蛇头撞上敌蛇头部或身体时对敌蛇造成的基础伤害", min: 0, max: 1000, step: 1, unit: "点" },
         { key: "poisonTickInterval", group: "战斗", label: "毒伤间隔", hint: "每层永久中毒随机摧毁敌蛇身体节的结算间隔", min: 0.05, max: 30, step: 0.05, unit: "秒" },
         { key: "activeSkillBaseCooldown", group: "战斗", label: "主动技能基础冷却", hint: "第二页各机体的冷却百分比均以此时间为 100%", min: 0.05, max: 30, step: 0.05, unit: "秒" },
+        { key: "moduleAttackSizePerLevel", moduleId: "arsenal", group: "武装扩容节", label: "每级攻击尺寸", hint: "每一级增加的子弹、旋刃、爆炸范围与激光半径", min: 0, max: 1, step: 0.01, unit: "倍率/级" },
+        { key: "moduleCollisionDoubleChancePerLevel", moduleId: "doublehit", group: "倍击撞针", label: "每级撞击翻倍概率", hint: "每次造成撞击伤害时，使该次伤害翻倍的概率", min: 0, max: 1, step: 0.01, unit: "概率/级" },
+        { key: "moduleProjectileDoubleChancePerLevel", moduleId: "multishot", group: "齐射增殖节", label: "每级倍弹概率", hint: "每次发射子弹时，使该枚子弹复制为两枚的概率", min: 0, max: 1, step: 0.01, unit: "概率/级" },
         { key: "moduleFrostSlowPerHit", moduleId: "frost", group: "冰棱节", label: "每次永久减速", hint: "每次命中永久降低敌蛇的移动速度；多次命中加法叠加", min: 0, max: 1, step: 0.01, unit: "比例/次" },
         { key: "moduleFrostMinimumSpeedMultiplier", moduleId: "frost", group: "冰棱节", label: "最低速度倍率", hint: "永久减速叠加后敌蛇仍保留的最低移动速度比例", min: 0.01, max: 1, step: 0.01, unit: "比例" },
         { key: "moduleBladeBaseSizePixels", moduleId: "blade", group: "旋刃节", label: "旋刃基础体积", hint: "应用全局子弹体积倍率前的旋刃绘制与命中半径", min: 1, max: 100, step: 1, unit: "px" },
+        { key: "moduleBladeOrbitRadiusCells", moduleId: "blade", group: "旋刃节", label: "旋刃环绕半径", hint: "旋刃中心到所属机体中心的环绕距离", min: 0.5, max: 10, step: 0.1, unit: "格" },
         { key: "moduleBladeOrbitSpeed", moduleId: "blade", group: "旋刃节", label: "旋刃旋转速度", hint: "旋刃围绕所属机体旋转的角速度", min: 0, max: 20, step: 0.01, unit: "弧度/秒" },
         { key: "modulePulseRadiusCells", moduleId: "pulse", group: "脉冲核心", label: "冲击波半径", hint: "冲击波对范围内每个敌方部位分别结算命中的半径", min: 0.1, max: 30, step: 0.1, unit: "格" },
         { key: "moduleClusterBlastRadiusCells", moduleId: "cluster", group: "裂变弹舱", label: "爆炸半径", hint: "裂变爆弹对范围内每个敌方部位分别结算命中的半径", min: 0.1, max: 30, step: 0.1, unit: "格" },
@@ -670,7 +674,7 @@
       const filePickerSupported = typeof window.showOpenFilePicker === "function";
 
       function normalizeConfig(value) {
-        const config = { schemaVersion: 26, balance: {}, waveEnemyCountSchedule: [], moduleCooldownPercentages: {}, moduleStates: {} };
+        const config = { schemaVersion: 27, balance: {}, waveEnemyCountSchedule: [], moduleCooldownPercentages: {}, moduleStates: {} };
         for (const definition of ALL_PARAMETER_DEFINITIONS) {
           const candidate = Number(value?.balance?.[definition.key]);
           config.balance[definition.key] = Number.isFinite(candidate) ? Math.max(definition.min, Math.min(definition.max, candidate)) : definition.min;
@@ -706,7 +710,7 @@
         const end = text.lastIndexOf("}");
         if (start < 0 || end <= start) throw new Error("配置内容不完整");
         const parsed = JSON.parse(text.slice(start, end + 1));
-        if (parsed?.schemaVersion !== 26) throw new Error("配置版本无效，需要 schemaVersion 26");
+        if (parsed?.schemaVersion !== 27) throw new Error("配置版本无效，需要 schemaVersion 27");
         return normalizeConfig(parsed);
       }
 

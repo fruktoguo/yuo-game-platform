@@ -101,7 +101,7 @@
 
   const TAU = Math.PI * 2;
   const DESIGNER_CONFIG = globalThis.GSS0_DESIGNER_CONFIG || {};
-  if (DESIGNER_CONFIG.schemaVersion !== 26) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 26");
+  if (DESIGNER_CONFIG.schemaVersion !== 27) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 27");
   const DESIGNER_BALANCE = DESIGNER_CONFIG.balance || {};
   const MODULE_DESIGN_STATES = DESIGNER_CONFIG.moduleStates || {};
 
@@ -1987,7 +1987,8 @@
       effects.push({ type: "ring", x: from.x, y: from.y, color: item.color, life: item.life, maxLife: item.life, radius: item.radius * scale, endRadius });
     } else if (item.type === "beam" || item.type === "lightning") {
       const to = cellCenter(item.col2, item.row2);
-      effects.push({ type: item.type, x: from.x, y: from.y, x2: to.x, y2: to.y, color: item.color, life: item.life, maxLife: item.life });
+      const width = item.width ? item.width * arenaVisualScale() : undefined;
+      effects.push({ type: item.type, x: from.x, y: from.y, x2: to.x, y2: to.y, color: item.color, width, life: item.life, maxLife: item.life });
     } else if (item.type === "text") {
       effects.push({
         type: "text",
@@ -3772,7 +3773,11 @@
   }
 
   function bladeOrbitRadius() {
-    return arena.cellSize * 0.58 * 5;
+    return arena.cellSize * MODULE_EFFECTS.bladeOrbitRadiusCells();
+  }
+
+  function attackSizeMultiplier() {
+    return MODULE_EFFECTS.attackSizeMultiplier(moduleCount("arsenal"));
   }
 
   function repulseRangePixels() {
@@ -4750,33 +4755,40 @@
   function createPlayerProjectile(origin, angle, options = {}) {
     const guidance = moduleCount("guidance");
     const guidanceMultiplier = 1 + MODULE_EFFECTS.guidanceProjectileSpeedBonus(guidance);
+    const sizeMultiplier = attackSizeMultiplier();
     const scale = arenaVisualScale();
     const speed = (options.speed || 300) * guidanceMultiplier * PROJECTILE_SPEED_SCALE * scale;
     const homing = (options.homing || 0) + MODULE_EFFECTS.guidanceHomingBonus(guidance);
     const targetSelection = options.target;
     const target = targetSelection?.enemy && !targetSelection.enemy.dead ? targetSelection.enemy : null;
-    const projectile = {
-      kind: "shot",
-      x: origin.x,
-      y: origin.y,
-      vx: Math.cos(angle) * speed,
-      vy: Math.sin(angle) * speed,
-      speed,
-      life: Infinity,
-      color: options.color || "#dffcff",
-      size: (options.size || 4) * PROJECTILE_SIZE_SCALE * scale,
-      pierce: options.pierce || 0,
-      bounces: options.bounces || 0,
-      blastRadius: options.blastRadiusCells ? options.blastRadiusCells * arena.cellSize : (options.blastRadius || 0) * scale,
-      slow: options.slow || 0,
-      permanentSlow: options.permanentSlow || 0,
-      poison: options.poison || 0,
-      homing,
-      target: homing > 0 ? target : null,
-      targetSegmentIndex: homing > 0 && target ? targetSelection.segmentIndex : -1,
-      hitNodes: new Set()
-    };
-    projectiles.push(projectile);
+    function spawnProjectile() {
+      const projectile = {
+        kind: "shot",
+        x: origin.x,
+        y: origin.y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        speed,
+        life: Infinity,
+        color: options.color || "#dffcff",
+        size: (options.size || 4) * PROJECTILE_SIZE_SCALE * scale * sizeMultiplier,
+        pierce: options.pierce || 0,
+        bounces: options.bounces || 0,
+        blastRadius: (options.blastRadiusCells ? options.blastRadiusCells * arena.cellSize : (options.blastRadius || 0) * scale) * sizeMultiplier,
+        slow: options.slow || 0,
+        permanentSlow: options.permanentSlow || 0,
+        poison: options.poison || 0,
+        homing,
+        target: homing > 0 ? target : null,
+        targetSegmentIndex: homing > 0 && target ? targetSelection.segmentIndex : -1,
+        hitNodes: new Set()
+      };
+      projectiles.push(projectile);
+      return projectile;
+    }
+    const projectile = spawnProjectile();
+    const doubleChance = MODULE_EFFECTS.projectileDoubleChance(moduleCount("multishot"));
+    if (doubleChance > 0 && random() < doubleChance) spawnProjectile();
     return projectile;
   }
 
@@ -4804,7 +4816,9 @@
     if (!enemy || enemy.dead || !node) return;
     const segmentIndex = hitHead ? -1 : enemy.segments.indexOf(node);
     triggerCollisionEcho();
-    const damage = playerHeadDamage(hitHead);
+    let damage = playerHeadDamage(hitHead);
+    const doubleChance = MODULE_EFFECTS.collisionDoubleChance(moduleCount("doublehit"));
+    if (doubleChance > 0 && random() < doubleChance) damage *= 2;
     damageEnemy(enemy, damage, node.x, node.y, player.playerColor || "#f3c600", { hitSegmentIndex: segmentIndex });
   }
 
@@ -4873,7 +4887,7 @@
       if (segment.module === "blade") {
         const orbitRadius = bladeOrbitRadius();
         const bladeCount = MODULE_EFFECTS.bladeCount(segment.moduleLevel);
-        const bladeRadius = MODULE_EFFECTS.bladeBaseSizePixels() * PROJECTILE_SIZE_SCALE * arenaVisualScale();
+        const bladeRadius = MODULE_EFFECTS.bladeBaseSizePixels() * PROJECTILE_SIZE_SCALE * arenaVisualScale() * attackSizeMultiplier();
         for (let bladeIndex = 0; bladeIndex < bladeCount; bladeIndex += 1) {
           const angle = segment.orbit + bladeIndex * TAU / bladeCount;
           const bladeX = segment.x + Math.cos(angle) * orbitRadius;
@@ -4888,7 +4902,7 @@
       }
 
       if (segment.module === "saw") {
-        const contactRadius = arena.cellSize * 0.82;
+        const contactRadius = arena.cellSize * 0.82 * attackSizeMultiplier();
         for (const enemy of enemies) {
           if (enemy.dead || enemy.sawCooldown > 0) continue;
           if (pointHitsEnemy(segment.x, segment.y, contactRadius, enemy)) {
@@ -4965,7 +4979,7 @@
         case "laser":
           if (target) {
             damageEnemy(target.enemy, 1, target.node.x, target.node.y, MODULE_BY_ID.laser.color);
-            effects.push({ type: "beam", x: segment.x, y: segment.y, x2: target.node.x, y2: target.node.y, color: MODULE_BY_ID.laser.color, life: 0.2, maxLife: 0.2 });
+            effects.push({ type: "beam", x: segment.x, y: segment.y, x2: target.node.x, y2: target.node.y, color: MODULE_BY_ID.laser.color, width: 4 * arenaVisualScale() * attackSizeMultiplier(), life: 0.2, maxLife: 0.2 });
             playSkillSound("laser");
           }
           segment.timer = activeModuleCooldown("laser", segment.moduleLevel);
@@ -4975,7 +4989,7 @@
           segment.timer = activeModuleCooldown("missile", segment.moduleLevel);
           break;
         case "mine":
-          hazards.push({ kind: "mine", x: segment.x, y: segment.y, col: segment.col, row: segment.row, life: Infinity, arm: 0.55, radius: 62 * arenaVisualScale(), color: MODULE_BY_ID.mine.color, phase: random(0, TAU) });
+          hazards.push({ kind: "mine", x: segment.x, y: segment.y, col: segment.col, row: segment.row, life: Infinity, arm: 0.55, radius: 62 * arenaVisualScale() * attackSizeMultiplier(), color: MODULE_BY_ID.mine.color, phase: random(0, TAU) });
           playSkillSound("mine");
           segment.timer = activeModuleCooldown("mine", segment.moduleLevel);
           break;
@@ -5032,7 +5046,7 @@
         case "sniper":
           if (target) {
             damageEnemy(target.enemy, 2, target.node.x, target.node.y, MODULE_BY_ID.sniper.color);
-            effects.push({ type: "beam", x: segment.x, y: segment.y, x2: target.node.x, y2: target.node.y, color: MODULE_BY_ID.sniper.color, life: 0.28, maxLife: 0.28 });
+            effects.push({ type: "beam", x: segment.x, y: segment.y, x2: target.node.x, y2: target.node.y, color: MODULE_BY_ID.sniper.color, width: 4 * arenaVisualScale() * attackSizeMultiplier(), life: 0.28, maxLife: 0.28 });
             playSkillSound("sniper");
           }
           segment.timer = activeModuleCooldown("sniper", segment.moduleLevel);
@@ -5078,7 +5092,7 @@
               break;
             }
             damageEnemy(executionTarget.enemy, 1, executionTarget.node.x, executionTarget.node.y, MODULE_BY_ID.execute.color, { hitSegmentIndex: -1 });
-            effects.push({ type: "beam", x: segment.x, y: segment.y, x2: executionTarget.node.x, y2: executionTarget.node.y, color: MODULE_BY_ID.execute.color, life: 0.2, maxLife: 0.2 });
+            effects.push({ type: "beam", x: segment.x, y: segment.y, x2: executionTarget.node.x, y2: executionTarget.node.y, color: MODULE_BY_ID.execute.color, width: 4 * arenaVisualScale() * attackSizeMultiplier(), life: 0.2, maxLife: 0.2 });
             playSkillSound("execute");
             segment.timer = activeModuleCooldown("execute", segment.moduleLevel);
             break;
@@ -5176,7 +5190,7 @@
   }
 
   function firePulse(origin) {
-    const radius = MODULE_EFFECTS.pulseRadiusCells() * arena.cellSize;
+    const radius = MODULE_EFFECTS.pulseRadiusCells() * arena.cellSize * attackSizeMultiplier();
     effects.push({ type: "ring", x: origin.x, y: origin.y, color: MODULE_BY_ID.pulse.color, life: 0.55, maxLife: 0.55, radius: 16, endRadius: radius });
     for (const enemy of enemies) {
       if (enemy.dead) continue;
@@ -5212,19 +5226,20 @@
     const endX = origin.x + directionX * range;
     const endY = origin.y + directionY * range;
     let hits = 0;
+    const halfWidth = 26 * arenaVisualScale() * attackSizeMultiplier();
     for (const enemy of enemies) {
       if (enemy.dead) continue;
-      const hitIndexes = lineEnemyHitIndexes(origin, directionX, directionY, range, 26 * arenaVisualScale(), enemy);
+      const hitIndexes = lineEnemyHitIndexes(origin, directionX, directionY, range, halfWidth, enemy);
       if (!hitIndexes.length) continue;
       damageEnemyParts(enemy, hitIndexes, enemy.x, enemy.y, MODULE_BY_ID.sweep.color);
       hits += hitIndexes.length;
     }
-    effects.push({ type: "beam", x: origin.x, y: origin.y, x2: endX, y2: endY, color: MODULE_BY_ID.sweep.color, width: 52 * arenaVisualScale(), life: 0.24, maxLife: 0.24 });
+    effects.push({ type: "beam", x: origin.x, y: origin.y, x2: endX, y2: endY, color: MODULE_BY_ID.sweep.color, width: halfWidth * 2, life: 0.24, maxLife: 0.24 });
     return hits > 0;
   }
 
   function fireFlakBurst(target) {
-    const radius = 84 * arenaVisualScale();
+    const radius = 84 * arenaVisualScale() * attackSizeMultiplier();
     let hits = 0;
     effects.push({ type: "ring", x: target.node.x, y: target.node.y, color: MODULE_BY_ID.flak.color, life: 0.5, maxLife: 0.5, radius: 8, endRadius: radius });
     burst(target.node.x, target.node.y, MODULE_BY_ID.flak.color, 18, 155);
@@ -7225,7 +7240,7 @@
       if (segment.module === "blade") {
         const orbitRadius = bladeOrbitRadius();
         const bladeCount = MODULE_EFFECTS.bladeCount(segment.moduleLevel);
-        const bladeScale = pieceScale * PROJECTILE_SIZE_SCALE * MODULE_EFFECTS.bladeBaseSizePixels() / 10;
+        const bladeScale = pieceScale * PROJECTILE_SIZE_SCALE * MODULE_EFFECTS.bladeBaseSizePixels() / 10 * attackSizeMultiplier();
         for (let bladeIndex = 0; bladeIndex < bladeCount; bladeIndex += 1) {
           const angle = segment.orbit + bladeIndex * TAU / bladeCount;
           const x = segment.x + Math.cos(angle) * orbitRadius;

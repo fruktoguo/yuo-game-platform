@@ -1,5 +1,5 @@
 globalThis.GSS0_DESIGNER_CONFIG = {
-  "schemaVersion": 26,
+  "schemaVersion": 27,
   "balance": {
     "playerBaseSpeed": 5,
     "snakeBodySizeScale": 0.775,
@@ -113,9 +113,13 @@ globalThis.GSS0_DESIGNER_CONFIG = {
     "playerCollisionDamage": 1,
     "poisonTickInterval": 3,
     "activeSkillBaseCooldown": 6,
+    "moduleAttackSizePerLevel": 0.1,
+    "moduleCollisionDoubleChancePerLevel": 0.2,
+    "moduleProjectileDoubleChancePerLevel": 0.1,
     "moduleFrostSlowPerHit": 0.2,
     "moduleFrostMinimumSpeedMultiplier": 0.05,
     "moduleBladeBaseSizePixels": 10,
+    "moduleBladeOrbitRadiusCells": 2.9,
     "moduleBladeOrbitSpeed": 1.5,
     "modulePulseRadiusCells": 3,
     "moduleClusterBlastRadiusCells": 2,
@@ -335,6 +339,9 @@ globalThis.GSS0_DESIGNER_CONFIG = {
     "tailguard": "normal",
     "deathburst": "normal",
     "crisis": "normal",
-    "linkage": "normal"
+    "linkage": "normal",
+    "arsenal": "normal",
+    "doublehit": "normal",
+    "multishot": "normal"
   }
 };

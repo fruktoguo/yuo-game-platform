@@ -9,9 +9,9 @@ export type GSS0ModuleId =
   | "collector" | "beacon" | "momentum" | "progressor" | "nursery" | "cache"
   | "insight" | "headstrike" | "vitality" | "renewal" | "plating" | "replicator"
   | "medkit" | "adrenaline" | "berserk" | "recovery" | "wallbreaker" | "tailguard"
-  | "deathburst" | "crisis" | "linkage";
+  | "deathburst" | "crisis" | "linkage" | "arsenal" | "doublehit" | "multishot";
 
-export type GSS0ModuleCategory = "进攻" | "生存" | "辅助" | "发育";
+export type GSS0ModuleCategory = "攻击" | "生存" | "辅助" | "发育";
 export type GSS0ModuleShape = "triangle" | "diamond" | "hex" | "star" | "ring" | "capsule" | "square" | "circle";
 
 export interface GSS0ModuleCatalogEntry {

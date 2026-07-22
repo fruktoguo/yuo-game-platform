@@ -72,6 +72,9 @@ describe('设计配置', () => {
       projectileSizeScale: 2,
       poisonTickInterval: 3,
       activeSkillBaseCooldown: 6,
+      moduleAttackSizePerLevel: 0.1,
+      moduleCollisionDoubleChancePerLevel: 0.2,
+      moduleProjectileDoubleChancePerLevel: 0.1,
       moduleRepulseRangePerLevelPixels: 110,
       moduleHasteTurnRatePerLevel: 0.2,
       moduleTractorRangePerLevel: 1,
@@ -83,6 +86,7 @@ describe('设计配置', () => {
       moduleProgressorSpeedPerLevel: 0.2,
       moduleLinkageSpacingPerLevel: 0.2,
       moduleBladeOrbitSpeed: 1.5,
+      moduleBladeOrbitRadiusCells: 2.9,
       modulePulseRadiusCells: 3,
       moduleClusterBlastRadiusCells: 2,
       moduleShieldMaxCharges: 5,
@@ -193,7 +197,7 @@ describe('设计配置', () => {
   it('全部现有机体都有审查状态且禁用项不会进入升级池', () => {
     const source = (globalThis as typeof globalThis & { GSS0_DESIGNER_CONFIG: { moduleStates: Record<string, string> } }).GSS0_DESIGNER_CONFIG;
     expect(Object.keys(source.moduleStates).sort()).toEqual(MODULES.map((module) => module.id).sort());
-    expect(Object.values(source.moduleStates).filter((state) => state === 'normal')).toHaveLength(49);
+    expect(Object.values(source.moduleStates).filter((state) => state === 'normal')).toHaveLength(52);
     expect(Object.values(source.moduleStates).filter((state) => state === 'tune')).toHaveLength(0);
     expect(Object.values(source.moduleStates).filter((state) => state === 'rework')).toHaveLength(0);
     expect(Object.values(source.moduleStates).filter((state) => state === 'disabled')).toHaveLength(24);
@@ -206,15 +210,15 @@ describe('设计配置', () => {
 
     expect(parameterKeys.sort()).toEqual(Object.keys(DESIGNER_BALANCE).sort());
     expect(moduleIds.sort()).toEqual(MODULES.map((module) => module.id).sort());
-    expect(new Set(parameterKeys).size).toBe(197);
+    expect(new Set(parameterKeys).size).toBe(201);
     expect(parameterKeys).not.toContain('playerSpeedPerLevel');
     expect(parameterKeys).not.toContain('moduleEffectReductionMaximum');
     expect(parameterKeys).not.toContain('newModuleOfferChance');
-    expect(new Set(moduleIds).size).toBe(73);
+    expect(new Set(moduleIds).size).toBe(76);
   });
 
   it('全部机体共用唯一描述目录且被动参数明确', () => {
-    expect(MODULES).toHaveLength(73);
+    expect(MODULES).toHaveLength(76);
     expect(MODULES.every((module) => module.desc.trim().length > 0)).toBe(true);
     expect(new Set(MODULES.map((module) => module.id)).size).toBe(MODULES.length);
     expect(MODULES.find((module) => module.id === 'spark')?.desc).toBe('向随机方向发射1枚子弹。');
@@ -225,11 +229,14 @@ describe('设计配置', () => {
     expect(MODULES.find((module) => module.id === 'replicator')?.desc).toBe('吃球时，每级有6%概率在蛇尾后方生成1枚球。此机体生成的球也可以再次触发此效果。');
     expect(MODULES.find((module) => module.id === 'buffer')?.category).toBe('辅助');
     expect(MODULES.find((module) => module.id === 'linkage')?.desc).toBe('每级使自身机体连接距离提高20%。');
-    expect(MODULES.some((module) => ['输出', '防御', '恢复'].includes(module.category as string))).toBe(false);
-    expect(MODULES.every((module) => ['进攻', '生存', '辅助', '发育'].includes(module.category))).toBe(true);
+    expect(MODULES.find((module) => module.id === 'arsenal')?.desc).toContain('攻击尺寸');
+    expect(MODULES.find((module) => module.id === 'doublehit')?.desc).toContain('20%概率');
+    expect(MODULES.find((module) => module.id === 'multishot')?.desc).toContain('10%概率');
+    expect(MODULES.some((module) => ['输出', '进攻', '防御', '恢复'].includes(module.category as string))).toBe(false);
+    expect(MODULES.every((module) => ['攻击', '生存', '辅助', '发育'].includes(module.category))).toBe(true);
     expect(MODULES.filter((module) => module.category === '发育')).toHaveLength(9);
-    expect(editorHtml).toContain('src="module-catalog.js?v=95"');
-    expect(editorHtml).toContain('src="module-progression.js?v=95"');
+    expect(editorHtml).toContain('src="module-catalog.js?v=96"');
+    expect(editorHtml).toContain('src="module-progression.js?v=96"');
     expect(editorHtml).toContain('const MODULES = moduleCatalog;');
     expect(editorHtml).toContain('descriptionText.textContent = describeModule(module.id, draft.balance);');
     expect(editorHtml).toContain('ID: ${module.id}');

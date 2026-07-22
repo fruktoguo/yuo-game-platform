@@ -10,7 +10,7 @@ describe('界面设置', () => {
   it('使用正式游戏名并在左上品牌卡显示当前版本', () => {
     expect(indexHtml).toContain('<title>代号：几何贪吃蛇</title>');
     expect(indexHtml).toContain('<h1 id="game-title"><span>代号：几何贪吃蛇</span></h1>');
-    expect(indexHtml).toContain('<span class="brand-version" aria-label="游戏版本 V95">V95</span>');
+    expect(indexHtml).toContain('<span class="brand-version" aria-label="游戏版本 V96">V96</span>');
     expect(styles).toContain('.brand-version');
     const brandTitleRule = styles.match(/\.brand-lockup strong\s*\{([^}]*)\}/)?.[1];
     const brandVersionRule = styles.match(/\.brand-version\s*\{([^}]*)\}/)?.[1];
@@ -61,7 +61,7 @@ describe('界面设置', () => {
   });
 
   it('升级卡展示机体等级变化且机体架显示槽位占用', () => {
-    expect(indexHtml).toContain('src="module-progression.js?v=95"');
+    expect(indexHtml).toContain('src="module-progression.js?v=96"');
     expect(gameSource).toContain('MODULE_PROGRESSION.moduleUpgradePreview');
     expect(gameSource).toContain('progression.levelLabel');
     expect(gameSource).toContain('ui.rack.dataset.capacity');
@@ -158,7 +158,7 @@ describe('界面设置', () => {
     expect(tooltipRule).not.toContain('transition');
     expect(indexHtml).not.toContain('id="description-button"');
     expect(indexHtml).not.toContain('id="description-toggle"');
-    expect(indexHtml).toContain('src="module-catalog.js?v=95"');
+    expect(indexHtml).toContain('src="module-catalog.js?v=96"');
     expect(gameSource).toContain('const MODULE_CATALOG = globalThis.GSS0ModuleCatalog;');
     expect(gameSource).not.toContain('SHORT_MODULE_DESCRIPTIONS');
     expect(gameSource).not.toContain('gss0-detailed-descriptions');
@@ -166,7 +166,7 @@ describe('界面设置', () => {
 
   it('机体图鉴隐藏禁用机体并支持按类型筛选', () => {
     expect(indexHtml).toContain('id="codex-category-filter"');
-    expect(indexHtml).toContain('data-category="进攻"');
+    expect(indexHtml).toContain('data-category="攻击"');
     expect(indexHtml).toContain('data-category="生存"');
     expect(indexHtml).toContain('data-category="辅助"');
     expect(indexHtml).toContain('data-category="发育"');
