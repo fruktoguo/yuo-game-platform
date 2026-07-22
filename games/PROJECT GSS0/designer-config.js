@@ -1,5 +1,5 @@
 globalThis.GSS0_DESIGNER_CONFIG = {
-  "schemaVersion": 33,
+  "schemaVersion": 34,
   "balance": {
     "playerBaseSpeed": 5,
     "snakeBodySizeScale": 0.775,
@@ -191,12 +191,11 @@ globalThis.GSS0_DESIGNER_CONFIG = {
     "maxRenderFps": 160,
     "maxRenderDpr": 1.25,
     "networkPlayerStateHz": 20,
-    "networkManualPredictionMs": 180,
+    "networkManualPredictionMs": 400,
     "networkRemoteCorrectionThresholdCells": 0.75,
     "networkRemoteCorrectionSpeedCellsPerSecond": 18,
     "networkRemoteCorrectionMinMs": 120,
     "networkRemoteCorrectionMaxMs": 450,
-    "networkRemotePresentationHz": 60,
     "networkCollisionClaimCooldownMs": 500,
     "networkInterpolationMinMs": 90,
     "networkInterpolationMaxMs": 120,

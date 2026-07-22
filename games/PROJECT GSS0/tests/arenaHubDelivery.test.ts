@@ -77,7 +77,7 @@ describe('ArenaHub 联机投递', () => {
     );
   });
 
-  it('快照与纯表现反馈保持易失低延迟，关键状态事件使用可靠通道', () => {
+  it('快照与装饰效果保持易失低延迟，关键战斗语义与定向反馈使用可靠通道', () => {
     expect(SIMULATION_HZ % SNAPSHOT_HZ).toBe(0);
     const globalEmit = vi.fn();
     const reliableEmit = vi.fn();
@@ -86,7 +86,7 @@ describe('ArenaHub 联机投递', () => {
     Reflect.set(hub, 'io', {
       emit: reliableEmit,
       volatile: { emit: globalEmit },
-      sockets: { sockets: new Map([['socket-a', { volatile: { emit: personalEmit } }]]) },
+      sockets: { sockets: new Map([['socket-a', { emit: personalEmit }]]) },
     });
     Reflect.set(hub, 'socketsByEntity', new Map([[7, 'socket-a']]));
     Reflect.set(hub, 'socketsByAccount', new Map([['account-a', 'socket-a']]));
@@ -98,10 +98,10 @@ describe('ArenaHub 联机投递', () => {
 
     publishEffects.call(hub, [sharedVisual, sharedState, personal, offline]);
 
+    expect(reliableEmit).toHaveBeenCalledWith('ultra:effects', [sharedState]);
     expect(personalEmit).toHaveBeenCalledWith('ultra:effects', [personal]);
     expect(personalEmit).toHaveBeenCalledTimes(1);
-    expect(globalEmit).toHaveBeenCalledWith('ultra:effects', [sharedVisual, sharedState]);
-    expect(reliableEmit).not.toHaveBeenCalledWith('ultra:effects', expect.anything());
+    expect(globalEmit).toHaveBeenCalledWith('ultra:effects', [sharedVisual]);
 
     const foodDelta: UltraFoodDelta = {
       revision: 3,

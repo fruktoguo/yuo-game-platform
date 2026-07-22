@@ -11,7 +11,7 @@ interface DesignerConfigSource {
 }
 
 const source = (globalThis as typeof globalThis & { GSS0_DESIGNER_CONFIG?: DesignerConfigSource }).GSS0_DESIGNER_CONFIG;
-if (source?.schemaVersion !== 33) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 33');
+if (source?.schemaVersion !== 34) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 34');
 
 function numberSetting(key: string, fallback: number, minimum: number, maximum: number, integer = false): number {
   const candidate = source?.balance?.[key];
@@ -236,12 +236,11 @@ export const DESIGNER_BALANCE = Object.freeze({
   maxRenderFps: numberSetting('maxRenderFps', 60, 30, 240, true),
   maxRenderDpr: numberSetting('maxRenderDpr', 1.25, 1, 2),
   networkPlayerStateHz: numberSetting('networkPlayerStateHz', 20, 5, 60, true),
-  networkManualPredictionMs: numberSetting('networkManualPredictionMs', 180, 50, 1_000, true),
+  networkManualPredictionMs: numberSetting('networkManualPredictionMs', 400, 50, 1_000, true),
   networkRemoteCorrectionThresholdCells: numberSetting('networkRemoteCorrectionThresholdCells', 0.75, 0.1, 10),
   networkRemoteCorrectionSpeedCellsPerSecond: numberSetting('networkRemoteCorrectionSpeedCellsPerSecond', 18, 1, 100),
   networkRemoteCorrectionMinMs: numberSetting('networkRemoteCorrectionMinMs', 120, 0, 1_000, true),
   networkRemoteCorrectionMaxMs: numberSetting('networkRemoteCorrectionMaxMs', 450, 50, 2_000, true),
-  networkRemotePresentationHz: numberSetting('networkRemotePresentationHz', 60, 15, 240, true),
   networkCollisionClaimCooldownMs: numberSetting('networkCollisionClaimCooldownMs', 500, 100, 2_000, true),
   networkInterpolationMinMs: numberSetting('networkInterpolationMinMs', 90, 40, 300, true),
   networkInterpolationMaxMs: numberSetting('networkInterpolationMaxMs', 120, 40, 400, true),

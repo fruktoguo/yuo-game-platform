@@ -19,7 +19,7 @@
           <strong>代号：几何贪吃蛇</strong>
         </div>
         <span class="signature">by 四季鸽</span>
-        <span class="brand-version" aria-label="游戏版本 V104">V104</span>
+        <span class="brand-version" aria-label="游戏版本 V105">V105</span>
       </div>
 
       <div class="run-stats">
@@ -201,7 +201,7 @@
 
     <section id="start-screen" class="modal-layer start-screen is-visible" aria-labelledby="game-title">
       <div class="start-glow" aria-hidden="true"></div>
-          <div class="start-version" aria-label="游戏版本 V104"><span>BUILD</span><strong>V104</strong></div>
+          <div class="start-version" aria-label="游戏版本 V105"><span>BUILD</span><strong>V105</strong></div>
       <div class="start-layout">
         <div class="start-content">
           <div id="network-status" class="title-kicker">TACTICAL SURVIVAL / LOCAL</div>
@@ -302,6 +302,21 @@
           <button id="changelog-close-button" class="icon-button codex-close-button" type="button" aria-label="关闭更新日志" title="关闭更新日志">×</button>
         </header>
         <div class="changelog-list">
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V105</strong></div>
+              <time datetime="2026-07-22">2026.07.22</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">多人联机</span>
+              <h3>多人碰撞反馈修复</h3>
+              <ul>
+                <li>恢复敌蛇受击、断体、死亡以及定向音效与反馈的可靠传输，避免丢包后只能等待快照补状态。</li>
+                <li>高刷新率设备重新逐帧更新远端插值与碰撞视图，消除 60 Hz 呈现上限带来的阶梯感和接触延迟。</li>
+                <li>手动玩家远端预测窗口放宽至 400 毫秒，碰撞请求会先可靠同步最新位置，降低网络抖动下的校验延迟。</li>
+              </ul>
+            </div>
+          </article>
           <article class="changelog-entry">
             <header>
               <div class="changelog-version"><span>BUILD</span><strong>V104</strong></div>
@@ -1637,20 +1652,20 @@
     </section>
   </main>
 
-  <script src="designer-config.js?v=104"></script>
-  <script src="module-catalog.js?v=104"></script>
-  <script src="module-progression.js?v=104"></script>
-  <script src="wave-director.js?v=104"></script>
-  <script src="spawn-planner.js?v=104"></script>
-  <script src="network-codec.js?v=104"></script>
-  <script src="network-player-prediction.js?v=104"></script>
-  <script src="network-player-state-codec.js?v=104"></script>
-  <script src="network-player-collisions.js?v=104"></script>
-  <script src="network-head-collisions.js?v=104"></script>
-  <script src="network-food-claims.js?v=104"></script>
-  <script src="network-projectiles.js?v=104"></script>
-  <script src="lobby-navigation.js?v=104"></script>
-  <script src="enemy-codex.js?v=104"></script>
-  <script src="game.js?v=104"></script>
+  <script src="designer-config.js?v=105"></script>
+  <script src="module-catalog.js?v=105"></script>
+  <script src="module-progression.js?v=105"></script>
+  <script src="wave-director.js?v=105"></script>
+  <script src="spawn-planner.js?v=105"></script>
+  <script src="network-codec.js?v=105"></script>
+  <script src="network-player-prediction.js?v=105"></script>
+  <script src="network-player-state-codec.js?v=105"></script>
+  <script src="network-player-collisions.js?v=105"></script>
+  <script src="network-head-collisions.js?v=105"></script>
+  <script src="network-food-claims.js?v=105"></script>
+  <script src="network-projectiles.js?v=105"></script>
+  <script src="lobby-navigation.js?v=105"></script>
+  <script src="enemy-codex.js?v=105"></script>
+  <script src="game.js?v=105"></script>
 </body>
 </html>

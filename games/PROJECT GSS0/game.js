@@ -106,7 +106,7 @@
 
   const TAU = Math.PI * 2;
   const DESIGNER_CONFIG = globalThis.GSS0_DESIGNER_CONFIG || {};
-  if (DESIGNER_CONFIG.schemaVersion !== 33) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 33");
+  if (DESIGNER_CONFIG.schemaVersion !== 34) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 34");
   const DESIGNER_BALANCE = DESIGNER_CONFIG.balance || {};
   const MODULE_DESIGN_STATES = DESIGNER_CONFIG.moduleStates || {};
 
@@ -322,7 +322,6 @@
   const networkRemoteCorrectionMaxMs = designerNumber("networkRemoteCorrectionMaxMs", 450, 50, 2000, true);
   const NETWORK_REMOTE_CORRECTION_MIN_MS = Math.min(networkRemoteCorrectionMinMs, networkRemoteCorrectionMaxMs);
   const NETWORK_REMOTE_CORRECTION_MAX_MS = Math.max(networkRemoteCorrectionMinMs, networkRemoteCorrectionMaxMs);
-  const NETWORK_REMOTE_PRESENTATION_INTERVAL_MS = 1000 / designerNumber("networkRemotePresentationHz", 60, 15, 240, true);
   const NETWORK_COLLISION_CLAIM_COOLDOWN_MS = designerNumber("networkCollisionClaimCooldownMs", 500, 100, 2000, true);
   const NETWORK_INTERPOLATION_MIN_MS = designerNumber("networkInterpolationMinMs", 90, 40, 300, true);
   const NETWORK_INTERPOLATION_MAX_MS = designerNumber("networkInterpolationMaxMs", 120, 40, 400, true);
@@ -484,7 +483,6 @@
     lastResyncRequestAt: -Infinity,
     renderServerTime: NaN,
     lastPresentationAt: 0,
-    nextRemotePresentationAt: 0,
     presentationSnapshot: null,
     lastHudTick: -1,
     lastSelfAlive: false,
@@ -1620,7 +1618,6 @@
         network.lastResyncRequestAt = -Infinity;
         network.renderServerTime = NaN;
         network.lastPresentationAt = 0;
-        network.nextRemotePresentationAt = 0;
         const joinedSelf = result.data.snapshot.players.find((item) => item.entityId === network.selfEntityId);
         network.localDesiredAngle = joinedSelf?.desiredAngle ?? NaN;
         if (joinedSelf?.alive) {
@@ -1637,7 +1634,6 @@
         renderNetworkRoster(result.data.snapshot.players);
         const joinedAt = performance.now();
         applyNetworkPresentation(result.data.snapshot, result.data.snapshot, network.snapshotBuffer[0].indexes, 1, joinedAt);
-        network.nextRemotePresentationAt = joinedAt + NETWORK_REMOTE_PRESENTATION_INTERVAL_MS;
         void emitNetworkAction("ultra:autopilot", automaticModePreferences()).then((modeResult) => {
           if (!modeResult?.ok) {
             setNetworkStatus("error", `ULTRA LINK / ${modeResult?.error || "无法同步自动模式"}`);
@@ -2341,7 +2337,6 @@
 
   function clearNetworkViews() {
     network.presentationSnapshot = null;
-    network.nextRemotePresentationAt = 0;
     network.lastHudTick = -1;
     network.playerViews.clear();
     network.enemyViews.clear();
@@ -3038,17 +3033,14 @@
     if (network.receivedAt > 0 && now - network.receivedAt >= NETWORK_SNAPSHOT_STALL_TIMEOUT_MS) {
       requestNetworkSnapshotResync(now);
     }
-    if (now >= network.nextRemotePresentationAt) {
-      network.nextRemotePresentationAt = now + NETWORK_REMOTE_PRESENTATION_INTERVAL_MS;
-      const presentation = selectNetworkPresentation();
-      if (presentation) applyNetworkPresentation(
-        presentation.previous.snapshot,
-        presentation.current.snapshot,
-        presentation.previous.indexes,
-        presentation.amount,
-        now
-      );
-    }
+    const presentation = selectNetworkPresentation();
+    if (presentation) applyNetworkPresentation(
+      presentation.previous.snapshot,
+      presentation.current.snapshot,
+      presentation.previous.indexes,
+      presentation.amount,
+      now
+    );
     flushPendingNetworkVisualEffects();
     processNetworkPlayerHeadCollisionEvents(now);
     updateFoodBirthAnimations(dt);
@@ -3118,13 +3110,14 @@
     return sequence;
   }
 
-  function reportNetworkCollision(claim, key, onRejected = null, now = performance.now()) {
+  function reportNetworkCollision(claim, key, onRejected = null, now = performance.now(), stateAlreadySynced = false) {
     const previous = network.collisionClaims.get(key) || 0;
     if (now - previous < NETWORK_COLLISION_CLAIM_COOLDOWN_MS) return false;
     network.collisionClaims.set(key, now);
     for (const [storedKey, claimedAt] of network.collisionClaims) {
       if (now - claimedAt > NETWORK_COLLISION_CLAIM_COOLDOWN_MS * 4) network.collisionClaims.delete(storedKey);
     }
+    if (!stateAlreadySynced) sendNetworkInput(true, true);
     void emitNetworkAction("ultra:collision", claim).then((result) => {
       if (result?.ok) return;
       network.collisionClaims.delete(key);
@@ -3226,7 +3219,10 @@
       bounceNetworkSelf(collision.normalCol, collision.normalRow, "#dffcff", impulseMultiplier, true);
       reportNetworkCollision(
         { kind: "enemy-head", targetId: collision.targetId, normalCol: collision.normalCol, normalRow: collision.normalRow },
-        `enemy-head:${collision.targetId}`
+        `enemy-head:${collision.targetId}`,
+        null,
+        performance.now(),
+        true
       );
       return;
     }
@@ -3255,7 +3251,7 @@
         normalCol: collision.normalCol,
         normalRow: collision.normalRow
       };
-      if (!reportNetworkCollision(claim, collisionKey, null, collisionAt)) return;
+      if (!reportNetworkCollision(claim, collisionKey, null, collisionAt, true)) return;
       networkHeadCollisionRuntime.markLocal(
         network.selfEntityId,
         collision.targetId,
