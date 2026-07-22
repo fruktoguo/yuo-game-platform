@@ -101,7 +101,7 @@ const ENEMY_BODY_CONTACT_RANGE = 0.46 * SNAKE_BODY_SIZE_SCALE;
 const PLAYER_SELF_COLLISION_RANGE = 0.5 * SNAKE_BODY_SIZE_SCALE;
 const ENEMY_SELF_COLLISION_RANGE = 0.48 * SNAKE_BODY_SIZE_SCALE;
 const TARGET_REQUIRED_MODULES = new Set<ModuleId>([
-  'spark', 'frost', 'prism', 'tesla', 'laser', 'missile', 'venom',
+  'frost', 'prism', 'tesla', 'laser', 'missile', 'venom',
   'rail', 'ricochet', 'cluster', 'fan', 'gravity', 'needle', 'mortar', 'sweep',
   'sniper', 'flak', 'fork', 'anchor', 'flare', 'scatter', 'lance', 'execute',
   'crossfire', 'phasebolt',
@@ -2485,7 +2485,8 @@ export class UltraWorld {
       }
       switch (segment.module) {
         case 'spark':
-          if (this.spawnShot(player, segment, target, { color: MODULE_BY_ID.spark.color, speed: 390, size: 4.5 })) this.playSkillSound(player, 'spark');
+          this.createProjectile(player, segment, this.randomBetween(0, TAU), { color: MODULE_BY_ID.spark.color, speed: 390, size: 4.5 });
+          this.playSkillSound(player, 'spark');
           segment.timer = this.activeModuleCooldown(player, 'spark', segment.moduleLevel);
           break;
         case 'frost':
@@ -2545,11 +2546,11 @@ export class UltraWorld {
           segment.timer = this.activeModuleCooldown(player, 'venom', segment.moduleLevel);
           break;
         case 'rail':
-          if (this.spawnShot(player, segment, target, { color: MODULE_BY_ID.rail.color, speed: 520, size: 4.8, pierce: 3 })) this.playSkillSound(player, 'rail');
+          if (this.spawnShot(player, segment, target, { color: MODULE_BY_ID.rail.color, speed: 520, size: 4.8, pierce: -1 })) this.playSkillSound(player, 'rail');
           segment.timer = this.activeModuleCooldown(player, 'rail', segment.moduleLevel);
           break;
         case 'ricochet':
-          if (this.spawnShot(player, segment, target, { color: MODULE_BY_ID.ricochet.color, speed: 340, size: 5.2, bounces: 2 })) this.playSkillSound(player, 'ricochet');
+          if (this.spawnShot(player, segment, target, { color: MODULE_BY_ID.ricochet.color, speed: 340, size: 5.2, bounces: -1 })) this.playSkillSound(player, 'ricochet');
           segment.timer = this.activeModuleCooldown(player, 'ricochet', segment.moduleLevel);
           break;
         case 'cluster':
@@ -2642,7 +2643,7 @@ export class UltraWorld {
           segment.timer = this.activeModuleCooldown(player, 'crossfire', segment.moduleLevel);
           break;
         case 'phasebolt':
-          if (this.spawnShot(player, segment, target, { color: MODULE_BY_ID.phasebolt.color, speed: 320, size: 6, bounces: -1, pierce: 5, homing: 1.6 })) this.playSkillSound(player, 'phasebolt');
+          if (this.spawnShot(player, segment, target, { color: MODULE_BY_ID.phasebolt.color, speed: 320, size: 6, bounces: -1, homing: 1.6 })) this.playSkillSound(player, 'phasebolt');
           segment.timer = this.activeModuleCooldown(player, 'phasebolt', segment.moduleLevel);
           break;
         default:
@@ -3328,7 +3329,7 @@ export class UltraWorld {
             hostile.poisonOwnerEntityId = owner.entityId;
           }
           if (projectile.pierce > 0) projectile.pierce -= 1;
-          else {
+          else if (projectile.pierce === 0) {
             projectile.col = hitPoint.col;
             projectile.row = hitPoint.row;
             projectile.life = 0;

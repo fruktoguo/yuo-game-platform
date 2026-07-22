@@ -17,22 +17,22 @@
   }
 
   const moduleBlueprints = [
-    { id: "spark", name: "赤焰炮节", category: "进攻", color: "#ff9f43", shape: "triangle", cooldown: "", activeCooldown: true, desc: "发射1枚高速焰弹，造成1伤害。" },
-    { id: "frost", name: "冰棱节", category: "进攻", color: "#58d8ff", shape: "diamond", cooldown: "", activeCooldown: true, desc: "发射冰晶弹，造成1伤害并永久降低敌蛇20%移动速度；可叠加至仅剩5%。" },
-    { id: "prism", name: "三棱镜节", category: "进攻", color: "#ff5da2", shape: "hex", cooldown: "", activeCooldown: true, desc: "扇形发射3枚折射弹，每枚造成1伤害。" },
-    { id: "nova", name: "星爆节", category: "进攻", color: "#ff7043", shape: "star", cooldown: "", activeCooldown: true, desc: "向8个方向各发射1枚星屑弹，每枚造成1伤害。" },
+    { id: "spark", name: "高速枪节", category: "进攻", color: "#ff9f43", shape: "triangle", cooldown: "", activeCooldown: true, desc: "向随机方向发射1枚子弹。" },
+    { id: "frost", name: "冰棱节", category: "进攻", color: "#58d8ff", shape: "diamond", cooldown: "", activeCooldown: true, desc: "发射冰晶弹并永久降低敌蛇20%移动速度；可叠加至仅剩5%。" },
+    { id: "prism", name: "三棱镜节", category: "进攻", color: "#ff5da2", shape: "hex", cooldown: "", activeCooldown: true, desc: "扇形发射3枚子弹。" },
+    { id: "nova", name: "星爆节", category: "进攻", color: "#ff7043", shape: "star", cooldown: "", activeCooldown: true, desc: "向8个方向各发射1枚子弹。" },
     { id: "tesla", name: "雷鸣环节", category: "进攻", color: "#f7e85b", shape: "ring", cooldown: "", activeCooldown: true, desc: "电击最近的敌蛇，并向155px内的新目标跳跃；最多命中3条敌蛇，每条受到1伤害。" },
     { id: "laser", name: "霓虹线圈", category: "进攻", color: "#39f5a6", shape: "capsule", cooldown: "", activeCooldown: true, desc: "瞬间命中最近的敌蛇，造成1伤害。" },
-    { id: "missile", name: "追迹弹舱", category: "进攻", color: "#ef476f", shape: "triangle", cooldown: "", activeCooldown: true, desc: "发射1枚能够自动追踪敌蛇的追迹弹，造成1伤害。" },
+    { id: "missile", name: "追迹弹舱", category: "进攻", color: "#ef476f", shape: "triangle", cooldown: "", activeCooldown: true, desc: "发射1枚能够自动追踪敌蛇的追迹弹。" },
     { id: "mine", name: "磁暴雷节", category: "进攻", color: "#9a7cff", shape: "square", cooldown: "", activeCooldown: true, desc: "布置永久存在的磁雷；引爆时对范围内每个敌方部位分别造成1伤害，玩家触发时自身只被击退。" },
     { id: "blade", name: "旋刃节", category: "进攻", color: "#e8eef7", shape: "diamond", cooldown: "被动效果", desc: "每级生成1枚环绕机体的旋刃，对命中的部位造成1伤害。" },
     { id: "pulse", name: "脉冲核心", category: "进攻", color: "#3eb7ff", shape: "ring", cooldown: "", activeCooldown: true, desc: "释放半径6格的冲击波，对范围内每个敌方部位分别造成1伤害。" },
-    { id: "venom", name: "腐蚀囊节", category: "进攻", color: "#8be04e", shape: "hex", cooldown: "", activeCooldown: true, desc: "发射腐蚀弹，命中造成1伤害并施加可无限叠加的永久中毒；中毒间隔3秒，每层中毒随机摧毁1节身体。" },
+    { id: "venom", name: "腐蚀囊节", category: "进攻", color: "#8be04e", shape: "hex", cooldown: "", activeCooldown: true, desc: "发射腐蚀弹，命中后施加可无限叠加的永久中毒；中毒间隔3秒，每层中毒随机摧毁1节身体。" },
     { id: "echo", name: "回声弹匣", category: "进攻", color: "#ff8bd7", shape: "capsule", cooldown: "被动效果", desc: "蛇头撞击敌蛇或墙壁时，每级向随机方向发射1枚子弹。" },
-    { id: "rail", name: "贯穿轨炮节", category: "进攻", color: "#7ef9ff", shape: "capsule", cooldown: "", activeCooldown: true, desc: "发射具有3次穿透的轨炮弹，每次命中造成1伤害。" },
-    { id: "ricochet", name: "弹射晶节", category: "进攻", color: "#ffcf5a", shape: "diamond", cooldown: "", activeCooldown: true, desc: "发射最多反弹墙壁2次的晶体弹；只能命中1次并造成1伤害。" },
-    { id: "cluster", name: "裂变弹舱", category: "进攻", color: "#ff6b4a", shape: "hex", cooldown: "", activeCooldown: true, desc: "发射追踪爆弹，对半径5格内每个敌方部位分别造成1伤害。" },
-    { id: "fan", name: "烈焰扇节", category: "进攻", color: "#ff3f68", shape: "triangle", cooldown: "", activeCooldown: true, desc: "扇形发射5枚焰弹，每枚造成1伤害。" },
+    { id: "rail", name: "贯穿轨炮节", category: "进攻", color: "#7ef9ff", shape: "capsule", cooldown: "", activeCooldown: true, desc: "发射可无限穿透的轨炮弹。" },
+    { id: "ricochet", name: "弹射晶节", category: "进攻", color: "#ffcf5a", shape: "diamond", cooldown: "", activeCooldown: true, desc: "发射可无限反弹墙壁的晶体弹。" },
+    { id: "cluster", name: "裂变弹舱", category: "进攻", color: "#ff6b4a", shape: "hex", cooldown: "", activeCooldown: true, desc: "发射追踪爆弹，在半径5格内爆炸并命中每个敌方部位。" },
+    { id: "fan", name: "烈焰扇节", category: "进攻", color: "#ff3f68", shape: "triangle", cooldown: "", activeCooldown: true, desc: "扇形发射5枚子弹。" },
     { id: "gravity", name: "引力井节", category: "进攻", color: "#a56cff", shape: "ring", cooldown: "", activeCooldown: true, desc: "在此机体的位置生成引力井，持续拉扯并减速敌蛇。" },
     { id: "shield", name: "碧玉护盾", category: "生存", color: "#48e0bf", shape: "hex", cooldown: "", activeCooldown: true, desc: "周期性获得1层可抵御任意一次伤害的护盾，最多储存5层。" },
     { id: "phase", name: "幻相节", category: "生存", color: "#bb8cff", shape: "diamond", cooldown: "", activeCooldown: true, desc: "抵消1次头部撞上敌蛇身体时受到的伤害，短暂无敌并保持航向。" },
@@ -51,20 +51,20 @@
     { id: "regen", name: "再生芽节", category: "发育", color: "#ff6f91", shape: "circle", cooldown: "", activeCooldown: true, desc: "周期性在本机体附近生成1枚球。" },
     { id: "bloom", name: "战利花房", category: "发育", color: "#ff88c7", shape: "circle", cooldown: "", activeCooldown: true, desc: "击破敌蛇时额外生成1枚球，触发后进入冷却。" },
     { id: "amplifier", name: "超频增幅节", category: "辅助", color: "#f2f5fa", shape: "capsule", cooldown: "被动效果", desc: "每级使所有主动技能的冷却恢复速度提高10%。" },
-    { id: "needle", name: "钨针贯节", category: "进攻", color: "#d8f3ff", shape: "capsule", cooldown: "", activeCooldown: true, desc: "发射具有1次穿透的钨针，每次命中造成1伤害。" },
-    { id: "mortar", name: "震荡榴巢", category: "进攻", color: "#ff8a5b", shape: "hex", cooldown: "", activeCooldown: true, desc: "发射追踪榴弹，对爆炸范围内每个敌方部位分别造成1伤害。" },
+    { id: "needle", name: "钨针贯节", category: "进攻", color: "#d8f3ff", shape: "capsule", cooldown: "", activeCooldown: true, desc: "发射具有1次穿透的钨针。" },
+    { id: "mortar", name: "震荡榴巢", category: "进攻", color: "#ff8a5b", shape: "hex", cooldown: "", activeCooldown: true, desc: "发射追踪榴弹，爆炸时命中范围内的每个敌方部位。" },
     { id: "sweep", name: "清扫光栅", category: "进攻", color: "#65e7ff", shape: "capsule", cooldown: "", activeCooldown: true, desc: "向目标方向释放贯穿全场的宽幅光栅，对路径内每个敌方部位分别造成1伤害。" },
     { id: "sniper", name: "裁决镜节", category: "进攻", color: "#f2f2f2", shape: "diamond", cooldown: "", activeCooldown: true, desc: "瞬间命中最近的敌蛇，造成2伤害。" },
     { id: "flak", name: "近炸蜂巢", category: "进攻", color: "#ffcf4d", shape: "hex", cooldown: "", activeCooldown: true, desc: "在目标处引爆弹幕，对范围内每个敌方部位分别造成1伤害。" },
-    { id: "fork", name: "双生电极", category: "进攻", color: "#d58cff", shape: "ring", cooldown: "", activeCooldown: true, desc: "向目标两侧各发射1枚追迹电弹，每枚造成1伤害。" },
-    { id: "anchor", name: "迟滞锚弹", category: "进攻", color: "#6f8cff", shape: "triangle", cooldown: "", activeCooldown: true, desc: "发射追踪锚弹，造成1伤害并让敌蛇长时间减速。" },
+    { id: "fork", name: "双生电极", category: "进攻", color: "#d58cff", shape: "ring", cooldown: "", activeCooldown: true, desc: "向目标两侧各发射1枚追迹电弹。" },
+    { id: "anchor", name: "迟滞锚弹", category: "进攻", color: "#6f8cff", shape: "triangle", cooldown: "", activeCooldown: true, desc: "发射追踪锚弹并让命中的敌蛇长时间减速。" },
     { id: "saw", name: "切割链环", category: "进攻", color: "#f06a7b", shape: "ring", cooldown: "", activeCooldown: true, desc: "持续切割靠近本机体的敌蛇，每次造成1伤害；每条敌蛇独立计算受击冷却。" },
-    { id: "flare", name: "灼蚀信标", category: "进攻", color: "#ff6b35", shape: "star", cooldown: "", activeCooldown: true, desc: "发射灼蚀弹，命中造成1伤害，随后再造成4次1伤害。" },
-    { id: "scatter", name: "碎晶霰舱", category: "进攻", color: "#70d6ff", shape: "hex", cooldown: "", activeCooldown: true, desc: "扇形发射7枚碎晶，每枚造成1伤害。" },
-    { id: "lance", name: "破阵光矛", category: "进攻", color: "#b9fff4", shape: "triangle", cooldown: "", activeCooldown: true, desc: "发射具有5次穿透的大型光矛，每次命中造成1伤害。" },
+    { id: "flare", name: "灼蚀信标", category: "进攻", color: "#ff6b35", shape: "star", cooldown: "", activeCooldown: true, desc: "发射灼蚀弹，命中后再造成4次1伤害。" },
+    { id: "scatter", name: "碎晶霰舱", category: "进攻", color: "#70d6ff", shape: "hex", cooldown: "", activeCooldown: true, desc: "扇形发射7枚子弹。" },
+    { id: "lance", name: "破阵光矛", category: "进攻", color: "#b9fff4", shape: "triangle", cooldown: "", activeCooldown: true, desc: "发射具有5次穿透的大型光矛。" },
     { id: "execute", name: "终结协议", category: "进攻", color: "#ff3f55", shape: "diamond", cooldown: "", activeCooldown: true, desc: "瞬间摧毁生命值为1的敌蛇；没有有效目标时保留冷却。" },
     { id: "crossfire", name: "十字火控", category: "进攻", color: "#ffb347", shape: "square", cooldown: "", activeCooldown: true, desc: "向目标方向、反方向和两侧各发射1枚具有1次穿透的重弹。" },
-    { id: "phasebolt", name: "相位回旋节", category: "进攻", color: "#b49cff", shape: "circle", cooldown: "", activeCooldown: true, desc: "发射可无限次反弹墙壁并具有5次穿透的相位弹。" },
+    { id: "phasebolt", name: "相位回旋节", category: "进攻", color: "#b49cff", shape: "circle", cooldown: "", activeCooldown: true, desc: "发射可追踪敌人并无限反弹墙壁的相位弹。" },
     { id: "ram", name: "破障冲角", category: "进攻", color: "#f3c600", shape: "triangle", cooldown: "被动效果", desc: "每级使玩家蛇头撞击敌蛇任意部位时造成的伤害+1。" },
     { id: "buffer", name: "动能缓冲节", category: "辅助", color: "#8fa6ad", shape: "square", cooldown: "被动效果", desc: "蛇头撞击任意单位时，每级使受到的击退力与减速时间降低20%。" },
     { id: "decoy", name: "诱导涂层", category: "生存", color: "#ff7a90", shape: "diamond", cooldown: "被动效果", desc: "每级使敌蛇对玩家身体的避让强度-12%，最多-55%。" },
@@ -96,15 +96,15 @@
     const fallback = moduleBlueprints.find((module) => module.id === moduleId)?.desc || "";
     switch (moduleId) {
       case "frost":
-        return `发射冰晶弹，造成1伤害并永久降低敌蛇${formatPercent(setting(balance, "moduleFrostSlowPerHit", 0.2))}移动速度；可叠加至仅剩${formatPercent(setting(balance, "moduleFrostMinimumSpeedMultiplier", 0.05))}。`;
+        return `发射冰晶弹并永久降低敌蛇${formatPercent(setting(balance, "moduleFrostSlowPerHit", 0.2))}移动速度；可叠加至仅剩${formatPercent(setting(balance, "moduleFrostMinimumSpeedMultiplier", 0.05))}。`;
       case "blade":
         return "每级生成1枚环绕机体的旋刃，对命中的部位造成1伤害。";
       case "pulse":
         return `释放半径${formatNumber(setting(balance, "modulePulseRadiusCells", 6))}格的冲击波，对范围内每个敌方部位分别造成1伤害。`;
       case "venom":
-        return `发射腐蚀弹，命中造成1伤害并施加可无限叠加的永久中毒；中毒间隔${formatNumber(setting(balance, "poisonTickInterval", 3))}秒，每层中毒随机摧毁1节身体。`;
+        return `发射腐蚀弹，命中后施加可无限叠加的永久中毒；中毒间隔${formatNumber(setting(balance, "poisonTickInterval", 3))}秒，每层中毒随机摧毁1节身体。`;
       case "cluster":
-        return `发射追踪爆弹，对半径${formatNumber(setting(balance, "moduleClusterBlastRadiusCells", 5))}格内每个敌方部位分别造成1伤害。`;
+        return `发射追踪爆弹，在半径${formatNumber(setting(balance, "moduleClusterBlastRadiusCells", 5))}格内爆炸并命中每个敌方部位。`;
       case "shield":
         return `周期性获得1层可抵御任意一次伤害的护盾，最多储存${formatNumber(setting(balance, "moduleShieldMaxCharges", 5))}层。`;
       case "echo":

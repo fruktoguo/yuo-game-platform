@@ -145,7 +145,7 @@
   const CODEX_ARCHIVE_NUMBERS = new Map(CODEX_MODULES.map((module, index) => [module.id, index + 1]));
   let moduleCodexCategory = "all";
   const TARGET_REQUIRED_MODULES = new Set([
-    "spark", "frost", "prism", "tesla", "laser", "missile", "venom",
+    "frost", "prism", "tesla", "laser", "missile", "venom",
     "rail", "ricochet", "cluster", "fan", "gravity", "needle", "mortar", "sweep",
     "sniper", "flak", "fork", "anchor", "flare", "scatter", "lance", "execute",
     "crossfire", "phasebolt"
@@ -4816,7 +4816,8 @@
 
       switch (segment.module) {
         case "spark":
-          if (spawnShot(segment, target, { color: MODULE_BY_ID.spark.color, speed: 390, size: 4.5 })) playSkillSound("spark");
+          createPlayerProjectile(segment, random(0, TAU), { color: MODULE_BY_ID.spark.color, speed: 390, size: 4.5 });
+          playSkillSound("spark");
           segment.timer = activeModuleCooldown("spark", segment.moduleLevel);
           break;
         case "frost":
@@ -4873,11 +4874,11 @@
           segment.timer = activeModuleCooldown("venom", segment.moduleLevel);
           break;
         case "rail":
-          if (spawnShot(segment, target, { color: MODULE_BY_ID.rail.color, speed: 520, size: 4.8, pierce: 3 })) playSkillSound("rail");
+          if (spawnShot(segment, target, { color: MODULE_BY_ID.rail.color, speed: 520, size: 4.8, pierce: -1 })) playSkillSound("rail");
           segment.timer = activeModuleCooldown("rail", segment.moduleLevel);
           break;
         case "ricochet":
-          if (spawnShot(segment, target, { color: MODULE_BY_ID.ricochet.color, speed: 340, size: 5.2, bounces: 2 })) playSkillSound("ricochet");
+          if (spawnShot(segment, target, { color: MODULE_BY_ID.ricochet.color, speed: 340, size: 5.2, bounces: -1 })) playSkillSound("ricochet");
           segment.timer = activeModuleCooldown("ricochet", segment.moduleLevel);
           break;
         case "cluster":
@@ -4972,7 +4973,7 @@
           segment.timer = activeModuleCooldown("crossfire", segment.moduleLevel);
           break;
         case "phasebolt":
-          if (spawnShot(segment, target, { color: MODULE_BY_ID.phasebolt.color, speed: 320, size: 6, bounces: -1, pierce: 5, homing: 1.6 })) playSkillSound("phasebolt");
+          if (spawnShot(segment, target, { color: MODULE_BY_ID.phasebolt.color, speed: 320, size: 6, bounces: -1, homing: 1.6 })) playSkillSound("phasebolt");
           segment.timer = activeModuleCooldown("phasebolt", segment.moduleLevel);
           break;
         default:
@@ -5722,7 +5723,7 @@
           enemy.poisonColor = projectile.color;
         }
         if (projectile.pierce > 0) projectile.pierce -= 1;
-        else {
+        else if (projectile.pierce === 0) {
           projectile.life = 0;
           endedByImpact = true;
           break;
@@ -7115,9 +7116,11 @@
           ctx.fillStyle = MODULE_BY_ID.blade.color;
           ctx.beginPath();
           ctx.moveTo(10, 0);
-          ctx.lineTo(-6, 4);
-          ctx.lineTo(-2, 0);
-          ctx.lineTo(-6, -4);
+          ctx.lineTo(3.6, 4.2);
+          ctx.lineTo(-1.4, 1.5);
+          ctx.lineTo(-10, 0);
+          ctx.lineTo(-3.6, -4.2);
+          ctx.lineTo(1.4, -1.5);
           ctx.closePath();
           ctx.fill();
           ctx.restore();
