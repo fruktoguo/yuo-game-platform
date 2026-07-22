@@ -50,6 +50,8 @@ describe('设计配置', () => {
       enemyThreatGrowthPerWave: 0.03,
       enemyHealthWeightVariation: 0.25,
       enemyWallAvoidanceDistance: 1.35,
+      enemySpawnSafetyDistance: 5,
+      enemySpawnForwardPathHalfWidth: 1.5,
       enemyScoutSpawnWeight: 10,
       enemyScoutHealthWeight: 1,
       enemyScoutFoodRange: 6,
@@ -196,7 +198,7 @@ describe('设计配置', () => {
 
     expect(parameterKeys.sort()).toEqual(Object.keys(DESIGNER_BALANCE).sort());
     expect(moduleIds.sort()).toEqual(MODULES.map((module) => module.id).sort());
-    expect(new Set(parameterKeys).size).toBe(187);
+    expect(new Set(parameterKeys).size).toBe(189);
     expect(parameterKeys).not.toContain('playerSpeedPerLevel');
     expect(parameterKeys).not.toContain('moduleEffectReductionMaximum');
     expect(parameterKeys).not.toContain('newModuleOfferChance');

@@ -11,7 +11,7 @@ interface DesignerConfigSource {
 }
 
 const source = (globalThis as typeof globalThis & { GSS0_DESIGNER_CONFIG?: DesignerConfigSource }).GSS0_DESIGNER_CONFIG;
-if (source?.schemaVersion !== 21) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 21');
+if (source?.schemaVersion !== 22) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 22');
 
 function numberSetting(key: string, fallback: number, minimum: number, maximum: number, integer = false): number {
   const candidate = source?.balance?.[key];
@@ -81,6 +81,8 @@ export const DESIGNER_BALANCE = Object.freeze({
   enemyThinkIntervalMax: numberSetting('enemyThinkIntervalMax', 0.55, 0.05, 5),
   enemyFoodSearchLimit: numberSetting('enemyFoodSearchLimit', 8, 1, 32, true),
   enemyWallAvoidanceDistance: numberSetting('enemyWallAvoidanceDistance', 1.35, 0.5, 6),
+  enemySpawnSafetyDistance: numberSetting('enemySpawnSafetyDistance', 5, 0, 30),
+  enemySpawnForwardPathHalfWidth: numberSetting('enemySpawnForwardPathHalfWidth', 1.5, 0, 10),
   enemyScoutUnlockSeconds: numberSetting('enemyScoutUnlockSeconds', 0, 0, 3_600),
   enemyScoutSpawnWeight: numberSetting('enemyScoutSpawnWeight', 10, 0, 20),
   enemyScoutHealthWeight: numberSetting('enemyScoutHealthWeight', 1, 0.01, 20),

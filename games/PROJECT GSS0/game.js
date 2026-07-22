@@ -94,7 +94,7 @@
 
   const TAU = Math.PI * 2;
   const DESIGNER_CONFIG = globalThis.GSS0_DESIGNER_CONFIG || {};
-  if (DESIGNER_CONFIG.schemaVersion !== 21) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 21");
+  if (DESIGNER_CONFIG.schemaVersion !== 22) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 22");
   const DESIGNER_BALANCE = DESIGNER_CONFIG.balance || {};
   const MODULE_DESIGN_STATES = DESIGNER_CONFIG.moduleStates || {};
 
@@ -203,6 +203,8 @@
   const ENEMY_THINK_INTERVAL_MAX = designerNumber("enemyThinkIntervalMax", 0.55, 0.05, 5);
   const ENEMY_FOOD_SEARCH_LIMIT = designerNumber("enemyFoodSearchLimit", 8, 1, 32, true);
   const ENEMY_WALL_AVOIDANCE_DISTANCE = designerNumber("enemyWallAvoidanceDistance", 1.35, 0.5, 6);
+  const ENEMY_SPAWN_SAFETY_DISTANCE = designerNumber("enemySpawnSafetyDistance", 5, 0, 30);
+  const ENEMY_SPAWN_FORWARD_PATH_HALF_WIDTH = designerNumber("enemySpawnForwardPathHalfWidth", 1.5, 0, 10);
   const waveDirectorApi = globalThis.GSS0WaveDirector;
   if (!waveDirectorApi) throw new Error("PROJECT GSS0 波次导演未加载");
   const enemyWaveDirector = waveDirectorApi.create({
@@ -3073,15 +3075,15 @@
     sound("foodSpawn");
   }
 
-  function chooseEnemySpawn(bodySegmentCount, minimumHeadDistance, occupied = occupiedCellCodes()) {
+  function chooseEnemySpawn(bodySegmentCount, occupied = occupiedCellCodes()) {
     return spawnPlanner.choose({
       minimum: Math.ceil(arena.worldMin),
       maximum: Math.floor(arena.worldMax),
       bodySegmentCount,
-      minimumHeadDistance,
+      safetyDistance: ENEMY_SPAWN_SAFETY_DISTANCE,
+      forwardPathHalfWidth: ENEMY_SPAWN_FORWARD_PATH_HALF_WIDTH,
       occupiedCells: occupied,
       players: player ? [player] : [],
-      fallbackDistance: arena.worldSize,
       random: Math.random
     });
   }
@@ -3090,8 +3092,7 @@
     if (!player) return;
     const totalLength = Math.max(1, Math.round(assignedHealth));
     const bodySegmentCount = totalLength - 1;
-    // Movement bonuses must not expand the safety radius beyond the arena's available space.
-    const placement = chooseEnemySpawn(bodySegmentCount, PLAYER_BASE_SPEED * 2, occupied);
+    const placement = chooseEnemySpawn(bodySegmentCount, occupied);
     if (!placement) return false;
     const headCell = placement.head;
     const nextCell = placement.next;

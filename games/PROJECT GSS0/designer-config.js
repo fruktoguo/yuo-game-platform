@@ -1,5 +1,5 @@
 globalThis.GSS0_DESIGNER_CONFIG = {
-  "schemaVersion": 21,
+  "schemaVersion": 22,
   "balance": {
     "playerBaseSpeed": 5,
     "snakeBodySizeScale": 0.775,
@@ -46,6 +46,8 @@ globalThis.GSS0_DESIGNER_CONFIG = {
     "enemyThinkIntervalMax": 0.55,
     "enemyFoodSearchLimit": 8,
     "enemyWallAvoidanceDistance": 1.35,
+    "enemySpawnSafetyDistance": 5,
+    "enemySpawnForwardPathHalfWidth": 1.5,
     "enemyCollisionDamage": 1,
     "waveInterval": 6,
     "enemyPressureWaveInterval": 5,

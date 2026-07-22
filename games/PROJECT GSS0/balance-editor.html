@@ -385,11 +385,11 @@
     </div>
   </main>
 
-  <script src="enemy-codex.js?v=85"></script>
-  <script src="wave-director.js?v=85"></script>
-  <script src="designer-config.js?v=85"></script>
-  <script src="module-catalog.js?v=85"></script>
-  <script src="module-progression.js?v=85"></script>
+  <script src="enemy-codex.js?v=86"></script>
+  <script src="wave-director.js?v=86"></script>
+  <script src="designer-config.js?v=86"></script>
+  <script src="module-catalog.js?v=86"></script>
+  <script src="module-progression.js?v=86"></script>
   <script>
     (() => {
       "use strict";
@@ -452,6 +452,8 @@
         { key: "enemyThinkIntervalMax", group: "敌人全局", label: "AI 思考间隔上界", hint: "敌人重新选择目标和路线的最长间隔", min: 0.05, max: 5, step: 0.01, unit: "秒" },
         { key: "enemyFoodSearchLimit", group: "敌人全局", label: "AI 候选球数量", hint: "敌人每次决策最多评估的附近球数量", min: 1, max: 32, step: 1, unit: "枚" },
         { key: "enemyWallAvoidanceDistance", group: "敌人全局", label: "墙壁规避距离", hint: "所有敌人开始主动转离墙壁的最低距离，并按速度自动增加前瞻", min: 0.5, max: 6, step: 0.05, unit: "格" },
+        { key: "enemySpawnSafetyDistance", group: "敌人全局", label: "出生安全距离", hint: "敌蛇头部刷新时与最近玩家保持的最低距离；不受玩家移动速度影响", min: 0, max: 30, step: 0.25, unit: "格" },
+        { key: "enemySpawnForwardPathHalfWidth", group: "敌人全局", label: "前进通道半宽", hint: "玩家朝向前方禁止刷新敌蛇预警轮廓的通道半宽；0 表示关闭路径规避", min: 0, max: 10, step: 0.25, unit: "格" },
         { key: "enemyCollisionDamage", group: "敌人全局", label: "敌人碰撞伤害", hint: "敌蛇撞墙或撞上其他敌蛇时受到的伤害", min: 0, max: 1000, step: 1, unit: "点" },
         { key: "waveInterval", group: "波次曲线", label: "基础波次间隔", hint: "不含增压信标时，相邻两波之间的固定倒计时", min: 0.5, max: 120, step: 0.1, unit: "秒" },
         { key: "enemyPressureWaveInterval", group: "波次曲线", label: "高压波周期", hint: "每隔多少波触发高压波；0 表示关闭", min: 0, max: 50, step: 1, unit: "波" },
@@ -653,7 +655,7 @@
       const filePickerSupported = typeof window.showOpenFilePicker === "function";
 
       function normalizeConfig(value) {
-        const config = { schemaVersion: 21, balance: {}, waveEnemyCountSchedule: [], moduleCooldownPercentages: {}, moduleStates: {} };
+        const config = { schemaVersion: 22, balance: {}, waveEnemyCountSchedule: [], moduleCooldownPercentages: {}, moduleStates: {} };
         for (const definition of ALL_PARAMETER_DEFINITIONS) {
           const candidate = Number(value?.balance?.[definition.key]);
           config.balance[definition.key] = Number.isFinite(candidate) ? Math.max(definition.min, Math.min(definition.max, candidate)) : definition.min;
@@ -689,7 +691,7 @@
         const end = text.lastIndexOf("}");
         if (start < 0 || end <= start) throw new Error("配置内容不完整");
         const parsed = JSON.parse(text.slice(start, end + 1));
-        if (parsed?.schemaVersion !== 21) throw new Error("配置版本无效，需要 schemaVersion 21");
+        if (parsed?.schemaVersion !== 22) throw new Error("配置版本无效，需要 schemaVersion 22");
         return normalizeConfig(parsed);
       }
 

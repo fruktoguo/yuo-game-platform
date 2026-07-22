@@ -15,50 +15,48 @@ describe('敌人出生规划器', () => {
       minimum: 0,
       maximum: 7,
       bodySegmentCount: 5,
-      minimumHeadDistance: 2,
+      safetyDistance: 2,
+      forwardPathHalfWidth: 1,
       occupiedCells: occupiedCodes(['0,0', '1,0', '4,5']),
-      players: [{ col: 3.2, row: 3.7 }],
-      fallbackDistance: 8,
+      players: [{ col: 3.2, row: 3.7, angle: 0 }],
       random: () => 0.63,
     },
     {
       minimum: -3,
       maximum: 8,
       bodySegmentCount: 40,
-      minimumHeadDistance: 3,
+      safetyDistance: 3,
+      forwardPathHalfWidth: 1.5,
       occupiedCells: occupiedCodes(['-3,-3', '-2,-3', '8,8', '2,2']),
-      players: [{ col: 0.2, row: 0.6 }, { col: 5.4, row: 4.8 }],
-      fallbackDistance: 12,
+      players: [{ col: 0.2, row: 0.6, angle: Math.PI / 4 }, { col: 5.4, row: 4.8, angle: -Math.PI / 2 }],
       random: () => 0.19,
     },
     {
       minimum: 0,
       maximum: 23,
       bodySegmentCount: 160,
-      minimumHeadDistance: 5,
+      safetyDistance: 5,
+      forwardPathHalfWidth: 1.5,
       occupiedCells: occupiedCodes(['12,12', '11,12', '10,12', '4,19', '20,4']),
-      players: [{ col: 12.3, row: 12.1 }, { col: 7.8, row: 16.2 }, { col: 18.1, row: 7.4 }],
-      fallbackDistance: 24,
+      players: [{ col: 12.3, row: 12.1, angle: 0 }, { col: 7.8, row: 16.2, angle: Math.PI }, { col: 18.1, row: 7.4, angle: Math.PI / 2 }],
       random: () => 0.82,
     },
-  ])('与 V8 选择规则保持一致 %#', (options) => {
-    const expected = chooseWithV8Algorithm(options);
+  ])('客户端与服务器共享均匀随机及路径规避规则 %#', (options) => {
+    const expected = chooseWithCurrentAlgorithm(options);
     expect(chooseSerpentineSpawn(options)).toEqual(expected);
     expect(clientPlanner.choose(options)).toEqual(expected);
   });
 });
 
-function chooseWithV8Algorithm(options: SerpentineSpawnOptions) {
+function chooseWithCurrentAlgorithm(options: SerpentineSpawnOptions) {
   const gridWidth = Math.max(1, options.maximum - options.minimum + 1);
   const visibleLength = Math.min(options.bodySegmentCount, gridWidth * gridWidth - 2);
-  const candidates: Array<{
+  const candidatesByHead = new Map<number, Array<{
     head: SpawnPoint;
     body: SpawnPoint[];
     next: SpawnPoint;
-    headDistance: number;
-    nearestPlayerDistance: number;
-  }> = [];
-  for (const path of buildV8Paths(options.minimum, options.maximum)) {
+  }>>();
+  for (const path of buildPaths(options.minimum, options.maximum)) {
     for (let index = visibleLength; index < path.length - 1; index += 1) {
       const head = path[index];
       const body: SpawnPoint[] = [];
@@ -71,27 +69,43 @@ function chooseWithV8Algorithm(options: SerpentineSpawnOptions) {
       const next = path[index + 1];
       if (options.occupiedCells.has(pointCode(next))) conflicts += 1;
       if (conflicts > 0) continue;
+      const spawnCells = [head, ...body, next];
+      if (spawnCells.some((cell) => isInForwardPath(cell, options))) continue;
       const headDistance = options.players.length > 0
         ? Math.min(...options.players.map((player) => Math.hypot(head.col - player.col, head.row - player.row)))
-        : options.fallbackDistance;
-      if (headDistance < options.minimumHeadDistance) continue;
-      const spawnCells = [head, ...body, next];
-      const nearestPlayerDistance = options.players.length > 0
-        ? Math.min(...options.players.flatMap((player) => spawnCells.map((cell) => Math.hypot(cell.col - player.col, cell.row - player.row))))
-        : options.fallbackDistance;
-      candidates.push({ head, body, next, headDistance, nearestPlayerDistance });
+        : Infinity;
+      if (headDistance < options.safetyDistance) continue;
+      const headCode = pointCode(head);
+      const candidates = candidatesByHead.get(headCode) ?? [];
+      candidates.push({ head, body, next });
+      candidatesByHead.set(headCode, candidates);
     }
   }
-  if (candidates.length === 0) return null;
-  candidates.sort((left, right) => right.headDistance - left.headDistance || right.nearestPlayerDistance - left.nearestPlayerDistance);
-  const farthest = candidates.filter((candidate) => Math.abs(candidate.headDistance - candidates[0].headDistance) < 0.001);
-  const safestDistance = farthest[0].nearestPlayerDistance;
-  const safest = farthest.filter((candidate) => Math.abs(candidate.nearestPlayerDistance - safestDistance) < 0.001);
-  const selected = safest[Math.floor(options.random() * safest.length)];
+  const locations = [...candidatesByHead.values()];
+  if (locations.length === 0) return null;
+  const routes = locations[randomIndex(locations.length, options.random)];
+  const selected = routes[randomIndex(routes.length, options.random)];
   return { head: selected.head, body: selected.body, next: selected.next };
 }
 
-function buildV8Paths(minimum: number, maximum: number): SpawnPoint[][] {
+function isInForwardPath(point: SpawnPoint, options: SerpentineSpawnOptions): boolean {
+  if (options.forwardPathHalfWidth <= 0) return false;
+  return options.players.some((player) => {
+    const offsetCol = point.col - player.col;
+    const offsetRow = point.row - player.row;
+    const directionCol = Math.cos(player.angle);
+    const directionRow = Math.sin(player.angle);
+    const forwardDistance = offsetCol * directionCol + offsetRow * directionRow;
+    const lateralDistance = Math.abs(offsetCol * directionRow - offsetRow * directionCol);
+    return forwardDistance > 0 && lateralDistance <= options.forwardPathHalfWidth;
+  });
+}
+
+function randomIndex(length: number, random: () => number): number {
+  return Math.min(length - 1, Math.floor(Math.max(0, random()) * length));
+}
+
+function buildPaths(minimum: number, maximum: number): SpawnPoint[][] {
   const base: SpawnPoint[] = [];
   for (let row = minimum; row <= maximum; row += 1) {
     for (let step = minimum; step <= maximum; step += 1) {

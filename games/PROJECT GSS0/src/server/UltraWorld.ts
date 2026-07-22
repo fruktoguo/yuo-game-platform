@@ -12,6 +12,8 @@ import {
   ENEMY_COLORS,
   ENEMY_DAMAGE_NUMBER_DURATION,
   ENEMY_FOOD_SEARCH_LIMIT,
+  ENEMY_SPAWN_FORWARD_PATH_HALF_WIDTH,
+  ENEMY_SPAWN_SAFETY_DISTANCE,
   ENEMY_WALL_AVOIDANCE_DISTANCE,
   ENEMY_SPAWN_WARNING_TIME,
   ENEMY_SPEED_MAX_MULTIPLIER,
@@ -1785,7 +1787,7 @@ export class UltraWorld {
       () => this.random(),
     );
     for (let index = 0; index < archetypes.length; index += 1) {
-      if (!this.queueEnemySpawn(archetypes[index], allocation.health[index], playerCount, occupied)) break;
+      if (!this.queueEnemySpawn(archetypes[index], allocation.health[index], occupied)) break;
     }
   }
 
@@ -2069,11 +2071,9 @@ export class UltraWorld {
     }
   }
 
-  private queueEnemySpawn(archetype: EnemyArchetypeDefinition, assignedHealth: number, playerCount = this.activePlayers().length, occupied = this.occupiedCellCodes()): boolean {
+  private queueEnemySpawn(archetype: EnemyArchetypeDefinition, assignedHealth: number, occupied = this.occupiedCellCodes()): boolean {
     const totalLength = Math.max(1, Math.round(assignedHealth));
-    const multiplayerScale = playerCount <= 1 ? 1 : Math.max(0.35, 1 / Math.sqrt(playerCount));
-    // Movement bonuses must not expand the safety radius beyond the arena's available space.
-    const placement = this.chooseEnemySpawn(totalLength - 1, PLAYER_BASE_SPEED * 2 * multiplayerScale, occupied);
+    const placement = this.chooseEnemySpawn(totalLength - 1, occupied);
     if (!placement) return false;
     const color = ENEMY_COLORS[(this.nextEnemyId - 1) % ENEMY_COLORS.length];
     this.addPendingSpawn({
@@ -2137,17 +2137,17 @@ export class UltraWorld {
     this.effectSound('enemySpawn');
   }
 
-  private chooseEnemySpawn(bodySegmentCount: number, minimumHeadDistance: number, occupied = this.occupiedCellCodes()): { head: GridPoint; body: GridPoint[]; next: GridPoint } | null {
+  private chooseEnemySpawn(bodySegmentCount: number, occupied = this.occupiedCellCodes()): { head: GridPoint; body: GridPoint[]; next: GridPoint } | null {
     const bounds = this.arenaIntegerBounds();
     const players = this.livingPlayers();
     return chooseSerpentineSpawn({
       minimum: bounds.minimum,
       maximum: bounds.maximum,
       bodySegmentCount,
-      minimumHeadDistance,
+      safetyDistance: ENEMY_SPAWN_SAFETY_DISTANCE,
+      forwardPathHalfWidth: ENEMY_SPAWN_FORWARD_PATH_HALF_WIDTH,
       occupiedCells: occupied,
       players,
-      fallbackDistance: this.arenaSize,
       random: () => this.random(),
     });
   }
