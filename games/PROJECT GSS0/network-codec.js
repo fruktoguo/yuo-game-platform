@@ -2,7 +2,7 @@
   "use strict";
 
   const MAGIC = 0x55534e50;
-  const VERSION = 15;
+  const VERSION = 16;
   const GRID_SIZE = 24;
   const COORDINATE_PADDING = 2;
   const TAU = Math.PI * 2;
@@ -65,7 +65,7 @@
     result.row = reader.coordinate();
     result.angle = 0;
     result.timer = 0;
-    result.orbit = flags & 4 ? reader.angle() : 0;
+    result.orbit = 0;
     result.cooldown = flags & 8 ? reader.f32() : 0;
     result.birthAge = null;
     return result;
@@ -165,6 +165,8 @@
   function readProjectile(reader, result) {
     result ||= {};
     result.id = reader.u16();
+    result.ownerEntityId = reader.u16();
+    result.kind = reader.u8() === 1 ? "blade" : "shot";
     result.col = reader.coordinate();
     result.row = reader.coordinate();
     result.vx = reader.velocity();

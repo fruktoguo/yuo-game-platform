@@ -15,7 +15,7 @@ describe('Ultra 二进制快照', () => {
     snapshot.players[0].segments.push({ ...snapshot.players[0].segments[0], col: 7.5, module: 'blade', orbit: 1.25 });
     snapshot.players[0].growth = { color: '#b8f53f', special: true, spawnTailFood: true, elapsed: 0.18, nodeCount: 3 };
     snapshot.foods.push({ id: 9, col: 2.5, row: 3.5, color: '#36dcff', phase: 1.2, special: true, isPulled: true });
-    snapshot.projectiles.push({ id: 7, col: 4, row: 5, vx: 6, vy: -7, color: '#ff9f43', size: 4.5 });
+    snapshot.projectiles.push({ id: 7, ownerEntityId: 1, kind: 'blade', col: 4, row: 5, vx: 6, vy: -7, color: '#ff9f43', size: 4.5 });
     snapshot.hazards.push({ id: 3, ownerEntityId: 1, kind: 'gravity', col: 9, row: 10, radius: 2.5, color: '#a56cff', phase: 0.7, arm: 0 });
     snapshot.pendingSpawns.push({ id: 5, archetype: 'charger', color: '#ff5c62', angle: Math.PI / 2, headCell: { col: 20, row: 2 }, bodyCells: [{ col: 19, row: 2 }], timer: 1.1, maxTimer: 1.5 });
 
@@ -28,9 +28,10 @@ describe('Ultra 二进制快照', () => {
     expect(decoded.players[0]).toMatchObject({ ghost: true, lastInputSequence: 3, speed: 5, knockbackX: 0, knockbackY: 0 });
     expect(decoded.players[0].segments[0]).toMatchObject({ module: 'spark', moduleLevel: 4, neutral: false, experienceTier: 0 });
     expect(decoded.players[0].segments[0].birthAge).toBeNull();
-    expect(decoded.players[0].segments[1].orbit).toBeCloseTo(1.25, 3);
+    expect(decoded.players[0].segments[1].orbit).toBe(0);
     expect(decoded.players[0].growth?.elapsed).toBeCloseTo(0.18, 5);
     expect(decoded.foods[0]).toMatchObject({ id: 9, color: '#36dcff', special: true, isPulled: true });
+    expect(decoded.projectiles[0]).toMatchObject({ id: 7, ownerEntityId: 1, kind: 'blade' });
     expect(decoded.hazards[0]).toMatchObject({ id: 3, ownerEntityId: 1, kind: 'gravity', color: '#a56cff', arm: 0 });
     expect(decoded.pendingSpawns[0].timer).toBeCloseTo(1.1, 5);
     expect(decoded.pendingSpawns[0].angle).toBeCloseTo(Math.PI / 2, 3);
@@ -85,6 +86,8 @@ describe('Ultra 二进制快照', () => {
     }));
     crowded.projectiles = Array.from({ length: 300 }, (_, index) => ({
       id: index + 1,
+      ownerEntityId: index % 12 + 1,
+      kind: index % 5 === 0 ? 'blade' as const : 'shot' as const,
       col: index % 24,
       row: Math.floor(index / 24) % 24,
       vx: (index % 31) - 15,

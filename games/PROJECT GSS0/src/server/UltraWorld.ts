@@ -42,6 +42,7 @@ import {
   KNOCKBACK_INITIAL_SPEED,
   LEVEL_UP_TRANSITION_DURATION,
   MAX_PLAYERS,
+  MODULE_BLADE_ORBIT_CONVERGE_SPEED,
   MODULE_BLADE_ORBIT_SPEED,
   MULTIPLAYER_GHOST_SPEED,
   MULTIPLAYER_REVIVE_CONTACT_RANGE,
@@ -252,7 +253,6 @@ interface TargetRef {
 }
 
 interface ProjectileEntity extends UltraProjectileView {
-  ownerEntityId: number;
   speed: number;
   life: number;
   pierce: number;
@@ -264,6 +264,9 @@ interface ProjectileEntity extends UltraProjectileView {
   burnOnHit: boolean;
   homing: number;
   target: TargetRef | null;
+  orbitStartedAt: number;
+  orbitStartAngle: number;
+  orbitStartRadius: number;
   hitNodes: Set<GridPoint>;
 }
 
@@ -274,6 +277,7 @@ interface HazardEntity extends UltraHazardView {
 }
 
 interface ShotOptions {
+  kind?: 'shot' | 'blade';
   speed?: number;
   color?: string;
   size?: number;
@@ -683,7 +687,7 @@ export class UltraWorld {
     this.recentPlayerHeadCollisionPairs.set(pairKey, { eventId, at: now });
     this.recentPlayerHeadCollisionEvents.set(eventId, now);
     if (target.autopilot) {
-      this.bounceEntity(target, -event.normalCol, -event.normalRow, PLAYER_COLORS[target.colorIndex], SNAKE_SEGMENT_SPACING, 1, true);
+      this.bounceEntity(target, -event.normalCol, -event.normalRow, PLAYER_COLORS[target.colorIndex], SNAKE_SEGMENT_SPACING);
     }
     this.callbacks.onPlayerHeadCollision?.(event);
     return true;
@@ -949,7 +953,7 @@ export class UltraWorld {
     }
     retainInPlace(this.enemies, (enemy) => !enemy.dead);
     retainInPlace(this.projectiles, (projectile) => {
-      const alive = projectile.life > 0 && this.isProjectileInside(projectile);
+      const alive = projectile.life > 0 && (projectile.kind === 'blade' || this.isProjectileInside(projectile));
       if (!alive) {
         this.pendingProjectileEvents.push({ type: 'destroy', id: projectile.id, col: projectile.col, row: projectile.row });
       }
@@ -2464,25 +2468,11 @@ export class UltraWorld {
     );
   }
 
-  private bladeHitSegmentIndex(target: EnemyEntity, blade: GridPoint, radius: number): number | null {
-    if (distanceSquared(blade, target) < (radius + ENEMY_HEAD_RADIUS_CELLS) ** 2) return -1;
-    const segmentRadiusSquared = (radius + this.enemySegmentRadiusCells()) ** 2;
-    let nearestIndex: number | null = null;
-    let nearestDistance = segmentRadiusSquared;
-    for (let index = 0; index < target.segments.length; index += 1) {
-      const distance = distanceSquared(blade, target.segments[index]);
-      if (distance >= nearestDistance) continue;
-      nearestDistance = distance;
-      nearestIndex = index;
-    }
-    return nearestIndex;
-  }
-
   private updateModules(player: PlayerEntity, delta: number): void {
     for (const segment of player.segments) {
       if (!segment.module) continue;
       segment.timer -= delta;
-      segment.orbit += delta * (segment.module === 'blade' ? MODULE_BLADE_ORBIT_SPEED : 3.8);
+      segment.orbit += delta * 3.8;
 
       if (segment.module === 'shield') {
         const maximumCharges = MODULE_PROGRESSION.effects.shieldMaximumCharges();
@@ -2509,22 +2499,6 @@ export class UltraWorld {
           if (segment.cooldown <= 0) {
             segment.ready = true;
             this.ring(segment.col, segment.row, MODULE_BY_ID[segment.module].color, 0.5, 10, 55, player.entityId, 'pixels');
-          }
-        }
-        continue;
-      }
-
-      if (segment.module === 'blade') {
-        const bladeCount = MODULE_PROGRESSION.effects.bladeCount(segment.moduleLevel);
-        const bladeRadius = this.pixelsToCells(MODULE_PROGRESSION.effects.bladeBaseSizePixels() * PROJECTILE_SIZE_SCALE * this.attackSizeMultiplier(player));
-        for (let bladeIndex = 0; bladeIndex < bladeCount; bladeIndex += 1) {
-          const angle = segment.orbit + bladeIndex * TAU / bladeCount;
-          const orbitRadius = MODULE_PROGRESSION.effects.bladeOrbitRadiusCells();
-          const blade = { col: segment.col + Math.cos(angle) * orbitRadius, row: segment.row + Math.sin(angle) * orbitRadius };
-          for (const target of this.enemies) {
-            if (target.dead) continue;
-            const hitSegmentIndex = this.bladeHitSegmentIndex(target, blade, bladeRadius);
-            if (hitSegmentIndex !== null) this.damageTarget(player, target, 1, blade, MODULE_BY_ID.blade.color, hitSegmentIndex);
           }
         }
         continue;
@@ -2625,6 +2599,16 @@ export class UltraWorld {
           this.addHazard({ id: this.allocateHazardId(), ownerEntityId: player.entityId, kind: 'mine', col: segment.col, row: segment.row, life: Number.POSITIVE_INFINITY, arm: 0.55, radius: this.pixelsToCells(62) * this.attackSizeMultiplier(player), color: MODULE_BY_ID.mine.color, phase: this.randomBetween(0, TAU) });
           this.playSkillSound(player, 'mine');
           segment.timer = this.activeModuleCooldown(player, 'mine', segment.moduleLevel);
+          break;
+        case 'blade':
+          this.createProjectile(player, segment, 0, {
+            kind: 'blade',
+            color: MODULE_BY_ID.blade.color,
+            speed: 0,
+            size: MODULE_PROGRESSION.effects.bladeBaseSizePixels(),
+          });
+          this.playSkillSound(player, 'blade');
+          segment.timer = this.activeModuleCooldown(player, 'blade', segment.moduleLevel);
           break;
         case 'pulse':
           this.firePulse(player, segment);
@@ -2797,18 +2781,22 @@ export class UltraWorld {
   }
 
   private createProjectileInstance(player: PlayerEntity, origin: GridPoint, angle: number, options: ShotOptions, target: TargetRef | null): void {
-    const guidance = this.moduleCount(player, 'guidance');
+    const kind = options.kind === 'blade' ? 'blade' : 'shot';
+    const guidance = kind === 'blade' ? 0 : this.moduleCount(player, 'guidance');
     const bounceBonus = MODULE_PROGRESSION.effects.projectileBounceBonus(this.moduleCount(player, 'rebound'));
     const guidanceMultiplier = 1 + MODULE_PROGRESSION.effects.guidanceProjectileSpeedBonus(guidance);
     const sizeMultiplier = this.attackSizeMultiplier(player);
     const speed = this.pixelsToCells((options.speed ?? 300) * guidanceMultiplier * PROJECTILE_SPEED_SCALE);
+    const orbitStartAngle = kind === 'blade' ? Math.atan2(origin.row - player.row, origin.col - player.col) : 0;
+    const orbitStartRadius = kind === 'blade' ? Math.hypot(origin.col - player.col, origin.row - player.row) : 0;
     const projectile: ProjectileEntity = {
       id: this.allocateProjectileId(),
       ownerEntityId: player.entityId,
+      kind,
       col: origin.col,
       row: origin.row,
-      vx: Math.cos(angle) * speed,
-      vy: Math.sin(angle) * speed,
+      vx: kind === 'blade' ? 0 : Math.cos(angle) * speed,
+      vy: kind === 'blade' ? 0 : Math.sin(angle) * speed,
       speed,
       life: Number.POSITIVE_INFINITY,
       color: options.color ?? '#dffcff',
@@ -2822,6 +2810,9 @@ export class UltraWorld {
       burnOnHit: options.burnOnHit ?? false,
       homing: (options.homing ?? 0) + MODULE_PROGRESSION.effects.guidanceHomingBonus(guidance),
       target: options.homing || guidance ? target : null,
+      orbitStartedAt: kind === 'blade' ? this.gameTime : 0,
+      orbitStartAngle,
+      orbitStartRadius,
       hitNodes: new Set(),
     };
     this.projectiles.push(projectile);
@@ -3411,33 +3402,47 @@ export class UltraWorld {
         projectile.life = 0;
         continue;
       }
-      const target = projectile.target ? targetsById.get(projectile.target.id) ?? null : null;
-      const targetNode = target && projectile.target ? this.resolveTargetNode(target, projectile.target.segmentIndex) : null;
-      if (projectile.homing && target && targetNode && this.isTargetAlive(target)) {
-        const currentAngle = Math.atan2(projectile.vy, projectile.vx);
-        const targetAngle = Math.atan2(targetNode.row - projectile.row, targetNode.col - projectile.col);
-        const angle = rotateToward(currentAngle, targetAngle, projectile.homing * delta);
-        projectile.vx = Math.cos(angle) * projectile.speed;
-        projectile.vy = Math.sin(angle) * projectile.speed;
-      }
       const start = this.projectileMovementStart;
       start.col = projectile.col;
       start.row = projectile.row;
-      projectile.col += projectile.vx * delta;
-      projectile.row += projectile.vy * delta;
-      const projectileMinimum = this.projectileMinimum();
-      const projectileMaximum = this.projectileMaximum();
-      const hitHorizontal = projectile.col < projectileMinimum || projectile.col > projectileMaximum;
-      const hitVertical = projectile.row < projectileMinimum || projectile.row > projectileMaximum;
-      if (hitHorizontal || hitVertical) {
-        if (projectile.bounces !== 0) {
-          projectile.col = clamp(projectile.col, projectileMinimum, projectileMaximum);
-          projectile.row = clamp(projectile.row, projectileMinimum, projectileMaximum);
-          if (hitHorizontal) projectile.vx *= -1;
-          if (hitVertical) projectile.vy *= -1;
-          if (projectile.bounces > 0) projectile.bounces -= 1;
-          this.pendingProjectileEvents.push({ type: 'update', projectile: toProjectileState(projectile) });
-        } else projectile.life = 0;
+      if (projectile.kind === 'blade') {
+        const elapsed = Math.max(0, this.gameTime - projectile.orbitStartedAt);
+        const targetRadius = MODULE_PROGRESSION.effects.bladeOrbitRadiusCells();
+        const maximumShift = MODULE_BLADE_ORBIT_CONVERGE_SPEED * elapsed;
+        const radius = projectile.orbitStartRadius + clamp(targetRadius - projectile.orbitStartRadius, -maximumShift, maximumShift);
+        const orbitAngle = projectile.orbitStartAngle + MODULE_BLADE_ORBIT_SPEED * elapsed;
+        projectile.col = owner.col + Math.cos(orbitAngle) * radius;
+        projectile.row = owner.row + Math.sin(orbitAngle) * radius;
+        if (delta > 0) {
+          projectile.vx = (projectile.col - start.col) / delta;
+          projectile.vy = (projectile.row - start.row) / delta;
+        }
+      } else {
+        const target = projectile.target ? targetsById.get(projectile.target.id) ?? null : null;
+        const targetNode = target && projectile.target ? this.resolveTargetNode(target, projectile.target.segmentIndex) : null;
+        if (projectile.homing && target && targetNode && this.isTargetAlive(target)) {
+          const currentAngle = Math.atan2(projectile.vy, projectile.vx);
+          const targetAngle = Math.atan2(targetNode.row - projectile.row, targetNode.col - projectile.col);
+          const angle = rotateToward(currentAngle, targetAngle, projectile.homing * delta);
+          projectile.vx = Math.cos(angle) * projectile.speed;
+          projectile.vy = Math.sin(angle) * projectile.speed;
+        }
+        projectile.col += projectile.vx * delta;
+        projectile.row += projectile.vy * delta;
+        const projectileMinimum = this.projectileMinimum();
+        const projectileMaximum = this.projectileMaximum();
+        const hitHorizontal = projectile.col < projectileMinimum || projectile.col > projectileMaximum;
+        const hitVertical = projectile.row < projectileMinimum || projectile.row > projectileMaximum;
+        if (hitHorizontal || hitVertical) {
+          if (projectile.bounces !== 0) {
+            projectile.col = clamp(projectile.col, projectileMinimum, projectileMaximum);
+            projectile.row = clamp(projectile.row, projectileMinimum, projectileMaximum);
+            if (hitHorizontal) projectile.vx *= -1;
+            if (hitVertical) projectile.vy *= -1;
+            if (projectile.bounces > 0) projectile.bounces -= 1;
+            this.pendingProjectileEvents.push({ type: 'update', projectile: toProjectileState(projectile) });
+          } else projectile.life = 0;
+        }
       }
       const end = this.projectileMovementEnd;
       end.col = projectile.col;
@@ -3622,7 +3627,7 @@ export class UltraWorld {
         if (ownBody) {
           this.triggerCollisionEcho(player);
           this.damagePlayer(player, PLAYER_WALL_COLLISION_DAMAGE, now, '撞上自己的身体');
-          if (player.alive) this.bounceEntity(player, player.col - ownBody.col, player.row - ownBody.row, '#f4ffdc', SNAKE_SEGMENT_SPACING, 1, true);
+          if (player.alive) this.bounceEntity(player, player.col - ownBody.col, player.row - ownBody.row, '#f4ffdc', SNAKE_SEGMENT_SPACING);
           continue;
         }
       }
@@ -3667,8 +3672,6 @@ export class UltraWorld {
             attacker.row - contact.point.row,
             PLAYER_COLORS[defender.colorIndex],
             SNAKE_SEGMENT_SPACING,
-            1,
-            true,
           );
         }
         break;
@@ -3685,8 +3688,8 @@ export class UltraWorld {
         if (left.alive && right.alive) this.checkPlayerBodyHit(right, left, now);
         if (!left.alive || !right.alive || left.collisionCooldown > 0 || right.collisionCooldown > 0 || Math.hypot(left.col - right.col, left.row - right.row) >= this.playerHeadRadiusCells() * 2) continue;
         const normal = collisionNormal(left, right);
-        this.bounceEntity(left, normal.col, normal.row, PLAYER_COLORS[left.colorIndex], SNAKE_SEGMENT_SPACING, 1, true);
-        if (right.alive) this.bounceEntity(right, -normal.col, -normal.row, PLAYER_COLORS[right.colorIndex], SNAKE_SEGMENT_SPACING, 1, true);
+        this.bounceEntity(left, normal.col, normal.row, PLAYER_COLORS[left.colorIndex], SNAKE_SEGMENT_SPACING);
+        if (right.alive) this.bounceEntity(right, -normal.col, -normal.row, PLAYER_COLORS[right.colorIndex], SNAKE_SEGMENT_SPACING);
         this.publishAuthoritativePlayerHeadCollision(left, right, normal, now);
       }
     }
@@ -3698,7 +3701,7 @@ export class UltraWorld {
         this.checkPlayerBodyHit(attacker, defender, now);
         if (!attacker.alive || Math.hypot(attacker.col - defender.col, attacker.row - defender.row) >= this.playerHeadRadiusCells() * 2) continue;
         const normal = collisionNormal(attacker, defender);
-        this.bounceEntity(attacker, normal.col, normal.row, PLAYER_COLORS[attacker.colorIndex], SNAKE_SEGMENT_SPACING, 1, true);
+        this.bounceEntity(attacker, normal.col, normal.row, PLAYER_COLORS[attacker.colorIndex], SNAKE_SEGMENT_SPACING);
         this.publishAuthoritativePlayerHeadCollision(attacker, defender, normal, now);
         break;
       }
@@ -3731,7 +3734,7 @@ export class UltraWorld {
     if (!contact) return;
     this.triggerCollisionEcho(attacker);
     this.damagePlayer(attacker, PLAYER_WALL_COLLISION_DAMAGE, now, '撞上其他玩家的身体');
-    if (attacker.alive) this.bounceEntity(attacker, attacker.col - contact.point.col, attacker.row - contact.point.row, PLAYER_COLORS[defender.colorIndex], SNAKE_SEGMENT_SPACING, 1, true);
+    if (attacker.alive) this.bounceEntity(attacker, attacker.col - contact.point.col, attacker.row - contact.point.row, PLAYER_COLORS[defender.colorIndex], SNAKE_SEGMENT_SPACING);
   }
 
   private consumeDefense(player: PlayerEntity): boolean {
@@ -4578,7 +4581,17 @@ function toEnemyView(enemy: EnemyEntity): UltraEnemyView {
 }
 
 function toProjectileView(projectile: ProjectileEntity): UltraProjectileView {
-  return { id: projectile.id, col: projectile.col, row: projectile.row, vx: projectile.vx, vy: projectile.vy, color: projectile.color, size: projectile.size };
+  return {
+    id: projectile.id,
+    ownerEntityId: projectile.ownerEntityId,
+    kind: projectile.kind,
+    col: projectile.col,
+    row: projectile.row,
+    vx: projectile.vx,
+    vy: projectile.vy,
+    color: projectile.color,
+    size: projectile.size,
+  };
 }
 
 function toProjectileState(projectile: ProjectileEntity): UltraProjectileState {
@@ -4588,6 +4601,11 @@ function toProjectileState(projectile: ProjectileEntity): UltraProjectileState {
     targetId: projectile.target?.id ?? null,
     targetSegmentIndex: projectile.target?.segmentIndex ?? -1,
     bounces: projectile.bounces,
+    ...(projectile.kind === 'blade' ? {
+      orbitStartedAt: projectile.orbitStartedAt,
+      orbitStartAngle: projectile.orbitStartAngle,
+      orbitStartRadius: projectile.orbitStartRadius,
+    } : {}),
   };
 }
 

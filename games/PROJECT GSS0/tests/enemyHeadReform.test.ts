@@ -28,9 +28,11 @@ describe('敌蛇断首与新头接替', () => {
     expect(gameSource).toContain('pendingEnemyHeadReforms');
   });
 
-  it('旋刃命中蛇头也遵循统一断首规则', () => {
-    expect(gameSource).toMatch(/function bladeHitSegmentIndex[\s\S]*?return -1;/u);
-    expect(serverSource).toMatch(/private bladeHitSegmentIndex[\s\S]*?return -1;/u);
-    expect(moduleCatalogSource).toContain('每级生成1枚环绕机体的旋刃，对命中的部位造成1伤害。');
+  it('旋刃弹复用普通子弹的统一断首规则', () => {
+    expect(gameSource).not.toContain('function bladeHitSegmentIndex');
+    expect(serverSource).not.toContain('private bladeHitSegmentIndex');
+    expect(gameSource).toContain('damageEnemy(enemy, 1, node.x, node.y, projectile.color, { hitSegmentIndex });');
+    expect(serverSource).toContain('this.damageTarget(owner, hostile, 1, hitPoint, projectile.color, segmentIndex);');
+    expect(moduleCatalogSource).toContain('发射1枚永久环绕玩家蛇头的旋刃弹');
   });
 });

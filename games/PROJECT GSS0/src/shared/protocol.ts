@@ -100,6 +100,8 @@ export interface UltraFoodDelta {
 
 export interface UltraProjectileView {
   id: number;
+  ownerEntityId: number;
+  kind: 'shot' | 'blade';
   col: number;
   row: number;
   vx: number;
@@ -113,6 +115,9 @@ export interface UltraProjectileState extends UltraProjectileView {
   targetId: number | null;
   targetSegmentIndex: number;
   bounces: number;
+  orbitStartedAt?: number;
+  orbitStartAngle?: number;
+  orbitStartRadius?: number;
 }
 
 export type UltraProjectileEvent =

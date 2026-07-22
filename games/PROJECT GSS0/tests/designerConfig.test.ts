@@ -103,7 +103,8 @@ describe('设计配置', () => {
       moduleProgressorSpeedPerLevel: 0.2,
       moduleLinkageSpacingPerLevel: 0.2,
       moduleBladeOrbitSpeed: 0.6,
-      moduleBladeOrbitRadiusCells: 6,
+      moduleBladeOrbitRadiusCells: 2,
+      moduleBladeOrbitConvergeSpeedCellsPerSecond: 8,
       modulePulseRadiusCells: 3,
       moduleClusterBlastRadiusCells: 2,
       moduleShieldMaxCharges: 5,
@@ -233,8 +234,8 @@ describe('设计配置', () => {
 
     expect(parameterKeys.sort()).toEqual(Object.keys(DESIGNER_BALANCE).sort());
     expect(moduleIds.sort()).toEqual(MODULES.map((module) => module.id).sort());
-    expect(moduleProgressionSource).toContain('config?.schemaVersion !== 35');
-    expect(new Set(parameterKeys).size).toBe(227);
+    expect(moduleProgressionSource).toContain('config?.schemaVersion !== 36');
+    expect(new Set(parameterKeys).size).toBe(228);
     expect(parameterKeys).not.toContain('playerSpeedPerLevel');
     expect(parameterKeys).not.toContain('moduleEffectReductionMaximum');
     expect(parameterKeys).not.toContain('newModuleOfferChance');
@@ -256,6 +257,7 @@ describe('设计配置', () => {
     expect(MODULES.find((module) => module.id === 'venom')?.desc).toContain('中毒间隔3秒');
     expect(MODULES.find((module) => module.id === 'replicator')?.desc).toBe('吃球时，每级有6%概率在蛇尾后方生成1枚球。此机体生成的球也可以再次触发此效果。');
     expect(MODULES.find((module) => module.id === 'buffer')?.category).toBe('辅助');
+    expect(MODULES.find((module) => module.id === 'buffer')?.desc).toContain('撞击敌人时');
     expect(MODULES.find((module) => module.id === 'linkage')?.desc).toBe('每级使自身机体连接距离提高20%。');
     expect(MODULES.find((module) => module.id === 'arsenal')?.desc).toContain('子弹、旋刃、爆炸范围与激光半径');
     expect(MODULES.find((module) => module.id === 'doublehit')?.desc).toContain('20%概率');
@@ -263,8 +265,8 @@ describe('设计配置', () => {
     expect(MODULES.some((module) => ['输出', '进攻', '防御', '恢复'].includes(module.category as string))).toBe(false);
     expect(MODULES.every((module) => ['攻击', '生存', '辅助', '发育'].includes(module.category))).toBe(true);
     expect(MODULES.filter((module) => module.category === '发育')).toHaveLength(9);
-    expect(editorHtml).toContain('src="module-catalog.js?v=106"');
-    expect(editorHtml).toContain('src="module-progression.js?v=106"');
+    expect(editorHtml).toContain('src="module-catalog.js?v=107"');
+    expect(editorHtml).toContain('src="module-progression.js?v=107"');
     expect(editorHtml).toContain('const MODULES = moduleCatalog;');
     expect(editorHtml).toContain('descriptionText.textContent = describeModule(module.id, draft.balance);');
     expect(editorHtml).toContain('ID: ${module.id}');

@@ -25,7 +25,7 @@
     { id: "laser", name: "霓虹线圈", category: "攻击", color: "#39f5a6", shape: "capsule", cooldown: "", activeCooldown: true, desc: "瞬间命中最近的敌蛇，造成1伤害。" },
     { id: "missile", name: "追迹弹舱", category: "攻击", color: "#ef476f", shape: "triangle", cooldown: "", activeCooldown: true, desc: "发射1枚能够自动追踪敌蛇的追迹弹。" },
     { id: "mine", name: "磁暴雷节", category: "攻击", color: "#9a7cff", shape: "square", cooldown: "", activeCooldown: true, desc: "布置永久存在的磁雷；引爆时对范围内每个敌方部位分别造成1伤害，玩家触发时自身只被击退。" },
-    { id: "blade", name: "旋刃节", category: "攻击", color: "#e8eef7", shape: "diamond", cooldown: "被动效果", desc: "每级生成1枚环绕机体的旋刃，对命中的部位造成1伤害。" },
+    { id: "blade", name: "旋刃节", category: "攻击", color: "#e8eef7", shape: "diamond", cooldown: "", activeCooldown: true, desc: "发射1枚永久环绕玩家蛇头的旋刃弹；无视墙壁，可无限积攒，命中敌人造成1伤害后销毁。" },
     { id: "pulse", name: "脉冲核心", category: "攻击", color: "#3eb7ff", shape: "ring", cooldown: "", activeCooldown: true, desc: "释放半径6格的冲击波，对范围内每个敌方部位分别造成1伤害。" },
     { id: "venom", name: "腐蚀囊节", category: "攻击", color: "#8be04e", shape: "hex", cooldown: "", activeCooldown: true, desc: "发射腐蚀弹，命中后施加可无限叠加的永久中毒；中毒间隔3秒，每层中毒随机摧毁1节身体。" },
     { id: "echo", name: "回声弹匣", category: "攻击", color: "#ff8bd7", shape: "capsule", cooldown: "被动效果", desc: "蛇头撞击敌蛇或墙壁时，每级向随机方向发射2枚子弹。" },
@@ -67,7 +67,7 @@
     { id: "phasebolt", name: "相位回旋节", category: "攻击", color: "#b49cff", shape: "circle", cooldown: "", activeCooldown: true, desc: "发射可追踪敌人并无限反弹墙壁的相位弹。" },
     { id: "barrage", name: "镜反弹幕节", category: "攻击", color: "#9be7ff", shape: "star", cooldown: "", activeCooldown: true, desc: "向四周发射16枚可无限反弹墙壁的子弹。" },
     { id: "ram", name: "破障冲角", category: "攻击", color: "#f3c600", shape: "triangle", cooldown: "被动效果", desc: "每级使玩家蛇头撞击敌蛇任意部位时造成的伤害+1。" },
-    { id: "buffer", name: "动能缓冲节", category: "辅助", color: "#8fa6ad", shape: "square", cooldown: "被动效果", desc: "蛇头撞击任意单位时，每级使受到的击退力与减速时间降低20%。" },
+    { id: "buffer", name: "动能缓冲节", category: "辅助", color: "#8fa6ad", shape: "square", cooldown: "被动效果", desc: "撞击敌人时，每级使受到的击退力与减速时间降低20%。" },
     { id: "decoy", name: "诱导涂层", category: "生存", color: "#ff7a90", shape: "diamond", cooldown: "被动效果", desc: "每级使敌蛇对玩家身体的避让强度-12%，最多-55%。" },
     { id: "emergency", name: "应急屏障节", category: "生存", color: "#62e6bf", shape: "hex", cooldown: "被动效果", desc: "身体吃球后全身无敌；每级持续0.37秒，最多0.9秒。" },
     { id: "collector", name: "全身采集节", category: "辅助", color: "#d4f05c", shape: "ring", cooldown: "被动效果", desc: "每级使自身所有身体节的吃球半径+0.09格。" },
@@ -104,7 +104,7 @@
       case "frost":
         return `发射冰晶弹并永久降低敌蛇${formatPercent(setting(balance, "moduleFrostSlowPerHit", 0.5))}移动速度`;
       case "blade":
-        return "每级生成1枚环绕机体的旋刃，对命中的部位造成1伤害。";
+        return "发射1枚永久环绕玩家蛇头的旋刃弹；无视墙壁，可无限积攒，命中敌人造成1伤害后销毁。";
       case "pulse":
         return `释放半径${formatNumber(setting(balance, "modulePulseRadiusCells", 6))}格的冲击波，对范围内每个敌方部位分别造成1伤害。`;
       case "venom":
@@ -144,7 +144,7 @@
       case "amplifier":
         return `每级使所有主动技能的冷却恢复速度提高${formatPercent(setting(balance, "moduleAmplifierCooldownRatePerLevel", 0.1))}。`;
       case "buffer":
-        return `蛇头撞击任意单位时，每级使受到的击退力与减速时间降低${formatPercent(setting(balance, "moduleBufferCollisionReductionPerLevel", 0.2))}。`;
+        return `撞击敌人时，每级使受到的击退力与减速时间降低${formatPercent(setting(balance, "moduleBufferCollisionReductionPerLevel", 0.2))}。`;
       case "decoy":
         return `每级使敌蛇对玩家身体的避让强度-${formatPercent(setting(balance, "moduleDecoyAvoidanceReductionPerLevel", 0.12))}，最多-${formatPercent(setting(balance, "moduleDecoyMaxAvoidanceReduction", 0.55))}。`;
       case "emergency":

@@ -14,7 +14,7 @@ import type {
 } from './protocol';
 
 const MAGIC = 0x5553_4e50;
-export const SNAPSHOT_PROTOCOL_VERSION = 15;
+export const SNAPSHOT_PROTOCOL_VERSION = 16;
 const COORDINATE_SCALE = 65_535;
 const COORDINATE_PADDING = 2;
 const VELOCITY_SCALE = 64;
@@ -154,14 +154,12 @@ function readPlayer(reader: BinaryReader, arenaSize: number): UltraPlayerView {
 function writeSegment(writer: BinaryWriter, segment: UltraSegment, arenaSize: number): void {
   const moduleIndex = segment.module ? MODULE_INDEX.get(segment.module) : 0;
   if (segment.module && !moduleIndex) throw new Error(`无法编码未知模块：${segment.module}`);
-  const hasOrbit = segment.module === 'blade';
   const hasCooldown = (segment.module === 'shield' || segment.module === 'phase') && !segment.ready;
   writer.u8(moduleIndex ?? 0);
-  writer.u8(Number(segment.neutral) | Number(segment.ready) << 1 | Number(hasOrbit) << 2 | Number(hasCooldown) << 3 | Number(segment.tailGuard) << 4);
+  writer.u8(Number(segment.neutral) | Number(segment.ready) << 1 | Number(hasCooldown) << 3 | Number(segment.tailGuard) << 4);
   writer.u16(Math.max(0, Math.min(65_535, Math.round(segment.moduleLevel))));
   writer.u8(Math.max(0, Math.min(2, Math.round(segment.experienceTier))));
   writeCoordinate(writer, segment.col, arenaSize); writeCoordinate(writer, segment.row, arenaSize);
-  if (hasOrbit) writeAngle(writer, segment.orbit);
   if (hasCooldown) writer.f32(segment.cooldown);
 }
 
@@ -178,7 +176,7 @@ function readSegment(reader: BinaryReader, arenaSize: number): UltraSegment {
     experienceTier: reader.u8(),
     ready: Boolean(flags & 2),
     col: readCoordinate(reader, arenaSize), row: readCoordinate(reader, arenaSize), angle: 0,
-    timer: 0, cooldown: 0, orbit: flags & 4 ? readAngle(reader) : 0,
+    timer: 0, cooldown: 0, orbit: 0,
     birthAge: null,
   };
   segment.cooldown = flags & 8 ? reader.f32() : 0;
@@ -239,13 +237,15 @@ function readFood(reader: BinaryReader, arenaSize: number): UltraFoodView {
 }
 
 function writeProjectile(writer: BinaryWriter, projectile: UltraProjectileView, arenaSize: number): void {
-  writer.u16(projectile.id); writeCoordinate(writer, projectile.col, arenaSize); writeCoordinate(writer, projectile.row, arenaSize);
+  writer.u16(projectile.id); writer.u16(projectile.ownerEntityId); writer.u8(projectile.kind === 'blade' ? 1 : 0);
+  writeCoordinate(writer, projectile.col, arenaSize); writeCoordinate(writer, projectile.row, arenaSize);
   writeVelocity(writer, projectile.vx); writeVelocity(writer, projectile.vy); writer.color(projectile.color); writer.u16(Math.round(projectile.size * SIZE_SCALE));
 }
 
 function readProjectile(reader: BinaryReader, arenaSize: number): UltraProjectileView {
   return {
-    id: reader.u16(), col: readCoordinate(reader, arenaSize), row: readCoordinate(reader, arenaSize), vx: readVelocity(reader), vy: readVelocity(reader),
+    id: reader.u16(), ownerEntityId: reader.u16(), kind: reader.u8() === 1 ? 'blade' : 'shot',
+    col: readCoordinate(reader, arenaSize), row: readCoordinate(reader, arenaSize), vx: readVelocity(reader), vy: readVelocity(reader),
     color: reader.color(), size: reader.u16() / SIZE_SCALE,
   };
 }

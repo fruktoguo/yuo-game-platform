@@ -1,4 +1,11 @@
 (function installProjectileRuntime(root) {
+  const designerBalance = root.GSS0_DESIGNER_CONFIG?.balance || {};
+  const bladeOrbitSpeed = Number.isFinite(designerBalance.moduleBladeOrbitSpeed) ? designerBalance.moduleBladeOrbitSpeed : 0.6;
+  const bladeOrbitRadius = Number.isFinite(designerBalance.moduleBladeOrbitRadiusCells) ? designerBalance.moduleBladeOrbitRadiusCells : 2;
+  const bladeConvergeSpeed = Number.isFinite(designerBalance.moduleBladeOrbitConvergeSpeedCellsPerSecond)
+    ? designerBalance.moduleBladeOrbitConvergeSpeedCellsPerSecond
+    : 8;
+
   function angleDelta(from, to) {
     let delta = (to - from + Math.PI) % (Math.PI * 2) - Math.PI;
     if (delta < -Math.PI) delta += Math.PI * 2;
@@ -45,6 +52,8 @@
         projectile.col = state.col;
         projectile.row = state.row;
       }
+      projectile.kind = state.kind === "blade" ? "blade" : "shot";
+      projectile.ownerEntityId = state.ownerEntityId;
       projectile.vxCells = state.vx;
       projectile.vyCells = state.vy;
       projectile.speedCells = Math.hypot(state.vx, state.vy);
@@ -55,6 +64,12 @@
       projectile.targetId = state.targetId ?? null;
       projectile.targetSegmentIndex = Number.isInteger(state.targetSegmentIndex) ? state.targetSegmentIndex : -1;
       projectile.bounces = state.bounces || 0;
+      if (projectile.kind === "blade") {
+        projectile.orbitStartedAt = Number(state.orbitStartedAt) || 0;
+        projectile.orbitStartAngle = Number(state.orbitStartAngle) || 0;
+        projectile.orbitStartRadius = Math.max(0, Number(state.orbitStartRadius) || 0);
+        projectile.orbitAngle = projectile.orbitStartAngle;
+      }
       return projectile;
     }
 
@@ -69,35 +84,57 @@
       this.byId.delete(id);
     }
 
-    update(delta, targetById, arena) {
+    update(delta, targetById, ownerById, arena, gameTime) {
       const dt = Math.max(0, Math.min(0.05, delta));
       const worldMinimum = Number.isFinite(arena.worldMin) ? arena.worldMin : 0;
       const worldMaximum = Number.isFinite(arena.worldMax) ? arena.worldMax : this.gridSize - 1;
       const minimum = worldMinimum - 0.5;
       const maximum = worldMaximum + 0.5;
       for (const projectile of this.items) {
-        const targetEntity = projectile.targetId === null ? null : targetById(projectile.targetId);
-        const target = targetEntity && projectile.targetSegmentIndex >= 0
-          ? targetEntity.segments?.[projectile.targetSegmentIndex] || targetEntity
-          : targetEntity;
-        if (projectile.homing > 0 && target) {
-          const current = Math.atan2(projectile.vyCells, projectile.vxCells);
-          const desired = Math.atan2(target.row - projectile.row, target.col - projectile.col);
-          const angle = rotateToward(current, desired, projectile.homing * dt);
-          projectile.vxCells = Math.cos(angle) * projectile.speedCells;
-          projectile.vyCells = Math.sin(angle) * projectile.speedCells;
-        }
+        if (projectile.kind === "blade") {
+          const owner = ownerById(projectile.ownerEntityId);
+          if (owner) {
+            const previousCol = projectile.col;
+            const previousRow = projectile.row;
+            const elapsed = Math.max(0, (Number(gameTime) || 0) - projectile.orbitStartedAt);
+            const maximumShift = bladeConvergeSpeed * elapsed;
+            const radius = projectile.orbitStartRadius + Math.max(
+              -maximumShift,
+              Math.min(maximumShift, bladeOrbitRadius - projectile.orbitStartRadius)
+            );
+            const angle = projectile.orbitStartAngle + bladeOrbitSpeed * elapsed;
+            projectile.orbitAngle = angle;
+            projectile.col = owner.col + Math.cos(angle) * radius;
+            projectile.row = owner.row + Math.sin(angle) * radius;
+            if (dt > 0) {
+              projectile.vxCells = (projectile.col - previousCol) / dt;
+              projectile.vyCells = (projectile.row - previousRow) / dt;
+            }
+          }
+        } else {
+          const targetEntity = projectile.targetId === null ? null : targetById(projectile.targetId);
+          const target = targetEntity && projectile.targetSegmentIndex >= 0
+            ? targetEntity.segments?.[projectile.targetSegmentIndex] || targetEntity
+            : targetEntity;
+          if (projectile.homing > 0 && target) {
+            const current = Math.atan2(projectile.vyCells, projectile.vxCells);
+            const desired = Math.atan2(target.row - projectile.row, target.col - projectile.col);
+            const angle = rotateToward(current, desired, projectile.homing * dt);
+            projectile.vxCells = Math.cos(angle) * projectile.speedCells;
+            projectile.vyCells = Math.sin(angle) * projectile.speedCells;
+          }
 
-        projectile.col += projectile.vxCells * dt;
-        projectile.row += projectile.vyCells * dt;
-        const hitHorizontal = projectile.col < minimum || projectile.col > maximum;
-        const hitVertical = projectile.row < minimum || projectile.row > maximum;
-        if ((hitHorizontal || hitVertical) && projectile.bounces !== 0) {
-          projectile.col = Math.max(minimum, Math.min(maximum, projectile.col));
-          projectile.row = Math.max(minimum, Math.min(maximum, projectile.row));
-          if (hitHorizontal) projectile.vxCells *= -1;
-          if (hitVertical) projectile.vyCells *= -1;
-          if (projectile.bounces > 0) projectile.bounces -= 1;
+          projectile.col += projectile.vxCells * dt;
+          projectile.row += projectile.vyCells * dt;
+          const hitHorizontal = projectile.col < minimum || projectile.col > maximum;
+          const hitVertical = projectile.row < minimum || projectile.row > maximum;
+          if ((hitHorizontal || hitVertical) && projectile.bounces !== 0) {
+            projectile.col = Math.max(minimum, Math.min(maximum, projectile.col));
+            projectile.row = Math.max(minimum, Math.min(maximum, projectile.row));
+            if (hitHorizontal) projectile.vxCells *= -1;
+            if (hitVertical) projectile.vyCells *= -1;
+            if (projectile.bounces > 0) projectile.bounces -= 1;
+          }
         }
 
         projectile.x = arena.left + (projectile.col - worldMinimum + 0.5) * arena.cellSize;

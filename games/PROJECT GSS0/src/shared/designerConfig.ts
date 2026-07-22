@@ -11,7 +11,7 @@ interface DesignerConfigSource {
 }
 
 const source = (globalThis as typeof globalThis & { GSS0_DESIGNER_CONFIG?: DesignerConfigSource }).GSS0_DESIGNER_CONFIG;
-if (source?.schemaVersion !== 35) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 35');
+if (source?.schemaVersion !== 36) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 36');
 
 function numberSetting(key: string, fallback: number, minimum: number, maximum: number, integer = false): number {
   const candidate = source?.balance?.[key];
@@ -190,8 +190,9 @@ export const DESIGNER_BALANCE = Object.freeze({
   moduleEchoProjectilesPerLevel: numberSetting('moduleEchoProjectilesPerLevel', 2, 0, 100, true),
   moduleBarrageProjectileCount: numberSetting('moduleBarrageProjectileCount', 16, 1, 100, true),
   moduleBladeBaseSizePixels: numberSetting('moduleBladeBaseSizePixels', 10, 1, 100),
-  moduleBladeOrbitRadiusCells: numberSetting('moduleBladeOrbitRadiusCells', 6, 0.5, 10),
+  moduleBladeOrbitRadiusCells: numberSetting('moduleBladeOrbitRadiusCells', 2, 0.5, 10),
   moduleBladeOrbitSpeed: numberSetting('moduleBladeOrbitSpeed', 0.6, 0, 20),
+  moduleBladeOrbitConvergeSpeedCellsPerSecond: numberSetting('moduleBladeOrbitConvergeSpeedCellsPerSecond', 8, 0, 30),
   modulePulseRadiusCells: numberSetting('modulePulseRadiusCells', 6, 0.1, 30),
   moduleClusterBlastRadiusCells: numberSetting('moduleClusterBlastRadiusCells', 5, 0.1, 30),
   moduleShieldMaxCharges: numberSetting('moduleShieldMaxCharges', 5, 1, 20, true),

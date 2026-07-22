@@ -74,11 +74,17 @@ interface ClientProjectileRuntime {
   items: Array<Record<string, number | string | null>>;
   reset(states: unknown[]): void;
   applyEvents(events: unknown[]): void;
-  update(delta: number, targetById: (id: number) => { col: number; row: number } | null, arena: { left: number; top: number; cellSize: number; worldMin?: number; worldMax?: number }): void;
+  update(
+    delta: number,
+    targetById: (id: number) => { col: number; row: number } | null,
+    ownerById: (id: number) => { col: number; row: number } | null,
+    arena: { left: number; top: number; cellSize: number; worldMin?: number; worldMax?: number },
+    gameTime: number,
+  ): void;
 }
 
 describe('客户端网络模块', () => {
-  it('独立解码器与服务端 V12 状态效果快照格式一致', () => {
+  it('独立解码器与服务端 V16 状态效果快照格式一致', () => {
     const snapshot: UltraSnapshot = {
       tick: 7, serverTime: 700, gameTime: 3, waveCount: 2, waveTimer: 4, threatLevel: 1, arenaSize: 24, worldObjectRevision: 0, worldObjectsComplete: true,
       players: [{
@@ -105,7 +111,7 @@ describe('客户端网络模块', () => {
     expect(decoded.players[0].segments[0]).toMatchObject({ module: 'shield', moduleLevel: 3, experienceTier: 0, cooldown: 7.5 });
     expect(decoded.players[0].segments[0]).toMatchObject({ angle: 0, timer: 0, orbit: 0 });
     expect(decoded.players[0].segments[1]).toMatchObject({ module: 'blade', angle: 0, timer: 0 });
-    expect(decoded.players[0].segments[1].orbit).toBeCloseTo(1.25, 3);
+    expect(decoded.players[0].segments[1].orbit).toBe(0);
     expect(decoded.enemies[0]).toMatchObject({ permanentSlow: 0.4, poisonStacks: 2, burningTicks: 5 });
     expect(decoded.pendingSpawns[0]).toMatchObject({ id: 3, archetype: 'warden', color: '#d95cff' });
     expect(decoded.pendingSpawns[0].angle).toBeCloseTo(Math.PI / 2, 3);
@@ -210,9 +216,9 @@ describe('客户端网络模块', () => {
 
   it('本地推进直线、追踪和反弹，并接受可靠生命周期更新', () => {
     const runtime = clientGlobals.GSS0ProjectileRuntime.create(24);
-    const state = { id: 1, col: 2, row: 2, vx: 4, vy: 0, color: '#ff9f43', size: 4, homing: 4, targetId: 9, targetSegmentIndex: -1, bounces: 0 };
+    const state = { id: 1, ownerEntityId: 7, kind: 'shot', col: 2, row: 2, vx: 4, vy: 0, color: '#ff9f43', size: 4, homing: 4, targetId: 9, targetSegmentIndex: -1, bounces: 0 };
     runtime.reset([state]);
-    runtime.update(0.05, () => ({ col: 2, row: 8 }), { left: 10, top: 20, cellSize: 30 });
+    runtime.update(0.05, () => ({ col: 2, row: 8 }), () => null, { left: 10, top: 20, cellSize: 30 }, 0);
 
     expect(runtime.items[0].col).toBeGreaterThan(2);
     expect(runtime.items[0].row).toBeGreaterThan(2);
@@ -221,14 +227,14 @@ describe('客户端网络模块', () => {
     runtime.applyEvents([{ type: 'update', projectile: { ...state, col: 10, row: 10, targetId: null } }]);
     expect(runtime.items[0]).toMatchObject({ col: 10, row: 10, targetId: null });
     runtime.applyEvents([{ type: 'update', projectile: { ...state, col: 23.49, row: 12, vx: 4, homing: 0, targetId: null, bounces: 1 } }]);
-    runtime.update(0.05, () => null, { left: 10, top: 20, cellSize: 30 });
+    runtime.update(0.05, () => null, () => null, { left: 10, top: 20, cellSize: 30 }, 0);
     expect(runtime.items[0]).toMatchObject({ bounces: 0, targetId: null });
     expect(runtime.items[0].vxCells).toBeLessThan(0);
     runtime.applyEvents([{ type: 'destroy', id: 1, col: 10, row: 10 }]);
     expect(runtime.items).toHaveLength(0);
 
     runtime.applyEvents([{ type: 'spawn', projectile: { ...state, id: 2, col: -2, row: 4, vx: 0, vy: 0, homing: 0, targetId: null } }]);
-    runtime.update(0, () => null, { left: 10, top: 20, cellSize: 18, worldMin: -5, worldMax: 28 });
+    runtime.update(0, () => null, () => null, { left: 10, top: 20, cellSize: 18, worldMin: -5, worldMax: 28 }, 0);
     expect(runtime.items[0].x).toBeCloseTo(10 + (-2 + 5 + 0.5) * 18, 5);
   });
 

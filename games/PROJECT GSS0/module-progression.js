@@ -3,7 +3,7 @@
 
   const config = globalThis.GSS0_DESIGNER_CONFIG;
   const modules = globalThis.GSS0ModuleCatalog;
-  if (config?.schemaVersion !== 35 || !Array.isArray(modules) || modules.length === 0) {
+  if (config?.schemaVersion !== 36 || !Array.isArray(modules) || modules.length === 0) {
     throw new Error("PROJECT GSS0 机体成长规则依赖加载失败");
   }
 
@@ -138,7 +138,6 @@
     barrageProjectileCount: () => Math.max(1, Math.round(balance.moduleBarrageProjectileCount)),
     bladeBaseSizePixels: () => balance.moduleBladeBaseSizePixels,
     bladeOrbitRadiusCells: () => balance.moduleBladeOrbitRadiusCells,
-    bladeCount: (level) => effectLevel(level),
     pulseRadiusCells: () => balance.modulePulseRadiusCells,
     clusterBlastRadiusCells: () => balance.moduleClusterBlastRadiusCells,
     shieldMaximumCharges: () => Math.max(1, Math.round(balance.moduleShieldMaxCharges)),
@@ -191,7 +190,6 @@
       case "multishot": return [{ label: "子弹数量翻倍概率", value: effects.projectileDoubleChance(level), format: (value) => formatPercent(value, false) }];
       case "rebound": return [{ label: "所有子弹反弹次数", value: effects.projectileBounceBonus(level), format: (value) => `+${formatNumber(value)}` }];
       case "echo": return [{ label: "撞击发射", value: effects.echoProjectileCount(level), format: (value) => `${value}枚` }];
-      case "blade": return [{ label: "旋刃数量", value: effects.bladeCount(level), format: (value) => `${value}枚` }];
       case "repulse": return [{ label: "作用半径", value: effects.repulseRangePixels(level), format: (value) => `${formatNumber(value)}px` }];
       case "armor": return [{ label: "护盾冷却速度", value: effects.armorCooldownRateBonus(level), format: formatPercent }];
       case "stabilizer": return [
@@ -214,8 +212,8 @@
       case "salvage": return [{ label: "每节受损机体回收期望", value: effects.salvageExpectedDrops(level), format: (value) => `${formatNumber(value)}枚球` }];
       case "amplifier": return [{ label: "主动技能冷却速度", value: effects.amplifierCooldownRateBonus(level), format: formatPercent }];
       case "buffer": return [
-        { label: "撞击击退减免", value: effects.bufferCollisionReduction(level), format: formatPercent },
-        { label: "撞击减速时间", value: effects.bufferCollisionReduction(level), format: (value) => formatPercent(-value, false) }
+        { label: "撞敌击退减免", value: effects.bufferCollisionReduction(level), format: formatPercent },
+        { label: "撞敌减速时间", value: effects.bufferCollisionReduction(level), format: (value) => formatPercent(-value, false) }
       ];
       case "decoy": return [{ label: "敌蛇避让强度", value: effects.decoyAvoidanceReduction(level), format: (value) => formatPercent(-value, false) }];
       case "emergency": return [{ label: "吃球无敌时间", value: effects.emergencyDuration(level), format: formatSeconds }];

@@ -67,6 +67,7 @@ export const POISON_TICK_INTERVAL = DESIGNER_BALANCE.poisonTickInterval;
 export const BURN_TICK_INTERVAL = DESIGNER_BALANCE.burnTickInterval;
 export const BURN_HEALTH_FRACTION = DESIGNER_BALANCE.burnHealthFraction;
 export const MODULE_BLADE_ORBIT_SPEED = DESIGNER_BALANCE.moduleBladeOrbitSpeed;
+export const MODULE_BLADE_ORBIT_CONVERGE_SPEED = DESIGNER_BALANCE.moduleBladeOrbitConvergeSpeedCellsPerSecond;
 export const UPGRADE_INVULNERABILITY_DURATION = DESIGNER_BALANCE.upgradeInvulnerabilityDuration;
 export const RESPAWN_LOCATOR_CONVERGE_DURATION = DESIGNER_BALANCE.respawnLocatorConvergeDuration;
 export const RESPAWN_LOCATOR_FADE_DURATION = DESIGNER_BALANCE.respawnLocatorFadeDuration;

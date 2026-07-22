@@ -106,7 +106,7 @@
 
   const TAU = Math.PI * 2;
   const DESIGNER_CONFIG = globalThis.GSS0_DESIGNER_CONFIG || {};
-  if (DESIGNER_CONFIG.schemaVersion !== 35) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 35");
+  if (DESIGNER_CONFIG.schemaVersion !== 36) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 36");
   const DESIGNER_BALANCE = DESIGNER_CONFIG.balance || {};
   const MODULE_DESIGN_STATES = DESIGNER_CONFIG.moduleStates || {};
 
@@ -314,7 +314,8 @@
   const ENEMY_DAMAGE_NUMBER_DURATION = designerNumber("enemyDamageNumberDuration", 0.82, 0.1, 3);
   const COMBAT_TEXT_FONT_SIZE = designerNumber("combatTextFontSize", 38, 8, 96, true);
   const FOOD_BIRTH_DURATION = designerNumber("foodBirthDuration", 0.36, 0.05, 2);
-  const MODULE_BLADE_ORBIT_SPEED = designerNumber("moduleBladeOrbitSpeed", 2.28, 0, 20);
+  const MODULE_BLADE_ORBIT_SPEED = designerNumber("moduleBladeOrbitSpeed", 0.6, 0, 20);
+  const MODULE_BLADE_ORBIT_CONVERGE_SPEED = designerNumber("moduleBladeOrbitConvergeSpeedCellsPerSecond", 8, 0, 30);
   const GROWTH_NODE_DELAY = 0.045;
   const GROWTH_PULSE_DURATION = 0.3;
   const SEGMENT_BIRTH_DURATION = 0.34;
@@ -490,6 +491,7 @@
     snapshotJitterMs: 0,
     lastResyncRequestAt: -Infinity,
     renderServerTime: NaN,
+    renderGameTime: NaN,
     lastPresentationAt: 0,
     presentationSnapshot: null,
     lastHudTick: -1,
@@ -1625,6 +1627,7 @@
         network.snapshotJitterMs = 0;
         network.lastResyncRequestAt = -Infinity;
         network.renderServerTime = NaN;
+        network.renderGameTime = result.data.snapshot.gameTime;
         network.lastPresentationAt = 0;
         const joinedSelf = result.data.snapshot.players.find((item) => item.entityId === network.selfEntityId);
         network.localDesiredAngle = joinedSelf?.desiredAngle ?? NaN;
@@ -2345,6 +2348,7 @@
 
   function clearNetworkViews() {
     network.presentationSnapshot = null;
+    network.renderGameTime = NaN;
     network.lastHudTick = -1;
     network.playerViews.clear();
     network.enemyViews.clear();
@@ -2711,8 +2715,7 @@
       const isNew = !views[index];
       const view = views[index] || {};
       syncNetworkNode(view, item, old, amount);
-      if (item.module === "blade") view.orbit = interpolateAngle(old?.orbit ?? item.orbit, item.orbit, amount);
-      else if (isNew) view.orbit = index * 2.399963229728653 % TAU;
+      if (isNew) view.orbit = index * 2.399963229728653 % TAU;
       if (!old && previousItems) view.birthAge = suppressNeutralBirth && item.neutral ? null : 0;
       views[index] = view;
     }
@@ -2832,6 +2835,7 @@
     const activeTick = current.tick;
     setArenaWorldSize(interpolateNumber(previous?.arenaSize, current.arenaSize, amount));
     updateNetworkFoodMotions(performance.now());
+    network.renderGameTime = interpolateNumber(previous?.gameTime, current.gameTime, amount);
     gameTime = current.gameTime;
     waveCount = current.waveCount;
     waveTimer = current.waveTimer;
@@ -3054,13 +3058,19 @@
     flushPendingNetworkVisualEffects();
     processNetworkPlayerHeadCollisionEvents(now);
     updateFoodBirthAnimations(dt);
-    networkProjectileRuntime.update(dt, (id) => network.enemyViews.get(id) || null, arena);
+    networkProjectileRuntime.update(
+      dt,
+      (id) => network.enemyViews.get(id) || null,
+      (id) => network.playerViews.get(id) || null,
+      arena,
+      Number.isFinite(network.renderGameTime) ? network.renderGameTime : network.snapshot?.gameTime ?? 0
+    );
     projectiles = networkProjectileRuntime.items;
     for (const visiblePlayer of visiblePlayers) {
       updateGhostPlea(visiblePlayer, now);
       if (visiblePlayer.growth) visiblePlayer.growth.elapsed += dt;
       for (const segment of visiblePlayer.segments) {
-        if (segment.module !== "blade") segment.orbit = (segment.orbit || 0) + dt * 3.8;
+        segment.orbit = (segment.orbit || 0) + dt * 3.8;
         if (!segment.ready && segment.module === "phase") {
           segment.cooldown = Math.max(0, segment.cooldown - dt);
         }
@@ -3188,12 +3198,12 @@
     if (collision.kind === "self") {
       const claimed = reportNetworkCollision({ kind: "self-body" }, "self-body");
       if (claimed && player.invulnerable <= 0) predictNetworkPlayerHurt(PLAYER_WALL_COLLISION_DAMAGE);
-      bounceNetworkSelf(player.col - collision.point.col, player.row - collision.point.row, "#f4ffdc", 1, true);
+      bounceNetworkSelf(player.col - collision.point.col, player.row - collision.point.row, "#f4ffdc");
       return;
     }
     if (collision.kind === "protected-player") {
       const other = visiblePlayers.find((item) => item.entityId === collision.targetId);
-      bounceNetworkSelf(player.col - collision.point.col, player.row - collision.point.row, other?.playerColor || "#dffcff", 1, true);
+      bounceNetworkSelf(player.col - collision.point.col, player.row - collision.point.row, other?.playerColor || "#dffcff");
       return;
     }
     if (collision.kind === "enemy-body") {
@@ -3217,9 +3227,7 @@
       bounceNetworkSelf(
         player.col - collision.point.col,
         player.row - collision.point.row,
-        other?.playerColor || "#dffcff",
-        1,
-        true
+        other?.playerColor || "#dffcff"
       );
       return;
     }
@@ -3270,7 +3278,7 @@
         collision.normalRow,
         collisionAt
       );
-      bounceNetworkSelf(collision.normalCol, collision.normalRow, other.playerColor || "#dffcff", 1, true);
+      bounceNetworkSelf(collision.normalCol, collision.normalRow, other.playerColor || "#dffcff");
       return;
     }
     if (collision.kind === "enemy-protected") {
@@ -3747,6 +3755,7 @@
     network.receivedAt = 0;
     network.lastResyncRequestAt = -Infinity;
     network.renderServerTime = NaN;
+    network.renderGameTime = NaN;
     network.lastPresentationAt = 0;
     network.lastSelfAlive = false;
     network.upgradeOffer = null;
@@ -5078,22 +5087,25 @@
   }
 
   function createPlayerProjectile(origin, angle, options = {}) {
-    const guidance = moduleCount("guidance");
+    const kind = options.kind === "blade" ? "blade" : "shot";
+    const guidance = kind === "blade" ? 0 : moduleCount("guidance");
     const bounceBonus = MODULE_EFFECTS.projectileBounceBonus(moduleCount("rebound"));
     const guidanceMultiplier = 1 + MODULE_EFFECTS.guidanceProjectileSpeedBonus(guidance);
     const sizeMultiplier = attackSizeMultiplier();
     const scale = arenaVisualScale();
-    const speed = (options.speed || 300) * guidanceMultiplier * PROJECTILE_SPEED_SCALE * scale;
+    const speed = (options.speed ?? 300) * guidanceMultiplier * PROJECTILE_SPEED_SCALE * scale;
     const homing = (options.homing || 0) + MODULE_EFFECTS.guidanceHomingBonus(guidance);
     const targetSelection = options.target;
     const target = targetSelection?.enemy && !targetSelection.enemy.dead ? targetSelection.enemy : null;
+    const orbitStartAngle = kind === "blade" ? Math.atan2(origin.y - player.y, origin.x - player.x) : 0;
+    const orbitStartRadius = kind === "blade" ? Math.hypot(origin.x - player.x, origin.y - player.y) : 0;
     function spawnProjectile() {
       const projectile = {
-        kind: "shot",
+        kind,
         x: origin.x,
         y: origin.y,
-        vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed,
+        vx: kind === "blade" ? 0 : Math.cos(angle) * speed,
+        vy: kind === "blade" ? 0 : Math.sin(angle) * speed,
         speed,
         life: Infinity,
         color: options.color || "#dffcff",
@@ -5108,6 +5120,10 @@
         homing,
         target: homing > 0 ? target : null,
         targetSegmentIndex: homing > 0 && target ? targetSelection.segmentIndex : -1,
+        orbitStartedAt: kind === "blade" ? gameTime : 0,
+        orbitStartAngle,
+        orbitStartRadius,
+        orbitAngle: orbitStartAngle,
         hitNodes: new Set()
       };
       projectiles.push(projectile);
@@ -5162,28 +5178,11 @@
     sound(sounds[moduleId] || "skill");
   }
 
-  function bladeHitSegmentIndex(enemy, x, y, radius) {
-    if ((enemy.x - x) ** 2 + (enemy.y - y) ** 2 < (enemy.radius + radius) ** 2) {
-      return -1;
-    }
-    const segmentRadius = radius + enemySegmentRadiusPixels();
-    let nearestIndex = null;
-    let nearestDistance = segmentRadius * segmentRadius;
-    for (let index = 0; index < enemy.segments.length; index += 1) {
-      const segment = enemy.segments[index];
-      const distance = (segment.x - x) ** 2 + (segment.y - y) ** 2;
-      if (distance >= nearestDistance) continue;
-      nearestDistance = distance;
-      nearestIndex = index;
-    }
-    return nearestIndex;
-  }
-
   function updateModules(dt) {
     for (const segment of player.segments) {
       if (!segment.module) continue;
       segment.timer -= dt;
-      segment.orbit += dt * (segment.module === "blade" ? MODULE_BLADE_ORBIT_SPEED : 3.8);
+      segment.orbit += dt * 3.8;
 
       if (segment.module === "shield") {
         const maximumCharges = MODULE_EFFECTS.shieldMaximumCharges();
@@ -5206,23 +5205,6 @@
           if (segment.cooldown <= 0) {
             segment.ready = true;
             effects.push({ type: "ring", x: segment.x, y: segment.y, color: MODULE_BY_ID[segment.module].color, life: 0.5, maxLife: 0.5, radius: 10 });
-          }
-        }
-        continue;
-      }
-
-      if (segment.module === "blade") {
-        const orbitRadius = bladeOrbitRadius();
-        const bladeCount = MODULE_EFFECTS.bladeCount(segment.moduleLevel);
-        const bladeRadius = MODULE_EFFECTS.bladeBaseSizePixels() * PROJECTILE_SIZE_SCALE * arenaVisualScale() * attackSizeMultiplier();
-        for (let bladeIndex = 0; bladeIndex < bladeCount; bladeIndex += 1) {
-          const angle = segment.orbit + bladeIndex * TAU / bladeCount;
-          const bladeX = segment.x + Math.cos(angle) * orbitRadius;
-          const bladeY = segment.y + Math.sin(angle) * orbitRadius;
-          for (const enemy of enemies) {
-            if (enemy.dead) continue;
-            const hitSegmentIndex = bladeHitSegmentIndex(enemy, bladeX, bladeY, bladeRadius);
-            if (hitSegmentIndex !== null) damageEnemy(enemy, 1, bladeX, bladeY, MODULE_BY_ID.blade.color, { hitSegmentIndex: hitSegmentIndex });
           }
         }
         continue;
@@ -5319,6 +5301,16 @@
           hazards.push({ kind: "mine", x: segment.x, y: segment.y, col: segment.col, row: segment.row, life: Infinity, arm: 0.55, radius: 62 * arenaVisualScale() * attackSizeMultiplier(), color: MODULE_BY_ID.mine.color, phase: random(0, TAU) });
           playSkillSound("mine");
           segment.timer = activeModuleCooldown("mine", segment.moduleLevel);
+          break;
+        case "blade":
+          createPlayerProjectile(segment, 0, {
+            kind: "blade",
+            color: MODULE_BY_ID.blade.color,
+            speed: 0,
+            size: MODULE_EFFECTS.bladeBaseSizePixels()
+          });
+          playSkillSound("blade");
+          segment.timer = activeModuleCooldown("blade", segment.moduleLevel);
           break;
         case "pulse":
           firePulse(segment);
@@ -6165,30 +6157,45 @@
     for (const projectile of projectiles) {
       projectile.life -= dt;
       let endedByImpact = false;
-      if (projectile.homing && projectile.target && !projectile.target.dead) {
-        const targetNode = resolveEnemyTargetNode(projectile.target, projectile.targetSegmentIndex);
-        const current = Math.atan2(projectile.vy, projectile.vx);
-        const target = Math.atan2(targetNode.y - projectile.y, targetNode.x - projectile.x);
-        const angle = rotateToward(current, target, projectile.homing * dt);
-        projectile.vx = Math.cos(angle) * projectile.speed;
-        projectile.vy = Math.sin(angle) * projectile.speed;
-      }
       const startX = projectile.x;
       const startY = projectile.y;
-      projectile.x += projectile.vx * dt;
-      projectile.y += projectile.vy * dt;
+      if (projectile.kind === "blade") {
+        const elapsed = Math.max(0, gameTime - projectile.orbitStartedAt);
+        const targetRadius = bladeOrbitRadius();
+        const maximumShift = MODULE_BLADE_ORBIT_CONVERGE_SPEED * arena.cellSize * elapsed;
+        const radius = projectile.orbitStartRadius + clamp(targetRadius - projectile.orbitStartRadius, -maximumShift, maximumShift);
+        const orbitAngle = projectile.orbitStartAngle + MODULE_BLADE_ORBIT_SPEED * elapsed;
+        projectile.orbitAngle = orbitAngle;
+        projectile.x = player.x + Math.cos(orbitAngle) * radius;
+        projectile.y = player.y + Math.sin(orbitAngle) * radius;
+        if (dt > 0) {
+          projectile.vx = (projectile.x - startX) / dt;
+          projectile.vy = (projectile.y - startY) / dt;
+        }
+      } else {
+        if (projectile.homing && projectile.target && !projectile.target.dead) {
+          const targetNode = resolveEnemyTargetNode(projectile.target, projectile.targetSegmentIndex);
+          const current = Math.atan2(projectile.vy, projectile.vx);
+          const target = Math.atan2(targetNode.y - projectile.y, targetNode.x - projectile.x);
+          const angle = rotateToward(current, target, projectile.homing * dt);
+          projectile.vx = Math.cos(angle) * projectile.speed;
+          projectile.vy = Math.sin(angle) * projectile.speed;
+        }
+        projectile.x += projectile.vx * dt;
+        projectile.y += projectile.vy * dt;
 
-      const hitHorizontalWall = projectile.x < arena.left || projectile.x > arena.right;
-      const hitVerticalWall = projectile.y < arena.top || projectile.y > arena.bottom;
-      if (hitHorizontalWall || hitVerticalWall) {
-        if (projectile.bounces !== 0) {
-          projectile.x = clamp(projectile.x, arena.left, arena.right);
-          projectile.y = clamp(projectile.y, arena.top, arena.bottom);
-          if (hitHorizontalWall) projectile.vx *= -1;
-          if (hitVerticalWall) projectile.vy *= -1;
-          if (projectile.bounces > 0) projectile.bounces -= 1;
-        } else {
-          projectile.life = 0;
+        const hitHorizontalWall = projectile.x < arena.left || projectile.x > arena.right;
+        const hitVerticalWall = projectile.y < arena.top || projectile.y > arena.bottom;
+        if (hitHorizontalWall || hitVerticalWall) {
+          if (projectile.bounces !== 0) {
+            projectile.x = clamp(projectile.x, arena.left, arena.right);
+            projectile.y = clamp(projectile.y, arena.top, arena.bottom);
+            if (hitHorizontalWall) projectile.vx *= -1;
+            if (hitVerticalWall) projectile.vy *= -1;
+            if (projectile.bounces > 0) projectile.bounces -= 1;
+          } else {
+            projectile.life = 0;
+          }
         }
       }
 
@@ -6243,7 +6250,10 @@
       }
       if (projectile.life <= 0 && !endedByImpact) expireProjectile(projectile);
     }
-    retainInPlace(projectiles, (projectile) => projectile.life > 0 && projectile.x >= arena.left && projectile.x <= arena.right && projectile.y >= arena.top && projectile.y <= arena.bottom);
+    retainInPlace(projectiles, (projectile) => projectile.life > 0 && (
+      projectile.kind === "blade"
+      || (projectile.x >= arena.left && projectile.x <= arena.right && projectile.y >= arena.top && projectile.y <= arena.bottom)
+    ));
   }
 
   function updateHazards(dt) {
@@ -6551,7 +6561,7 @@
       if (ownBodyHit) {
         triggerCollisionEcho();
         damagePlayer(PLAYER_WALL_COLLISION_DAMAGE);
-        if (state === "running") bounceEntity(player, player.col - ownBodyHit.col, player.row - ownBodyHit.row, "#f4ffdc", SNAKE_SEGMENT_SPACING, 1, true);
+        if (state === "running") bounceEntity(player, player.col - ownBodyHit.col, player.row - ownBodyHit.row, "#f4ffdc", SNAKE_SEGMENT_SPACING);
         return;
       }
     }
@@ -7664,11 +7674,8 @@
     activeGrowth = target.growth || (target === previousPlayer ? previousGrowth : null);
     const pieceScale = arenaPieceScale();
     const repulseRange = repulseRangePixels();
-    const bladeRenderMargin = renderWorldBounds.active && moduleCount("blade") > 0
-      ? bladeOrbitRadius() + 32 * pieceScale * attackSizeMultiplier()
-      : 0;
     const bodyVisible = !renderWorldBounds.active
-      || snakeIntersectsRenderBounds(player, player.segments, Math.max(36 * pieceScale, bladeRenderMargin));
+      || snakeIntersectsRenderBounds(player, player.segments, 36 * pieceScale);
     const repulseVisible = repulseRange > 0
       && (!renderWorldBounds.active || pointIntersectsRenderBounds(player.x, player.y, repulseRange + 4));
     if (!bodyVisible && !repulseVisible) {
@@ -7826,34 +7833,6 @@
         ctx.restore();
       }
 
-      if (segment.module === "blade") {
-        const orbitRadius = bladeOrbitRadius();
-        const bladeCount = MODULE_EFFECTS.bladeCount(segment.moduleLevel);
-        const bladeScale = pieceScale * PROJECTILE_SIZE_SCALE * MODULE_EFFECTS.bladeBaseSizePixels() / 10 * attackSizeMultiplier();
-        for (let bladeIndex = 0; bladeIndex < bladeCount; bladeIndex += 1) {
-          const angle = segment.orbit + bladeIndex * TAU / bladeCount;
-          const x = segment.x + Math.cos(angle) * orbitRadius;
-          const y = segment.y + Math.sin(angle) * orbitRadius;
-          if (renderWorldBounds.active && !pointIntersectsRenderBounds(x, y, 24 * bladeScale)) continue;
-          ctx.save();
-          ctx.translate(x, y);
-          ctx.scale(bladeScale, bladeScale);
-          ctx.rotate(angle * 2);
-          ctx.shadowColor = MODULE_BY_ID.blade.color;
-          ctx.shadowBlur = 12;
-          ctx.fillStyle = MODULE_BY_ID.blade.color;
-          ctx.beginPath();
-          ctx.moveTo(10, 0);
-          ctx.lineTo(3.6, 4.2);
-          ctx.lineTo(-1.4, 1.5);
-          ctx.lineTo(-10, 0);
-          ctx.lineTo(-3.6, -4.2);
-          ctx.lineTo(1.4, -1.5);
-          ctx.closePath();
-          ctx.fill();
-          ctx.restore();
-        }
-      }
     }
 
     const headVisible = !renderWorldBounds.active || pointIntersectsRenderBounds(player.x, player.y, 44 * pieceScale);
@@ -7980,6 +7959,27 @@
   function drawProjectiles() {
     for (const projectile of projectiles) {
       if (renderWorldBounds.active && !pointIntersectsRenderBounds(projectile.x, projectile.y, 36 + projectile.size * 3)) continue;
+      if (projectile.kind === "blade") {
+        const bladeScale = projectile.size / 10;
+        ctx.save();
+        ctx.translate(projectile.x, projectile.y);
+        ctx.scale(bladeScale, bladeScale);
+        ctx.rotate((projectile.orbitAngle || 0) * 2);
+        ctx.shadowColor = projectile.color;
+        ctx.shadowBlur = 12;
+        ctx.fillStyle = projectile.color;
+        ctx.beginPath();
+        ctx.moveTo(10, 0);
+        ctx.lineTo(3.6, 4.2);
+        ctx.lineTo(-1.4, 1.5);
+        ctx.lineTo(-10, 0);
+        ctx.lineTo(-3.6, -4.2);
+        ctx.lineTo(1.4, -1.5);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+        continue;
+      }
       ctx.save();
       const velocity = Math.hypot(projectile.vx, projectile.vy) || 1;
       const directionX = projectile.vx / velocity;

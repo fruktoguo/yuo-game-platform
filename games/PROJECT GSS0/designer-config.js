@@ -1,5 +1,5 @@
 globalThis.GSS0_DESIGNER_CONFIG = {
-  "schemaVersion": 35,
+  "schemaVersion": 36,
   "balance": {
     "playerBaseSpeed": 5,
     "snakeBodySizeScale": 0.775,
@@ -137,8 +137,9 @@ globalThis.GSS0_DESIGNER_CONFIG = {
     "moduleEchoProjectilesPerLevel": 2,
     "moduleBarrageProjectileCount": 16,
     "moduleBladeBaseSizePixels": 10,
-    "moduleBladeOrbitRadiusCells": 6,
+    "moduleBladeOrbitRadiusCells": 2,
     "moduleBladeOrbitSpeed": 0.6,
+    "moduleBladeOrbitConvergeSpeedCellsPerSecond": 8,
     "modulePulseRadiusCells": 3,
     "moduleClusterBlastRadiusCells": 2,
     "moduleShieldMaxCharges": 5,
@@ -264,6 +265,7 @@ globalThis.GSS0_DESIGNER_CONFIG = {
     "laser": 130,
     "missile": 90,
     "mine": 80,
+    "blade": 120,
     "pulse": 300,
     "venom": 160,
     "rail": 160,
