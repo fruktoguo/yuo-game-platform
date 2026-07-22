@@ -10,7 +10,7 @@ describe('界面设置', () => {
   it('使用正式游戏名并在左上品牌卡显示当前版本', () => {
     expect(indexHtml).toContain('<title>代号：几何贪吃蛇</title>');
     expect(indexHtml).toContain('<h1 id="game-title"><span>代号：几何贪吃蛇</span></h1>');
-    expect(indexHtml).toContain('<span class="brand-version" aria-label="游戏版本 V102">V102</span>');
+    expect(indexHtml).toContain('<span class="brand-version" aria-label="游戏版本 V103">V103</span>');
     expect(styles).toContain('.brand-version');
     const brandTitleRule = styles.match(/\.brand-lockup strong\s*\{([^}]*)\}/)?.[1];
     const brandVersionRule = styles.match(/\.brand-version\s*\{([^}]*)\}/)?.[1];
@@ -71,7 +71,7 @@ describe('界面设置', () => {
   });
 
   it('升级卡展示机体等级变化且机体架显示槽位占用', () => {
-    expect(indexHtml).toContain('src="module-progression.js?v=102"');
+    expect(indexHtml).toContain('src="module-progression.js?v=103"');
     expect(gameSource).toContain('MODULE_PROGRESSION.moduleUpgradePreview');
     expect(gameSource).toContain('progression.levelLabel');
     expect(gameSource).toContain('ui.rack.dataset.capacity');
@@ -153,13 +153,25 @@ describe('界面设置', () => {
     expect(gameSource).toContain('loadSetting("gss0-automatic-restart", 0, 0, 1)');
   });
 
-  it('八个右上角按钮使用零延迟自定义提示', () => {
+  it('屏幕震动默认开启并统一控制全部震屏入口', () => {
+    expect(indexHtml).toContain('id="screen-shake-button"');
+    expect(indexHtml).toContain('id="screen-shake-toggle" type="checkbox" checked');
+    expect(gameSource).toContain('loadSetting("gss0-screen-shake", 1, 0, 1)');
+    expect(gameSource).toContain('function triggerScreenShake(strength)');
+    expect(gameSource).toContain('if (!screenShakeEnabled) return;');
+    expect(gameSource.match(/shake = Math\.max\(shake,/g)).toHaveLength(1);
+    expect(gameSource).not.toContain('shake = 16;');
+    expect(gameSource).toContain('if (!screenShakeEnabled) shake = 0;');
+  });
+
+  it('九个右上角按钮使用零延迟自定义提示', () => {
     const settingButtonIds = [
       'lobby-button',
       'font-button',
       'sound-button',
       'motion-button',
       'camera-button',
+      'screen-shake-button',
       'background-pause-button',
       'automatic-mode-button',
       'pause-button'
@@ -178,7 +190,7 @@ describe('界面设置', () => {
     expect(tooltipRule).not.toContain('transition');
     expect(indexHtml).not.toContain('id="description-button"');
     expect(indexHtml).not.toContain('id="description-toggle"');
-    expect(indexHtml).toContain('src="module-catalog.js?v=102"');
+    expect(indexHtml).toContain('src="module-catalog.js?v=103"');
     expect(gameSource).toContain('const MODULE_CATALOG = globalThis.GSS0ModuleCatalog;');
     expect(gameSource).not.toContain('SHORT_MODULE_DESCRIPTIONS');
     expect(gameSource).not.toContain('gss0-detailed-descriptions');

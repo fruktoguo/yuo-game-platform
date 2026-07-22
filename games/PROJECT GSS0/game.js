@@ -80,6 +80,9 @@
     cameraModeFollow: document.querySelector("#camera-mode-follow"),
     cameraZoomStatus: document.querySelector("#camera-zoom-status"),
     cameraZoomOutput: document.querySelector("#camera-zoom-output"),
+    screenShakeButton: document.querySelector("#screen-shake-button"),
+    screenShakeToggle: document.querySelector("#screen-shake-toggle"),
+    screenShakePopover: document.querySelector("#screen-shake-popover"),
     backgroundPauseButton: document.querySelector("#background-pause-button"),
     backgroundPauseToggle: document.querySelector("#background-pause-toggle"),
     backgroundPausePopover: document.querySelector("#background-pause-popover"),
@@ -405,6 +408,7 @@
     CAMERA_FOLLOW_ZOOM_MIN,
     CAMERA_FOLLOW_ZOOM_MAX
   );
+  let screenShakeEnabled = loadSetting("gss0-screen-shake", 1, 0, 1) >= 0.5;
   let backgroundPauseEnabled = loadSetting("gss0-background-pause", 1, 0, 1) >= 0.5;
   let automaticModeEnabled = loadSetting("gss0-automatic-mode", 0, 0, 1) >= 0.5;
   let automaticModuleSelectionEnabled = loadSetting("gss0-automatic-module-selection", 0, 0, 1) >= 0.5;
@@ -843,6 +847,21 @@
     if (persist) saveSetting("gss0-camera-mode", followsHead ? 1 : 0);
   }
 
+  function triggerScreenShake(strength) {
+    if (!screenShakeEnabled) return;
+    shake = Math.max(shake, strength);
+  }
+
+  function applyScreenShake(enabled, persist = true) {
+    screenShakeEnabled = Boolean(enabled);
+    ui.screenShakeToggle.checked = screenShakeEnabled;
+    ui.screenShakeButton.classList.toggle("is-disabled", !screenShakeEnabled);
+    if (!screenShakeEnabled) shake = 0;
+    const status = screenShakeEnabled ? "已开启" : "已关闭";
+    updateSettingButtonLabel(ui.screenShakeButton, `屏幕震动${status}`, `屏幕震动${status}`);
+    if (persist) saveSetting("gss0-screen-shake", screenShakeEnabled ? 1 : 0);
+  }
+
   function applyBackgroundPause(enabled, persist = true) {
     backgroundPauseEnabled = Boolean(enabled);
     ui.backgroundPauseToggle.checked = backgroundPauseEnabled;
@@ -985,6 +1004,7 @@
       [ui.soundButton, ui.soundPopover],
       [ui.motionButton, ui.motionPopover],
       [ui.cameraButton, ui.cameraPopover],
+      [ui.screenShakeButton, ui.screenShakePopover],
       [ui.backgroundPauseButton, ui.backgroundPausePopover],
       [ui.automaticModeButton, ui.automaticModePopover]
     ]) {
@@ -1949,7 +1969,7 @@
     });
     if (!affectsSelf) return;
     sound("hurt", 0, network.enabled ? network.selfEntityId : null);
-    shake = Math.max(shake, PLAYER_DAMAGE_SHAKE_STRENGTH);
+    triggerScreenShake(PLAYER_DAMAGE_SHAKE_STRENGTH);
     flash = Math.max(flash, PLAYER_DAMAGE_FLASH_STRENGTH);
     pulseHealthHud();
   }
@@ -2089,7 +2109,7 @@
       return;
     }
     if (item.type === "feedback") {
-      shake = Math.max(shake, NETWORK_SHAKE_BY_FEEDBACK[item.kind] || 0);
+      triggerScreenShake(NETWORK_SHAKE_BY_FEEDBACK[item.kind] || 0);
       return;
     }
     if (item.type === "flash") {
@@ -3242,7 +3262,7 @@
 
   function showNetworkGameOver(result) {
     state = "gameover";
-    shake = 16;
+    triggerScreenShake(16);
     flash = 0.5;
     sound("death");
     const isNewBest = result.score > bestScore;
@@ -3555,7 +3575,7 @@
       });
     }
     sound("enemySpawn");
-    shake = Math.max(shake, 4);
+    triggerScreenShake(4);
   }
 
   function updateEnemySpawnWarnings(dt) {
@@ -3743,7 +3763,7 @@
   function gameOver() {
     if (state !== "running") return;
     state = "gameover";
-    shake = 16;
+    triggerScreenShake(16);
     flash = 0.5;
     sound("death");
     burst(player.x, player.y, "#b8f53f", 28, 170);
@@ -4292,7 +4312,7 @@
     burst(effect.x, effect.y, tier.color, gold ? EXPERIENCE_COMPRESSION_GOLD_PARTICLES : EXPERIENCE_COMPRESSION_GRAY_PARTICLES, gold ? 235 : 165);
     burst(effect.x, effect.y, tier.accent, gold ? 24 : 12, gold ? 175 : 115);
     sound(gold ? "compressGold" : "compress", 0, effect.ownerEntityId ?? null);
-    if (effect.isLocal) shake = Math.max(shake, gold ? EXPERIENCE_COMPRESSION_GOLD_SHAKE : EXPERIENCE_COMPRESSION_GRAY_SHAKE);
+    if (effect.isLocal) triggerScreenShake(gold ? EXPERIENCE_COMPRESSION_GOLD_SHAKE : EXPERIENCE_COMPRESSION_GRAY_SHAKE);
   }
 
   function queueExperienceCompression(sources, target, fromTier, toTier, delay = 0, ownerEntityId = null, isLocal = true) {
@@ -4426,7 +4446,7 @@
     ui.levelUpBanner.classList.add("is-active");
     ui.shell.classList.add("is-leveling");
     sound("levelCharge");
-    shake = Math.max(shake, 6.5);
+    triggerScreenShake(6.5);
     flash = Math.max(flash, 0.18);
   }
 
@@ -4458,7 +4478,7 @@
     effects.push({ type: "ring", x: segment.x, y: segment.y, color, life: 0.46, maxLife: 0.46, radius: 3, endRadius: arena.cellSize * 0.78 });
     effects.push({ type: "ring", x: segment.x, y: segment.y, color: "#ffffff", life: 0.28, maxLife: 0.28, radius: 2, endRadius: arena.cellSize * 0.46 });
     if (activeGrowth.spawnTailFood) spawnFoodBehindTail();
-    shake = Math.max(shake, special ? 2.5 : 1.5);
+    triggerScreenShake(special ? 2.5 : 1.5);
     activeGrowth = null;
     startNextGrowthAnimation();
 
@@ -4499,7 +4519,7 @@
     effects.push({ type: "ring", x: collector.x, y: collector.y, color: "#ffffff", life: 0.32, maxLife: 0.32, radius: 4, endRadius: arena.cellSize * 0.82 });
     effects.push({ type: "text", x: collector.x, y: collector.y, text: `+${1 + bonusExperience}`, color: food.color, life: 0.72, maxLife: 0.72 });
     sound("eat", storedNeutralCount());
-    shake = Math.max(shake, food.special ? 4 : 2.8);
+    triggerScreenShake(food.special ? 4 : 2.8);
     if (completesLevel) startLevelUpTransition();
     updateHud();
   }
@@ -4784,7 +4804,7 @@
     burst(entity.x, entity.y, color, 13, 135);
     effects.push({ type: "ring", x: entity.x, y: entity.y, color, life: 0.38, maxLife: 0.38, radius: 5, endRadius: arena.cellSize * 0.85 });
     sound("bounce");
-    shake = Math.max(shake, 4.5);
+    triggerScreenShake(4.5);
   }
 
   function applyKnockbackDecay(entity, dt) {
@@ -5981,7 +6001,7 @@
       const hitIndexes = circularEnemyHitIndexes(projectile.x, projectile.y, projectile.blastRadius, enemy);
       if (hitIndexes.length) damageEnemyParts(enemy, hitIndexes, projectile.x, projectile.y, projectile.color);
     }
-    shake = Math.max(shake, 5);
+    triggerScreenShake(5);
   }
 
   function expireProjectile(projectile) {
@@ -6127,7 +6147,7 @@
       if (playerTrigger) bounceEntity(player, player.x - hazard.x, player.y - hazard.y, hazard.color, SNAKE_SEGMENT_SPACING);
       hazard.life = 0;
       sound("mine");
-      shake = Math.max(shake, 5);
+      triggerScreenShake(5);
     }
     retainInPlace(hazards, (hazard) => hazard.life > 0);
   }
@@ -6216,7 +6236,7 @@
     effects.push({ type: "ring", x: impactX, y: impactY, color: impactColor, life: 0.34, maxLife: 0.34, radius: 3, endRadius: 16 });
     if (causedByPlayer) {
       sound("hit");
-      shake = Math.max(shake, 2.2);
+      triggerScreenShake(2.2);
     }
     if (destroysHead) killEnemy(enemy, options.rewardSelf !== false);
     if (causedByPlayer) {
@@ -6309,7 +6329,7 @@
     effects.push({ type: "ring", x: head.x, y: head.y, color: "#ffffff", life: 0.42, maxLife: 0.42, radius: 7, endRadius: 52 });
     effects.push({ type: "text", x: head.x, y: head.y - 22, text: "击破", color: "#ffffff", life: 1.05, maxLife: 1.05, emphasis: true });
     if (options.playSound) sound("kill", 0, options.soundSourceEntityId);
-    if (options.rewardSelf) shake = Math.max(shake, 7);
+    if (options.rewardSelf) triggerScreenShake(7);
   }
 
   function healPlayer(amount, color = MODULE_BY_ID.recovery.color, present = false) {
@@ -8314,6 +8334,16 @@
     sound("ui");
   });
 
+  ui.screenShakeButton.addEventListener("click", (event) => {
+    event.stopPropagation();
+    ensureAudio();
+    const control = ui.screenShakeButton.closest(".setting-control");
+    const open = !control.classList.contains("is-open");
+    closeSettingPopovers(control);
+    setSettingPopover(ui.screenShakeButton, ui.screenShakePopover, open);
+    sound("ui");
+  });
+
   ui.backgroundPauseButton.addEventListener("click", (event) => {
     event.stopPropagation();
     ensureAudio();
@@ -8356,6 +8386,7 @@
   ui.soundPopover.addEventListener("click", (event) => event.stopPropagation());
   ui.motionPopover.addEventListener("click", (event) => event.stopPropagation());
   ui.cameraPopover.addEventListener("click", (event) => event.stopPropagation());
+  ui.screenShakePopover.addEventListener("click", (event) => event.stopPropagation());
   ui.backgroundPausePopover.addEventListener("click", (event) => event.stopPropagation());
   ui.automaticModePopover.addEventListener("click", (event) => event.stopPropagation());
   ui.fontSlider.addEventListener("input", () => applyFontScale(Number(ui.fontSlider.value) / 100));
@@ -8371,6 +8402,11 @@
   ui.motionSlider.addEventListener("input", () => applyUIMotionStrength(Number(ui.motionSlider.value) / 100));
   ui.motionSlider.addEventListener("change", () => {
     ensureAudio();
+    sound("ui");
+  });
+  ui.screenShakeToggle.addEventListener("change", () => {
+    ensureAudio();
+    applyScreenShake(ui.screenShakeToggle.checked);
     sound("ui");
   });
   ui.backgroundPauseToggle.addEventListener("change", () => {
@@ -8413,6 +8449,7 @@
   applyUIMotionStrength(uiMotionStrength, false);
   applyFollowCameraZoom(followCameraZoom, false);
   applyCameraMode(cameraMode, false);
+  applyScreenShake(screenShakeEnabled, false);
   applyBackgroundPause(backgroundPauseEnabled, false);
   applyAutomaticModuleSelection(automaticModuleSelectionEnabled, false);
   applyAutomaticRestart(automaticRestartEnabled, false);

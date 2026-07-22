@@ -548,6 +548,42 @@ input:focus-visible {
   border-color: var(--cyan);
 }
 
+.screen-shake-icon > span {
+  position: relative;
+  display: block;
+  width: 10px;
+  height: 15px;
+  border: 2px solid currentColor;
+}
+
+.screen-shake-icon > span::before,
+.screen-shake-icon > span::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  width: 3px;
+  height: 7px;
+  border-top: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+}
+
+.screen-shake-icon > span::before { left: -8px; }
+.screen-shake-icon > span::after { right: -8px; }
+
+.screen-shake-icon:not(.is-disabled) {
+  border-color: var(--cyan);
+  color: var(--cyan);
+}
+
+.screen-shake-icon.is-disabled {
+  color: var(--red);
+}
+
+.screen-shake-icon.is-disabled > span::before,
+.screen-shake-icon.is-disabled > span::after {
+  display: none;
+}
+
 .background-pause-icon {
   position: relative;
   display: block;
