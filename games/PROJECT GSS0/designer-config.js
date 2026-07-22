@@ -1,5 +1,5 @@
 globalThis.GSS0_DESIGNER_CONFIG = {
-  "schemaVersion": 24,
+  "schemaVersion": 25,
   "balance": {
     "playerBaseSpeed": 5,
     "snakeBodySizeScale": 0.775,
@@ -39,7 +39,7 @@ globalThis.GSS0_DESIGNER_CONFIG = {
     "combatTextFontSize": 38,
     "foodBirthDuration": 0.36,
     "enemyBaseSpeed": 3,
-    "enemySpeedPerMinute": 0.01,
+    "enemySpeedPerWave": 0.01,
     "enemySpeedMaxMultiplier": 2,
     "enemyTurnRateMin": 2.05,
     "enemyTurnRateMax": 2.75,

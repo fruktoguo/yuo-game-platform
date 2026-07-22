@@ -32,6 +32,8 @@
     const expectedDpsInterval = finiteNumber(options.expectedDpsInterval, 6, 0.01, 1000);
     const threatTimeCoefficient = finiteNumber(options.threatTimeCoefficient, 9, 0, 1000);
     const threatGrowthPerWave = finiteNumber(options.threatGrowthPerWave, 0.02, 0, 10);
+    const speedGrowthPerWave = finiteNumber(options.speedGrowthPerWave, 0.01, 0, 0.1);
+    const speedMaxMultiplier = finiteNumber(options.speedMaxMultiplier, 2, 1, 100);
     const foodExperiencePerWave = Math.round(finiteNumber(options.foodExperiencePerWave, 2, 0, 1000));
     const xpRequirementBase = positiveInteger(options.xpRequirementBase, 5, 100000);
     const xpRequirementPerLevel = Math.round(finiteNumber(options.xpRequirementPerLevel, 2, 0, 100000));
@@ -57,6 +59,11 @@
 
     function enemyCountForWave(waveNumber) {
       return baseEnemyCount(waveNumber) * (isPressureWave(waveNumber) ? pressureEnemyCountMultiplier : 1);
+    }
+
+    function speedMultiplier(waveNumber) {
+      const wave = positiveInteger(waveNumber, 1);
+      return Math.min(speedMaxMultiplier, 1 + speedGrowthPerWave * (wave - 1));
     }
 
     function experienceFromWave(waveNumber) {
@@ -103,6 +110,7 @@
         expectedLevel,
         expectedDps,
         growthMultiplier,
+        speedMultiplier: speedMultiplier(wave),
         totalThreat
       });
     }
@@ -140,6 +148,7 @@
       baseEnemyCount,
       isPressureWave,
       enemyCountForWave,
+      speedMultiplier,
       experienceFromWave,
       experienceBeforeWave,
       expectedLevelForExperience,

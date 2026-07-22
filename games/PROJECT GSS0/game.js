@@ -94,7 +94,7 @@
 
   const TAU = Math.PI * 2;
   const DESIGNER_CONFIG = globalThis.GSS0_DESIGNER_CONFIG || {};
-  if (DESIGNER_CONFIG.schemaVersion !== 24) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 24");
+  if (DESIGNER_CONFIG.schemaVersion !== 25) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 25");
   const DESIGNER_BALANCE = DESIGNER_CONFIG.balance || {};
   const MODULE_DESIGN_STATES = DESIGNER_CONFIG.moduleStates || {};
 
@@ -199,7 +199,7 @@
   const ENEMY_COLLISION_DAMAGE = designerNumber("enemyCollisionDamage", 1, 0, 1000, true);
   const PLAYER_TURN_RATE = designerNumber("playerTurnRate", 4.2, 0.5, 12);
   const ENEMY_BASE_SPEED = designerNumber("enemyBaseSpeed", 4, 0.5, 12);
-  const ENEMY_SPEED_PER_MINUTE = designerNumber("enemySpeedPerMinute", 0.01, 0, 0.2);
+  const ENEMY_SPEED_GROWTH_PER_WAVE = designerNumber("enemySpeedPerWave", 0.01, 0, 0.1);
   const ENEMY_SPEED_MAX_MULTIPLIER = designerNumber("enemySpeedMaxMultiplier", 1.12, 1, 3);
   const ENEMY_TURN_RATE_MIN = designerNumber("enemyTurnRateMin", 2.05, 0.1, 10);
   const ENEMY_TURN_RATE_MAX = designerNumber("enemyTurnRateMax", 2.75, 0.1, 12);
@@ -219,6 +219,8 @@
     expectedDpsInterval: ENEMY_EXPECTED_DPS_INTERVAL,
     threatTimeCoefficient: ENEMY_THREAT_TIME_COEFFICIENT,
     threatGrowthPerWave: ENEMY_THREAT_GROWTH_PER_WAVE,
+    speedGrowthPerWave: ENEMY_SPEED_GROWTH_PER_WAVE,
+    speedMaxMultiplier: ENEMY_SPEED_MAX_MULTIPLIER,
     foodExperiencePerWave: FOODS_PER_PLAYER_PER_WAVE,
     xpRequirementBase: XP_REQUIREMENT_BASE,
     xpRequirementPerLevel: XP_REQUIREMENT_PER_LEVEL,
@@ -5466,7 +5468,7 @@
 
   function updateEnemies(dt) {
     const chronosMultiplier = 1 - MODULE_EFFECTS.chronosSlowReduction(moduleCount("chronos"));
-    const timeSpeedMultiplier = Math.min(ENEMY_SPEED_MAX_MULTIPLIER, 1 + gameTime / 60 * ENEMY_SPEED_PER_MINUTE);
+    const waveSpeedMultiplier = enemyWaveDirector.speedMultiplier(waveCount);
     const repulseRange = repulseRangePixels();
     const activeFoods = new Set(foods);
     for (const enemy of enemies) {
@@ -5501,10 +5503,10 @@
         }
 
         steerEnemyAwayFromWalls(enemy);
-        enemy.angle = rotateToward(enemy.angle, enemy.desiredAngle, dt * enemy.turnRate);
+        enemy.angle = rotateToward(enemy.angle, enemy.desiredAngle, dt * enemy.turnRate * waveSpeedMultiplier);
       }
       const statusMultiplier = (enemy.slow > 0 ? 0.55 : 1) * (1 - (enemy.permanentSlow || 0));
-      const speed = enemy.speed * timeSpeedMultiplier * chronosMultiplier * statusMultiplier;
+      const speed = enemy.speed * waveSpeedMultiplier * chronosMultiplier * statusMultiplier;
       const previousPosition = { col: enemy.col, row: enemy.row };
       const nextCol = enemy.col + (Math.cos(enemy.angle) * speed + enemy.knockbackX) * dt;
       const nextRow = enemy.row + (Math.sin(enemy.angle) * speed + enemy.knockbackY) * dt;

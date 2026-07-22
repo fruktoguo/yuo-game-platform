@@ -20,8 +20,6 @@ import {
   ENEMY_SPAWN_SAFETY_DISTANCE,
   ENEMY_WALL_AVOIDANCE_DISTANCE,
   ENEMY_SPAWN_WARNING_TIME,
-  ENEMY_SPEED_MAX_MULTIPLIER,
-  ENEMY_SPEED_PER_MINUTE,
   ENEMY_THINK_INTERVAL_MAX,
   ENEMY_THINK_INTERVAL_MIN,
   ENEMY_TURN_RATE_MAX,
@@ -2998,7 +2996,7 @@ export class UltraWorld {
 
   private updateEnemies(delta: number, activePlayers: PlayerEntity[], presentPlayers: PlayerEntity[]): void {
     const chronosMultiplier = 1 - MODULE_PROGRESSION.effects.chronosSlowReduction(this.maximumModuleCount('chronos', presentPlayers));
-    const timeSpeedMultiplier = Math.min(ENEMY_SPEED_MAX_MULTIPLIER, 1 + this.gameTime / 60 * ENEMY_SPEED_PER_MINUTE);
+    const waveSpeedMultiplier = enemyWaveDirector.speedMultiplier(this.waveCount);
     const collisionPlayers = this.stepCollisionPlayers;
     collisionPlayers.length = 0;
     for (const player of presentPlayers) if (player.autopilot || player.paused || player.choosingUpgrade) collisionPlayers.push(player);
@@ -3023,9 +3021,9 @@ export class UltraWorld {
           enemy.desiredAngle += angleDifference(enemy.desiredAngle, avoidance.angle) * priorityStrength;
         }
         this.steerEnemyAwayFromWalls(enemy);
-        enemy.angle = rotateToward(enemy.angle, enemy.desiredAngle, delta * enemy.turnRate);
+        enemy.angle = rotateToward(enemy.angle, enemy.desiredAngle, delta * enemy.turnRate * waveSpeedMultiplier);
       }
-      const speed = enemy.speed * timeSpeedMultiplier * chronosMultiplier * (enemy.slow > 0 ? 0.55 : 1) * (1 - enemy.permanentSlow);
+      const speed = enemy.speed * waveSpeedMultiplier * chronosMultiplier * (enemy.slow > 0 ? 0.55 : 1) * (1 - enemy.permanentSlow);
       const previousPosition = this.enemyMovementStart;
       previousPosition.col = enemy.col;
       previousPosition.row = enemy.row;

@@ -31,6 +31,6 @@ describe('敌蛇断首与新头接替', () => {
   it('旋刃命中蛇头也遵循统一断首规则', () => {
     expect(gameSource).toMatch(/function bladeHitSegmentIndex[\s\S]*?return -1;/u);
     expect(serverSource).toMatch(/private bladeHitSegmentIndex[\s\S]*?return -1;/u);
-    expect(moduleCatalogSource).toContain('命中蛇头会触发断首与新头接替');
+    expect(moduleCatalogSource).toContain('每级生成1枚环绕机体的旋刃，对命中的部位造成1伤害。');
   });
 });

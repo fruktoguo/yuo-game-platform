@@ -11,7 +11,7 @@ interface DesignerConfigSource {
 }
 
 const source = (globalThis as typeof globalThis & { GSS0_DESIGNER_CONFIG?: DesignerConfigSource }).GSS0_DESIGNER_CONFIG;
-if (source?.schemaVersion !== 24) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 24');
+if (source?.schemaVersion !== 25) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 25');
 
 function numberSetting(key: string, fallback: number, minimum: number, maximum: number, integer = false): number {
   const candidate = source?.balance?.[key];
@@ -66,7 +66,7 @@ export const DESIGNER_BALANCE = Object.freeze({
   moduleSlotUnlockLevel4: numberSetting('moduleSlotUnlockLevel4', 25, 1, 100, true),
   playerTurnRate: numberSetting('playerTurnRate', 4.2, 0.5, 12),
   enemyBaseSpeed: numberSetting('enemyBaseSpeed', 4, 0.5, 12),
-  enemySpeedPerMinute: numberSetting('enemySpeedPerMinute', 0.01, 0, 0.2),
+  enemySpeedPerWave: numberSetting('enemySpeedPerWave', 0.01, 0, 0.1),
   enemySpeedMaxMultiplier: numberSetting('enemySpeedMaxMultiplier', 1.12, 1, 3),
   enemyTurnRateMin: numberSetting('enemyTurnRateMin', 2.05, 0.1, 10),
   enemyTurnRateMax: numberSetting('enemyTurnRateMax', 2.75, 0.1, 12),

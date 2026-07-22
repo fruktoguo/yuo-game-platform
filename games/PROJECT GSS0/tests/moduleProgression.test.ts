@@ -56,12 +56,12 @@ describe('机体成长规则', () => {
   });
 
   it('主动冷却按等级反比成长并在五级封顶', () => {
-    expect(MODULE_PROGRESSION.activeCooldownSeconds('spark', 1)).toBe(6);
-    expect(MODULE_PROGRESSION.activeCooldownSeconds('spark', 2)).toBe(3);
-    expect(MODULE_PROGRESSION.activeCooldownSeconds('spark', 3)).toBe(2);
+    expect(MODULE_PROGRESSION.activeCooldownSeconds('spark', 1)).toBe(3.6);
+    expect(MODULE_PROGRESSION.activeCooldownSeconds('spark', 2)).toBe(1.8);
+    expect(MODULE_PROGRESSION.activeCooldownSeconds('spark', 3)).toBe(1.2);
     expect(MODULE_PROGRESSION.maxModuleLevel).toBe(5);
-    expect(MODULE_PROGRESSION.activeCooldownSeconds('spark', 5)).toBeCloseTo(1.2);
-    expect(MODULE_PROGRESSION.activeCooldownSeconds('spark', 100)).toBeCloseTo(1.2);
+    expect(MODULE_PROGRESSION.activeCooldownSeconds('spark', 5)).toBeCloseTo(0.72);
+    expect(MODULE_PROGRESSION.activeCooldownSeconds('spark', 100)).toBeCloseTo(0.72);
   });
 
   it('被动效果从零级开始，并在升级卡展示前后实际变化', () => {
@@ -70,12 +70,12 @@ describe('机体成长规则', () => {
     expect(MODULE_PROGRESSION.effects.hasteTurnRateBonus(100)).toBeCloseTo(1);
     const active = MODULE_PROGRESSION.moduleUpgradePreview('spark', 2);
     expect(active.levelLabel).toBe('等级 2 → 等级 3');
-    expect(active.lines[0].text).toBe('冷却时间 3秒 → 2秒');
+    expect(active.lines[0].text).toBe('冷却时间 1.8秒 → 1.2秒');
     const passive = MODULE_PROGRESSION.moduleUpgradePreview('haste', 2);
     expect(passive.lines.map((line) => line.text)).toEqual([
       '转向速度 +40% → +60%',
     ]);
-    expect(MODULE_PROGRESSION.moduleUpgradePreview('vitality', 4).lines[0].text).toBe('最大生命值 +16 → +20');
+    expect(MODULE_PROGRESSION.moduleUpgradePreview('vitality', 4).lines[0].text).toBe('最大生命值 +20 → +25');
     expect(MODULE_PROGRESSION.moduleUpgradePreview('replicator', 4).lines[0].text).toBe('复制球概率 24% → 30%');
   });
 
@@ -83,7 +83,7 @@ describe('机体成长规则', () => {
     expect(MODULE_PROGRESSION.moduleCurrentEffect('spark', 2)).toMatchObject({
       level: 2,
       levelLabel: '等级 2',
-      lines: [{ label: '冷却时间', text: '冷却时间 3秒' }],
+      lines: [{ label: '冷却时间', text: '冷却时间 1.8秒' }],
     });
     expect(MODULE_PROGRESSION.moduleCurrentEffect('haste', 2).lines.map((line) => line.text)).toEqual([
       '转向速度 +40%',

@@ -40,7 +40,7 @@ describe('设计配置', () => {
       moduleSlotUnlockLevel4: 25,
       playerTurnRate: 4.2,
       enemyBaseSpeed: 3,
-      enemySpeedPerMinute: 0.01,
+      enemySpeedPerWave: 0.01,
       enemySpeedMaxMultiplier: 2,
       enemyPressureWaveInterval: 5,
       enemyPressureEnemyCountMultiplier: 2,
@@ -95,7 +95,7 @@ describe('设计配置', () => {
       moduleCacheKillsPerTrigger: 5,
       moduleCrisisRegenPerLevel: 0.5,
       arenaBaseArea: 345.6,
-      arenaAreaPerLevel: 0.03,
+      arenaAreaPerLevel: 0.1,
       upgradeInvulnerabilityDuration: 1,
       respawnLocatorConvergeDuration: 1,
       respawnLocatorFadeDuration: 3,
@@ -165,10 +165,10 @@ describe('设计配置', () => {
     }).GSS0_DESIGNER_CONFIG;
 
     expect(Object.keys(source.moduleCooldownPercentages).sort()).toEqual(ACTIVE_SKILL_MODULES.map((module) => module.id).sort());
-    expect(moduleCooldownPercent('spark')).toBe(100);
-    expect(moduleCooldownSeconds('spark')).toBe(6);
-    expect(moduleCooldownPercent('crossfire')).toBe(240);
-    expect(moduleCooldownSeconds('crossfire')).toBeCloseTo(14.4);
+    expect(moduleCooldownPercent('spark')).toBe(60);
+    expect(moduleCooldownSeconds('spark')).toBe(3.6);
+    expect(moduleCooldownPercent('crossfire')).toBe(300);
+    expect(moduleCooldownSeconds('crossfire')).toBeCloseTo(18);
     expect(moduleCooldownPercent('fan')).toBe(375);
     expect(moduleCooldownSeconds('fan')).toBeCloseTo(22.5);
   });
@@ -214,7 +214,7 @@ describe('设计配置', () => {
     expect(MODULES).toHaveLength(73);
     expect(MODULES.every((module) => module.desc.trim().length > 0)).toBe(true);
     expect(new Set(MODULES.map((module) => module.id)).size).toBe(MODULES.length);
-    expect(MODULES.find((module) => module.id === 'spark')?.desc).toBe('发射1枚高速焰弹，造成1伤害。');
+    expect(MODULES.find((module) => module.id === 'spark')?.desc).toBe('向随机方向发射1枚子弹。');
     expect(MODULES.find((module) => module.id === 'haste')?.desc).toBe('每级使玩家转向速度提高20%。');
     expect(MODULES.find((module) => module.id === 'headstrike')?.desc).toContain('敌蛇蛇头');
     expect(MODULES.find((module) => module.id === 'ram')?.desc).toContain('敌蛇任意部位');
@@ -225,8 +225,8 @@ describe('设计配置', () => {
     expect(MODULES.some((module) => ['输出', '防御', '恢复'].includes(module.category as string))).toBe(false);
     expect(MODULES.every((module) => ['进攻', '生存', '辅助', '发育'].includes(module.category))).toBe(true);
     expect(MODULES.filter((module) => module.category === '发育')).toHaveLength(9);
-    expect(editorHtml).toContain('src="module-catalog.js?v=92"');
-    expect(editorHtml).toContain('src="module-progression.js?v=92"');
+    expect(editorHtml).toContain('src="module-catalog.js?v=93"');
+    expect(editorHtml).toContain('src="module-progression.js?v=93"');
     expect(editorHtml).toContain('const MODULES = moduleCatalog;');
     expect(editorHtml).toContain('descriptionText.textContent = describeModule(module.id, draft.balance);');
     expect(editorHtml).toContain('ID: ${module.id}');
@@ -258,6 +258,11 @@ describe('设计配置', () => {
     expect(editorHtml).toContain('id="waves-view"');
     expect(editorHtml).toContain('id="wave-schedule-list"');
     expect(editorHtml).toContain('id="wave-preview-body"');
+    expect(editorHtml).toContain('<span>难度设计</span>');
+    expect(editorHtml).toContain('id="enemy-global-parameter-list"');
+    expect(editorHtml).toContain('const ENEMY_GLOBAL_PARAMETER_DEFINITIONS = ALL_PARAMETER_DEFINITIONS.filter');
+    expect(editorHtml).toContain('!DIFFICULTY_PARAMETER_GROUPS.has(definition.group)');
+    expect(editorHtml).toContain('ui.enemyGlobalParameterList.replaceChildren');
     expect(editorHtml).toContain('const WAVE_PARAMETER_DEFINITIONS = ALL_PARAMETER_DEFINITIONS.filter');
     expect(editorHtml).toContain('waveDirectorApi.create({');
     expect(editorHtml).toContain('const ENEMY_PARAMETER_DEFINITIONS = ALL_PARAMETER_DEFINITIONS.filter');

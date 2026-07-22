@@ -19,7 +19,7 @@
           <strong>代号：几何贪吃蛇</strong>
         </div>
         <span class="signature">by 四季鸽</span>
-        <span class="brand-version" aria-label="游戏版本 V92">V92</span>
+        <span class="brand-version" aria-label="游戏版本 V93">V93</span>
       </div>
 
       <div class="run-stats">
@@ -157,7 +157,7 @@
 
     <section id="start-screen" class="modal-layer start-screen is-visible" aria-labelledby="game-title">
       <div class="start-glow" aria-hidden="true"></div>
-          <div class="start-version" aria-label="游戏版本 V92"><span>BUILD</span><strong>V92</strong></div>
+          <div class="start-version" aria-label="游戏版本 V93"><span>BUILD</span><strong>V93</strong></div>
       <div class="start-layout">
         <div class="start-content">
           <div id="network-status" class="title-kicker">TACTICAL SURVIVAL / LOCAL</div>
@@ -258,6 +258,23 @@
           <button id="changelog-close-button" class="icon-button codex-close-button" type="button" aria-label="关闭更新日志" title="关闭更新日志">×</button>
         </header>
         <div class="changelog-list">
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V93</strong></div>
+              <time datetime="2026-07-22">2026.07.22</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">难度设计</span>
+              <h3>难度设计改为按波次驱动</h3>
+              <ul>
+                <li>设计控制台的“敌人全局”参数已移入第四页，原“波次曲线”页面重命名为“难度设计”。</li>
+                <li>敌人速度成长改为按波次计算，第1波保持基础速度，之后每波按配置倍率递增。</li>
+                <li>波次速度倍率现在同时作用于敌人的移动速度与转向速率，使高速敌人保持原有转向能力。</li>
+                <li>“每波次速度成长”默认值设为0.01，可在0至0.1之间调整，并在关键波次预览中直接核对速度倍率。</li>
+                <li>本次一并封装场地每级面积成长0.1、高速枪节冷却60%与十字火力节冷却300%的设计参数调整。</li>
+              </ul>
+            </div>
+          </article>
           <article class="changelog-entry">
             <header>
               <div class="changelog-version"><span>BUILD</span><strong>V92</strong></div>
@@ -1412,20 +1429,20 @@
     </section>
   </main>
 
-  <script src="designer-config.js?v=92"></script>
-  <script src="module-catalog.js?v=92"></script>
-  <script src="module-progression.js?v=92"></script>
-  <script src="wave-director.js?v=92"></script>
-  <script src="spawn-planner.js?v=92"></script>
-  <script src="network-codec.js?v=92"></script>
-  <script src="network-player-prediction.js?v=92"></script>
-  <script src="network-player-state-codec.js?v=92"></script>
-  <script src="network-player-collisions.js?v=92"></script>
-  <script src="network-head-collisions.js?v=92"></script>
-  <script src="network-food-claims.js?v=92"></script>
-  <script src="network-projectiles.js?v=92"></script>
-  <script src="lobby-navigation.js?v=92"></script>
-  <script src="enemy-codex.js?v=92"></script>
-  <script src="game.js?v=92"></script>
+  <script src="designer-config.js?v=93"></script>
+  <script src="module-catalog.js?v=93"></script>
+  <script src="module-progression.js?v=93"></script>
+  <script src="wave-director.js?v=93"></script>
+  <script src="spawn-planner.js?v=93"></script>
+  <script src="network-codec.js?v=93"></script>
+  <script src="network-player-prediction.js?v=93"></script>
+  <script src="network-player-state-codec.js?v=93"></script>
+  <script src="network-player-collisions.js?v=93"></script>
+  <script src="network-head-collisions.js?v=93"></script>
+  <script src="network-food-claims.js?v=93"></script>
+  <script src="network-projectiles.js?v=93"></script>
+  <script src="lobby-navigation.js?v=93"></script>
+  <script src="enemy-codex.js?v=93"></script>
+  <script src="game.js?v=93"></script>
 </body>
 </html>
