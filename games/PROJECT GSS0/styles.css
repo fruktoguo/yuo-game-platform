@@ -660,6 +660,46 @@ input:focus-visible {
   width: 190px;
 }
 
+.automatic-mode-popover {
+  width: 230px;
+}
+
+#automatic-mode-control.is-open::before {
+  content: "";
+  position: absolute;
+  z-index: 39;
+  top: 100%;
+  right: 0;
+  width: 230px;
+  height: 12px;
+}
+
+.automatic-mode-popover .toggle-row + .toggle-row {
+  margin-top: 9px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(8, 10, 11, 0.24);
+}
+
+.toggle-row-label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.setting-shortcut {
+  display: inline-grid;
+  min-width: 21px;
+  height: 21px;
+  place-items: center;
+  border: 1px solid rgba(8, 10, 11, 0.44);
+  background: var(--ink);
+  color: var(--yellow);
+  font: inherit;
+  font-size: calc(9px * var(--font-scale));
+  line-height: 1;
+  box-shadow: 0 3px 0 rgba(8, 10, 11, 0.25);
+}
+
 .camera-popover {
   width: 238px;
 }

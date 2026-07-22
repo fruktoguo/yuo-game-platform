@@ -19,7 +19,7 @@
           <strong>代号：几何贪吃蛇</strong>
         </div>
         <span class="signature">by 四季鸽</span>
-        <span class="brand-version" aria-label="游戏版本 V98">V98</span>
+        <span class="brand-version" aria-label="游戏版本 V99">V99</span>
       </div>
 
       <div class="run-stats">
@@ -109,14 +109,19 @@
             </label>
           </div>
         </div>
-        <div class="setting-control" data-tooltip="自动模式已关闭">
-          <button id="automatic-mode-button" class="icon-button automatic-mode-icon" type="button" aria-label="自动模式已关闭" aria-expanded="false" aria-controls="automatic-mode-popover">
+        <div id="automatic-mode-control" class="setting-control" data-tooltip="自动战斗已关闭 · A 键切换">
+          <button id="automatic-mode-button" class="icon-button automatic-mode-icon" type="button" aria-label="自动战斗已关闭，按 A 键切换" aria-expanded="false" aria-controls="automatic-mode-popover">
             <span aria-hidden="true">A</span>
           </button>
-          <div id="automatic-mode-popover" class="setting-popover toggle-popover" role="group" aria-label="自动模式" aria-hidden="true">
+          <div id="automatic-mode-popover" class="setting-popover toggle-popover automatic-mode-popover" role="group" aria-label="自动战斗设置" aria-hidden="true">
             <label class="toggle-row" for="automatic-mode-toggle">
-              <span>自动模式</span>
+              <span class="toggle-row-label">自动战斗 <kbd class="setting-shortcut">A</kbd></span>
               <input id="automatic-mode-toggle" type="checkbox">
+              <i aria-hidden="true"></i>
+            </label>
+            <label class="toggle-row" for="automatic-module-selection-toggle">
+              <span>自动选择机体</span>
+              <input id="automatic-module-selection-toggle" type="checkbox" checked>
               <i aria-hidden="true"></i>
             </label>
           </div>
@@ -179,7 +184,7 @@
 
     <section id="start-screen" class="modal-layer start-screen is-visible" aria-labelledby="game-title">
       <div class="start-glow" aria-hidden="true"></div>
-          <div class="start-version" aria-label="游戏版本 V98"><span>BUILD</span><strong>V98</strong></div>
+          <div class="start-version" aria-label="游戏版本 V99"><span>BUILD</span><strong>V99</strong></div>
       <div class="start-layout">
         <div class="start-content">
           <div id="network-status" class="title-kicker">TACTICAL SURVIVAL / LOCAL</div>
@@ -280,6 +285,20 @@
           <button id="changelog-close-button" class="icon-button codex-close-button" type="button" aria-label="关闭更新日志" title="关闭更新日志">×</button>
         </header>
         <div class="changelog-list">
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V99</strong></div>
+              <time datetime="2026-07-22">2026.07.22</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">交互优化</span>
+              <h3>自动战斗支持快捷切换与选机控制</h3>
+              <ul>
+                <li>自动战斗现在支持按 A 键快捷开启或关闭，右上角入口支持悬停展开，并同步显示当前状态与快捷键提示。</li>
+                <li>自动战斗下拉列表新增“自动选择机体”开关，默认开启；关闭后升级时会暂停等待玩家手动选择，单人和多人模式保持一致。</li>
+              </ul>
+            </div>
+          </article>
           <article class="changelog-entry">
             <header>
               <div class="changelog-version"><span>BUILD</span><strong>V98</strong></div>
@@ -1525,20 +1544,20 @@
     </section>
   </main>
 
-  <script src="designer-config.js?v=98"></script>
-  <script src="module-catalog.js?v=98"></script>
-  <script src="module-progression.js?v=98"></script>
-  <script src="wave-director.js?v=98"></script>
-  <script src="spawn-planner.js?v=98"></script>
-  <script src="network-codec.js?v=98"></script>
-  <script src="network-player-prediction.js?v=98"></script>
-  <script src="network-player-state-codec.js?v=98"></script>
-  <script src="network-player-collisions.js?v=98"></script>
-  <script src="network-head-collisions.js?v=98"></script>
-  <script src="network-food-claims.js?v=98"></script>
-  <script src="network-projectiles.js?v=98"></script>
-  <script src="lobby-navigation.js?v=98"></script>
-  <script src="enemy-codex.js?v=98"></script>
-  <script src="game.js?v=98"></script>
+  <script src="designer-config.js?v=99"></script>
+  <script src="module-catalog.js?v=99"></script>
+  <script src="module-progression.js?v=99"></script>
+  <script src="wave-director.js?v=99"></script>
+  <script src="spawn-planner.js?v=99"></script>
+  <script src="network-codec.js?v=99"></script>
+  <script src="network-player-prediction.js?v=99"></script>
+  <script src="network-player-state-codec.js?v=99"></script>
+  <script src="network-player-collisions.js?v=99"></script>
+  <script src="network-head-collisions.js?v=99"></script>
+  <script src="network-food-claims.js?v=99"></script>
+  <script src="network-projectiles.js?v=99"></script>
+  <script src="lobby-navigation.js?v=99"></script>
+  <script src="enemy-codex.js?v=99"></script>
+  <script src="game.js?v=99"></script>
 </body>
 </html>
