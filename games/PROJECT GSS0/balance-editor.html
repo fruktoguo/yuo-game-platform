@@ -388,11 +388,11 @@
     </div>
   </main>
 
-  <script src="enemy-codex.js?v=110"></script>
-  <script src="wave-director.js?v=110"></script>
-  <script src="designer-config.js?v=110"></script>
-  <script src="module-catalog.js?v=110"></script>
-  <script src="module-progression.js?v=110"></script>
+  <script src="enemy-codex.js?v=111"></script>
+  <script src="wave-director.js?v=111"></script>
+  <script src="designer-config.js?v=111"></script>
+  <script src="module-catalog.js?v=111"></script>
+  <script src="module-progression.js?v=111"></script>
   <script>
     (() => {
       "use strict";
@@ -608,7 +608,8 @@
         { key: "cameraFollowFoodIndicatorLimit", group: "性能", label: "跟随视角球提示上限", hint: "跟随蛇头模式最多显示的最近离屏球提示数量", min: 0, max: 100, step: 1, unit: "个" },
         { key: "cameraFollowEnemyIndicatorLimit", group: "性能", label: "跟随视角敌人提示上限", hint: "跟随蛇头模式最多显示的最近离屏敌人提示数量；预生成警告不受此限制", min: 0, max: 100, step: 1, unit: "个" },
         { key: "maxRenderFps", group: "性能", label: "最高绘制帧率", hint: "只限制 Canvas 和界面动效绘制，不降低逻辑与网络输入频率", min: 30, max: 240, step: 1, unit: "FPS" },
-        { key: "maxRenderDpr", group: "性能", label: "最高渲染像素倍率", hint: "限制 Canvas 内部像素密度；界面文字仍由浏览器原生清晰绘制", min: 1, max: 2, step: 0.05, unit: "DPR" },
+        { key: "minRenderDpr", group: "性能", label: "最低渲染像素倍率", hint: "持续低帧时 Canvas 可降低到的内部像素密度下限；界面文字仍由浏览器原生清晰绘制", min: 0.5, max: 1, step: 0.05, unit: "DPR" },
+        { key: "maxRenderDpr", group: "性能", label: "最高渲染像素倍率", hint: "正常帧率下 Canvas 使用的内部像素密度上限；高分辨率设备会按性能自动下调", min: 0.5, max: 2, step: 0.05, unit: "DPR" },
         { key: "networkPlayerStateHz", group: "性能", label: "玩家状态同步频率", hint: "手动玩家每秒向服务器发送完整蛇身状态的次数", min: 5, max: 60, step: 1, unit: "Hz" },
         { key: "networkManualPredictionMs", group: "性能", label: "手动玩家远端预测时限", hint: "服务器收到最后一次手动玩家状态后继续外推的最长时间；超时后远端位置冻结等待新状态", min: 50, max: 1000, step: 10, unit: "ms" },
         { key: "networkRemoteCorrectionThresholdCells", group: "表现", label: "远端修正触发距离", hint: "新快照与远端玩家当前显示位置相差达到该距离时启用整蛇平滑追位", min: 0.1, max: 10, step: 0.05, unit: "格" },
@@ -701,7 +702,7 @@
       const filePickerSupported = typeof window.showOpenFilePicker === "function";
 
       function normalizeConfig(value) {
-        const config = { schemaVersion: 37, balance: {}, waveEnemyCountSchedule: [], moduleCooldownPercentages: {}, moduleStates: {} };
+        const config = { schemaVersion: 38, balance: {}, waveEnemyCountSchedule: [], moduleCooldownPercentages: {}, moduleStates: {} };
         for (const definition of ALL_PARAMETER_DEFINITIONS) {
           const candidate = Number(value?.balance?.[definition.key]);
           config.balance[definition.key] = Number.isFinite(candidate) ? Math.max(definition.min, Math.min(definition.max, candidate)) : definition.min;
@@ -737,7 +738,7 @@
         const end = text.lastIndexOf("}");
         if (start < 0 || end <= start) throw new Error("配置内容不完整");
         const parsed = JSON.parse(text.slice(start, end + 1));
-        if (parsed?.schemaVersion !== 37) throw new Error("配置版本无效，需要 schemaVersion 37");
+        if (parsed?.schemaVersion !== 38) throw new Error("配置版本无效，需要 schemaVersion 38");
         return normalizeConfig(parsed);
       }
 

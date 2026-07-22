@@ -106,7 +106,7 @@
 
   const TAU = Math.PI * 2;
   const DESIGNER_CONFIG = globalThis.GSS0_DESIGNER_CONFIG || {};
-  if (DESIGNER_CONFIG.schemaVersion !== 37) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 37");
+  if (DESIGNER_CONFIG.schemaVersion !== 38) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 38");
   const DESIGNER_BALANCE = DESIGNER_CONFIG.balance || {};
   const MODULE_DESIGN_STATES = DESIGNER_CONFIG.moduleStates || {};
 
@@ -366,9 +366,9 @@
   const EXPERIENCE_COMPRESSION_GOLD_PARTICLES = designerNumber("experienceCompressionGoldParticles", 42, 1, 160, true);
   const EXPERIENCE_COMPRESSION_GRAY_SHAKE = designerNumber("experienceCompressionGrayShake", 1.8, 0, 12);
   const EXPERIENCE_COMPRESSION_GOLD_SHAKE = designerNumber("experienceCompressionGoldShake", 5.2, 0, 16);
-  const MAX_RENDER_FPS = designerNumber("maxRenderFps", 60, 30, 240, true);
-  const MAX_RENDER_DPR = designerNumber("maxRenderDpr", 1.25, 1, 2);
-  const MIN_RENDER_DPR = 1;
+  const MAX_RENDER_FPS = designerNumber("maxRenderFps", 120, 30, 240, true);
+  const MIN_RENDER_DPR = designerNumber("minRenderDpr", 0.65, 0.5, 1);
+  const MAX_RENDER_DPR = Math.max(MIN_RENDER_DPR, designerNumber("maxRenderDpr", 1.25, 0.5, 2));
   const RENDER_DPR_SESSION_KEY = "gss0-render-dpr-limit";
   const AMBIENT_RENDER_INTERVAL = 1 / 30;
   const AMBIENT_RENDER_SCALE = 0.55;
@@ -440,6 +440,8 @@
   const locallyPulledFoods = new Set();
   const localFoodContacts = new Map();
   let enemies = [];
+  const enemySpatialBuckets = new Map();
+  const enemySpatialBucketPool = [];
   let projectiles = [];
   let hazards = [];
   let particles = [];
@@ -5701,8 +5703,47 @@
     };
   }
 
+  function enemySpatialBucketCode(bucketCol, bucketRow) {
+    return bucketCol * 2048 + bucketRow;
+  }
+
+  function rebuildEnemySpatialBuckets() {
+    for (const bucket of enemySpatialBuckets.values()) {
+      bucket.count = 0;
+      enemySpatialBucketPool.push(bucket);
+    }
+    enemySpatialBuckets.clear();
+    const bucketSize = ENEMY_BEHAVIOR_TUNING.bodyAvoidanceRange;
+    for (const owner of enemies) {
+      if (owner.dead) continue;
+      for (let nodeIndex = -1; nodeIndex < owner.segments.length; nodeIndex += 1) {
+        const node = nodeIndex < 0 ? owner : owner.segments[nodeIndex];
+        const bucketCol = Math.floor(node.col / bucketSize);
+        const bucketRow = Math.floor(node.row / bucketSize);
+        const key = enemySpatialBucketCode(bucketCol, bucketRow);
+        let bucket = enemySpatialBuckets.get(key);
+        if (!bucket) {
+          bucket = enemySpatialBucketPool.pop() || { entries: [], count: 0 };
+          bucket.count = 0;
+          enemySpatialBuckets.set(key, bucket);
+        }
+        let entry = bucket.entries[bucket.count];
+        if (entry) {
+          entry.owner = owner;
+          entry.node = node;
+          entry.isHead = nodeIndex < 0;
+        } else {
+          entry = { owner, node, isHead: nodeIndex < 0 };
+          bucket.entries.push(entry);
+        }
+        bucket.count += 1;
+      }
+    }
+  }
+
   function enemyBodyAvoidance(enemy) {
     const range = ENEMY_BEHAVIOR_TUNING.bodyAvoidanceRange;
+    const rangeSquared = range * range;
     const forwardX = Math.cos(enemy.desiredAngle);
     const forwardY = Math.sin(enemy.desiredAngle);
     const probeCol = enemy.col + forwardX * 0.7;
@@ -5711,21 +5752,31 @@
     let awayY = 0;
     let totalWeight = 0;
 
-    for (const other of enemies) {
-      if (other === enemy || other.dead) continue;
-      for (let nodeIndex = -1; nodeIndex < other.segments.length; nodeIndex += 1) {
-        const node = nodeIndex < 0 ? other : other.segments[nodeIndex];
-        const toBodyX = node.col - probeCol;
-        const toBodyY = node.row - probeRow;
-        const distance = Math.hypot(toBodyX, toBodyY);
-        if (distance <= 0.001 || distance >= range) continue;
-        const ahead = (toBodyX * forwardX + toBodyY * forwardY) / distance;
-        if (ahead < -0.35) continue;
-        const proximity = 1 - distance / range;
-        const weight = proximity * proximity * (0.7 + Math.max(0, ahead) * 1.15);
-        awayX -= toBodyX / distance * weight;
-        awayY -= toBodyY / distance * weight;
-        totalWeight += weight;
+    const minimumBucketCol = Math.floor((probeCol - range) / range);
+    const maximumBucketCol = Math.floor((probeCol + range) / range);
+    const minimumBucketRow = Math.floor((probeRow - range) / range);
+    const maximumBucketRow = Math.floor((probeRow + range) / range);
+    for (let bucketCol = minimumBucketCol; bucketCol <= maximumBucketCol; bucketCol += 1) {
+      for (let bucketRow = minimumBucketRow; bucketRow <= maximumBucketRow; bucketRow += 1) {
+        const bucket = enemySpatialBuckets.get(enemySpatialBucketCode(bucketCol, bucketRow));
+        if (!bucket) continue;
+        for (let entryIndex = 0; entryIndex < bucket.count; entryIndex += 1) {
+          const entry = bucket.entries[entryIndex];
+          if (entry.owner === enemy || entry.owner.dead) continue;
+          const node = entry.node;
+          const toBodyX = node.col - probeCol;
+          const toBodyY = node.row - probeRow;
+          const distanceSquaredValue = toBodyX * toBodyX + toBodyY * toBodyY;
+          if (distanceSquaredValue <= 0.000001 || distanceSquaredValue >= rangeSquared) continue;
+          const distance = Math.sqrt(distanceSquaredValue);
+          const ahead = (toBodyX * forwardX + toBodyY * forwardY) / distance;
+          if (ahead < -0.35) continue;
+          const proximity = 1 - distance / range;
+          const weight = proximity * proximity * (0.7 + Math.max(0, ahead) * 1.15);
+          awayX -= toBodyX / distance * weight;
+          awayY -= toBodyY / distance * weight;
+          totalWeight += weight;
+        }
       }
     }
 
@@ -5770,35 +5821,28 @@
       }
     }
 
-    const bodyBuckets = new Map();
-    for (const owner of enemies) {
-      if (owner.dead) continue;
-      for (const segment of owner.segments) {
-        const key = spatialBucketKey(segment);
-        const bucket = bodyBuckets.get(key);
-        const entry = { owner, segment };
-        if (bucket) bucket.push(entry);
-        else bodyBuckets.set(key, [entry]);
-      }
-    }
+    rebuildEnemySpatialBuckets();
     const bodyRangeSquared = ENEMY_BODY_CONTACT_RANGE ** 2;
+    const bucketSize = ENEMY_BEHAVIOR_TUNING.bodyAvoidanceRange;
     for (const enemy of enemies) {
       if (enemy.dead || enemy.collisionCooldown > 0) continue;
       let bodyHit = null;
-      const minimumCol = Math.floor(enemy.col - ENEMY_BODY_CONTACT_RANGE);
-      const maximumCol = Math.floor(enemy.col + ENEMY_BODY_CONTACT_RANGE);
-      const minimumRow = Math.floor(enemy.row - ENEMY_BODY_CONTACT_RANGE);
-      const maximumRow = Math.floor(enemy.row + ENEMY_BODY_CONTACT_RANGE);
-      for (let col = minimumCol; col <= maximumCol && !bodyHit; col += 1) {
-        for (let row = minimumRow; row <= maximumRow && !bodyHit; row += 1) {
-          const bucket = bodyBuckets.get(`${col},${row}`);
+      const minimumBucketCol = Math.floor((enemy.col - ENEMY_BODY_CONTACT_RANGE) / bucketSize);
+      const maximumBucketCol = Math.floor((enemy.col + ENEMY_BODY_CONTACT_RANGE) / bucketSize);
+      const minimumBucketRow = Math.floor((enemy.row - ENEMY_BODY_CONTACT_RANGE) / bucketSize);
+      const maximumBucketRow = Math.floor((enemy.row + ENEMY_BODY_CONTACT_RANGE) / bucketSize);
+      for (let bucketCol = minimumBucketCol; bucketCol <= maximumBucketCol && !bodyHit; bucketCol += 1) {
+        for (let bucketRow = minimumBucketRow; bucketRow <= maximumBucketRow && !bodyHit; bucketRow += 1) {
+          const bucket = enemySpatialBuckets.get(enemySpatialBucketCode(bucketCol, bucketRow));
           if (!bucket) continue;
-          for (const entry of bucket) {
+          for (let entryIndex = 0; entryIndex < bucket.count; entryIndex += 1) {
+            const entry = bucket.entries[entryIndex];
             if (
-              entry.owner === enemy
+              entry.isHead
+              || entry.owner === enemy
               || entry.owner.dead
-              || !entry.owner.segments.includes(entry.segment)
-              || distanceSquared(enemy, entry.segment) >= bodyRangeSquared
+              || !entry.owner.segments.includes(entry.node)
+              || distanceSquared(enemy, entry.node) >= bodyRangeSquared
             ) continue;
             bodyHit = entry;
             break;
@@ -5807,12 +5851,12 @@
       }
 
       if (bodyHit) {
-        const ownerSegmentIndex = bodyHit.owner.segments.indexOf(bodyHit.segment);
+        const ownerSegmentIndex = bodyHit.owner.segments.indexOf(bodyHit.node);
         if (ownerSegmentIndex < 0) continue;
-        const normalX = enemy.col - bodyHit.segment.col;
-        const normalY = enemy.row - bodyHit.segment.row;
+        const normalX = enemy.col - bodyHit.node.col;
+        const normalY = enemy.row - bodyHit.node.row;
         const collisionDamage = MODULE_PROGRESSION.rollLinearRewards(collisionDamageAmount, Math.random);
-        damageEnemy(bodyHit.owner, collisionDamage, bodyHit.segment.x, bodyHit.segment.y, enemy.color, {
+        damageEnemy(bodyHit.owner, collisionDamage, bodyHit.node.x, bodyHit.node.y, enemy.color, {
           rewardSelf: false,
           hitSegmentIndex: ownerSegmentIndex
         });
@@ -5951,6 +5995,7 @@
     const waveSpeedMultiplier = enemyWaveDirector.speedMultiplier(waveCount);
     const repulseRange = repulseRangePixels();
     const activeFoods = new Set(foods);
+    rebuildEnemySpatialBuckets();
     for (const enemy of enemies) {
       if (enemy.dead) continue;
       enemy.collisionCooldown = Math.max(0, enemy.collisionCooldown - dt);

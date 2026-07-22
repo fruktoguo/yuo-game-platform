@@ -19,7 +19,7 @@
           <strong>代号：几何贪吃蛇</strong>
         </div>
         <span class="signature">by 四季鸽</span>
-        <span class="brand-version" aria-label="游戏版本 V110">V110</span>
+        <span class="brand-version" aria-label="游戏版本 V111">V111</span>
       </div>
 
       <div class="run-stats">
@@ -201,7 +201,7 @@
 
     <section id="start-screen" class="modal-layer start-screen is-visible" aria-labelledby="game-title">
       <div class="start-glow" aria-hidden="true"></div>
-          <div class="start-version" aria-label="游戏版本 V110"><span>BUILD</span><strong>V110</strong></div>
+          <div class="start-version" aria-label="游戏版本 V111"><span>BUILD</span><strong>V111</strong></div>
       <div class="start-layout">
         <div class="start-content">
           <div id="network-status" class="title-kicker">TACTICAL SURVIVAL / LOCAL</div>
@@ -302,6 +302,20 @@
           <button id="changelog-close-button" class="icon-button codex-close-button" type="button" aria-label="关闭更新日志" title="关闭更新日志">×</button>
         </header>
         <div class="changelog-list">
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V111</strong></div>
+              <time datetime="2026-07-23">2026.07.23</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">性能优化</span>
+              <h3>高分辨率帧率稳定优化</h3>
+              <ul>
+                <li>高分辨率设备持续低帧时，现在会进一步降低游戏画布的内部像素密度，并将最高绘制帧率调整为120，减少帧率在高位与30帧之间反复跳变。</li>
+                <li>本地敌群避障与互撞检测改用可复用的邻近空间分桶，只检查附近敌蛇机体，避免敌人数与身体节增长时产生重复全量扫描。</li>
+              </ul>
+            </div>
+          </article>
           <article class="changelog-entry">
             <header>
               <div class="changelog-version"><span>BUILD</span><strong>V110</strong></div>
@@ -1725,20 +1739,20 @@
     </section>
   </main>
 
-  <script src="designer-config.js?v=110"></script>
-  <script src="module-catalog.js?v=110"></script>
-  <script src="module-progression.js?v=110"></script>
-  <script src="wave-director.js?v=110"></script>
-  <script src="spawn-planner.js?v=110"></script>
-  <script src="network-codec.js?v=110"></script>
-  <script src="network-player-prediction.js?v=110"></script>
-  <script src="network-player-state-codec.js?v=110"></script>
-  <script src="network-player-collisions.js?v=110"></script>
-  <script src="network-head-collisions.js?v=110"></script>
-  <script src="network-food-claims.js?v=110"></script>
-  <script src="network-projectiles.js?v=110"></script>
-  <script src="lobby-navigation.js?v=110"></script>
-  <script src="enemy-codex.js?v=110"></script>
-  <script src="game.js?v=110"></script>
+  <script src="designer-config.js?v=111"></script>
+  <script src="module-catalog.js?v=111"></script>
+  <script src="module-progression.js?v=111"></script>
+  <script src="wave-director.js?v=111"></script>
+  <script src="spawn-planner.js?v=111"></script>
+  <script src="network-codec.js?v=111"></script>
+  <script src="network-player-prediction.js?v=111"></script>
+  <script src="network-player-state-codec.js?v=111"></script>
+  <script src="network-player-collisions.js?v=111"></script>
+  <script src="network-head-collisions.js?v=111"></script>
+  <script src="network-food-claims.js?v=111"></script>
+  <script src="network-projectiles.js?v=111"></script>
+  <script src="lobby-navigation.js?v=111"></script>
+  <script src="enemy-codex.js?v=111"></script>
+  <script src="game.js?v=111"></script>
 </body>
 </html>

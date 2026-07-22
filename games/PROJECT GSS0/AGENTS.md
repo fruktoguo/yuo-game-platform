@@ -16,7 +16,7 @@
 # Project Version
 
 - The main menu must always display the current game version in its lower-left corner.
-- The current game version is `V110`.
+- The current game version is `V111`.
 - For every future user request that changes player-facing game code, content, balance, configuration, or UI, increment the integer version exactly once and update both the main-menu label and the current-version line in this file as part of the same change.
 - Workflow-only maintenance limited to `AGENTS.md`, documentation, comments, or developer-process instructions does not change the game version, changelog, or runtime cache queries.
 - Whenever the version changes, update every classic runtime script query in `index.html` and `balance-editor.html` to `?v=<version integer>` so mutable client files cannot be mixed across browser or CDN caches.
