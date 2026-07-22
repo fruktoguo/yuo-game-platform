@@ -118,9 +118,32 @@
     return { head: { ...head }, body, next: { ...next } };
   }
 
+  function spaceSpawnBody(head, bodyPath, spacing, segmentCount = bodyPath.length) {
+    if (bodyPath.length === 0) return [];
+    const count = Math.max(0, Math.floor(segmentCount));
+    const allowedDistance = Math.max(0, Number(spacing) || 0);
+    const body = [];
+    let previous = { col: head.col, row: head.row };
+    for (let index = 0; index < count; index += 1) {
+      const target = bodyPath[Math.min(index, bodyPath.length - 1)];
+      const deltaCol = previous.col - target.col;
+      const deltaRow = previous.row - target.row;
+      const distance = Math.hypot(deltaCol, deltaRow);
+      const point = distance > allowedDistance && distance > 0
+        ? {
+            col: previous.col - deltaCol / distance * allowedDistance,
+            row: previous.row - deltaRow / distance * allowedDistance
+          }
+        : { col: target.col, row: target.row };
+      body.push(point);
+      previous = point;
+    }
+    return body;
+  }
+
   function pointCode(point) {
     return (Math.round(point.row) & 0xffff) << 16 | (Math.round(point.col) & 0xffff);
   }
 
-  root.GSS0SpawnPlanner = Object.freeze({ choose });
+  root.GSS0SpawnPlanner = Object.freeze({ choose, spaceSpawnBody });
 })(globalThis);

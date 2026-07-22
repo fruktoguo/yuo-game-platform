@@ -385,11 +385,11 @@
     </div>
   </main>
 
-  <script src="enemy-codex.js?v=91"></script>
-  <script src="wave-director.js?v=91"></script>
-  <script src="designer-config.js?v=91"></script>
-  <script src="module-catalog.js?v=91"></script>
-  <script src="module-progression.js?v=91"></script>
+  <script src="enemy-codex.js?v=92"></script>
+  <script src="wave-director.js?v=92"></script>
+  <script src="designer-config.js?v=92"></script>
+  <script src="module-catalog.js?v=92"></script>
+  <script src="module-progression.js?v=92"></script>
   <script>
     (() => {
       "use strict";
@@ -444,6 +444,10 @@
         { key: "enemyDamageNumberDuration", group: "表现", label: "敌人伤害数字时长", hint: "玩家对敌蛇造成伤害时，强调伤害数字在画面中停留的时间", min: 0.1, max: 3, step: 0.05, unit: "秒" },
         { key: "combatTextFontSize", group: "表现", label: "浮动战斗文字字号", hint: "伤害、治疗、经验、击破、升级、复活与呼救等全部浮动战斗信息共用的字号", min: 8, max: 96, step: 1, unit: "px" },
         { key: "foodBirthDuration", group: "表现", label: "球生成动画时长", hint: "新球从光点展开到完整尺寸所需的时间", min: 0.05, max: 2, step: 0.01, unit: "秒" },
+        { key: "enemySpawnActivationDuration", group: "表现", label: "敌蛇显现时长", hint: "敌蛇结束预生成状态时，每节扩散环持续的时间", min: 0.05, max: 3, step: 0.01, unit: "秒" },
+        { key: "enemySpawnActivationParticleCount", group: "表现", label: "每节显现粒子数", hint: "敌蛇激活时蛇头和每节机体各自释放的粒子数量", min: 0, max: 30, step: 1, unit: "枚" },
+        { key: "enemySpawnActivationParticleSpeed", group: "表现", label: "显现粒子速度", hint: "敌蛇激活时逐节显现粒子的扩散速度", min: 0, max: 500, step: 5, unit: "像素/秒" },
+        { key: "enemySpawnActivationRadiusCells", group: "表现", label: "逐节显现半径", hint: "敌蛇激活时蛇头和每节机体扩散环的最终半径", min: 0, max: 3, step: 0.01, unit: "格" },
         { key: "enemyBaseSpeed", group: "敌人全局", label: "敌人基础速度", hint: "各类型速度倍率和时间成长生效前的每秒移动格数", min: 0.5, max: 12, step: 0.1, unit: "格/秒" },
         { key: "enemySpeedPerMinute", group: "敌人全局", label: "每分钟速度成长", hint: "每经过一分钟附加的敌人速度倍率；0.01 表示提高 1%", min: 0, max: 0.2, step: 0.005, unit: "倍率/分钟" },
         { key: "enemySpeedMaxMultiplier", group: "敌人全局", label: "时间速度倍率上限", hint: "时间成长可将敌人基础速度提高到的最高倍率", min: 1, max: 3, step: 0.01, unit: "倍" },
@@ -656,7 +660,7 @@
       const filePickerSupported = typeof window.showOpenFilePicker === "function";
 
       function normalizeConfig(value) {
-        const config = { schemaVersion: 23, balance: {}, waveEnemyCountSchedule: [], moduleCooldownPercentages: {}, moduleStates: {} };
+        const config = { schemaVersion: 24, balance: {}, waveEnemyCountSchedule: [], moduleCooldownPercentages: {}, moduleStates: {} };
         for (const definition of ALL_PARAMETER_DEFINITIONS) {
           const candidate = Number(value?.balance?.[definition.key]);
           config.balance[definition.key] = Number.isFinite(candidate) ? Math.max(definition.min, Math.min(definition.max, candidate)) : definition.min;
@@ -692,7 +696,7 @@
         const end = text.lastIndexOf("}");
         if (start < 0 || end <= start) throw new Error("配置内容不完整");
         const parsed = JSON.parse(text.slice(start, end + 1));
-        if (parsed?.schemaVersion !== 23) throw new Error("配置版本无效，需要 schemaVersion 23");
+        if (parsed?.schemaVersion !== 24) throw new Error("配置版本无效，需要 schemaVersion 24");
         return normalizeConfig(parsed);
       }
 

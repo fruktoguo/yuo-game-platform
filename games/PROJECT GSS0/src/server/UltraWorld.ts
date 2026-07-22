@@ -12,6 +12,10 @@ import {
   ENEMY_COLORS,
   ENEMY_DAMAGE_NUMBER_DURATION,
   ENEMY_FOOD_SEARCH_LIMIT,
+  ENEMY_SPAWN_ACTIVATION_DURATION,
+  ENEMY_SPAWN_ACTIVATION_PARTICLE_COUNT,
+  ENEMY_SPAWN_ACTIVATION_PARTICLE_SPEED,
+  ENEMY_SPAWN_ACTIVATION_RADIUS_CELLS,
   ENEMY_SPAWN_FORWARD_PATH_HALF_WIDTH,
   ENEMY_SPAWN_SAFETY_DISTANCE,
   ENEMY_WALL_AVOIDANCE_DISTANCE,
@@ -62,11 +66,11 @@ import {
   WAVE_BASE_INTERVAL,
 } from '../shared/constants';
 import { DESIGNER_BALANCE } from '../shared/designerConfig';
-import { ENEMY_ARCHETYPES, ENEMY_ARCHETYPE_BY_ID, type EnemyArchetypeDefinition } from '../shared/enemyArchetypes';
+import { ENEMY_ARCHETYPES, type EnemyArchetypeDefinition } from '../shared/enemyArchetypes';
 import { isModuleId, MODULE_BY_ID, UPGRADE_MODULES, type ModuleId } from '../shared/modules';
 import { MODULE_PROGRESSION } from '../shared/moduleProgression';
 import type { PlayerMovementState } from '../shared/playerStateCodec';
-import { chooseSerpentineSpawn } from '../shared/spawnPlanner';
+import { chooseSerpentineSpawn, spaceSpawnBody } from '../shared/spawnPlanner';
 import { enemyWaveDirector } from '../shared/waveDirector';
 import type {
   ArenaEvent,
@@ -184,9 +188,14 @@ interface FoodEntity extends UltraFoodView {
   networkMoving: boolean;
 }
 
-interface PendingSpawn extends PendingSpawnView {
+interface PendingSpawn extends EnemyEntity {
   totalLength: number;
+  headCell: GridPoint;
+  bodyCells: EnemySegment[];
+  reservedCells: GridPoint[];
   nextCell: GridPoint;
+  timer: number;
+  maxTimer: number;
 }
 
 interface FoodInteractionProfile {
@@ -2110,40 +2119,23 @@ export class UltraWorld {
     const direction = { col: placement.next.col - placement.head.col, row: placement.next.row - placement.head.row };
     if (direction.col === 0 && direction.row === 0) direction.col = placement.head.col < this.arenaMaximum() ? 1 : -1;
     const color = ENEMY_COLORS[(this.nextEnemyId - 1) % ENEMY_COLORS.length];
+    const angle = Math.atan2(direction.row, direction.col);
+    const bodyCells = spaceSpawnBody(placement.head, placement.body, SNAKE_SEGMENT_SPACING, totalLength - 1);
+    const segments = bodyCells.map((cell) => ({ ...cell, reconnectElapsed: 0, reconnectGap: 0 }));
     this.addPendingSpawn({
       id: this.nextEnemyId++,
       archetype: archetype.id,
-      color,
-      angle: Math.atan2(direction.row, direction.col),
-      totalLength,
-      headCell: placement.head,
-      bodyCells: Array.from({ length: totalLength - 1 }, (_, index) => ({ ...placement.body[Math.min(index, placement.body.length - 1)] })),
-      nextCell: placement.next,
-      timer: ENEMY_SPAWN_WARNING_TIME,
-      maxTimer: ENEMY_SPAWN_WARNING_TIME,
-    });
-    occupied.add(cellCode(placement.head));
-    for (const cell of placement.body) occupied.add(cellCode(cell));
-    this.effectSound('enemyWarning');
-    return true;
-  }
-
-  private materializeEnemySpawn(spawn: PendingSpawn): void {
-    const archetype = ENEMY_ARCHETYPE_BY_ID[spawn.archetype];
-    this.enemies.push({
-      id: spawn.id,
-      archetype: spawn.archetype,
       behaviorState: 'roam',
       behaviorPhase: 0,
-      col: spawn.headCell.col,
-      row: spawn.headCell.row,
-      angle: spawn.angle,
-      desiredAngle: spawn.angle,
-      birthLength: spawn.totalLength,
+      color,
+      col: placement.head.col,
+      row: placement.head.row,
+      angle,
+      desiredAngle: angle,
+      birthLength: totalLength,
       speed: ENEMY_BASE_SPEED * archetype.speedMultiplier,
       turnRate: this.randomBetween(ENEMY_TURN_RATE_MIN, ENEMY_TURN_RATE_MAX) * archetype.turnMultiplier,
-      color: spawn.color,
-      segments: spawn.bodyCells.map((cell) => ({ ...cell, reconnectElapsed: 0, reconnectGap: 0 })),
+      segments,
       captured: 0,
       targetFoodId: null,
       think: this.randomBetween(0.1, 0.5),
@@ -2158,14 +2150,31 @@ export class UltraWorld {
       poisonOwnerEntityId: null,
       sawCooldownsByPlayer: new Map(),
       collisionCooldown: 0,
-      projectileMinCol: spawn.headCell.col,
-      projectileMaxCol: spawn.headCell.col,
-      projectileMinRow: spawn.headCell.row,
-      projectileMaxRow: spawn.headCell.row,
+      projectileMinCol: placement.head.col,
+      projectileMaxCol: placement.head.col,
+      projectileMinRow: placement.head.row,
+      projectileMaxRow: placement.head.row,
       dead: false,
+      totalLength,
+      headCell: { ...placement.head },
+      bodyCells: segments,
+      reservedCells: [placement.head, ...placement.body].map((cell) => ({ ...cell })),
+      nextCell: { ...placement.next },
+      timer: ENEMY_SPAWN_WARNING_TIME,
+      maxTimer: ENEMY_SPAWN_WARNING_TIME,
     });
-    this.burst(spawn.headCell.col, spawn.headCell.row, spawn.color, 22, 145);
-    this.ring(spawn.headCell.col, spawn.headCell.row, spawn.color, 0.58, 5, 1.25);
+    occupied.add(cellCode(placement.head));
+    for (const cell of placement.body) occupied.add(cellCode(cell));
+    this.effectSound('enemyWarning');
+    return true;
+  }
+
+  private materializeEnemySpawn(spawn: PendingSpawn): void {
+    this.enemies.push(spawn);
+    for (const node of [spawn, ...spawn.segments]) {
+      this.burst(node.col, node.row, spawn.color, ENEMY_SPAWN_ACTIVATION_PARTICLE_COUNT, ENEMY_SPAWN_ACTIVATION_PARTICLE_SPEED);
+      this.ring(node.col, node.row, spawn.color, ENEMY_SPAWN_ACTIVATION_DURATION, 0, ENEMY_SPAWN_ACTIVATION_RADIUS_CELLS);
+    }
     this.effectSound('enemySpawn');
   }
 
@@ -2197,7 +2206,7 @@ export class UltraWorld {
       for (const segment of enemy.segments) occupied.add(cellKey(segment));
     }
     for (const spawn of this.pendingSpawns) {
-      for (const cell of [spawn.headCell, ...spawn.bodyCells]) occupied.add(cellKey(cell));
+      for (const cell of spawn.reservedCells) occupied.add(cellKey(cell));
     }
     return occupied;
   }
@@ -2219,8 +2228,7 @@ export class UltraWorld {
       for (const segment of enemy.segments) occupied.add(cellCode(segment));
     }
     for (const spawn of this.pendingSpawns) {
-      occupied.add(cellCode(spawn.headCell));
-      for (const cell of spawn.bodyCells) occupied.add(cellCode(cell));
+      for (const cell of spawn.reservedCells) occupied.add(cellCode(cell));
     }
     return occupied;
   }

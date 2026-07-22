@@ -86,6 +86,34 @@ export function chooseSerpentineSpawn(options: SerpentineSpawnOptions): Serpenti
   return materializeCandidate(selected, visibleLength);
 }
 
+export function spaceSpawnBody(
+  head: SpawnPoint,
+  bodyPath: readonly SpawnPoint[],
+  spacing: number,
+  segmentCount = bodyPath.length,
+): SpawnPoint[] {
+  if (bodyPath.length === 0) return [];
+  const count = Math.max(0, Math.floor(segmentCount));
+  const allowedDistance = Math.max(0, Number(spacing) || 0);
+  const body: SpawnPoint[] = [];
+  let previous = { col: head.col, row: head.row };
+  for (let index = 0; index < count; index += 1) {
+    const target = bodyPath[Math.min(index, bodyPath.length - 1)];
+    const deltaCol = previous.col - target.col;
+    const deltaRow = previous.row - target.row;
+    const distance = Math.hypot(deltaCol, deltaRow);
+    const point = distance > allowedDistance && distance > 0
+      ? {
+          col: previous.col - deltaCol / distance * allowedDistance,
+          row: previous.row - deltaRow / distance * allowedDistance,
+        }
+      : { col: target.col, row: target.row };
+    body.push(point);
+    previous = point;
+  }
+  return body;
+}
+
 function serpentinePaths(minimum: number, maximum: number): readonly SpawnPoint[][] {
   const key = `${minimum},${maximum}`;
   const cached = pathCache.get(key);

@@ -1,12 +1,12 @@
 import { readFileSync } from 'node:fs';
 import { runInThisContext } from 'node:vm';
 import { describe, expect, it } from 'vitest';
-import { chooseSerpentineSpawn, type SerpentineSpawnOptions, type SpawnPoint } from '../src/shared/spawnPlanner';
+import { chooseSerpentineSpawn, spaceSpawnBody, type SerpentineSpawnOptions, type SpawnPoint } from '../src/shared/spawnPlanner';
 
 runInThisContext(readFileSync(new URL('../spawn-planner.js', import.meta.url), 'utf8'));
 
 const clientPlanner = (globalThis as typeof globalThis & {
-  GSS0SpawnPlanner: { choose: typeof chooseSerpentineSpawn };
+  GSS0SpawnPlanner: { choose: typeof chooseSerpentineSpawn; spaceSpawnBody: typeof spaceSpawnBody };
 }).GSS0SpawnPlanner;
 
 describe('敌人出生规划器', () => {
@@ -45,6 +45,34 @@ describe('敌人出生规划器', () => {
     const expected = chooseWithCurrentAlgorithm(options);
     expect(chooseSerpentineSpawn(options)).toEqual(expected);
     expect(clientPlanner.choose(options)).toEqual(expected);
+  });
+
+  it('预生成机体使用真实连接距离并保持蛇形拐角', () => {
+    const head = { col: 4, row: 2 };
+    const path = [
+      { col: 3, row: 2 },
+      { col: 2, row: 2 },
+      { col: 1, row: 2 },
+      { col: 1, row: 3 },
+      { col: 2, row: 3 },
+    ];
+    const expected = spaceSpawnBody(head, path, 0.66);
+
+    expect(clientPlanner.spaceSpawnBody(head, path, 0.66)).toEqual(expected);
+    expect(expected).toHaveLength(path.length);
+    let previous = head;
+    for (const segment of expected) {
+      expect(Math.hypot(previous.col - segment.col, previous.row - segment.row)).toBeCloseTo(0.66, 8);
+      previous = segment;
+    }
+    expect(expected[3].row).toBeGreaterThan(2);
+  });
+
+  it('敌蛇长度超过可用路径时仍保留全部机体', () => {
+    const body = spaceSpawnBody({ col: 2, row: 2 }, [{ col: 1, row: 2 }], 0.66, 4);
+
+    expect(body).toHaveLength(4);
+    expect(clientPlanner.spaceSpawnBody({ col: 2, row: 2 }, [{ col: 1, row: 2 }], 0.66, 4)).toEqual(body);
   });
 });
 

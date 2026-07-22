@@ -94,7 +94,7 @@
 
   const TAU = Math.PI * 2;
   const DESIGNER_CONFIG = globalThis.GSS0_DESIGNER_CONFIG || {};
-  if (DESIGNER_CONFIG.schemaVersion !== 23) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 23");
+  if (DESIGNER_CONFIG.schemaVersion !== 24) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 24");
   const DESIGNER_BALANCE = DESIGNER_CONFIG.balance || {};
   const MODULE_DESIGN_STATES = DESIGNER_CONFIG.moduleStates || {};
 
@@ -170,6 +170,10 @@
   const ARENA_RESIZE_RATE = designerNumber("arenaResizeRate", 2.4, 0.1, 10);
   const FOOD_WALL_MARGIN = 2;
   const ENEMY_SPAWN_WARNING_TIME = designerNumber("enemySpawnWarning", 1.5, 0, 10);
+  const ENEMY_SPAWN_ACTIVATION_DURATION = designerNumber("enemySpawnActivationDuration", 0.38, 0.05, 3);
+  const ENEMY_SPAWN_ACTIVATION_PARTICLE_COUNT = designerNumber("enemySpawnActivationParticleCount", 5, 0, 30, true);
+  const ENEMY_SPAWN_ACTIVATION_PARTICLE_SPEED = designerNumber("enemySpawnActivationParticleSpeed", 90, 0, 500);
+  const ENEMY_SPAWN_ACTIVATION_RADIUS_CELLS = designerNumber("enemySpawnActivationRadiusCells", 0.52, 0, 3);
   const KNOCKBACK_INITIAL_SPEED = 10;
   const KNOCKBACK_DECAY = 8;
   const BOUNCE_SLOW_TIME = 0.78;
@@ -440,6 +444,7 @@
     hazardIndexes: new Map(),
     spawnViews: new Map(),
     spawnIndexes: new Map(),
+    activatingSpawnViews: new Map(),
     worldObjectRevision: 0,
     upgradeOffer: null,
     moduleIds: []
@@ -2052,6 +2057,7 @@
     network.hazardIndexes.clear();
     network.spawnViews.clear();
     network.spawnIndexes.clear();
+    network.activatingSpawnViews.clear();
     network.worldObjectRevision = 0;
     foods.length = 0;
     hazards.length = 0;
@@ -2223,6 +2229,7 @@
   function removeNetworkSpawnView(id) {
     const index = network.spawnIndexes.get(id);
     if (index === undefined) return;
+    const spawn = network.spawnViews.get(id);
     const last = pendingEnemySpawns.pop();
     if (index < pendingEnemySpawns.length) {
       pendingEnemySpawns[index] = last;
@@ -2230,6 +2237,10 @@
     }
     network.spawnIndexes.delete(id);
     network.spawnViews.delete(id);
+    if (spawn && !network.enemyViews.has(id)) {
+      spawn.activationExpiresAt = performance.now() + NETWORK_INTERPOLATION_MAX_MS * 2;
+      network.activatingSpawnViews.set(id, spawn);
+    }
   }
 
   function upsertNetworkSpawnView(item) {
@@ -2237,7 +2248,15 @@
     let spawn = network.spawnViews.get(item.id);
     const isNew = !spawn;
     if (!spawn) {
-      spawn = { headCell: {}, bodyCells: [] };
+      spawn = {
+        headCell: {},
+        bodyCells: [],
+        segments: [],
+        captured: 0,
+        permanentSlow: 0,
+        poisonStacks: 0,
+        dead: false
+      };
       network.spawnViews.set(item.id, spawn);
     }
     spawn.id = item.id;
@@ -2248,13 +2267,24 @@
     spawn.maxTimer = Number(item.maxTimer) || 0;
     spawn.headCell.col = Number(item.headCell?.col) || 0;
     spawn.headCell.row = Number(item.headCell?.row) || 0;
+    spawn.col = spawn.headCell.col;
+    spawn.row = spawn.headCell.row;
+    spawn.radius = arena.cellSize * ENEMY_HEAD_RADIUS_CELLS;
+    syncNodePosition(spawn);
     const bodyItems = Array.isArray(item.bodyCells) ? item.bodyCells : [];
     for (let index = 0; index < bodyItems.length; index += 1) {
-      const body = spawn.bodyCells[index] || (spawn.bodyCells[index] = {});
+      const body = spawn.segments[index] || (spawn.segments[index] = {});
       body.col = Number(bodyItems[index]?.col) || 0;
       body.row = Number(bodyItems[index]?.row) || 0;
+      syncNodePosition(body);
     }
-    spawn.bodyCells.length = bodyItems.length;
+    spawn.segments.length = bodyItems.length;
+    spawn.bodyCells = spawn.segments;
+    let previous = spawn;
+    for (const segment of spawn.segments) {
+      segment.angle = Math.atan2(previous.row - segment.row, previous.col - segment.col);
+      previous = segment;
+    }
     if (isNew) addNetworkSpawnView(spawn);
   }
 
@@ -2263,6 +2293,7 @@
     network.hazardIndexes.clear();
     network.spawnViews.clear();
     network.spawnIndexes.clear();
+    network.activatingSpawnViews.clear();
     hazards.length = 0;
     pendingEnemySpawns.length = 0;
     for (const item of hazardItems || []) upsertNetworkHazardView(item);
@@ -2527,7 +2558,8 @@
       const old = previousIndexes.enemies.get(item.id);
       let enemy = network.enemyViews.get(item.id);
       if (!enemy) {
-        enemy = { segments: [] };
+        enemy = network.activatingSpawnViews.get(item.id) || { segments: [] };
+        network.activatingSpawnViews.delete(item.id);
         network.enemyViews.set(item.id, enemy);
       }
       const damageOperations = network.enemyBodyDamageOps.get(item.id);
@@ -3058,7 +3090,7 @@
       for (const segment of enemy.segments) occupyNode(segment);
     }
     for (const spawn of pendingEnemySpawns) {
-      for (const cell of [spawn.headCell, ...spawn.bodyCells]) occupied.add(cellKey(cell.col, cell.row));
+      for (const cell of spawn.reservedCells || [spawn.headCell, ...spawn.bodyCells]) occupied.add(cellKey(cell.col, cell.row));
     }
     return occupied;
   }
@@ -3077,8 +3109,7 @@
       for (const segment of enemy.segments) occupyNode(segment);
     }
     for (const spawn of pendingEnemySpawns) {
-      occupyNode(spawn.headCell);
-      for (const cell of spawn.bodyCells) occupyNode(cell);
+      for (const cell of spawn.reservedCells || [spawn.headCell, ...spawn.bodyCells]) occupyNode(cell);
     }
     return occupied;
   }
@@ -3193,45 +3224,24 @@
     const direction = { dx: nextCell.col - headCell.col, dy: nextCell.row - headCell.row };
     if (direction.dx === 0 && direction.dy === 0) direction.dx = headCell.col < arena.worldMax ? 1 : -1;
     const color = ENEMY_COLORS[(nextEnemyId - 1) % ENEMY_COLORS.length];
-    const bodyCells = Array.from({ length: bodySegmentCount }, (_, index) => placement.body[Math.min(index, placement.body.length - 1)]);
-    pendingEnemySpawns.push({
-      id: nextEnemyId++,
-      archetype: archetype.id,
-      color,
-      totalLength,
-      headCell,
-      bodyCells,
-      nextCell,
-      angle: directionAngle(direction),
-      timer: ENEMY_SPAWN_WARNING_TIME,
-      maxTimer: ENEMY_SPAWN_WARNING_TIME
-    });
-    occupied.add(cellCode(headCell.col, headCell.row));
-    for (const cell of bodyCells) occupied.add(cellCode(cell.col, cell.row));
-    sound("enemyWarning");
-    return true;
-  }
-
-  function materializeEnemySpawn(spawn) {
-    const { headCell, bodyCells, totalLength, color, angle } = spawn;
-    const archetype = ENEMY_ARCHETYPE_BY_ID[spawn.archetype];
+    const bodyCells = spawnPlanner.spaceSpawnBody(headCell, placement.body, SNAKE_SEGMENT_SPACING, bodySegmentCount);
     const headPoint = cellCenter(headCell.col, headCell.row);
     const enemy = {
-      id: spawn.id,
-      archetype: spawn.archetype,
+      id: nextEnemyId++,
+      archetype: archetype.id,
       behaviorState: "roam",
       behaviorPhase: 0,
+      color,
       x: headPoint.x,
       y: headPoint.y,
       col: headCell.col,
       row: headCell.row,
-      angle,
-      desiredAngle: angle,
+      angle: directionAngle(direction),
+      desiredAngle: directionAngle(direction),
       birthLength: totalLength,
       speed: ENEMY_BASE_SPEED * archetype.speedMultiplier,
       turnRate: random(Math.min(ENEMY_TURN_RATE_MIN, ENEMY_TURN_RATE_MAX), Math.max(ENEMY_TURN_RATE_MIN, ENEMY_TURN_RATE_MAX)) * archetype.turnMultiplier,
       radius: arena.cellSize * ENEMY_HEAD_RADIUS_CELLS,
-      color,
       segments: bodyCells.map((cell) => makeSegmentAtCell(cell.col, cell.row)),
       captured: 0,
       target: null,
@@ -3247,12 +3257,44 @@
       sawCooldown: 0,
       collisionCooldown: 0,
       dead: false,
-      hitBounds: null
+      hitBounds: null,
+      totalLength,
+      headCell: { ...headCell },
+      reservedCells: [headCell, ...placement.body].map((cell) => ({ ...cell })),
+      nextCell: { ...nextCell },
+      timer: ENEMY_SPAWN_WARNING_TIME,
+      maxTimer: ENEMY_SPAWN_WARNING_TIME
     };
+    enemy.bodyCells = enemy.segments;
+    let previous = enemy;
+    for (const segment of enemy.segments) {
+      segment.angle = Math.atan2(previous.row - segment.row, previous.col - segment.col);
+      previous = segment;
+    }
     updateEnemyHitBounds(enemy);
-    enemies.push(enemy);
-    burst(headPoint.x, headPoint.y, color, 22, 145);
-    effects.push({ type: "ring", x: headPoint.x, y: headPoint.y, color, life: 0.58, maxLife: 0.58, radius: 5, endRadius: arena.cellSize * 1.25 });
+    pendingEnemySpawns.push(enemy);
+    occupied.add(cellCode(headCell.col, headCell.row));
+    for (const cell of placement.body) occupied.add(cellCode(cell.col, cell.row));
+    sound("enemyWarning");
+    return true;
+  }
+
+  function materializeEnemySpawn(spawn) {
+    enemies.push(spawn);
+    for (const node of [spawn, ...spawn.segments]) {
+      syncNodePosition(node);
+      burst(node.x, node.y, spawn.color, ENEMY_SPAWN_ACTIVATION_PARTICLE_COUNT, ENEMY_SPAWN_ACTIVATION_PARTICLE_SPEED);
+      effects.push({
+        type: "ring",
+        x: node.x,
+        y: node.y,
+        color: spawn.color,
+        life: ENEMY_SPAWN_ACTIVATION_DURATION,
+        maxLife: ENEMY_SPAWN_ACTIVATION_DURATION,
+        radius: 0,
+        endRadius: arena.cellSize * ENEMY_SPAWN_ACTIVATION_RADIUS_CELLS
+      });
+    }
     sound("enemySpawn");
     shake = Math.max(shake, 4);
   }
@@ -6468,26 +6510,25 @@
   }
 
   function drawEnemySpawnWarnings(time) {
-    const blink = 0.48 + Math.abs(Math.sin(time * 12)) * 0.52;
     for (const spawn of pendingEnemySpawns) {
-      const head = cellCenter(spawn.headCell.col, spawn.headCell.row);
-      const preview = {
-        archetype: spawn.archetype,
-        color: spawn.color,
-        x: head.x,
-        y: head.y,
-        angle: spawn.angle,
-        segments: spawn.bodyCells.map((cell) => {
-          const point = cellCenter(cell.col, cell.row);
-          return { x: point.x, y: point.y, angle: 0 };
-        })
-      };
-
-      ctx.save();
-      ctx.globalAlpha = 0.2 + blink * 0.48;
-      drawEnemy(preview);
-      ctx.restore();
+      syncEnemyNodePositions(spawn);
+      drawEnemy(spawn, time, true);
     }
+    if (!network.enabled) return;
+    const now = performance.now();
+    for (const [id, spawn] of network.activatingSpawnViews) {
+      if (spawn.activationExpiresAt <= now) {
+        network.activatingSpawnViews.delete(id);
+        continue;
+      }
+      syncEnemyNodePositions(spawn);
+      drawEnemy(spawn, time);
+    }
+  }
+
+  function syncEnemyNodePositions(enemy) {
+    syncNodePosition(enemy);
+    for (const segment of enemy.segments) syncNodePosition(segment);
   }
 
   function drawLink(from, to, color, widthValue, alpha = 1) {
@@ -6781,15 +6822,20 @@
     ctx.restore();
   }
 
-  function drawEnemy(enemy) {
+  function drawEnemy(enemy, time = gameTime, spawning = false) {
+    ctx.save();
+    if (spawning) {
+      const blink = 0.48 + Math.abs(Math.sin(time * 12)) * 0.52;
+      ctx.globalAlpha *= 0.2 + blink * 0.48;
+    }
     const pieceScale = arenaPieceScale();
     drawLinkedPath(enemy, enemy.segments, "rgba(4, 6, 7, 0.92)", (enemy.archetype === "warden" ? 14 : 11) * pieceScale);
     drawLinkedPath(enemy, enemy.segments, enemy.color, (enemy.archetype === "cutter" ? 3.4 : 2.2) * pieceScale, 0.72);
     for (let index = enemy.segments.length - 1; index >= 0; index -= 1) drawEnemySegment(enemy, enemy.segments[index], pieceScale);
     drawEnemyHead(enemy, pieceScale);
-    drawEnemyStatusParticles(enemy, pieceScale);
+    if (!spawning) drawEnemyStatusParticles(enemy, pieceScale);
 
-    if (enemy.captured > 0) {
+    if (!spawning && enemy.captured > 0) {
       ctx.save();
       ctx.translate(enemy.x, enemy.y - 25 * pieceScale);
       ctx.scale(pieceScale, pieceScale);
@@ -6805,6 +6851,7 @@
       ctx.fillText(`● ${enemy.captured}`, 0, 0);
       ctx.restore();
     }
+    ctx.restore();
   }
 
   function drawModuleShape(module, size) {
