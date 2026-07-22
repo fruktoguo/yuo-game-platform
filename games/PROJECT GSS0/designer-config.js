@@ -1,5 +1,5 @@
 globalThis.GSS0_DESIGNER_CONFIG = {
-  "schemaVersion": 22,
+  "schemaVersion": 23,
   "balance": {
     "playerBaseSpeed": 5,
     "snakeBodySizeScale": 0.775,
@@ -36,6 +36,7 @@ globalThis.GSS0_DESIGNER_CONFIG = {
     "playerDamageParticleCount": 26,
     "playerDamageParticleSpeed": 190,
     "enemyDamageNumberDuration": 0.82,
+    "combatTextFontSize": 38,
     "foodBirthDuration": 0.36,
     "enemyBaseSpeed": 3,
     "enemySpeedPerMinute": 0.01,

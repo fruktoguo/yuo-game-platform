@@ -6,11 +6,13 @@ const serverSource = readFileSync(new URL('../src/server/UltraWorld.ts', import.
 const protocolSource = readFileSync(new URL('../src/shared/protocol.ts', import.meta.url), 'utf8');
 
 describe('敌人伤害数字反馈', () => {
-  it('本地仅为玩家造成的伤害显示强调数字', () => {
+  it('本地仅为玩家造成的伤害显示强调数字，并统一全部浮动文字字号', () => {
     expect(gameSource).toContain('const causedByPlayer = options.rewardSelf !== false;');
     expect(gameSource).toContain('life: ENEMY_DAMAGE_NUMBER_DURATION');
     expect(gameSource).toContain('damageNumber: true');
-    expect(gameSource).toContain('effect.damageNumber ? 38');
+    expect(gameSource).toContain('const COMBAT_TEXT_FONT_SIZE = designerNumber("combatTextFontSize", 38, 8, 96, true);');
+    expect(gameSource).toContain('ctx.font = `900 ${COMBAT_TEXT_FONT_SIZE}px Bahnschrift, Arial Narrow, sans-serif`;');
+    expect(gameSource).not.toContain('effect.damageNumber ? 38');
     expect(gameSource).toContain('effect.damageNumber ? 10');
   });
 
@@ -20,7 +22,7 @@ describe('敌人伤害数字反馈', () => {
     expect(protocolSource).toContain('damageNumber?: boolean');
   });
 
-  it('直接摧毁敌蛇时在击破反馈之后显示伤害数字', () => {
+  it('直接摧毁敌蛇时在击破反馈之后显示包含溢出部分的完整伤害数字', () => {
     const localDamageSource = gameSource.slice(
       gameSource.indexOf('function damageEnemy('),
       gameSource.indexOf('function killEnemy('),
@@ -32,7 +34,11 @@ describe('敌人伤害数字反馈', () => {
 
     expect(localDamageSource).toContain('y: impactY + (destroysHead ? 18 : -12)');
     expect(serverDamageSource).toContain('point.row + (destroysHead ? 0.35 : -0.35)');
-    expect(localDamageSource.indexOf('if (destroysHead) killEnemy')).toBeLessThan(localDamageSource.indexOf('text: `-${appliedDamage}`'));
+    expect(localDamageSource).toContain('text: `-${safeAmount}`');
+    expect(serverDamageSource).toContain('`-${safeAmount}`');
+    expect(localDamageSource).not.toContain('appliedDamage');
+    expect(serverDamageSource).not.toContain('const applied = removed.length');
+    expect(localDamageSource.indexOf('if (destroysHead) killEnemy')).toBeLessThan(localDamageSource.indexOf('text: `-${safeAmount}`'));
     expect(serverDamageSource.indexOf('if (destroysHead) this.killEnemy')).toBeLessThan(serverDamageSource.indexOf('this.textEffect('));
   });
 });

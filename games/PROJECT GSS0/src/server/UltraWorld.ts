@@ -3675,7 +3675,6 @@ export class UltraWorld {
     const span = enemyDamageSpan(beforeCount, resolvedHitIndex, safeAmount);
     const removed = target.segments.splice(span.start, span.count);
     const destroysHead = safeAmount > beforeCount;
-    const applied = removed.length + Number(destroysHead);
     const promotedHead = hitsHead && !destroysHead ? removed.at(-1) ?? null : null;
     const reconnectIndex = span.start < target.segments.length ? span.start : -1;
     if (promotedHead) {
@@ -3729,7 +3728,7 @@ export class UltraWorld {
     }
     if (destroysHead) this.killEnemy(target, owner);
     if (owner) {
-      this.textEffect(point.col, point.row + (destroysHead ? 0.35 : -0.35), `-${applied}`, color, ENEMY_DAMAGE_NUMBER_DURATION, owner.entityId, true, true);
+      this.textEffect(point.col, point.row + (destroysHead ? 0.35 : -0.35), `-${safeAmount}`, color, ENEMY_DAMAGE_NUMBER_DURATION, owner.entityId, true, true);
     }
   }
 

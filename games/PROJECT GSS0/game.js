@@ -94,7 +94,7 @@
 
   const TAU = Math.PI * 2;
   const DESIGNER_CONFIG = globalThis.GSS0_DESIGNER_CONFIG || {};
-  if (DESIGNER_CONFIG.schemaVersion !== 22) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 22");
+  if (DESIGNER_CONFIG.schemaVersion !== 23) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 23");
   const DESIGNER_BALANCE = DESIGNER_CONFIG.balance || {};
   const MODULE_DESIGN_STATES = DESIGNER_CONFIG.moduleStates || {};
 
@@ -268,6 +268,7 @@
   const PLAYER_DAMAGE_PARTICLE_COUNT = designerNumber("playerDamageParticleCount", 26, 0, 200, true);
   const PLAYER_DAMAGE_PARTICLE_SPEED = designerNumber("playerDamageParticleSpeed", 190, 0, 1000);
   const ENEMY_DAMAGE_NUMBER_DURATION = designerNumber("enemyDamageNumberDuration", 0.82, 0.1, 3);
+  const COMBAT_TEXT_FONT_SIZE = designerNumber("combatTextFontSize", 38, 8, 96, true);
   const FOOD_BIRTH_DURATION = designerNumber("foodBirthDuration", 0.36, 0.05, 2);
   const MODULE_BLADE_ORBIT_SPEED = designerNumber("moduleBladeOrbitSpeed", 2.28, 0, 20);
   const GROWTH_NODE_DELAY = 0.045;
@@ -5834,7 +5835,6 @@
     const span = enemyDamageSpan(beforeCount, hitSegmentIndex, safeAmount);
     const removed = enemy.segments.splice(span.start, span.count);
     const destroysHead = safeAmount > beforeCount;
-    const appliedDamage = removed.length + Number(destroysHead);
     const reconnectIndex = span.start < enemy.segments.length ? span.start : -1;
     const promotedHead = hitsHead && !destroysHead ? removed.at(-1) || null : null;
     if (promotedHead) {
@@ -5869,7 +5869,7 @@
         type: "text",
         x: impactX,
         y: impactY + (destroysHead ? 18 : -12),
-        text: `-${appliedDamage}`,
+        text: `-${safeAmount}`,
         color: impactColor,
         life: ENEMY_DAMAGE_NUMBER_DURATION,
         maxLife: ENEMY_DAMAGE_NUMBER_DURATION,
@@ -7333,7 +7333,7 @@
         ctx.strokeStyle = "rgba(4, 7, 8, 0.92)";
         ctx.lineWidth = effect.damageNumber ? 10 : effect.emphasis ? 4 : 3;
         ctx.lineJoin = "round";
-        ctx.font = `900 ${effect.damageNumber ? 38 : effect.emphasis ? 15 : 12}px Bahnschrift, Arial Narrow, sans-serif`;
+        ctx.font = `900 ${COMBAT_TEXT_FONT_SIZE}px Bahnschrift, Arial Narrow, sans-serif`;
         ctx.textAlign = "center";
         const textY = effect.y - progress * (effect.damageNumber ? 42 : effect.emphasis ? 32 : 24);
         ctx.strokeText(effect.text, effect.x, textY);

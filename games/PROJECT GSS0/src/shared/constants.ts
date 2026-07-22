@@ -37,6 +37,7 @@ export const PLAYER_DAMAGE_SHAKE_STRENGTH = DESIGNER_BALANCE.playerDamageShakeSt
 export const PLAYER_DAMAGE_PARTICLE_COUNT = DESIGNER_BALANCE.playerDamageParticleCount;
 export const PLAYER_DAMAGE_PARTICLE_SPEED = DESIGNER_BALANCE.playerDamageParticleSpeed;
 export const ENEMY_DAMAGE_NUMBER_DURATION = DESIGNER_BALANCE.enemyDamageNumberDuration;
+export const COMBAT_TEXT_FONT_SIZE = DESIGNER_BALANCE.combatTextFontSize;
 export const PLAYER_TURN_RATE = DESIGNER_BALANCE.playerTurnRate;
 export const XP_REQUIREMENT_BASE = DESIGNER_BALANCE.xpRequirementBase;
 export const XP_REQUIREMENT_PER_LEVEL = DESIGNER_BALANCE.xpRequirementPerLevel;
