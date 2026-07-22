@@ -2075,11 +2075,14 @@ export class UltraWorld {
     const totalLength = Math.max(1, Math.round(assignedHealth));
     const placement = this.chooseEnemySpawn(totalLength - 1, occupied);
     if (!placement) return false;
+    const direction = { col: placement.next.col - placement.head.col, row: placement.next.row - placement.head.row };
+    if (direction.col === 0 && direction.row === 0) direction.col = placement.head.col < this.arenaMaximum() ? 1 : -1;
     const color = ENEMY_COLORS[(this.nextEnemyId - 1) % ENEMY_COLORS.length];
     this.addPendingSpawn({
       id: this.nextEnemyId++,
       archetype: archetype.id,
       color,
+      angle: Math.atan2(direction.row, direction.col),
       totalLength,
       headCell: placement.head,
       bodyCells: Array.from({ length: totalLength - 1 }, (_, index) => ({ ...placement.body[Math.min(index, placement.body.length - 1)] })),
@@ -2094,9 +2097,6 @@ export class UltraWorld {
   }
 
   private materializeEnemySpawn(spawn: PendingSpawn): void {
-    const direction = { col: spawn.nextCell.col - spawn.headCell.col, row: spawn.nextCell.row - spawn.headCell.row };
-    if (direction.col === 0 && direction.row === 0) direction.col = spawn.headCell.col < this.arenaMaximum() ? 1 : -1;
-    const angle = Math.atan2(direction.row, direction.col);
     const archetype = ENEMY_ARCHETYPE_BY_ID[spawn.archetype];
     this.enemies.push({
       id: spawn.id,
@@ -2105,8 +2105,8 @@ export class UltraWorld {
       behaviorPhase: 0,
       col: spawn.headCell.col,
       row: spawn.headCell.row,
-      angle,
-      desiredAngle: angle,
+      angle: spawn.angle,
+      desiredAngle: spawn.angle,
       birthLength: spawn.totalLength,
       speed: ENEMY_BASE_SPEED * archetype.speedMultiplier,
       turnRate: this.randomBetween(ENEMY_TURN_RATE_MIN, ENEMY_TURN_RATE_MAX) * archetype.turnMultiplier,
@@ -4386,7 +4386,7 @@ function toFoodView(food: FoodEntity): UltraFoodView {
 }
 
 function toPendingSpawnView(spawn: PendingSpawn): PendingSpawnView {
-  return { id: spawn.id, archetype: spawn.archetype, color: spawn.color, headCell: { ...spawn.headCell }, bodyCells: spawn.bodyCells.map((cell) => ({ ...cell })), timer: spawn.timer, maxTimer: spawn.maxTimer };
+  return { id: spawn.id, archetype: spawn.archetype, color: spawn.color, angle: spawn.angle, headCell: { ...spawn.headCell }, bodyCells: spawn.bodyCells.map((cell) => ({ ...cell })), timer: spawn.timer, maxTimer: spawn.maxTimer };
 }
 
 function cellKey(point: GridPoint): string {

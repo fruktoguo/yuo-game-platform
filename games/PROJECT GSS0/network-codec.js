@@ -2,7 +2,7 @@
   "use strict";
 
   const MAGIC = 0x55534e50;
-  const VERSION = 13;
+  const VERSION = 14;
   const GRID_SIZE = 24;
   const COORDINATE_PADDING = 2;
   const TAU = Math.PI * 2;
@@ -193,6 +193,7 @@
     result.archetype = ENEMY_ARCHETYPE_IDS[reader.u8()];
     if (!result.archetype) throw new Error("快照包含未知敌人出生类型");
     result.color = reader.color();
+    result.angle = reader.angle();
     const headCell = result.headCell || (result.headCell = {});
     headCell.col = reader.coordinate();
     headCell.row = reader.coordinate();

@@ -17,7 +17,7 @@ describe('Ultra 二进制快照', () => {
     snapshot.foods.push({ id: 9, col: 2.5, row: 3.5, color: '#36dcff', phase: 1.2, special: true, isPulled: true });
     snapshot.projectiles.push({ id: 7, col: 4, row: 5, vx: 6, vy: -7, color: '#ff9f43', size: 4.5 });
     snapshot.hazards.push({ id: 3, ownerEntityId: 1, kind: 'gravity', col: 9, row: 10, radius: 2.5, color: '#a56cff', phase: 0.7, arm: 0 });
-    snapshot.pendingSpawns.push({ id: 5, archetype: 'charger', color: '#ff5c62', headCell: { col: 20, row: 2 }, bodyCells: [{ col: 19, row: 2 }], timer: 1.1, maxTimer: 1.5 });
+    snapshot.pendingSpawns.push({ id: 5, archetype: 'charger', color: '#ff5c62', angle: Math.PI / 2, headCell: { col: 20, row: 2 }, bodyCells: [{ col: 19, row: 2 }], timer: 1.1, maxTimer: 1.5 });
 
     const encoded = encodeUltraSnapshot(snapshot);
     const later = encodeUltraSnapshot(snapshotAt(43, 9.5));
@@ -33,6 +33,7 @@ describe('Ultra 二进制快照', () => {
     expect(decoded.foods[0]).toMatchObject({ id: 9, color: '#36dcff', special: true, isPulled: true });
     expect(decoded.hazards[0]).toMatchObject({ id: 3, ownerEntityId: 1, kind: 'gravity', color: '#a56cff', arm: 0 });
     expect(decoded.pendingSpawns[0].timer).toBeCloseTo(1.1, 5);
+    expect(decoded.pendingSpawns[0].angle).toBeCloseTo(Math.PI / 2, 3);
     const decodedLater = decodeUltraSnapshot(later);
     expect(decodedLater).toMatchObject({ tick: 43 });
     expect(decodedLater.players[0].col).toBeCloseTo(9.5, 3);

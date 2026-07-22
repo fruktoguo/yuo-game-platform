@@ -2153,6 +2153,7 @@
     spawn.id = item.id;
     spawn.archetype = item.archetype;
     spawn.color = item.color;
+    spawn.angle = Number(item.angle) || 0;
     spawn.timer = Number(item.timer) || 0;
     spawn.maxTimer = Number(item.maxTimer) || 0;
     spawn.headCell.col = Number(item.headCell?.col) || 0;
@@ -3096,6 +3097,8 @@
     if (!placement) return false;
     const headCell = placement.head;
     const nextCell = placement.next;
+    const direction = { dx: nextCell.col - headCell.col, dy: nextCell.row - headCell.row };
+    if (direction.dx === 0 && direction.dy === 0) direction.dx = headCell.col < arena.worldMax ? 1 : -1;
     const color = ENEMY_COLORS[(nextEnemyId - 1) % ENEMY_COLORS.length];
     const bodyCells = Array.from({ length: bodySegmentCount }, (_, index) => placement.body[Math.min(index, placement.body.length - 1)]);
     pendingEnemySpawns.push({
@@ -3106,6 +3109,7 @@
       headCell,
       bodyCells,
       nextCell,
+      angle: directionAngle(direction),
       timer: ENEMY_SPAWN_WARNING_TIME,
       maxTimer: ENEMY_SPAWN_WARNING_TIME
     });
@@ -3116,10 +3120,7 @@
   }
 
   function materializeEnemySpawn(spawn) {
-    const { headCell, nextCell, bodyCells, totalLength, color } = spawn;
-    const direction = { dx: nextCell.col - headCell.col, dy: nextCell.row - headCell.row };
-    if (direction.dx === 0 && direction.dy === 0) direction.dx = headCell.col < arena.worldMax ? 1 : -1;
-    const angle = directionAngle(direction);
+    const { headCell, bodyCells, totalLength, color, angle } = spawn;
     const archetype = ENEMY_ARCHETYPE_BY_ID[spawn.archetype];
     const headPoint = cellCenter(headCell.col, headCell.row);
     const enemy = {
@@ -6331,68 +6332,24 @@
   }
 
   function drawEnemySpawnWarnings(time) {
-    const warningColor = "#ff3d5d";
     const blink = 0.48 + Math.abs(Math.sin(time * 12)) * 0.52;
     for (const spawn of pendingEnemySpawns) {
-      const progress = 1 - clamp(spawn.timer / spawn.maxTimer, 0, 1);
       const head = cellCenter(spawn.headCell.col, spawn.headCell.row);
-      const markerSize = arena.cellSize * 0.28;
+      const preview = {
+        archetype: spawn.archetype,
+        color: spawn.color,
+        x: head.x,
+        y: head.y,
+        angle: spawn.angle,
+        segments: spawn.bodyCells.map((cell) => {
+          const point = cellCenter(cell.col, cell.row);
+          return { x: point.x, y: point.y, angle: 0 };
+        })
+      };
 
       ctx.save();
-      ctx.globalAlpha = 0.3 + blink * 0.48;
-      ctx.strokeStyle = warningColor;
-      ctx.lineCap = "round";
-      ctx.setLineDash([arena.cellSize * 0.12, arena.cellSize * 0.13]);
-      ctx.lineWidth = Math.max(1, arena.cellSize * 0.045);
-      ctx.beginPath();
-      ctx.moveTo(head.x, head.y);
-      for (const cell of spawn.bodyCells) {
-        const x = arena.left + (cell.col - arena.worldMin + 0.5) * arena.cellSize;
-        const y = arena.top + (cell.row - arena.worldMin + 0.5) * arena.cellSize;
-        ctx.lineTo(x, y);
-      }
-      ctx.stroke();
-      ctx.setLineDash([]);
-
-      const size = markerSize * 0.52;
-      ctx.globalAlpha = 0.24 + blink * 0.3;
-      ctx.beginPath();
-      for (const cell of spawn.bodyCells) {
-        const x = arena.left + (cell.col - arena.worldMin + 0.5) * arena.cellSize;
-        const y = arena.top + (cell.row - arena.worldMin + 0.5) * arena.cellSize;
-        ctx.moveTo(x - size, y - size);
-        ctx.lineTo(x + size, y + size);
-        ctx.moveTo(x + size, y - size);
-        ctx.lineTo(x - size, y + size);
-      }
-      ctx.stroke();
-
-      const ringRadius = arena.cellSize * (0.68 - progress * 0.28);
-      ctx.globalAlpha = 0.28 + blink * 0.52;
-      ctx.fillStyle = "rgba(255, 61, 93, 0.12)";
-      ctx.shadowColor = warningColor;
-      ctx.shadowBlur = 12;
-      ctx.beginPath();
-      ctx.arc(head.x, head.y, ringRadius, 0, TAU);
-      ctx.fill();
-      ctx.stroke();
-
-      ctx.globalAlpha = 0.65 + blink * 0.35;
-      ctx.lineWidth = Math.max(2, arena.cellSize * 0.09);
-      ctx.beginPath();
-      ctx.moveTo(head.x - markerSize, head.y - markerSize);
-      ctx.lineTo(head.x + markerSize, head.y + markerSize);
-      ctx.moveTo(head.x + markerSize, head.y - markerSize);
-      ctx.lineTo(head.x - markerSize, head.y + markerSize);
-      ctx.stroke();
-
-      ctx.setLineDash([]);
-      ctx.globalAlpha = 0.72 + blink * 0.28;
-      ctx.fillStyle = "#ffffff";
-      ctx.font = `900 ${Math.max(10, arena.cellSize * 0.38)}px Bahnschrift, Arial Narrow, sans-serif`;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(ENEMY_ARCHETYPE_GLYPHS[spawn.archetype] || "!", head.x, head.y);
+      ctx.globalAlpha = 0.2 + blink * 0.48;
+      drawEnemy(preview);
       ctx.restore();
     }
   }
@@ -6413,7 +6370,7 @@
   function drawLinkedPath(head, segments, color, widthValue, alpha = 1) {
     if (segments.length === 0) return;
     ctx.save();
-    ctx.globalAlpha = alpha;
+    ctx.globalAlpha *= alpha;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
     ctx.lineWidth = widthValue;

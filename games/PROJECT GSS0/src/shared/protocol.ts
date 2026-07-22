@@ -134,6 +134,7 @@ export interface PendingSpawnView {
   id: number;
   archetype: EnemyArchetypeId;
   color: string;
+  angle: number;
   headCell: GridPoint;
   bodyCells: GridPoint[];
   timer: number;

@@ -14,7 +14,7 @@ import type {
 } from './protocol';
 
 const MAGIC = 0x5553_4e50;
-export const SNAPSHOT_PROTOCOL_VERSION = 13;
+export const SNAPSHOT_PROTOCOL_VERSION = 14;
 const COORDINATE_SCALE = 65_535;
 const COORDINATE_PADDING = 2;
 const VELOCITY_SCALE = 64;
@@ -265,7 +265,7 @@ function readHazard(reader: BinaryReader, arenaSize: number): UltraHazardView {
 function writeSpawn(writer: BinaryWriter, spawn: PendingSpawnView, arenaSize: number): void {
   const archetypeIndex = ENEMY_ARCHETYPE_INDEX.get(spawn.archetype);
   if (archetypeIndex === undefined) throw new Error('无法编码未知敌人出生类型');
-  writer.u16(spawn.id); writer.u8(archetypeIndex); writer.color(spawn.color);
+  writer.u16(spawn.id); writer.u8(archetypeIndex); writer.color(spawn.color); writeAngle(writer, spawn.angle);
   writeCoordinate(writer, spawn.headCell.col, arenaSize); writeCoordinate(writer, spawn.headCell.row, arenaSize);
   writer.u16(spawn.bodyCells.length);
   for (const cell of spawn.bodyCells) { writeCoordinate(writer, cell.col, arenaSize); writeCoordinate(writer, cell.row, arenaSize); }
@@ -277,11 +277,12 @@ function readSpawn(reader: BinaryReader, arenaSize: number): PendingSpawnView {
   const archetype = ENEMY_ARCHETYPE_IDS[reader.u8()];
   if (!archetype) throw new Error('Ultra 快照包含未知敌人出生类型');
   const color = reader.color();
+  const angle = readAngle(reader);
   const headCell = { col: readCoordinate(reader, arenaSize), row: readCoordinate(reader, arenaSize) };
   const bodyCells: PendingSpawnView['bodyCells'] = [];
   const count = reader.u16();
   for (let index = 0; index < count; index += 1) bodyCells.push({ col: readCoordinate(reader, arenaSize), row: readCoordinate(reader, arenaSize) });
-  return { id, archetype, color, headCell, bodyCells, timer: reader.f32(), maxTimer: reader.f32() };
+  return { id, archetype, color, angle, headCell, bodyCells, timer: reader.f32(), maxTimer: reader.f32() };
 }
 
 class BinaryWriter {
