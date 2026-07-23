@@ -2,7 +2,7 @@
   "use strict";
 
   const MAGIC = 0x55534e50;
-  const VERSION = 17;
+  const VERSION = 18;
   const GRID_SIZE = 24;
   const COORDINATE_PADDING = 2;
   const TAU = Math.PI * 2;
@@ -180,7 +180,8 @@
     result ||= {};
     result.id = reader.u16();
     result.ownerEntityId = reader.u16();
-    result.kind = reader.u8() === 0 ? "mine" : "gravity";
+    const kindValue = reader.u8();
+    result.kind = kindValue === 0 ? "mine" : kindValue === 1 ? "gravity" : "corrosion";
     result.col = reader.coordinate();
     result.row = reader.coordinate();
     result.radius = reader.u16() / 256;

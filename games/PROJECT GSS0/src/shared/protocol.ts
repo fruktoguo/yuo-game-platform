@@ -127,7 +127,7 @@ export type UltraProjectileEvent =
 export interface UltraHazardView {
   id: number;
   ownerEntityId: number;
-  kind: 'mine' | 'gravity';
+  kind: 'mine' | 'gravity' | 'corrosion';
   col: number;
   row: number;
   radius: number;

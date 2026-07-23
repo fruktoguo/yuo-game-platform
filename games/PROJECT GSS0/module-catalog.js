@@ -28,6 +28,7 @@
     { id: "blade", name: "旋刃节", category: "攻击", color: "#e8eef7", shape: "diamond", cooldown: "", activeCooldown: true, desc: "发射1枚永久环绕玩家蛇头的旋刃弹；无视墙壁，可无限积攒，命中敌人造成1伤害后销毁。" },
     { id: "pulse", name: "脉冲核心", category: "攻击", color: "#3eb7ff", shape: "ring", cooldown: "", activeCooldown: true, desc: "释放半径6格的冲击波，对范围内每个敌方部位分别造成1伤害。" },
     { id: "venom", name: "腐蚀囊节", category: "攻击", color: "#8be04e", shape: "hex", cooldown: "", activeCooldown: true, desc: "发射腐蚀弹，附带1层腐蚀效果。" },
+    { id: "corrosionfield", name: "腐蚀地痕节", category: "攻击", color: "#72e06a", shape: "circle", cooldown: "被动效果", desc: "经过的地方留下腐蚀之地；敌人进入时附带1层腐蚀，持续位于其上每3秒再附带1层。" },
     { id: "echo", name: "回声弹匣", category: "攻击", color: "#ff8bd7", shape: "capsule", cooldown: "被动效果", desc: "蛇头撞击敌蛇或墙壁时，每级向随机方向发射2枚子弹。" },
     { id: "rail", name: "贯穿轨炮节", category: "攻击", color: "#7ef9ff", shape: "capsule", cooldown: "", activeCooldown: true, desc: "发射可无限穿透的轨炮弹。" },
     { id: "ricochet", name: "弹射晶节", category: "攻击", color: "#ffcf5a", shape: "diamond", cooldown: "", activeCooldown: true, desc: "发射可无限反弹墙壁的晶体弹。" },
@@ -109,6 +110,8 @@
         return `释放半径${formatNumber(setting(balance, "modulePulseRadiusCells", 6))}格的冲击波，对范围内每个敌方部位分别造成1伤害。`;
       case "venom":
         return "发射腐蚀弹，附带1层腐蚀效果。";
+      case "corrosionfield":
+        return `经过的地方留下腐蚀之地；默认存在${formatNumber(setting(balance, "moduleCorrosionFieldDurationPerLevel", 2))}秒，每级延长至最多${formatNumber(setting(balance, "moduleCorrosionFieldMaxDuration", 10))}秒；敌人进入时附带1层腐蚀，持续位于其上每${formatNumber(setting(balance, "corrosionTickInterval", 3))}秒再附带1层。`;
       case "cluster":
         return `发射追踪爆弹，在半径${formatNumber(setting(balance, "moduleClusterBlastRadiusCells", 5))}格内爆炸并命中每个敌方部位。`;
       case "shield":
@@ -205,7 +208,7 @@
   }
 
   function describeModuleNote(moduleId, balance = defaultBalance) {
-    const statusId = moduleId === "frost" ? "frost" : moduleId === "venom" || moduleId === "flare" ? "corrosion" : moduleId === "incendiary" ? "burn" : null;
+    const statusId = moduleId === "frost" ? "frost" : moduleId === "venom" || moduleId === "flare" || moduleId === "corrosionfield" ? "corrosion" : moduleId === "incendiary" ? "burn" : null;
     return statusId && typeof globalThis.GSS0DescribeStatus === "function"
       ? globalThis.GSS0DescribeStatus(statusId, balance)
       : moduleBlueprints.find((module) => module.id === moduleId)?.note || "";

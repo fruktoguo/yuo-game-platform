@@ -124,6 +124,8 @@ const TARGET_REQUIRED_MODULES = new Set<ModuleId>([
   'crossfire', 'phasebolt', 'incendiary',
 ]);
 const ENEMY_PLAYER_BODY_AVOIDANCE = new Set<EnemyArchetypeId>(['courier', 'charger', 'cutter', 'coiler', 'warden']);
+const CORROSION_FIELD_POINT_SPACING_FACTOR = 1.25;
+const CORROSION_FIELD_MIN_POINT_SPACING = 0.18;
 const PERSONAL_SOUND_KINDS = new Set<Extract<UltraEffect, { type: 'sound' }>['kind']>([
   'ui', 'start', 'pause', 'resume', 'level', 'levelCharge', 'select',
 ]);
@@ -152,6 +154,8 @@ interface PlayerEntity extends UltraPlayerView {
   upgradeRevealTimer: number;
   upgradeOffer: UpgradeOffer | null;
   sawCooldown: number;
+  corrosionFieldTrailCol: number | null;
+  corrosionFieldTrailRow: number | null;
 }
 
 interface EnemySegment extends GridPoint {
@@ -174,6 +178,7 @@ interface EnemyEntity extends UltraEnemyView {
   corrosionTimer: number;
   corrosionColor: string | null;
   corrosionOwnerEntityId: number | null;
+  corrosionFieldTimers: Map<number, number>;
   burningApplications: BurningApplication[];
   sawCooldownsByPlayer: Map<number, number>;
   collisionCooldown: number;
@@ -1149,6 +1154,8 @@ export class UltraWorld {
       upgradeRevealTimer: 0,
       upgradeOffer: null,
       sawCooldown: 0,
+      corrosionFieldTrailCol: null,
+      corrosionFieldTrailRow: null,
     };
   }
 
@@ -1195,6 +1202,8 @@ export class UltraWorld {
     player.upgradeRevealTimer = 0;
     player.upgradeOffer = null;
     player.sawCooldown = 0;
+    player.corrosionFieldTrailCol = null;
+    player.corrosionFieldTrailRow = null;
   }
 
   private resetSharedWorld(): void {
@@ -1439,6 +1448,8 @@ export class UltraWorld {
 
   private movePlayer(player: PlayerEntity, delta: number): void {
     if (player.ghost) {
+      player.corrosionFieldTrailCol = null;
+      player.corrosionFieldTrailRow = null;
       player.angle = rotateToward(player.angle, player.desiredAngle, PLAYER_TURN_RATE * delta);
       player.speed = MULTIPLAYER_GHOST_SPEED;
       player.slow = 0;
@@ -1454,12 +1465,54 @@ export class UltraWorld {
     else player.angle = rotateToward(player.angle, player.desiredAngle, PLAYER_TURN_RATE * (1 + MODULE_PROGRESSION.effects.hasteTurnRateBonus(this.moduleCount(player, 'haste'))) * delta);
     const slowMultiplier = player.slow > 0 ? 0.48 : 1;
     player.speed = this.playerBaseSpeed(player) * slowMultiplier;
+    const previousCol = player.col;
+    const previousRow = player.row;
     const nextCol = player.col + (Math.cos(player.angle) * player.speed + player.knockbackX) * delta;
     const nextRow = player.row + (Math.sin(player.angle) * player.speed + player.knockbackY) * delta;
     player.col = player.autopilot ? nextCol : clamp(nextCol, this.arenaMinimum(), this.arenaMaximum());
     player.row = player.autopilot ? nextRow : clamp(nextRow, this.arenaMinimum(), this.arenaMaximum());
     this.applyKnockbackDecay(player, delta);
     followContinuousSegments(player.col, player.row, player.segments, this.playerSegmentSpacing(player));
+    this.updateCorrosionFieldTrail(player, previousCol, previousRow);
+  }
+
+  private updateCorrosionFieldTrail(player: PlayerEntity, previousCol: number, previousRow: number): void {
+    const level = this.moduleCount(player, 'corrosionfield');
+    if (!player.alive || player.ghost || level <= 0) {
+      player.corrosionFieldTrailCol = null;
+      player.corrosionFieldTrailRow = null;
+      return;
+    }
+    const duration = MODULE_PROGRESSION.effects.corrosionFieldDuration(level);
+    if (duration <= 0) return;
+    const spacing = Math.max(CORROSION_FIELD_MIN_POINT_SPACING, this.enemySegmentRadiusCells() * CORROSION_FIELD_POINT_SPACING_FACTOR);
+    const startCol = player.corrosionFieldTrailCol ?? previousCol;
+    const startRow = player.corrosionFieldTrailRow ?? previousRow;
+    const deltaCol = player.col - startCol;
+    const deltaRow = player.row - startRow;
+    const distance = Math.hypot(deltaCol, deltaRow);
+    if (player.corrosionFieldTrailCol === null || player.corrosionFieldTrailRow === null) {
+      this.addHazard({
+        id: this.allocateHazardId(), ownerEntityId: player.entityId, kind: 'corrosion',
+        col: player.col, row: player.row, life: duration, arm: 0,
+        radius: this.enemySegmentRadiusCells(), color: MODULE_BY_ID.corrosionfield.color, phase: this.randomBetween(0, TAU),
+      });
+      player.corrosionFieldTrailCol = player.col;
+      player.corrosionFieldTrailRow = player.row;
+      return;
+    }
+    if (distance < spacing) return;
+    const pointCount = Math.min(32, Math.floor(distance / spacing));
+    for (let index = 1; index <= pointCount; index += 1) {
+      const ratio = Math.min(1, index * spacing / distance);
+      this.addHazard({
+        id: this.allocateHazardId(), ownerEntityId: player.entityId, kind: 'corrosion',
+        col: startCol + deltaCol * ratio, row: startRow + deltaRow * ratio, life: duration, arm: 0,
+        radius: this.enemySegmentRadiusCells(), color: MODULE_BY_ID.corrosionfield.color, phase: this.randomBetween(0, TAU),
+      });
+      player.corrosionFieldTrailCol = startCol + deltaCol * ratio;
+      player.corrosionFieldTrailRow = startRow + deltaRow * ratio;
+    }
   }
 
   private updatePlayerTimers(player: PlayerEntity, delta: number): void {
@@ -2238,6 +2291,7 @@ export class UltraWorld {
       corrosionTimer: 0,
       corrosionColor: null,
       corrosionOwnerEntityId: null,
+      corrosionFieldTimers: new Map(),
       burnStacks: 0,
       burningApplications: [],
       sawCooldownsByPlayer: new Map(),
@@ -2483,8 +2537,9 @@ export class UltraWorld {
   private updateModules(player: PlayerEntity, delta: number): void {
     for (const segment of player.segments) {
       if (!segment.module) continue;
-      segment.timer -= delta;
       segment.orbit += delta * 3.8;
+      if (segment.module === 'corrosionfield') continue;
+      segment.timer -= delta;
 
       if (segment.module === 'shield') {
         const maximumCharges = MODULE_PROGRESSION.effects.shieldMaximumCharges();
@@ -3513,10 +3568,7 @@ export class UltraWorld {
           if (!hostile.dead && projectile.slow) hostile.slow = Math.max(hostile.slow, projectile.slow);
           if (!hostile.dead && projectile.frostStacks) hostile.frostStacks += projectile.frostStacks;
           if (!hostile.dead && projectile.corrosionStacks) {
-            hostile.corrosionStacks += projectile.corrosionStacks;
-            hostile.corrosionTimer = hostile.corrosionTimer <= 0 ? CORROSION_TICK_INTERVAL / hostile.corrosionStacks : Math.min(hostile.corrosionTimer, CORROSION_TICK_INTERVAL / hostile.corrosionStacks);
-            hostile.corrosionColor = projectile.color;
-            hostile.corrosionOwnerEntityId = owner.entityId;
+            for (let stack = 0; stack < projectile.corrosionStacks; stack += 1) this.applyCorrosionStack(owner, hostile, projectile.color);
           }
           if (!hostile.dead && projectile.burnOnHit) this.applyBurning(owner, hostile, projectile.color);
           if (projectile.pierce > 0) projectile.pierce -= 1;
@@ -3555,10 +3607,11 @@ export class UltraWorld {
     for (const hazard of this.hazards) {
       hazard.life -= delta;
       const owner = this.playersByEntity.get(hazard.ownerEntityId);
-      if (!owner || owner.ghost) {
+      if (!owner || !owner.alive || owner.ghost) {
         hazard.life = 0;
         continue;
       }
+      if (hazard.kind === 'corrosion') continue;
       if (hazard.kind === 'gravity') {
         for (const hostile of this.enemies) {
           if (hostile.dead) continue;
@@ -3587,6 +3640,64 @@ export class UltraWorld {
       if (!trigger && !ownerTriggered) continue;
       this.triggerMine(hazard, owner, ownerTriggered);
     }
+    this.updateCorrosionFields(delta);
+  }
+
+  private updateCorrosionFields(delta: number): void {
+    const fieldsByOwner = new Map<number, HazardEntity[]>();
+    for (const hazard of this.hazards) {
+      if (hazard.kind !== 'corrosion' || hazard.life <= 0) continue;
+      const fields = fieldsByOwner.get(hazard.ownerEntityId);
+      if (fields) fields.push(hazard);
+      else fieldsByOwner.set(hazard.ownerEntityId, [hazard]);
+    }
+    for (const target of this.enemies) {
+      if (target.dead) continue;
+      const fieldTimers = target.corrosionFieldTimers ??= new Map();
+      const occupiedOwners = new Set<number>();
+      for (const [ownerEntityId, fields] of fieldsByOwner) {
+        if (fields.some((field) => this.enemyTouchesCorrosionField(target, field))) occupiedOwners.add(ownerEntityId);
+      }
+      for (const ownerEntityId of fieldTimers.keys()) {
+        if (!occupiedOwners.has(ownerEntityId)) fieldTimers.delete(ownerEntityId);
+      }
+      for (const ownerEntityId of occupiedOwners) {
+        const owner = this.playersByEntity.get(ownerEntityId);
+        if (!owner || !owner.alive || owner.ghost) {
+          fieldTimers.delete(ownerEntityId);
+          continue;
+        }
+        const timer = fieldTimers.get(ownerEntityId);
+        if (timer === undefined) {
+          this.applyCorrosionStack(owner, target, MODULE_BY_ID.corrosionfield.color);
+          fieldTimers.set(ownerEntityId, CORROSION_TICK_INTERVAL);
+          continue;
+        }
+        const next = timer - delta;
+        if (next <= 0) {
+          this.applyCorrosionStack(owner, target, MODULE_BY_ID.corrosionfield.color);
+          fieldTimers.set(ownerEntityId, CORROSION_TICK_INTERVAL);
+        } else fieldTimers.set(ownerEntityId, next);
+      }
+    }
+  }
+
+  private enemyTouchesCorrosionField(enemy: EnemyEntity, field: HazardEntity): boolean {
+    const headRange = field.radius + ENEMY_HEAD_RADIUS_CELLS;
+    if (distanceSquared(enemy, field) <= headRange * headRange) return true;
+    const segmentRange = field.radius + this.enemySegmentRadiusCells();
+    const segmentRangeSquared = segmentRange * segmentRange;
+    for (const segment of enemy.segments) if (distanceSquared(segment, field) <= segmentRangeSquared) return true;
+    return false;
+  }
+
+  private applyCorrosionStack(owner: PlayerEntity | null, target: EnemyEntity, color: string): void {
+    if (target.dead) return;
+    target.corrosionStacks += 1;
+    const effectiveInterval = CORROSION_TICK_INTERVAL / Math.max(1, target.corrosionStacks);
+    target.corrosionTimer = target.corrosionTimer <= 0 ? effectiveInterval : Math.min(target.corrosionTimer, effectiveInterval);
+    target.corrosionColor = color;
+    target.corrosionOwnerEntityId = owner?.entityId ?? null;
   }
 
   private triggerMine(hazard: HazardEntity, owner: PlayerEntity, bounceOwner: boolean): void {

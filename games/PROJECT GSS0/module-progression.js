@@ -3,7 +3,7 @@
 
   const config = globalThis.GSS0_DESIGNER_CONFIG;
   const modules = globalThis.GSS0ModuleCatalog;
-  if (config?.schemaVersion !== 40 || !Array.isArray(modules) || modules.length === 0) {
+  if (config?.schemaVersion !== 41 || !Array.isArray(modules) || modules.length === 0) {
     throw new Error("PROJECT GSS0 机体成长规则依赖加载失败");
   }
 
@@ -104,6 +104,7 @@
 
   const effects = Object.freeze({
     attackSizeMultiplier: (level) => 1 + balance.moduleAttackSizePerLevel * effectLevel(level),
+    corrosionFieldDuration: (level) => Math.min(balance.moduleCorrosionFieldMaxDuration, balance.moduleCorrosionFieldDurationPerLevel * effectLevel(level)),
     collisionDoubleChance: (level) => reduction(level, balance.moduleCollisionDoubleChancePerLevel),
     projectileDoubleChance: (level) => reduction(level, balance.moduleProjectileDoubleChancePerLevel),
     projectileBounceBonus: (level) => Math.max(0, Math.round(balance.moduleProjectileBouncesPerLevel * effectLevel(level))),
@@ -185,6 +186,7 @@
   function passiveStats(moduleId, level) {
     switch (moduleId) {
       case "arsenal": return [{ label: "攻击尺寸", value: effects.attackSizeMultiplier(level) - 1, format: formatPercent }];
+      case "corrosionfield": return [{ label: "腐蚀地形存在时间", value: effects.corrosionFieldDuration(level), format: formatSeconds }];
       case "doublehit": return [{ label: "撞击伤害翻倍概率", value: effects.collisionDoubleChance(level), format: (value) => formatPercent(value, false) }];
       case "multishot": return [{ label: "子弹数量翻倍概率", value: effects.projectileDoubleChance(level), format: (value) => formatPercent(value, false) }];
       case "rebound": return [{ label: "所有子弹反弹次数", value: effects.projectileBounceBonus(level), format: (value) => `+${formatNumber(value)}` }];

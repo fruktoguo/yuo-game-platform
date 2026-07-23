@@ -106,7 +106,7 @@
 
   const TAU = Math.PI * 2;
   const DESIGNER_CONFIG = globalThis.GSS0_DESIGNER_CONFIG || {};
-  if (DESIGNER_CONFIG.schemaVersion !== 40) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 40");
+  if (DESIGNER_CONFIG.schemaVersion !== 41) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 41");
   const DESIGNER_BALANCE = DESIGNER_CONFIG.balance || {};
   const MODULE_DESIGN_STATES = DESIGNER_CONFIG.moduleStates || {};
 
@@ -413,6 +413,7 @@
   let waveCount = 0;
   let nextEnemyId = 1;
   let nextLocalFoodId = 1;
+  let nextLocalHazardId = 1;
   let shake = 0;
   let flash = 0;
   let audioContext = null;
@@ -453,6 +454,7 @@
   let projectiles = [];
   const projectileContactBuffer = [];
   let hazards = [];
+  let corrosionFieldTrailPoint = null;
   let particles = [];
   const particlePool = [];
   let nextParticleSlot = 0;
@@ -3409,6 +3411,7 @@
     waveCount = 0;
     nextEnemyId = 1;
     nextLocalFoodId = 1;
+    nextLocalHazardId = 1;
     shake = 0;
     flash = 0;
     nextEatToneAt = 0;
@@ -3420,6 +3423,7 @@
     enemies = [];
     projectiles = [];
     hazards = [];
+    corrosionFieldTrailPoint = null;
     clearParticles();
     effects = [];
     pendingEnemySpawns = [];
@@ -3649,6 +3653,7 @@
       corrosionStacks: 0,
       corrosionTimer: 0,
       corrosionColor: null,
+      corrosionFieldTimers: new Map(),
       burnStacks: 0,
       burningApplications: [],
       sawCooldown: 0,
@@ -4986,11 +4991,61 @@
     player.bloomCooldown = Math.max(0, player.bloomCooldown - dt);
     const slowMultiplier = player.slow > 0 ? 0.48 : 1;
     player.speed = playerBaseSpeed() * slowMultiplier;
+    const previousCol = player.col;
+    const previousRow = player.row;
     player.col += (Math.cos(player.angle) * player.speed + player.knockbackX) * dt;
     player.row += (Math.sin(player.angle) * player.speed + player.knockbackY) * dt;
     applyKnockbackDecay(player, dt);
     syncNodePosition(player);
     followContinuousSegments(player.col, player.row, player.segments, playerSegmentSpacing());
+    updateCorrosionFieldTrail(previousCol, previousRow);
+  }
+
+  function updateCorrosionFieldTrail(previousCol, previousRow) {
+    const level = moduleCount("corrosionfield");
+    if (!player || level <= 0) {
+      corrosionFieldTrailPoint = null;
+      return;
+    }
+    const duration = MODULE_EFFECTS.corrosionFieldDuration(level);
+    if (!(duration > 0)) return;
+    const radius = enemySegmentRadiusPixels();
+    const spacing = Math.max(0.18 * arena.cellSize, radius * 1.25);
+    const start = corrosionFieldTrailPoint || { col: previousCol, row: previousRow };
+    const deltaCol = player.col - start.col;
+    const deltaRow = player.row - start.row;
+    const distancePixels = Math.hypot(deltaCol * arena.cellSize, deltaRow * arena.cellSize);
+    if (!corrosionFieldTrailPoint) {
+      addLocalCorrosionFieldPoint(player.col, player.row, duration, radius);
+      corrosionFieldTrailPoint = { col: player.col, row: player.row };
+      return;
+    }
+    if (distancePixels < spacing) return;
+    const pointCount = Math.min(32, Math.floor(distancePixels / spacing));
+    for (let index = 1; index <= pointCount; index += 1) {
+      const ratio = Math.min(1, index * spacing / distancePixels);
+      const col = start.col + deltaCol * ratio;
+      const row = start.row + deltaRow * ratio;
+      addLocalCorrosionFieldPoint(col, row, duration, radius);
+      corrosionFieldTrailPoint = { col, row };
+    }
+  }
+
+  function addLocalCorrosionFieldPoint(col, row, life, radius) {
+    const hazard = {
+      id: nextLocalHazardId++,
+      ownerEntityId: 0,
+      kind: "corrosion",
+      col,
+      row,
+      life,
+      arm: 0,
+      radius,
+      color: MODULE_BY_ID.corrosionfield.color,
+      phase: random(0, TAU)
+    };
+    syncNodePosition(hazard);
+    hazards.push(hazard);
   }
 
   function cellDistanceSquared(first, second) {
@@ -5237,8 +5292,9 @@
   function updateModules(dt) {
     for (const segment of player.segments) {
       if (!segment.module) continue;
-      segment.timer -= dt;
       segment.orbit += dt * 3.8;
+      if (segment.module === "corrosionfield") continue;
+      segment.timer -= dt;
 
       if (segment.module === "shield") {
         const maximumCharges = MODULE_EFFECTS.shieldMaximumCharges();
@@ -6436,9 +6492,7 @@
         if (!enemy.dead && projectile.slow) enemy.slow = Math.max(enemy.slow, projectile.slow);
         if (!enemy.dead && projectile.frostStacks) enemy.frostStacks += projectile.frostStacks;
         if (!enemy.dead && projectile.corrosionStacks) {
-          enemy.corrosionStacks += projectile.corrosionStacks;
-          enemy.corrosionTimer = enemy.corrosionTimer <= 0 ? CORROSION_TICK_INTERVAL / enemy.corrosionStacks : Math.min(enemy.corrosionTimer, CORROSION_TICK_INTERVAL / enemy.corrosionStacks);
-          enemy.corrosionColor = projectile.color;
+          for (let stack = 0; stack < projectile.corrosionStacks; stack += 1) applyLocalCorrosionStack(enemy, projectile.color);
         }
         if (!enemy.dead && projectile.burnOnHit) {
           const remaining = Math.ceil((enemy.segments.length + 1) * BURN_HEALTH_FRACTION);
@@ -6484,6 +6538,8 @@
         continue;
       }
 
+      if (hazard.kind === "corrosion") continue;
+
       hazard.arm -= dt;
       if (hazard.arm > 0) continue;
       const enemyTrigger = hasEnemyJointWithinDistance(hazard, hazard.radius);
@@ -6501,7 +6557,51 @@
       sound("mine");
       triggerScreenShake(5);
     }
+    updateLocalCorrosionFields(dt);
     retainInPlace(hazards, (hazard) => hazard.life > 0);
+  }
+
+  function enemyTouchesCorrosionField(enemy, hazard) {
+    const headRange = hazard.radius + (enemy.radius || arena.cellSize * ENEMY_HEAD_RADIUS_CELLS);
+    if ((enemy.x - hazard.x) ** 2 + (enemy.y - hazard.y) ** 2 <= headRange * headRange) return true;
+    const segmentRange = hazard.radius + enemySegmentRadiusPixels();
+    const segmentRangeSquared = segmentRange * segmentRange;
+    for (const segment of enemy.segments) {
+      if ((segment.x - hazard.x) ** 2 + (segment.y - hazard.y) ** 2 <= segmentRangeSquared) return true;
+    }
+    return false;
+  }
+
+  function applyLocalCorrosionStack(enemy, color) {
+    if (!enemy || enemy.dead) return;
+    enemy.corrosionStacks += 1;
+    const effectiveInterval = CORROSION_TICK_INTERVAL / Math.max(1, enemy.corrosionStacks);
+    enemy.corrosionTimer = enemy.corrosionTimer <= 0 ? effectiveInterval : Math.min(enemy.corrosionTimer, effectiveInterval);
+    enemy.corrosionColor = color;
+  }
+
+  function updateLocalCorrosionFields(dt) {
+    const fields = hazards.filter((hazard) => hazard.kind === "corrosion" && hazard.life > 0);
+    for (const enemy of enemies) {
+      if (enemy.dead) continue;
+      const timers = enemy.corrosionFieldTimers || (enemy.corrosionFieldTimers = new Map());
+      const occupied = fields.some((field) => enemyTouchesCorrosionField(enemy, field));
+      if (!occupied) {
+        timers.delete(0);
+        continue;
+      }
+      const timer = timers.get(0);
+      if (timer === undefined) {
+        applyLocalCorrosionStack(enemy, MODULE_BY_ID.corrosionfield.color);
+        timers.set(0, CORROSION_TICK_INTERVAL);
+      } else {
+        const next = timer - dt;
+        if (next <= 0) {
+          applyLocalCorrosionStack(enemy, MODULE_BY_ID.corrosionfield.color);
+          timers.set(0, CORROSION_TICK_INTERVAL);
+        } else timers.set(0, next);
+      }
+    }
   }
 
   function nearestEnemySegmentIndex(enemy, x, y) {
@@ -8119,11 +8219,41 @@
   function drawHazards(time) {
     for (const hazard of hazards) {
       const mineRadius = hazard.kind === "mine" ? mineVisualRadius(hazard) : 0;
-      const renderRadius = hazard.kind === "gravity" ? hazard.radius + 20 : mineRadius * 2;
+      const corrosionRadius = hazard.kind === "corrosion" ? hazard.radius : 0;
+      const renderRadius = hazard.kind === "gravity" ? hazard.radius + 20 : hazard.kind === "corrosion" ? corrosionRadius * 2.2 : mineRadius * 2;
       if (renderWorldBounds.active && !pointIntersectsRenderBounds(hazard.x, hazard.y, renderRadius)) continue;
       const pulse = 1 + Math.sin(time * 8 + hazard.phase) * 0.12;
       ctx.save();
       ctx.translate(hazard.x, hazard.y);
+
+      if (hazard.kind === "corrosion") {
+        const pulse = 1 + Math.sin(time * 5.5 + hazard.phase) * 0.08;
+        ctx.globalAlpha = 0.2 + Math.sin(time * 3.2 + hazard.phase) * 0.035;
+        ctx.fillStyle = hazard.color;
+        ctx.shadowColor = hazard.color;
+        ctx.shadowBlur = corrosionRadius * 0.9;
+        ctx.beginPath();
+        ctx.arc(0, 0, corrosionRadius * 1.12 * pulse, 0, TAU);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.globalAlpha = 0.72;
+        ctx.strokeStyle = "#caff8b";
+        ctx.lineWidth = Math.max(1.2, corrosionRadius * 0.12);
+        ctx.beginPath();
+        ctx.arc(0, 0, corrosionRadius * 0.92 * pulse, 0, TAU);
+        ctx.stroke();
+        for (let bubble = 0; bubble < 3; bubble += 1) {
+          const angle = time * (0.7 + bubble * 0.18) + hazard.phase + bubble * 2.1;
+          const distance = corrosionRadius * (0.35 + bubble * 0.18);
+          const bubbleRadius = Math.max(1.4, corrosionRadius * (0.1 - bubble * 0.015));
+          ctx.fillStyle = bubble === 0 ? "#e6ff9b" : "#9bea5d";
+          ctx.beginPath();
+          ctx.arc(Math.cos(angle) * distance, Math.sin(angle) * distance, bubbleRadius, 0, TAU);
+          ctx.fill();
+        }
+        ctx.restore();
+        continue;
+      }
 
       if (hazard.kind === "gravity") {
         ctx.globalAlpha = 0.24 + Math.sin(time * 5 + hazard.phase) * 0.08;

@@ -14,7 +14,7 @@ import type {
 } from './protocol';
 
 const MAGIC = 0x5553_4e50;
-export const SNAPSHOT_PROTOCOL_VERSION = 17;
+export const SNAPSHOT_PROTOCOL_VERSION = 18;
 const COORDINATE_SCALE = 65_535;
 const COORDINATE_PADDING = 2;
 const VELOCITY_SCALE = 64;
@@ -251,14 +251,15 @@ function readProjectile(reader: BinaryReader, arenaSize: number): UltraProjectil
 }
 
 function writeHazard(writer: BinaryWriter, hazard: UltraHazardView, arenaSize: number): void {
-  writer.u16(hazard.id); writer.u16(hazard.ownerEntityId); writer.u8(hazard.kind === 'mine' ? 0 : 1);
+  writer.u16(hazard.id); writer.u16(hazard.ownerEntityId); writer.u8(hazard.kind === 'mine' ? 0 : hazard.kind === 'gravity' ? 1 : 2);
   writeCoordinate(writer, hazard.col, arenaSize); writeCoordinate(writer, hazard.row, arenaSize); writer.u16(Math.round(hazard.radius * SIZE_SCALE)); writer.color(hazard.color); writer.f32(hazard.arm);
 }
 
 function readHazard(reader: BinaryReader, arenaSize: number): UltraHazardView {
   const id = reader.u16();
   const ownerEntityId = reader.u16();
-  const kind = reader.u8() === 0 ? 'mine' : 'gravity';
+  const kindValue = reader.u8();
+  const kind = kindValue === 0 ? 'mine' : kindValue === 1 ? 'gravity' : 'corrosion';
   return { id, ownerEntityId, kind, col: readCoordinate(reader, arenaSize), row: readCoordinate(reader, arenaSize), radius: reader.u16() / SIZE_SCALE, color: reader.color(), phase: visualPhase(id), arm: reader.f32() };
 }
 

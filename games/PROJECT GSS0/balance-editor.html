@@ -389,12 +389,12 @@
     </div>
   </main>
 
-  <script src="enemy-codex.js?v=115"></script>
-  <script src="wave-director.js?v=115"></script>
-  <script src="designer-config.js?v=115"></script>
-  <script src="status-catalog.js?v=115"></script>
-  <script src="module-catalog.js?v=115"></script>
-  <script src="module-progression.js?v=115"></script>
+  <script src="enemy-codex.js?v=116"></script>
+  <script src="wave-director.js?v=116"></script>
+  <script src="designer-config.js?v=116"></script>
+  <script src="status-catalog.js?v=116"></script>
+  <script src="module-catalog.js?v=116"></script>
+  <script src="module-progression.js?v=116"></script>
   <script>
     (() => {
       "use strict";
@@ -542,6 +542,8 @@
         { key: "enemyStatusParticleGlowScale", group: "表现", label: "状态粒子辉光", hint: "冰冻、腐蚀与燃烧粒子的统一辉光倍率", min: 0.5, max: 4, step: 0.1, unit: "倍" },
         { key: "activeSkillBaseCooldown", group: "战斗", label: "主动技能基础冷却", hint: "第二页各机体的冷却百分比均以此时间为 100%", min: 0.05, max: 30, step: 0.05, unit: "秒" },
         { key: "moduleAttackSizePerLevel", moduleId: "arsenal", group: "武装扩容节", label: "每级攻击尺寸", hint: "每一级增加的子弹、旋刃、爆炸范围与激光半径", min: 0, max: 1, step: 0.01, unit: "倍率/级" },
+        { key: "moduleCorrosionFieldDurationPerLevel", moduleId: "corrosionfield", group: "腐蚀地痕节", label: "每级地形时长", hint: "每一级增加的腐蚀地形存在时间", min: 0.1, max: 10, step: 0.1, unit: "秒/级" },
+        { key: "moduleCorrosionFieldMaxDuration", moduleId: "corrosionfield", group: "腐蚀地痕节", label: "地形时长上限", hint: "腐蚀地形存在时间的最高值", min: 0.1, max: 10, step: 0.1, unit: "秒" },
         { key: "moduleMineBlastRadiusPixels", moduleId: "mine", group: "磁暴雷节", label: "地雷爆炸半径", hint: "武装扩容倍率生效前，磁暴雷的基础触发与爆炸范围", min: 1, max: 500, step: 1, unit: "px" },
         { key: "moduleMineVisualRadiusPixels", moduleId: "mine", group: "磁暴雷节", label: "地雷标记半径", hint: "武装扩容倍率生效前，圆形地雷标记的基础视觉与触碰半径", min: 1, max: 60, step: 1, unit: "px" },
         { key: "moduleCollisionDoubleChancePerLevel", moduleId: "doublehit", group: "倍击撞针", label: "每级撞击翻倍概率", hint: "每次造成撞击伤害时，使该次伤害翻倍的概率", min: 0, max: 1, step: 0.01, unit: "概率/级" },
@@ -709,7 +711,7 @@
       const filePickerSupported = typeof window.showOpenFilePicker === "function";
 
       function normalizeConfig(value) {
-        const config = { schemaVersion: 40, balance: {}, waveEnemyCountSchedule: [], moduleCooldownPercentages: {}, moduleStates: {} };
+        const config = { schemaVersion: 41, balance: {}, waveEnemyCountSchedule: [], moduleCooldownPercentages: {}, moduleStates: {} };
         for (const definition of ALL_PARAMETER_DEFINITIONS) {
           const candidate = Number(value?.balance?.[definition.key]);
           config.balance[definition.key] = Number.isFinite(candidate) ? Math.max(definition.min, Math.min(definition.max, candidate)) : definition.min;
@@ -745,7 +747,7 @@
         const end = text.lastIndexOf("}");
         if (start < 0 || end <= start) throw new Error("配置内容不完整");
         const parsed = JSON.parse(text.slice(start, end + 1));
-        if (parsed?.schemaVersion !== 40) throw new Error("配置版本无效，需要 schemaVersion 40");
+        if (parsed?.schemaVersion !== 41) throw new Error("配置版本无效，需要 schemaVersion 41");
         return normalizeConfig(parsed);
       }
 

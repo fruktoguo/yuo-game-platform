@@ -1,5 +1,5 @@
 globalThis.GSS0_DESIGNER_CONFIG = {
-  "schemaVersion": 40,
+  "schemaVersion": 41,
   "balance": {
     "playerBaseSpeed": 5,
     "snakeBodySizeScale": 0.775,
@@ -130,6 +130,8 @@ globalThis.GSS0_DESIGNER_CONFIG = {
     "enemyStatusParticleGlowScale": 1.8,
     "activeSkillBaseCooldown": 6,
     "moduleAttackSizePerLevel": 0.1,
+    "moduleCorrosionFieldDurationPerLevel": 2,
+    "moduleCorrosionFieldMaxDuration": 10,
     "moduleMineBlastRadiusPixels": 62,
     "moduleMineVisualRadiusPixels": 15,
     "moduleCollisionDoubleChancePerLevel": 0.2,
@@ -380,6 +382,7 @@ globalThis.GSS0_DESIGNER_CONFIG = {
     "doublehit": "normal",
     "multishot": "normal",
     "rebound": "normal",
-    "incendiary": "normal"
+    "incendiary": "normal",
+    "corrosionfield": "normal"
   }
 };
