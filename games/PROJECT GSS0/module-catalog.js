@@ -88,14 +88,14 @@
     { id: "recovery", name: "愈合增幅节", category: "生存", color: "#73f2c2", shape: "ring", cooldown: "被动效果", desc: "每级使所有来源的生命恢复效果提高20%。" },
     { id: "wallbreaker", name: "壁垒共振节", category: "攻击", color: "#ff9d42", shape: "square", cooldown: "被动效果", desc: "每级使敌蛇撞墙与互撞的伤害和击退提高50%" },
     { id: "tailguard", name: "尾部隔离舱", category: "辅助", color: "#e8eef5", shape: "capsule", cooldown: "被动效果", desc: "每级在蛇尾追加2节无特殊效果的白色拦截机体。" },
-    { id: "deathburst", name: "猎杀齐射节", category: "攻击", color: "#ff8d6b", shape: "star", cooldown: "被动效果", desc: "任意敌蛇死亡时，每级向随机方向发射3枚子弹。" },
+    { id: "deathburst", name: "猎杀齐射节", category: "攻击", color: "#ff8d6b", shape: "star", cooldown: "被动效果", desc: "任意敌蛇死亡时，每级向随机方向发射2枚子弹。" },
     { id: "crisis", name: "危态代偿节", category: "生存", color: "#ff6f91", shape: "diamond", cooldown: "被动效果", desc: "生命低于50%时，每级使每秒生命恢复+1；否则每级使每秒生命恢复-1。" },
     { id: "linkage", name: "延展耦合节", category: "辅助", color: "#62d8ff", shape: "capsule", cooldown: "被动效果", desc: "每级使自身机体连接距离提高20%。" },
-    { id: "arsenal", name: "武装扩容节", category: "攻击", color: "#ffcf66", shape: "hex", cooldown: "被动效果", desc: "每级使攻击尺寸提高10%。" },
+    { id: "arsenal", name: "武装扩容节", category: "攻击", color: "#ffcf66", shape: "hex", cooldown: "被动效果", desc: "每级使主动技能的尺寸提高10%。（各类子弹尺寸、爆炸范围与激光半径等）" },
     { id: "doublehit", name: "倍击撞针", category: "攻击", color: "#ff5d73", shape: "triangle", cooldown: "被动效果", desc: "造成撞击伤害时，每级有20%概率使伤害翻倍。" },
     { id: "multishot", name: "齐射增殖节", category: "攻击", color: "#72e5ff", shape: "star", cooldown: "被动效果", desc: "每次发射子弹时，每级有10%概率使发射数量翻倍。" },
     { id: "rebound", name: "跳弹增幅节", category: "攻击", color: "#ffe36b", shape: "diamond", cooldown: "被动效果", desc: "每级使所有子弹的墙壁反弹次数+1。" },
-    { id: "incendiary", name: "焚身导弹节", category: "攻击", color: "#ff572f", shape: "triangle", cooldown: "", activeCooldown: true, desc: "瞄准生命值最高的敌蛇发射追踪燃烧弹；命中造成1伤害，存活时再燃烧摧毁其当前生命值50%向上取整的随机机体节。" }
+    { id: "incendiary", name: "焚身导弹节", category: "攻击", color: "#ff572f", shape: "triangle", cooldown: "", activeCooldown: true, desc: "瞄准生命值最高的敌蛇发射追踪燃烧弹；命中造成1伤害，并附带其50%生命值的燃烧层数。", note: "燃烧：每0.1秒，随机损毁一个身体部位（包含蛇头），并失去一层燃烧层数。" }
   ];
 
   function describeModule(moduleId, balance = defaultBalance) {
@@ -188,7 +188,7 @@
       case "linkage":
         return `每级使自身机体连接距离提高${formatPercent(setting(balance, "moduleLinkageSpacingPerLevel", 0.2))}。`;
       case "arsenal":
-        return `每级使子弹、旋刃、爆炸范围与激光半径提高${formatPercent(setting(balance, "moduleAttackSizePerLevel", 0.1))}。`;
+        return `每级使主动技能的尺寸提高${formatPercent(setting(balance, "moduleAttackSizePerLevel", 0.1))}。（各类子弹尺寸、爆炸范围与激光半径等）`;
       case "doublehit":
         return `造成撞击伤害时，每级有${formatPercent(setting(balance, "moduleCollisionDoubleChancePerLevel", 0.2))}概率使伤害翻倍。`;
       case "multishot":
@@ -196,7 +196,7 @@
       case "rebound":
         return `每级使所有子弹的墙壁反弹次数+${formatNumber(setting(balance, "moduleProjectileBouncesPerLevel", 1))}。`;
       case "incendiary":
-        return `瞄准生命值最高的敌蛇发射追踪燃烧弹；命中造成1伤害，存活时再燃烧摧毁其当前生命值${formatPercent(setting(balance, "burnHealthFraction", 0.5))}向上取整的随机机体节。`;
+        return `瞄准生命值最高的敌蛇发射追踪燃烧弹；命中造成1伤害，并附带其${formatPercent(setting(balance, "burnHealthFraction", 0.5))}生命值的燃烧层数。`;
       case "cache":
         return `每击破${formatNumber(setting(balance, "moduleCacheKillsPerTrigger", 5))}名敌人，按机体等级生成等量的球。`;
       default:
@@ -204,11 +204,20 @@
     }
   }
 
+  function describeModuleNote(moduleId, balance = defaultBalance) {
+    if (moduleId === "incendiary") {
+      return `燃烧：每${formatNumber(setting(balance, "burnTickInterval", 0.1))}秒，随机损毁一个身体部位（包含蛇头），并失去一层燃烧层数。`;
+    }
+    return moduleBlueprints.find((module) => module.id === moduleId)?.note || "";
+  }
+
   const modules = moduleBlueprints.map((module) => Object.freeze({
     ...module,
-    desc: describeModule(module.id, defaultBalance)
+    desc: describeModule(module.id, defaultBalance),
+    note: describeModuleNote(module.id, defaultBalance)
   }));
 
   globalThis.GSS0DescribeModule = describeModule;
+  globalThis.GSS0DescribeModuleNote = describeModuleNote;
   globalThis.GSS0ModuleCatalog = Object.freeze(modules);
 })();

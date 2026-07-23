@@ -29,8 +29,7 @@ import {
   ENEMY_SPAWN_WARNING_TIME,
   ENEMY_THINK_INTERVAL_MAX,
   ENEMY_THINK_INTERVAL_MIN,
-  ENEMY_TURN_RATE_MAX,
-  ENEMY_TURN_RATE_MIN,
+  ENEMY_TURN_RATE,
   FOOD_COLORS,
   FOOD_WALL_MARGIN,
   FOODS_PER_PLAYER_PER_WAVE,
@@ -2221,7 +2220,7 @@ export class UltraWorld {
       desiredAngle: angle,
       birthLength: totalLength,
       speed: ENEMY_BASE_SPEED * archetype.speedMultiplier,
-      turnRate: this.randomBetween(ENEMY_TURN_RATE_MIN, ENEMY_TURN_RATE_MAX) * archetype.turnMultiplier,
+      turnRate: ENEMY_TURN_RATE * archetype.turnMultiplier,
       segments,
       captured: 0,
       targetFoodId: null,
@@ -2605,7 +2604,7 @@ export class UltraWorld {
           segment.timer = this.activeModuleCooldown(player, 'missile', segment.moduleLevel);
           break;
         case 'mine':
-          this.addHazard({ id: this.allocateHazardId(), ownerEntityId: player.entityId, kind: 'mine', col: segment.col, row: segment.row, life: Number.POSITIVE_INFINITY, arm: 0.55, radius: this.pixelsToCells(62) * this.attackSizeMultiplier(player), color: MODULE_BY_ID.mine.color, phase: this.randomBetween(0, TAU) });
+          this.addHazard({ id: this.allocateHazardId(), ownerEntityId: player.entityId, kind: 'mine', col: segment.col, row: segment.row, life: Number.POSITIVE_INFINITY, arm: 0.55, radius: this.pixelsToCells(DESIGNER_BALANCE.moduleMineBlastRadiusPixels) * this.attackSizeMultiplier(player), color: MODULE_BY_ID.mine.color, phase: this.randomBetween(0, TAU) });
           this.playSkillSound(player, 'mine');
           segment.timer = this.activeModuleCooldown(player, 'mine', segment.moduleLevel);
           break;
@@ -3572,7 +3571,7 @@ export class UltraWorld {
           break;
         }
       }
-      const ownerTriggered = owner.autopilot && owner.alive && !owner.ghost && Math.hypot(owner.col - hazard.col, owner.row - hazard.row) < this.playerHeadRadiusCells() + this.pixelsToCells(6);
+      const ownerTriggered = owner.autopilot && owner.alive && !owner.ghost && Math.hypot(owner.col - hazard.col, owner.row - hazard.row) < this.playerHeadRadiusCells() + this.mineVisualRadiusCells(hazard);
       if (!trigger && !ownerTriggered) continue;
       this.triggerMine(hazard, owner, ownerTriggered);
     }
@@ -4102,6 +4101,12 @@ export class UltraWorld {
 
   private pixelsToCells(value: number): number {
     return value / CANONICAL_CELL_SIZE;
+  }
+
+  private mineVisualRadiusCells(hazard: HazardEntity): number {
+    const baseBlastRadius = this.pixelsToCells(DESIGNER_BALANCE.moduleMineBlastRadiusPixels);
+    const sizeMultiplier = baseBlastRadius > 0 ? Math.max(0.1, hazard.radius / baseBlastRadius) : 1;
+    return this.pixelsToCells(DESIGNER_BALANCE.moduleMineVisualRadiusPixels) * sizeMultiplier;
   }
 
   private playerHeadRadiusCells(): number {

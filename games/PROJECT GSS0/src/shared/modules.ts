@@ -15,6 +15,7 @@ export interface ModuleDefinition {
   cooldown: string;
   activeCooldown?: true;
   desc: string;
+  note: string;
 }
 
 const MODULE_CATALOG = globalThis.GSS0ModuleCatalog;

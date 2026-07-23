@@ -197,6 +197,7 @@
     .module-name code { display: block; margin-top: 4px; color: var(--muted); font-size: 9px; font-family: Consolas, monospace; }
     .module-desc { color: #bdc6c9; font-size: 11px; line-height: 1.58; }
     .module-desc small { display: block; margin-top: 5px; color: var(--muted); font-weight: 800; }
+    .module-description-note { display: block; margin-top: 4px; color: #7e898d; font-size: 10px; }
     .cooldown-control {
       grid-column: 3 / -1;
       display: grid;
@@ -388,11 +389,11 @@
     </div>
   </main>
 
-  <script src="enemy-codex.js?v=113"></script>
-  <script src="wave-director.js?v=113"></script>
-  <script src="designer-config.js?v=113"></script>
-  <script src="module-catalog.js?v=113"></script>
-  <script src="module-progression.js?v=113"></script>
+  <script src="enemy-codex.js?v=114"></script>
+  <script src="wave-director.js?v=114"></script>
+  <script src="designer-config.js?v=114"></script>
+  <script src="module-catalog.js?v=114"></script>
+  <script src="module-progression.js?v=114"></script>
   <script>
     (() => {
       "use strict";
@@ -402,7 +403,8 @@
       const moduleCatalog = globalThis.GSS0ModuleCatalog;
       const moduleProgression = globalThis.GSS0ModuleProgression;
       const describeModule = globalThis.GSS0DescribeModule;
-      if (!enemyCodex || !waveDirectorApi || !moduleProgression || typeof describeModule !== "function" || !Array.isArray(moduleCatalog) || moduleCatalog.length === 0) {
+      const describeModuleNote = globalThis.GSS0DescribeModuleNote;
+      if (!enemyCodex || !waveDirectorApi || !moduleProgression || typeof describeModule !== "function" || typeof describeModuleNote !== "function" || !Array.isArray(moduleCatalog) || moduleCatalog.length === 0) {
         const fileState = document.querySelector("#file-state");
         fileState.textContent = "设计控制台依赖加载失败 · 请关闭并重启本地启动器";
         fileState.className = "file-state is-dirty";
@@ -462,8 +464,7 @@
         { key: "enemyBaseSpeed", group: "敌人全局", label: "敌人基础速度", hint: "各类型速度倍率和波次成长生效前的每秒移动格数", min: 0.5, max: 12, step: 0.1, unit: "格/秒" },
         { key: "enemySpeedPerWave", group: "敌人全局", label: "每波次速度成长", hint: "第 1 波保持基础速度，之后每波同步提高移动与转向倍率；0.01 表示每波提高 1%", min: 0, max: 0.1, step: 0.005, unit: "倍率/波" },
         { key: "enemySpeedMaxMultiplier", group: "敌人全局", label: "波次速度倍率上限", hint: "波次成长可将敌人的移动与转向速度提高到的最高倍率", min: 1, max: 3, step: 0.01, unit: "倍" },
-        { key: "enemyTurnRateMin", group: "敌人全局", label: "敌人最低转向", hint: "各类型转向倍率生效前的随机转向速度下界", min: 0.1, max: 10, step: 0.05, unit: "弧度/秒" },
-        { key: "enemyTurnRateMax", group: "敌人全局", label: "敌人最高转向", hint: "各类型转向倍率生效前的随机转向速度上界", min: 0.1, max: 12, step: 0.05, unit: "弧度/秒" },
+        { key: "enemyTurnRate", group: "敌人全局", label: "敌人基础转向", hint: "各类型转向倍率和波次成长生效前的基础转向速度", min: 0.1, max: 12, step: 0.05, unit: "弧度/秒" },
         { key: "enemyThinkIntervalMin", group: "敌人全局", label: "AI 思考间隔下界", hint: "敌人重新选择目标和路线的最短间隔", min: 0.05, max: 5, step: 0.01, unit: "秒" },
         { key: "enemyThinkIntervalMax", group: "敌人全局", label: "AI 思考间隔上界", hint: "敌人重新选择目标和路线的最长间隔", min: 0.05, max: 5, step: 0.01, unit: "秒" },
         { key: "enemyFoodSearchLimit", group: "敌人全局", label: "AI 候选球数量", hint: "敌人每次决策最多评估的附近球数量", min: 1, max: 32, step: 1, unit: "枚" },
@@ -529,13 +530,15 @@
         { key: "projectileSizeScale", group: "战斗", label: "全局子弹体积倍率", hint: "同时放大所有子弹的绘制尺寸与命中体积；2 表示基础尺寸的两倍", min: 0.1, max: 10, step: 0.05, unit: "倍" },
         { key: "playerCollisionDamage", group: "战斗", label: "玩家撞击伤害", hint: "玩家蛇头撞上敌蛇头部或身体时对敌蛇造成的基础伤害", min: 0, max: 1000, step: 1, unit: "点" },
         { key: "poisonTickInterval", group: "战斗", label: "毒伤间隔", hint: "每层永久中毒随机摧毁敌蛇身体节的结算间隔", min: 0.05, max: 30, step: 0.05, unit: "秒" },
-        { key: "burnTickInterval", group: "战斗", label: "燃烧摧毁间隔", hint: "燃烧状态连续随机摧毁敌蛇机体节的结算间隔", min: 0.05, max: 10, step: 0.05, unit: "秒" },
+        { key: "burnTickInterval", moduleId: "incendiary", group: "焚身导弹节", label: "燃烧摧毁间隔", hint: "燃烧状态连续随机摧毁敌蛇机体节的结算间隔", min: 0.05, max: 10, step: 0.05, unit: "秒" },
         { key: "burnHealthFraction", moduleId: "incendiary", group: "焚身导弹节", label: "燃烧生命比例", hint: "命中伤害后，按敌蛇当前生命值生成燃烧摧毁次数的比例，并向上取整", min: 0, max: 1, step: 0.01, unit: "比例" },
         { key: "enemyStatusParticleDensity", group: "表现", label: "状态粒子密度", hint: "冰冻、腐蚀与燃烧在敌蛇每节机体周围绘制的粒子数量", min: 1, max: 8, step: 1, unit: "枚/节" },
         { key: "enemyStatusParticleSizeScale", group: "表现", label: "状态粒子尺寸", hint: "冰冻、腐蚀与燃烧粒子的统一尺寸倍率", min: 0.5, max: 4, step: 0.1, unit: "倍" },
         { key: "enemyStatusParticleGlowScale", group: "表现", label: "状态粒子辉光", hint: "冰冻、腐蚀与燃烧粒子的统一辉光倍率", min: 0.5, max: 4, step: 0.1, unit: "倍" },
         { key: "activeSkillBaseCooldown", group: "战斗", label: "主动技能基础冷却", hint: "第二页各机体的冷却百分比均以此时间为 100%", min: 0.05, max: 30, step: 0.05, unit: "秒" },
         { key: "moduleAttackSizePerLevel", moduleId: "arsenal", group: "武装扩容节", label: "每级攻击尺寸", hint: "每一级增加的子弹、旋刃、爆炸范围与激光半径", min: 0, max: 1, step: 0.01, unit: "倍率/级" },
+        { key: "moduleMineBlastRadiusPixels", moduleId: "mine", group: "磁暴雷节", label: "地雷爆炸半径", hint: "武装扩容倍率生效前，磁暴雷的基础触发与爆炸范围", min: 1, max: 500, step: 1, unit: "px" },
+        { key: "moduleMineVisualRadiusPixels", moduleId: "mine", group: "磁暴雷节", label: "地雷标记半径", hint: "武装扩容倍率生效前，圆形地雷标记的基础视觉与触碰半径", min: 1, max: 60, step: 1, unit: "px" },
         { key: "moduleCollisionDoubleChancePerLevel", moduleId: "doublehit", group: "倍击撞针", label: "每级撞击翻倍概率", hint: "每次造成撞击伤害时，使该次伤害翻倍的概率", min: 0, max: 1, step: 0.01, unit: "概率/级" },
         { key: "moduleProjectileDoubleChancePerLevel", moduleId: "multishot", group: "齐射增殖节", label: "每级倍弹概率", hint: "每次发射子弹时，使该枚子弹复制为两枚的概率", min: 0, max: 1, step: 0.01, unit: "概率/级" },
         { key: "moduleProjectileBouncesPerLevel", moduleId: "rebound", group: "跳弹增幅节", label: "每级反弹次数", hint: "每一级为所有有限反弹子弹增加的墙壁反弹次数", min: 0, max: 20, step: 1, unit: "次/级" },
@@ -702,7 +705,7 @@
       const filePickerSupported = typeof window.showOpenFilePicker === "function";
 
       function normalizeConfig(value) {
-        const config = { schemaVersion: 38, balance: {}, waveEnemyCountSchedule: [], moduleCooldownPercentages: {}, moduleStates: {} };
+        const config = { schemaVersion: 39, balance: {}, waveEnemyCountSchedule: [], moduleCooldownPercentages: {}, moduleStates: {} };
         for (const definition of ALL_PARAMETER_DEFINITIONS) {
           const candidate = Number(value?.balance?.[definition.key]);
           config.balance[definition.key] = Number.isFinite(candidate) ? Math.max(definition.min, Math.min(definition.max, candidate)) : definition.min;
@@ -738,7 +741,7 @@
         const end = text.lastIndexOf("}");
         if (start < 0 || end <= start) throw new Error("配置内容不完整");
         const parsed = JSON.parse(text.slice(start, end + 1));
-        if (parsed?.schemaVersion !== 38) throw new Error("配置版本无效，需要 schemaVersion 38");
+        if (parsed?.schemaVersion !== 39) throw new Error("配置版本无效，需要 schemaVersion 39");
         return normalizeConfig(parsed);
       }
 
@@ -933,7 +936,9 @@
 
       function refreshModuleDescription(moduleId) {
         const description = ui.moduleList.querySelector(`[data-module-id="${moduleId}"] .module-description-text`);
+        const note = ui.moduleList.querySelector(`[data-module-id="${moduleId}"] .module-description-note`);
         if (description) description.textContent = describeModule(moduleId, draft.balance);
+        if (note) note.textContent = describeModuleNote(moduleId, draft.balance);
       }
 
       function createParameterRow(definition) {
@@ -1190,7 +1195,7 @@
           const state = draft.moduleStates[module.id];
           return (ui.category.value === "all" || module.category === ui.category.value)
             && (ui.status.value === "all" || state === ui.status.value)
-            && (!query || `${module.name} ${module.id} ${module.desc}`.toLocaleLowerCase("zh-CN").includes(query));
+            && (!query || `${module.name} ${module.id} ${module.desc} ${module.note || ""}`.toLocaleLowerCase("zh-CN").includes(query));
         });
       }
 
@@ -1227,9 +1232,13 @@
             const descriptionText = document.createElement("span");
             descriptionText.className = "module-description-text";
             descriptionText.textContent = describeModule(module.id, draft.balance);
+            const descriptionNote = document.createElement("span");
+            descriptionNote.className = "module-description-note";
+            descriptionNote.textContent = describeModuleNote(module.id, draft.balance);
+            descriptionNote.hidden = !descriptionNote.textContent;
             const cooldownSummary = document.createElement("small");
             cooldownSummary.textContent = moduleUsageLabel(module);
-            description.append(descriptionText, cooldownSummary);
+            description.append(descriptionText, descriptionNote, cooldownSummary);
             const control = document.createElement("div");
             control.className = "status-control";
             control.setAttribute("role", "group");

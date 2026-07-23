@@ -106,7 +106,7 @@
 
   const TAU = Math.PI * 2;
   const DESIGNER_CONFIG = globalThis.GSS0_DESIGNER_CONFIG || {};
-  if (DESIGNER_CONFIG.schemaVersion !== 38) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 38");
+  if (DESIGNER_CONFIG.schemaVersion !== 39) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 39");
   const DESIGNER_BALANCE = DESIGNER_CONFIG.balance || {};
   const MODULE_DESIGN_STATES = DESIGNER_CONFIG.moduleStates || {};
 
@@ -126,6 +126,8 @@
   const MODULE_INCENDIARY_PROJECTILE_SPEED = designerNumber("moduleIncendiaryProjectileSpeed", 230, 1, 1000);
   const MODULE_INCENDIARY_PROJECTILE_SIZE = designerNumber("moduleIncendiaryProjectileSize", 7, 1, 30);
   const MODULE_INCENDIARY_HOMING = designerNumber("moduleIncendiaryHoming", 5, 0, 20);
+  const MODULE_MINE_BLAST_RADIUS_PIXELS = designerNumber("moduleMineBlastRadiusPixels", 62, 1, 500);
+  const MODULE_MINE_VISUAL_RADIUS_PIXELS = designerNumber("moduleMineVisualRadiusPixels", 15, 1, 60);
   const XP_REQUIREMENT_BASE = designerNumber("xpRequirementBase", 5, 1, 100, true);
   const XP_REQUIREMENT_PER_LEVEL = designerNumber("xpRequirementPerLevel", 2, 0, 20, true);
 
@@ -240,8 +242,7 @@
   const ENEMY_BASE_SPEED = designerNumber("enemyBaseSpeed", 4, 0.5, 12);
   const ENEMY_SPEED_GROWTH_PER_WAVE = designerNumber("enemySpeedPerWave", 0.01, 0, 0.1);
   const ENEMY_SPEED_MAX_MULTIPLIER = designerNumber("enemySpeedMaxMultiplier", 1.12, 1, 3);
-  const ENEMY_TURN_RATE_MIN = designerNumber("enemyTurnRateMin", 2.05, 0.1, 10);
-  const ENEMY_TURN_RATE_MAX = designerNumber("enemyTurnRateMax", 2.75, 0.1, 12);
+  const ENEMY_TURN_RATE = designerNumber("enemyTurnRate", 2.4, 0.1, 12);
   const ENEMY_THINK_INTERVAL_MIN = designerNumber("enemyThinkIntervalMin", 0.22, 0.05, 5);
   const ENEMY_THINK_INTERVAL_MAX = designerNumber("enemyThinkIntervalMax", 0.55, 0.05, 5);
   const ENEMY_FOOD_SEARCH_LIMIT = designerNumber("enemyFoodSearchLimit", 8, 1, 32, true);
@@ -3169,8 +3170,8 @@
   }
 
   function checkNetworkMineCollision() {
-    const headRange = playerHeadRadiusPixels() / arena.cellSize + 6 / 34;
     for (const hazard of hazards) {
+      const headRange = playerHeadRadiusPixels() / arena.cellSize + mineVisualRadius(hazard) / arena.cellSize;
       if (
         hazard.kind !== "mine"
         || hazard.ownerEntityId !== network.selfEntityId
@@ -3630,7 +3631,7 @@
       desiredAngle: directionAngle(direction),
       birthLength: totalLength,
       speed: ENEMY_BASE_SPEED * archetype.speedMultiplier,
-      turnRate: random(Math.min(ENEMY_TURN_RATE_MIN, ENEMY_TURN_RATE_MAX), Math.max(ENEMY_TURN_RATE_MIN, ENEMY_TURN_RATE_MAX)) * archetype.turnMultiplier,
+      turnRate: ENEMY_TURN_RATE * archetype.turnMultiplier,
       radius: arena.cellSize * ENEMY_HEAD_RADIUS_CELLS,
       segments: bodyCells.map((cell) => makeSegmentAtCell(cell.col, cell.row)),
       captured: 0,
@@ -4100,6 +4101,13 @@
     return MODULE_EFFECTS.attackSizeMultiplier(moduleCount("arsenal"));
   }
 
+  function mineVisualRadius(hazard) {
+    const scale = arenaVisualScale();
+    const baseBlastRadius = MODULE_MINE_BLAST_RADIUS_PIXELS * scale;
+    const sizeMultiplier = baseBlastRadius > 0 ? Math.max(0.1, hazard.radius / baseBlastRadius) : 1;
+    return MODULE_MINE_VISUAL_RADIUS_PIXELS * scale * sizeMultiplier;
+  }
+
   function repulseRangePixels() {
     const count = moduleCount("repulse");
     return count > 0 ? MODULE_EFFECTS.repulseRangePixels(count) : 0;
@@ -4144,12 +4152,15 @@
     const progressionMarkup = progression
       ? `<div class="card-progression"><strong>${progression.levelLabel}</strong>${progression.lines.map((line) => `<span>${line.text}</span>`).join("")}</div>`
       : "";
+    const descriptionNoteMarkup = module.note
+      ? `<small class="module-description-note">${module.note}</small>`
+      : "";
     card.innerHTML = `
       <div class="card-top">
         <span class="module-swatch shape-${module.shape}" aria-hidden="true"><i></i></span>
         <div class="card-heading"><span>${module.category}型模块</span><h3>${module.name}</h3><small class="card-cooldown">${module.activeCooldown ? `冷却 · ${module.cooldown}` : module.cooldown}</small></div>
       </div>
-      <p>${module.desc}</p>
+      <p>${module.desc}${descriptionNoteMarkup}</p>
       ${progressionMarkup}
       <span class="card-action">${options.actionLabel || "机体档案"} <b aria-hidden="true">${options.actionSymbol || "+"}</b></span>
     `;
@@ -5339,7 +5350,7 @@
           segment.timer = activeModuleCooldown("missile", segment.moduleLevel);
           break;
         case "mine":
-          hazards.push({ kind: "mine", x: segment.x, y: segment.y, col: segment.col, row: segment.row, life: Infinity, arm: 0.55, radius: 62 * arenaVisualScale() * attackSizeMultiplier(), color: MODULE_BY_ID.mine.color, phase: random(0, TAU) });
+          hazards.push({ kind: "mine", x: segment.x, y: segment.y, col: segment.col, row: segment.row, life: Infinity, arm: 0.55, radius: MODULE_MINE_BLAST_RADIUS_PIXELS * arenaVisualScale() * attackSizeMultiplier(), color: MODULE_BY_ID.mine.color, phase: random(0, TAU) });
           playSkillSound("mine");
           segment.timer = activeModuleCooldown("mine", segment.moduleLevel);
           break;
@@ -6463,7 +6474,7 @@
       hazard.arm -= dt;
       if (hazard.arm > 0) continue;
       const enemyTrigger = hasEnemyJointWithinDistance(hazard, hazard.radius);
-      const playerTrigger = Math.hypot(player.x - hazard.x, player.y - hazard.y) < player.radius + 6 * arenaVisualScale();
+      const playerTrigger = Math.hypot(player.x - hazard.x, player.y - hazard.y) < player.radius + mineVisualRadius(hazard);
       if (!enemyTrigger && !playerTrigger) continue;
       effects.push({ type: "ring", x: hazard.x, y: hazard.y, color: hazard.color, life: 0.5, maxLife: 0.5, radius: 10, endRadius: hazard.radius });
       burst(hazard.x, hazard.y, hazard.color, 18, 150);
@@ -8094,7 +8105,8 @@
 
   function drawHazards(time) {
     for (const hazard of hazards) {
-      const renderRadius = hazard.kind === "gravity" ? hazard.radius + 20 : 26;
+      const mineRadius = hazard.kind === "mine" ? mineVisualRadius(hazard) : 0;
+      const renderRadius = hazard.kind === "gravity" ? hazard.radius + 20 : mineRadius * 2;
       if (renderWorldBounds.active && !pointIntersectsRenderBounds(hazard.x, hazard.y, renderRadius)) continue;
       const pulse = 1 + Math.sin(time * 8 + hazard.phase) * 0.12;
       ctx.save();
@@ -8122,20 +8134,23 @@
       }
 
       ctx.scale(pulse, pulse);
-      ctx.rotate(hazard.phase);
+      ctx.globalAlpha = hazard.arm > 0 ? 0.62 : 0.94;
       ctx.shadowColor = hazard.color;
-      ctx.shadowBlur = 10;
-      ctx.fillStyle = "#171b1e";
+      ctx.shadowBlur = mineRadius * 0.8;
+      ctx.fillStyle = "#111518";
       ctx.strokeStyle = hazard.color;
-      ctx.lineWidth = 2;
-      drawPolygonPath(0, 0, 11, 4, Math.PI / 4);
+      ctx.lineWidth = Math.max(2, mineRadius * 0.15);
+      ctx.beginPath();
+      ctx.arc(0, 0, mineRadius, 0, TAU);
       ctx.fill();
       ctx.stroke();
       ctx.shadowBlur = 0;
-      ctx.rotate(-hazard.phase);
+      ctx.rotate(Math.PI / 4);
       ctx.fillStyle = "#f3c600";
-      ctx.fillRect(-6, -1.5, 12, 3);
-      ctx.fillRect(-1.5, -6, 3, 12);
+      const crossLength = mineRadius * 1.18;
+      const crossWidth = Math.max(2, mineRadius * 0.18);
+      ctx.fillRect(-crossLength / 2, -crossWidth / 2, crossLength, crossWidth);
+      ctx.fillRect(-crossWidth / 2, -crossLength / 2, crossWidth, crossLength);
       ctx.restore();
     }
   }

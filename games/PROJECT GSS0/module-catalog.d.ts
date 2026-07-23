@@ -24,9 +24,11 @@ export interface GSS0ModuleCatalogEntry {
   readonly cooldown: string;
   readonly activeCooldown?: true;
   readonly desc: string;
+  readonly note: string;
 }
 
 declare global {
   var GSS0ModuleCatalog: readonly GSS0ModuleCatalogEntry[];
   var GSS0DescribeModule: (moduleId: GSS0ModuleId, balance?: Record<string, unknown>) => string;
+  var GSS0DescribeModuleNote: (moduleId: GSS0ModuleId, balance?: Record<string, unknown>) => string;
 }

@@ -56,6 +56,7 @@ describe('设计配置', () => {
       enemyBaseSpeed: 3,
       enemySpeedPerWave: 0.01,
       enemySpeedMaxMultiplier: 2,
+      enemyTurnRate: 2.4,
       enemyPressureWaveInterval: 5,
       enemyPressureEnemyCountMultiplier: 2,
       enemyPressureThreatMultiplier: 2,
@@ -87,6 +88,8 @@ describe('设计配置', () => {
       poisonTickInterval: 3,
       activeSkillBaseCooldown: 6,
       moduleAttackSizePerLevel: 0.1,
+      moduleMineBlastRadiusPixels: 62,
+      moduleMineVisualRadiusPixels: 15,
       moduleCollisionDoubleChancePerLevel: 0.2,
       moduleProjectileDoubleChancePerLevel: 0.12,
       moduleFrostSlowPerHit: 0.5,
@@ -110,7 +113,7 @@ describe('设计配置', () => {
       moduleShieldMaxCharges: 5,
       moduleEnemyWallDamagePerLevel: 0.5,
       moduleEnemyWallKnockbackPerLevel: 0.5,
-      moduleDeathBurstProjectilesPerLevel: 3,
+      moduleDeathBurstProjectilesPerLevel: 2,
       moduleBonusXpChancePerLevel: 0.1,
       moduleMaxHealthPerLevel: 5,
       moduleHealthRegenPerLevel: 0.25,
@@ -205,6 +208,8 @@ describe('设计配置', () => {
     expect(moduleCooldownSeconds('fan')).toBeCloseTo(22.5);
     expect(moduleCooldownPercent('barrage')).toBe(1500);
     expect(moduleCooldownSeconds('barrage')).toBe(90);
+    expect(moduleCooldownPercent('shield')).toBe(500);
+    expect(moduleCooldownSeconds('shield')).toBe(30);
   });
 
   it('没有独立冷却的常驻与触发型机体统一归为被动技能', () => {
@@ -237,8 +242,8 @@ describe('设计配置', () => {
 
     expect(parameterKeys.sort()).toEqual(Object.keys(DESIGNER_BALANCE).sort());
     expect(moduleIds.sort()).toEqual(MODULES.map((module) => module.id).sort());
-    expect(moduleProgressionSource).toContain('config?.schemaVersion !== 38');
-    expect(new Set(parameterKeys).size).toBe(229);
+    expect(moduleProgressionSource).toContain('config?.schemaVersion !== 39');
+    expect(new Set(parameterKeys).size).toBe(230);
     expect(parameterKeys).not.toContain('playerSpeedPerLevel');
     expect(parameterKeys).not.toContain('moduleEffectReductionMaximum');
     expect(parameterKeys).not.toContain('newModuleOfferChance');
@@ -262,16 +267,20 @@ describe('设计配置', () => {
     expect(MODULES.find((module) => module.id === 'buffer')?.category).toBe('辅助');
     expect(MODULES.find((module) => module.id === 'buffer')?.desc).toContain('撞击敌人时');
     expect(MODULES.find((module) => module.id === 'linkage')?.desc).toBe('每级使自身机体连接距离提高20%。');
-    expect(MODULES.find((module) => module.id === 'arsenal')?.desc).toContain('子弹、旋刃、爆炸范围与激光半径');
+    expect(MODULES.find((module) => module.id === 'deathburst')?.desc).toContain('每级向随机方向发射2枚子弹');
+    expect(MODULES.find((module) => module.id === 'arsenal')?.desc).toBe('每级使主动技能的尺寸提高10%。（各类子弹尺寸、爆炸范围与激光半径等）');
+    expect(MODULES.find((module) => module.id === 'incendiary')?.desc).toBe('瞄准生命值最高的敌蛇发射追踪燃烧弹；命中造成1伤害，并附带其50%生命值的燃烧层数。');
+    expect(MODULES.find((module) => module.id === 'incendiary')?.note).toBe('燃烧：每0.1秒，随机损毁一个身体部位（包含蛇头），并失去一层燃烧层数。');
     expect(MODULES.find((module) => module.id === 'doublehit')?.desc).toContain('20%概率');
     expect(MODULES.find((module) => module.id === 'multishot')?.desc).toContain('12%概率');
     expect(MODULES.some((module) => ['输出', '进攻', '防御', '恢复'].includes(module.category as string))).toBe(false);
     expect(MODULES.every((module) => ['攻击', '生存', '辅助', '发育'].includes(module.category))).toBe(true);
     expect(MODULES.filter((module) => module.category === '发育')).toHaveLength(9);
-    expect(editorHtml).toContain('src="module-catalog.js?v=113"');
-    expect(editorHtml).toContain('src="module-progression.js?v=113"');
+    expect(editorHtml).toContain('src="module-catalog.js?v=114"');
+    expect(editorHtml).toContain('src="module-progression.js?v=114"');
     expect(editorHtml).toContain('const MODULES = moduleCatalog;');
     expect(editorHtml).toContain('descriptionText.textContent = describeModule(module.id, draft.balance);');
+    expect(editorHtml).toContain('descriptionNote.textContent = describeModuleNote(module.id, draft.balance);');
     expect(editorHtml).toContain('ID: ${module.id}');
     expect(editorHtml).toContain('function bulkSetModuleStatus(state)');
     expect(editorHtml).toContain('window.confirm(`确认将当前筛选条件下的');
