@@ -19,7 +19,7 @@
           <strong>代号：几何贪吃蛇</strong>
         </div>
         <span class="signature">by 四季鸽</span>
-        <span class="brand-version" aria-label="游戏版本 V121">V121</span>
+        <span class="brand-version" aria-label="游戏版本 V122">V122</span>
       </div>
 
       <div class="run-stats">
@@ -201,7 +201,7 @@
 
     <section id="start-screen" class="modal-layer start-screen is-visible" aria-labelledby="game-title">
       <div class="start-glow" aria-hidden="true"></div>
-          <div class="start-version" aria-label="游戏版本 V121"><span>BUILD</span><strong>V121</strong></div>
+          <div class="start-version" aria-label="游戏版本 V122"><span>BUILD</span><strong>V122</strong></div>
       <div class="start-layout">
         <div class="start-content">
           <div id="network-status" class="title-kicker">TACTICAL SURVIVAL / LOCAL</div>
@@ -375,6 +375,20 @@
           <button id="changelog-close-button" class="icon-button codex-close-button" type="button" aria-label="关闭更新日志" title="关闭更新日志">×</button>
         </header>
         <div class="changelog-list">
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V122</strong></div>
+              <time datetime="2026-07-24">2026.07.24</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">自动战斗</span>
+              <h3>自动撞头追击强化</h3>
+              <ul>
+                <li>自动战斗现在会优先直冲8格内头部路径无遮挡的敌蛇，不再要求目标能被一次撞头击破。</li>
+                <li>敌蛇身体、其他蛇头、玩家自身后段机体或联机队友挡住路线时，会立即放弃追头并恢复寻球与避障。</li>
+              </ul>
+            </div>
+          </article>
           <article class="changelog-entry">
             <header>
               <div class="changelog-version"><span>BUILD</span><strong>V121</strong></div>
@@ -1957,22 +1971,22 @@
     </section>
   </main>
 
-  <script src="designer-config.js?v=121"></script>
-  <script src="status-catalog.js?v=121"></script>
-  <script src="module-catalog.js?v=121"></script>
-  <script src="module-progression.js?v=121"></script>
-  <script src="wave-director.js?v=121"></script>
-  <script src="spawn-planner.js?v=121"></script>
-  <script src="network-codec.js?v=121"></script>
-  <script src="network-player-prediction.js?v=121"></script>
-  <script src="network-player-state-codec.js?v=121"></script>
-  <script src="network-player-collisions.js?v=121"></script>
-  <script src="network-head-collisions.js?v=121"></script>
-  <script src="network-food-claims.js?v=121"></script>
-  <script src="network-projectiles.js?v=121"></script>
-  <script src="lobby-navigation.js?v=121"></script>
-  <script src="enemy-codex.js?v=121"></script>
-  <script type="module" src="src/client/p2p/bootstrap.ts?v=121"></script>
-  <script src="game.js?v=121"></script>
+  <script src="designer-config.js?v=122"></script>
+  <script src="status-catalog.js?v=122"></script>
+  <script src="module-catalog.js?v=122"></script>
+  <script src="module-progression.js?v=122"></script>
+  <script src="wave-director.js?v=122"></script>
+  <script src="spawn-planner.js?v=122"></script>
+  <script src="network-codec.js?v=122"></script>
+  <script src="network-player-prediction.js?v=122"></script>
+  <script src="network-player-state-codec.js?v=122"></script>
+  <script src="network-player-collisions.js?v=122"></script>
+  <script src="network-head-collisions.js?v=122"></script>
+  <script src="network-food-claims.js?v=122"></script>
+  <script src="network-projectiles.js?v=122"></script>
+  <script src="lobby-navigation.js?v=122"></script>
+  <script src="enemy-codex.js?v=122"></script>
+  <script type="module" src="src/client/p2p/bootstrap.ts?v=122"></script>
+  <script src="game.js?v=122"></script>
 </body>
 </html>

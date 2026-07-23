@@ -401,12 +401,12 @@
     </div>
   </main>
 
-  <script src="enemy-codex.js?v=121"></script>
-  <script src="wave-director.js?v=121"></script>
-  <script src="designer-config.js?v=121"></script>
-  <script src="status-catalog.js?v=121"></script>
-  <script src="module-catalog.js?v=121"></script>
-  <script src="module-progression.js?v=121"></script>
+  <script src="enemy-codex.js?v=122"></script>
+  <script src="wave-director.js?v=122"></script>
+  <script src="designer-config.js?v=122"></script>
+  <script src="status-catalog.js?v=122"></script>
+  <script src="module-catalog.js?v=122"></script>
+  <script src="module-progression.js?v=122"></script>
   <script>
     (() => {
       "use strict";
@@ -446,6 +446,7 @@
         { key: "moduleSlotUnlockLevel4", group: "成长系统", label: "第 4 次扩容等级", hint: "到达该等级后增加最后 1 个机体槽位", min: 1, max: 100, step: 1, unit: "级" },
         { key: "moduleSlotGrowthIntervalAfterFullUnlock", group: "成长系统", label: "满槽后扩容间隔", hint: "完成最后一次固定扩容后，每达到该等级间隔继续增加 1 个机体槽位，不设上限", min: 1, max: 100, step: 1, unit: "级" },
         { key: "playerTurnRate", group: "玩家", label: "玩家基础转向", hint: "不含涡轮节加成的基础转向速度", min: 0.5, max: 12, step: 0.05, unit: "弧度/秒" },
+        { key: "automaticHeadHuntRange", group: "自动战斗", label: "撞头追击范围", hint: "自动移动优先直冲头部路径无遮挡敌蛇的最大距离；设为 0 可关闭主动撞头", min: 0, max: 30, step: 0.5, unit: "格" },
         { key: "automaticSharpTurnThresholdDegrees", group: "自动战斗", label: "急转弯判定角", hint: "自动移动目标方向与当前朝向相差达到该角度时，加强自身身体规避", min: 0, max: 180, step: 1, unit: "度" },
         { key: "automaticSelfAvoidanceStrength", group: "自动战斗", label: "急转自体规避强度", hint: "自动移动急转弯时，远离自身后段机体的转向权重", min: 0, max: 20, step: 0.1, unit: "强度" },
         { key: "automaticSelfAvoidanceRange", group: "自动战斗", label: "急转自体规避范围", hint: "自动移动急转弯时，开始规避自身后段机体的距离", min: 0, max: 10, step: 0.1, unit: "格" },
@@ -727,7 +728,7 @@
       const filePickerSupported = typeof window.showOpenFilePicker === "function";
 
       function normalizeConfig(value) {
-        const config = { schemaVersion: 42, balance: {}, waveEnemyCountSchedule: [], moduleCooldownPercentages: {}, moduleNames: {}, moduleStates: {} };
+        const config = { schemaVersion: 43, balance: {}, waveEnemyCountSchedule: [], moduleCooldownPercentages: {}, moduleNames: {}, moduleStates: {} };
         for (const definition of ALL_PARAMETER_DEFINITIONS) {
           const candidate = Number(value?.balance?.[definition.key]);
           config.balance[definition.key] = Number.isFinite(candidate) ? Math.max(definition.min, Math.min(definition.max, candidate)) : definition.min;
@@ -766,7 +767,7 @@
         const end = text.lastIndexOf("}");
         if (start < 0 || end <= start) throw new Error("配置内容不完整");
         const parsed = JSON.parse(text.slice(start, end + 1));
-        if (parsed?.schemaVersion !== 42) throw new Error("配置版本无效，需要 schemaVersion 42");
+        if (parsed?.schemaVersion !== 43) throw new Error("配置版本无效，需要 schemaVersion 43");
         return normalizeConfig(parsed);
       }
 

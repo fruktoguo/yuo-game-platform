@@ -135,7 +135,7 @@
   const TAU = Math.PI * 2;
   const P2P_TOAST_DURATION_MS = 2800;
   const DESIGNER_CONFIG = globalThis.GSS0_DESIGNER_CONFIG || {};
-  if (DESIGNER_CONFIG.schemaVersion !== 42) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 42");
+  if (DESIGNER_CONFIG.schemaVersion !== 43) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 43");
   const DESIGNER_BALANCE = DESIGNER_CONFIG.balance || {};
   const MODULE_DESIGN_STATES = DESIGNER_CONFIG.moduleStates || {};
 
@@ -267,6 +267,7 @@
   const PLAYER_COLLISION_DAMAGE = designerNumber("playerCollisionDamage", 1, 0, 1000, true);
   const ENEMY_COLLISION_DAMAGE = designerNumber("enemyCollisionDamage", 1, 0, 1000, true);
   const PLAYER_TURN_RATE = designerNumber("playerTurnRate", 4.2, 0.5, 12);
+  const AUTOMATIC_HEAD_HUNT_RANGE = designerNumber("automaticHeadHuntRange", 8, 0, 30);
   const AUTOMATIC_SHARP_TURN_THRESHOLD = designerNumber("automaticSharpTurnThresholdDegrees", 70, 0, 180) * Math.PI / 180;
   const AUTOMATIC_SELF_AVOIDANCE_STRENGTH = designerNumber("automaticSelfAvoidanceStrength", 3.2, 0, 20);
   const AUTOMATIC_SELF_AVOIDANCE_RANGE = designerNumber("automaticSelfAvoidanceRange", 3.2, 0, 10);
@@ -784,6 +785,15 @@
     return (pathContactCol - capsuleContactCol) ** 2 + (pathContactRow - capsuleContactRow) ** 2 < radius * radius
       ? pathProgress
       : null;
+  }
+
+  function pathIntersectsBodyConnections(start, end, snake, range, firstSegmentIndex = 0) {
+    for (let index = firstSegmentIndex; index < snake.segments.length; index += 1) {
+      const segment = snake.segments[index];
+      const previous = index > 0 ? snake.segments[index - 1] : snake;
+      if (sweptCapsuleContactProgress(start, end, previous, segment, range) !== null) return true;
+    }
+    return false;
   }
 
   function bodyConnectionContact(point, snake, range, firstSegmentIndex = 0) {
@@ -5173,7 +5183,64 @@
     }
   }
 
+  function automaticHeadPathIsClear(target) {
+    const targetX = target.col - player.col;
+    const targetY = target.row - player.row;
+    const targetDistance = Math.hypot(targetX, targetY);
+    const playerHeadRadius = player.radius / arena.cellSize;
+    const headContactDistance = playerHeadRadius + target.radius / arena.cellSize;
+    if (targetDistance <= headContactDistance) return true;
+
+    const pathRatio = (targetDistance - headContactDistance) / targetDistance;
+    const pathEnd = {
+      col: player.col + targetX * pathRatio,
+      row: player.row + targetY * pathRatio
+    };
+    if (pathIntersectsBodyConnections(player, pathEnd, player, PLAYER_SELF_COLLISION_RANGE, 2)) return false;
+
+    for (const enemy of enemies) {
+      if (enemy.dead) continue;
+      if (pathIntersectsBodyConnections(player, pathEnd, enemy, SNAKE_BODY_CONTACT_RANGE)) return false;
+    }
+    for (const enemy of enemies) {
+      if (enemy.dead || enemy === target) continue;
+      const headRange = playerHeadRadius + enemy.radius / arena.cellSize;
+      if (sweptContactProgress(player, pathEnd, enemy, headRange) !== null) return false;
+    }
+    if (network.enabled) {
+      for (const other of visiblePlayers) {
+        if (other === player || other.ghost) continue;
+        const headRange = playerHeadRadius + other.radius / arena.cellSize;
+        if (sweptContactProgress(player, pathEnd, other, headRange) !== null) return false;
+        if (pathIntersectsBodyConnections(player, pathEnd, other, SNAKE_BODY_CONTACT_RANGE)) return false;
+      }
+    }
+    return true;
+  }
+
+  function automaticHeadTarget() {
+    if (AUTOMATIC_HEAD_HUNT_RANGE <= 0) return null;
+    const huntRangeSquared = AUTOMATIC_HEAD_HUNT_RANGE * AUTOMATIC_HEAD_HUNT_RANGE;
+    let nearestTarget = null;
+    let nearestDistance = huntRangeSquared;
+    for (const enemy of enemies) {
+      if (enemy.dead) continue;
+      const distance = (enemy.col - player.col) ** 2 + (enemy.row - player.row) ** 2;
+      if (distance > nearestDistance || !automaticHeadPathIsClear(enemy)) continue;
+      nearestTarget = enemy;
+      nearestDistance = distance;
+    }
+    return nearestTarget;
+  }
+
   function testAutopilotAngle() {
+    const headTarget = automaticHeadTarget();
+    if (headTarget) {
+      const targetX = headTarget.col - player.col;
+      const targetY = headTarget.row - player.row;
+      return Math.hypot(targetX, targetY) > 0.001 ? Math.atan2(targetY, targetX) : player.angle;
+    }
+
     let vectorX = 0;
     let vectorY = 0;
     let nearestFood = null;
@@ -5186,20 +5253,9 @@
       }
     }
 
-    let target = nearestFood;
-    let targetDistance = nearestDistance;
-    const headStrikeDamage = playerHeadDamage(true);
-    for (const enemy of enemies) {
-      if (enemy.dead || enemy.segments.length >= headStrikeDamage) continue;
-      const distance = (enemy.col - player.col) ** 2 + (enemy.row - player.row) ** 2;
-      if (distance >= targetDistance) continue;
-      target = enemy;
-      targetDistance = distance;
-    }
-
-    if (target) {
-      const targetX = target.col - player.col;
-      const targetY = target.row - player.row;
+    if (nearestFood) {
+      const targetX = nearestFood.col - player.col;
+      const targetY = nearestFood.row - player.row;
       const targetLength = Math.hypot(targetX, targetY) || 1;
       vectorX += targetX / targetLength;
       vectorY += targetY / targetLength;

@@ -46,6 +46,7 @@ export const PLAYER_DAMAGE_PARTICLE_SPEED = DESIGNER_BALANCE.playerDamageParticl
 export const ENEMY_DAMAGE_NUMBER_DURATION = DESIGNER_BALANCE.enemyDamageNumberDuration;
 export const COMBAT_TEXT_FONT_SIZE = DESIGNER_BALANCE.combatTextFontSize;
 export const PLAYER_TURN_RATE = DESIGNER_BALANCE.playerTurnRate;
+export const AUTOMATIC_HEAD_HUNT_RANGE = DESIGNER_BALANCE.automaticHeadHuntRange;
 export const AUTOMATIC_SHARP_TURN_THRESHOLD = DESIGNER_BALANCE.automaticSharpTurnThresholdDegrees * Math.PI / 180;
 export const AUTOMATIC_SELF_AVOIDANCE_STRENGTH = DESIGNER_BALANCE.automaticSelfAvoidanceStrength;
 export const AUTOMATIC_SELF_AVOIDANCE_RANGE = DESIGNER_BALANCE.automaticSelfAvoidanceRange;

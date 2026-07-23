@@ -1,4 +1,5 @@
 import {
+  AUTOMATIC_HEAD_HUNT_RANGE,
   AUTOMATIC_SELF_AVOIDANCE_RANGE,
   AUTOMATIC_SELF_AVOIDANCE_STRENGTH,
   AUTOMATIC_SHARP_TURN_THRESHOLD,
@@ -1432,7 +1433,60 @@ export class UltraWorld {
     return SNAKE_SEGMENT_SPACING * (1 + MODULE_PROGRESSION.effects.segmentSpacingBonus(this.moduleCount(player, 'linkage')));
   }
 
+  private automaticHeadPathIsClear(player: PlayerEntity, target: EnemyEntity, presentPlayers: readonly PlayerEntity[]): boolean {
+    const targetCol = target.col - player.col;
+    const targetRow = target.row - player.row;
+    const targetDistance = Math.hypot(targetCol, targetRow);
+    const playerHeadRadius = this.playerHeadRadiusCells();
+    const headContactDistance = playerHeadRadius + ENEMY_HEAD_RADIUS_CELLS;
+    if (targetDistance <= headContactDistance) return true;
+
+    const pathRatio = (targetDistance - headContactDistance) / targetDistance;
+    const pathEnd = {
+      col: player.col + targetCol * pathRatio,
+      row: player.row + targetRow * pathRatio,
+    };
+    if (pathIntersectsBodyConnections(player, pathEnd, player, PLAYER_SELF_COLLISION_RANGE, 2)) return false;
+
+    for (const enemy of this.enemies) {
+      if (enemy.dead) continue;
+      if (pathIntersectsBodyConnections(player, pathEnd, enemy, SNAKE_BODY_CONTACT_RANGE)) return false;
+    }
+    for (const enemy of this.enemies) {
+      if (enemy.dead || enemy === target) continue;
+      if (sweptContactProgress(player, pathEnd, enemy, headContactDistance) !== null) return false;
+    }
+    for (const other of presentPlayers) {
+      if (other === player || other.ghost) continue;
+      if (sweptContactProgress(player, pathEnd, other, playerHeadRadius * 2) !== null) return false;
+      if (pathIntersectsBodyConnections(player, pathEnd, other, SNAKE_BODY_CONTACT_RANGE)) return false;
+    }
+    return true;
+  }
+
+  private automaticHeadTarget(player: PlayerEntity, presentPlayers: readonly PlayerEntity[]): EnemyEntity | null {
+    if (AUTOMATIC_HEAD_HUNT_RANGE <= 0) return null;
+    const huntRangeSquared = AUTOMATIC_HEAD_HUNT_RANGE * AUTOMATIC_HEAD_HUNT_RANGE;
+    let nearestTarget: EnemyEntity | null = null;
+    let nearestDistance = huntRangeSquared;
+    for (const enemy of this.enemies) {
+      if (enemy.dead) continue;
+      const distance = distanceSquared(player, enemy);
+      if (distance > nearestDistance || !this.automaticHeadPathIsClear(player, enemy, presentPlayers)) continue;
+      nearestTarget = enemy;
+      nearestDistance = distance;
+    }
+    return nearestTarget;
+  }
+
   private autopilotAngle(player: PlayerEntity, presentPlayers = this.presentPlayers()): number {
+    const headTarget = this.automaticHeadTarget(player, presentPlayers);
+    if (headTarget) {
+      const targetCol = headTarget.col - player.col;
+      const targetRow = headTarget.row - player.row;
+      return Math.hypot(targetCol, targetRow) > 0.001 ? Math.atan2(targetRow, targetCol) : player.angle;
+    }
+
     let vectorCol = 0;
     let vectorRow = 0;
     let nearestFood: FoodEntity | null = null;
@@ -1445,29 +1499,16 @@ export class UltraWorld {
     }
 
     let target: GridPoint = nearestFood ?? { col: (this.arenaMinimum() + this.arenaMaximum()) / 2, row: (this.arenaMinimum() + this.arenaMaximum()) / 2 };
-    let targetDistance = nearestDistance;
-    let hasHigherPriorityTarget = false;
-    const headStrikeDamage = this.playerHeadDamage(player, true);
-    for (const enemy of this.enemies) {
-      if (enemy.dead || enemy.segments.length >= headStrikeDamage) continue;
-      const distance = distanceSquared(player, enemy);
-      if (distance >= targetDistance) continue;
-      target = enemy;
-      targetDistance = distance;
-      hasHigherPriorityTarget = true;
+    let nearestGhost: PlayerEntity | null = null;
+    let nearestGhostDistance = Number.POSITIVE_INFINITY;
+    for (const other of presentPlayers) {
+      if (other === player || !other.ghost) continue;
+      const distance = distanceSquared(player, other);
+      if (distance >= nearestGhostDistance) continue;
+      nearestGhost = other;
+      nearestGhostDistance = distance;
     }
-    if (!hasHigherPriorityTarget) {
-      let nearestGhost: PlayerEntity | null = null;
-      let nearestGhostDistance = Number.POSITIVE_INFINITY;
-      for (const other of presentPlayers) {
-        if (other === player || !other.ghost) continue;
-        const distance = distanceSquared(player, other);
-        if (distance >= nearestGhostDistance) continue;
-        nearestGhost = other;
-        nearestGhostDistance = distance;
-      }
-      if (nearestGhost) target = nearestGhost;
-    }
+    if (nearestGhost) target = nearestGhost;
     const targetCol = target.col - player.col;
     const targetRow = target.row - player.row;
     const targetLength = Math.hypot(targetCol, targetRow) || 1;
@@ -5021,6 +5062,21 @@ function sweptCapsuleContactProgress(start: GridPoint, end: GridPoint, capsuleSt
   return (pathContactCol - capsuleContactCol) ** 2 + (pathContactRow - capsuleContactRow) ** 2 < radius * radius
     ? pathProgress
     : null;
+}
+
+function pathIntersectsBodyConnections(
+  start: GridPoint,
+  end: GridPoint,
+  snake: { col: number; row: number; segments: GridPoint[] },
+  range: number,
+  firstSegmentIndex = 0,
+): boolean {
+  for (let index = firstSegmentIndex; index < snake.segments.length; index += 1) {
+    const segment = snake.segments[index];
+    const previous = index > 0 ? snake.segments[index - 1] : snake;
+    if (sweptCapsuleContactProgress(start, end, previous, segment, range) !== null) return true;
+  }
+  return false;
 }
 
 function bodyConnectionContact(
