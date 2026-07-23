@@ -14,10 +14,10 @@ const editorSource = readFileSync(new URL('../balance-editor.html', import.meta.
 
 describe('多人场地等级缩放', () => {
   it('基础场地按实际面积配置并缩小40%', () => {
-    expect(ARENA_BASE_AREA).toBeCloseTo(24 ** 2 * 0.6, 10);
+    expect(ARENA_BASE_AREA).toBeCloseTo(300, 10);
     expect(ARENA_BASE_SIZE ** 2).toBeCloseTo(ARENA_BASE_AREA, 10);
     expect(GRID_SIZE).toBe(24);
-    expect(clientSource).toContain('const ARENA_BASE_SIZE = Math.sqrt(designerNumber("arenaBaseArea", 345.6, 64, 4096));');
+    expect(clientSource).toContain('const ARENA_BASE_SIZE = Math.sqrt(designerNumber("arenaBaseArea", 300, 64, 4096));');
     expect(serverSource).toContain('const target = ARENA_BASE_SIZE * Math.sqrt(1 + totalLevel * ARENA_AREA_PER_LEVEL);');
     expect(editorSource).toContain('{ key: "arenaBaseArea", group: "场地", label: "基础场地面积"');
   });

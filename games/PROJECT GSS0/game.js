@@ -98,6 +98,32 @@
     restartButton: document.querySelector("#restart-button"),
     gameOverMenuButton: document.querySelector("#game-over-menu-button"),
     networkStatus: document.querySelector("#network-status"),
+    p2pLobby: document.querySelector("#p2p-lobby-screen"),
+    p2pLobbyClose: document.querySelector("#p2p-lobby-close"),
+    p2pLobbyStatus: document.querySelector("#p2p-lobby-status"),
+    p2pLobbyBrowser: document.querySelector("#p2p-lobby-browser"),
+    p2pRoomRefresh: document.querySelector("#p2p-room-refresh"),
+    p2pRoomList: document.querySelector("#p2p-room-list"),
+    p2pCreateForm: document.querySelector("#p2p-create-form"),
+    p2pCreateName: document.querySelector("#p2p-create-name"),
+    p2pCreateMax: document.querySelector("#p2p-create-max"),
+    p2pCreatePrivate: document.querySelector("#p2p-create-private"),
+    p2pJoinForm: document.querySelector("#p2p-join-form"),
+    p2pJoinCode: document.querySelector("#p2p-join-code"),
+    p2pRoomWaiting: document.querySelector("#p2p-room-waiting"),
+    p2pRoomName: document.querySelector("#p2p-room-name"),
+    p2pRoomCode: document.querySelector("#p2p-room-code"),
+    p2pRoomCopy: document.querySelector("#p2p-room-copy"),
+    p2pRoomMode: document.querySelector("#p2p-room-mode"),
+    p2pMemberCount: document.querySelector("#p2p-member-count"),
+    p2pMemberList: document.querySelector("#p2p-member-list"),
+    p2pHostSettings: document.querySelector("#p2p-host-settings"),
+    p2pHostDifficulty: document.querySelector("#p2p-host-difficulty"),
+    p2pHostJoinProgress: document.querySelector("#p2p-host-join-progress"),
+    p2pRoomHint: document.querySelector("#p2p-room-hint"),
+    p2pRoomReady: document.querySelector("#p2p-room-ready"),
+    p2pRoomStart: document.querySelector("#p2p-room-start"),
+    p2pRoomLeave: document.querySelector("#p2p-room-leave"),
     scoreboard: document.querySelector("#multiplayer-scoreboard"),
     scoreboardCount: document.querySelector("#multiplayer-count"),
     scoreboardPlayers: document.querySelector("#multiplayer-players"),
@@ -488,7 +514,13 @@
   const network = {
     enabled: false,
     connecting: false,
-    socket: null,
+    transport: null,
+    boundTransport: null,
+    p2pClient: null,
+    lobbyReady: false,
+    lobbyBusy: false,
+    rooms: [],
+    room: null,
     selfEntityId: null,
     principal: null,
     roster: [],
@@ -985,7 +1017,7 @@
   function setAutomaticMode(enabled, persist = true, synchronizeNetwork = true) {
     const previous = automaticModeEnabled;
     updateAutomaticModeState(enabled, persist);
-    if (!synchronizeNetwork || !network.enabled || !network.socket?.connected) return;
+    if (!synchronizeNetwork || !network.enabled || !network.transport?.connected) return;
     const revision = ++automaticModeSyncRevision;
     void emitNetworkAction("ultra:autopilot", automaticModePreferences()).then((result) => {
       if (revision !== automaticModeSyncRevision) return;
@@ -1002,7 +1034,7 @@
   function setAutomaticModuleSelection(enabled, persist = true, synchronizeNetwork = true) {
     const previous = automaticModuleSelectionEnabled;
     applyAutomaticModuleSelection(enabled, persist);
-    if (!synchronizeNetwork || !network.enabled || !network.socket?.connected) return;
+    if (!synchronizeNetwork || !network.enabled || !network.transport?.connected) return;
     const revision = ++automaticModeSyncRevision;
     void emitNetworkAction("ultra:autopilot", automaticModePreferences()).then((result) => {
       if (revision !== automaticModeSyncRevision) return;
@@ -1016,7 +1048,7 @@
   function setAutomaticRestart(enabled, persist = true, synchronizeNetwork = true) {
     const previous = automaticRestartEnabled;
     applyAutomaticRestart(enabled, persist);
-    if (!synchronizeNetwork || !network.enabled || !network.socket?.connected) return;
+    if (!synchronizeNetwork || !network.enabled || !network.transport?.connected) return;
     const revision = ++automaticModeSyncRevision;
     void emitNetworkAction("ultra:autopilot", automaticModePreferences()).then((result) => {
       if (revision !== automaticModeSyncRevision) return;
@@ -1541,7 +1573,7 @@
   }
 
   function setNetworkButtonsDisabled(disabled) {
-    ui.multiplayerModeButton.disabled = disabled || !network.enabled;
+    ui.multiplayerModeButton.disabled = disabled || !network.lobbyReady;
   }
 
   function loadSocketClient() {
@@ -1587,7 +1619,7 @@
       }
       await loadSocketClient();
       if (localModeForced) return;
-      connectNetworkSocket();
+      await connectP2PLobby();
     } catch (error) {
       if (localModeForced) return;
       network.connecting = false;
@@ -1596,88 +1628,130 @@
     }
   }
 
-  function connectNetworkSocket() {
-    if (localModeForced) return;
-    const socket = window.io({
-      path: gameEndpoint("socket.io").pathname,
-      transports: ["websocket", "polling"],
-      timeout: 8000
+  function waitForP2PRuntime() {
+    if (window.GSS0P2P?.createClient) return Promise.resolve(window.GSS0P2P);
+    return new Promise((resolve, reject) => {
+      const timeout = window.setTimeout(() => {
+        window.removeEventListener("gss0:p2p-ready", ready);
+        reject(new Error("P2P 客户端模块加载超时"));
+      }, 10000);
+      const ready = () => {
+        window.clearTimeout(timeout);
+        window.removeEventListener("gss0:p2p-ready", ready);
+        if (window.GSS0P2P?.createClient) resolve(window.GSS0P2P);
+        else reject(new Error("P2P 客户端模块无效"));
+      };
+      window.addEventListener("gss0:p2p-ready", ready, { once: true });
     });
-    network.socket = socket;
-    socket.on("connect", () => {
-      if (localModeForced) {
-        socket.disconnect();
-        return;
-      }
-      resetNetworkPredictionInput(true);
-      setNetworkButtonsDisabled(true);
-      setNetworkStatus("connecting", "TACTICAL SURVIVAL / 正在同步");
-      socket.emit("ultra:join", (result) => {
-        if (localModeForced) {
-          socket.disconnect();
-          return;
-        }
-        if (!result?.ok || !result.data) {
-          setNetworkStatus("error", `联机接入失败 / ${result?.error || "会话无效"}`);
-          setNetworkButtonsDisabled(true);
-          return;
-        }
-        if (!validateNetworkProtocols(
-          result.data.snapshotProtocolVersion,
-          result.data.playerStateProtocolVersion,
-          socket
-        )) return;
-        network.enabled = true;
-        network.connecting = false;
-        network.selfEntityId = result.data.selfEntityId;
-        network.roster = result.data.roster || [];
-        clearNetworkViews();
-        resetNetworkFoodViews(result.data.snapshot.foods, result.data.foodRevision);
-        resetNetworkWorldObjects(
-          result.data.snapshot.hazards,
-          result.data.snapshot.pendingSpawns,
-          result.data.snapshot.worldObjectRevision
-        );
-        result.data.snapshot.foods.length = 0;
-        result.data.snapshot.hazards.length = 0;
-        result.data.snapshot.pendingSpawns.length = 0;
-        result.data.snapshot.worldObjectsComplete = false;
-        network.snapshot = result.data.snapshot;
-        network.snapshotBuffer = [networkSnapshotEntry(result.data.snapshot)];
-        network.receivedAt = performance.now();
-        network.snapshotIntervalMs = NETWORK_BASE_SNAPSHOT_MS;
-        network.snapshotGapMs = NETWORK_BASE_SNAPSHOT_MS;
-        network.snapshotJitterMs = 0;
-        network.lastResyncRequestAt = -Infinity;
-        network.renderServerTime = NaN;
-        network.renderGameTime = result.data.snapshot.gameTime;
-        network.lastPresentationAt = 0;
-        const joinedSelf = result.data.snapshot.players.find((item) => item.entityId === network.selfEntityId);
-        network.localDesiredAngle = joinedSelf?.desiredAngle ?? NaN;
-        if (joinedSelf?.alive) {
-          networkPlayerPredictionRuntime.reconcile(joinedSelf);
-          startRespawnLocator();
-        }
-        networkProjectileRuntime.reset(result.data.projectiles || result.data.snapshot.projectiles || []);
-        projectiles = networkProjectileRuntime.items;
-        network.lastSelfAlive = Boolean(joinedSelf?.alive);
-        bestScore = Math.max(bestScore, Number(result.data.profile?.bestScore) || 0);
-        ui.best.textContent = Math.floor(bestScore).toLocaleString("zh-CN");
-        setNetworkButtonsDisabled(false);
-        setNetworkStatus("online", `ULTRA LINK / @${network.principal.username}`);
-        renderNetworkRoster(result.data.snapshot.players);
-        const joinedAt = performance.now();
-        applyNetworkPresentation(result.data.snapshot, result.data.snapshot, network.snapshotBuffer[0].indexes, 1, joinedAt);
-        void emitNetworkAction("ultra:autopilot", automaticModePreferences()).then((modeResult) => {
-          if (!modeResult?.ok) {
-            setNetworkStatus("error", `ULTRA LINK / ${modeResult?.error || "无法同步自动模式"}`);
-            return;
-          }
-          reconcileAutomaticNetworkState();
-        });
-      });
+  }
+
+  async function connectP2PLobby() {
+    if (localModeForced || network.p2pClient) return;
+    const runtime = await waitForP2PRuntime();
+    const client = await runtime.createClient({
+      ioFactory: (options) => window.io(options),
+      socketPath: gameEndpoint("socket.io").pathname,
+      principal: network.principal || {}
     });
-    socket.on("ultra:snapshot", (payload) => {
+    if (localModeForced) {
+      client.close();
+      return;
+    }
+    network.p2pClient = client;
+    network.lobbyReady = true;
+    network.connecting = false;
+    network.rooms = client.rooms || [];
+    network.room = client.room || null;
+    client.on("rooms", (rooms) => {
+      network.rooms = Array.isArray(rooms) ? rooms : [];
+      renderP2PRoomList();
+    });
+    client.on("room", (room) => {
+      network.room = room || null;
+      renderP2PRoom(room || null);
+    });
+    client.on("status", (status) => {
+      const kind = status?.kind === "error" ? "error" : status?.kind === "connecting" ? "connecting" : "online";
+      setNetworkStatus(kind, status?.text || "P2P 大厅");
+      if (ui.p2pLobbyStatus) ui.p2pLobbyStatus.textContent = status?.text || "P2P 大厅";
+    });
+    client.on("room-closed", (reason) => {
+      network.enabled = false;
+      network.room = null;
+      network.transport = null;
+      network.boundTransport = null;
+      network.lastSelfAlive = false;
+      clearNetworkViews();
+      renderP2PRoom(null);
+      setNetworkStatus("error", reason || "房间已关闭");
+      if (ui.p2pLobbyStatus) ui.p2pLobbyStatus.textContent = reason || "房间已关闭";
+      if (ui.p2pLobby && !localModeForced) ui.p2pLobby.classList.add("is-visible");
+    });
+    client.on("game-ready", (payload) => initializeP2PGame(payload));
+    client.on("game-error", (message) => {
+      setNetworkStatus("error", message || "P2P 游戏连接失败");
+      if (ui.p2pLobbyStatus) ui.p2pLobbyStatus.textContent = message || "P2P 游戏连接失败";
+    });
+    setNetworkButtonsDisabled(false);
+    setNetworkStatus("online", `P2P LOBBY / @${network.principal?.username || client.profile?.bestScore || "PLAYER"}`);
+    if (ui.p2pLobbyStatus) ui.p2pLobbyStatus.textContent = "选择建立房间或加入房间";
+    renderP2PRoomList();
+    renderP2PRoom(network.room);
+  }
+
+  function initializeP2PGame(payload) {
+    const transport = payload?.transport;
+    const joinData = payload?.joinData;
+    if (!transport || !joinData) return;
+    if (!validateNetworkProtocols(joinData.snapshotProtocolVersion, joinData.playerStateProtocolVersion, network.p2pClient)) return;
+    network.transport = transport;
+    network.room = payload.room || network.room;
+    network.enabled = true;
+    network.connecting = false;
+    network.selfEntityId = joinData.selfEntityId;
+    network.roster = joinData.roster || [];
+    clearNetworkViews();
+    resetNetworkFoodViews(joinData.snapshot.foods, joinData.foodRevision);
+    resetNetworkWorldObjects(joinData.snapshot.hazards, joinData.snapshot.pendingSpawns, joinData.snapshot.worldObjectRevision);
+    joinData.snapshot.foods.length = 0;
+    joinData.snapshot.hazards.length = 0;
+    joinData.snapshot.pendingSpawns.length = 0;
+    joinData.snapshot.worldObjectsComplete = false;
+    network.snapshot = joinData.snapshot;
+    network.snapshotBuffer = [networkSnapshotEntry(joinData.snapshot)];
+    network.receivedAt = performance.now();
+    network.snapshotIntervalMs = NETWORK_BASE_SNAPSHOT_MS;
+    network.snapshotGapMs = NETWORK_BASE_SNAPSHOT_MS;
+    network.snapshotJitterMs = 0;
+    network.lastResyncRequestAt = -Infinity;
+    network.renderServerTime = NaN;
+    network.renderGameTime = joinData.snapshot.gameTime;
+    network.lastPresentationAt = 0;
+    const joinedSelf = joinData.snapshot.players.find((item) => item.entityId === network.selfEntityId);
+    network.localDesiredAngle = joinedSelf?.desiredAngle ?? NaN;
+    if (joinedSelf?.alive) {
+      networkPlayerPredictionRuntime.reconcile(joinedSelf);
+      startRespawnLocator();
+    }
+    networkProjectileRuntime.reset(joinData.projectiles || joinData.snapshot.projectiles || []);
+    projectiles = networkProjectileRuntime.items;
+    network.lastSelfAlive = Boolean(joinedSelf?.alive);
+    bestScore = Math.max(bestScore, Number(joinData.profile?.bestScore) || 0);
+    ui.best.textContent = Math.floor(bestScore).toLocaleString("zh-CN");
+    bindP2PGameTransport(transport);
+    renderNetworkRoster(joinData.snapshot.players);
+    applyNetworkPresentation(joinData.snapshot, joinData.snapshot, network.snapshotBuffer[0].indexes, 1, performance.now());
+    ui.p2pLobby.classList.remove("is-visible");
+    ui.start.classList.remove("is-visible");
+    setNetworkButtonsDisabled(false);
+    setNetworkStatus("online", network.p2pClient?.isHost ? "P2P HOST / SHARED WORLD" : "P2P CLIENT / CONNECTED");
+    void startNetworkGame(Boolean(joinedSelf?.alive));
+  }
+
+  function bindP2PGameTransport(transport) {
+    if (network.boundTransport === transport) return;
+    network.boundTransport = transport;
+    transport.on("ultra:snapshot", (payload) => {
       if (localModeForced || !network.enabled) return;
       const reusableEntry = network.snapshotBuffer.length >= NETWORK_SNAPSHOT_BUFFER_SIZE
         && network.snapshotBuffer[0]?.snapshot !== network.presentationSnapshot
@@ -1694,24 +1768,24 @@
         requestNetworkSnapshotResync();
       }
     });
-    socket.on("ultra:foods", receiveNetworkFoodDelta);
-    socket.on("ultra:world-objects", receiveNetworkWorldObjectDelta);
-    socket.on("ultra:projectiles", (events) => {
+    transport.on("ultra:foods", receiveNetworkFoodDelta);
+    transport.on("ultra:world-objects", receiveNetworkWorldObjectDelta);
+    transport.on("ultra:projectiles", (events) => {
       if (localModeForced) return;
       networkProjectileRuntime.applyEvents(events);
       projectiles = networkProjectileRuntime.items;
     });
-    socket.on("ultra:effects", receiveNetworkEffects);
-    socket.on("ultra:player-head-collision", (event) => {
-      if (localModeForced) return;
-      networkHeadCollisionRuntime.receive(event, performance.now());
+    transport.on("ultra:skill-spawn", receiveNetworkSkillSpawn);
+    transport.on("ultra:effects", receiveNetworkEffects);
+    transport.on("ultra:player-head-collision", (event) => {
+      if (!localModeForced) networkHeadCollisionRuntime.receive(event, performance.now());
     });
-    socket.on("ultra:roster", (roster) => {
+    transport.on("ultra:roster", (roster) => {
       if (localModeForced) return;
       network.roster = Array.isArray(roster) ? roster : [];
       renderNetworkRoster(network.snapshot?.players);
     });
-    socket.on("ultra:upgrade", (offer) => {
+    transport.on("ultra:upgrade", (offer) => {
       if (localModeForced) return;
       network.upgradeOffer = offer;
       if (offer) showUpgrade(offer.options.map((id) => MODULE_BY_ID[id]).filter(Boolean));
@@ -1720,21 +1794,193 @@
         enterRunningState();
       }
     });
-    socket.on("disconnect", () => {
-      if (!network.enabled) return;
-      setNetworkButtonsDisabled(true);
-      setNetworkStatus("connecting", "ULTRA LINK / 正在重连");
+    transport.on("ultra:world-commit", (commit) => receiveNetworkWorldCommit(commit));
+  }
+
+  function receiveNetworkSkillSpawn(spawn) {
+    if (
+      localModeForced
+      || !network.enabled
+      || !network.transport?.connected
+      || !spawn
+      || spawn.ownerEntityId !== network.selfEntityId
+      || spawn.ownerPeerId !== network.p2pClient?.peerId
+    ) return;
+    const claim = {
+      hitId: spawn.hitId,
+      spawnId: spawn.spawnId,
+      ownerPeerId: spawn.ownerPeerId,
+      ownerEntityId: spawn.ownerEntityId,
+      targetId: spawn.targetId,
+      targetSegmentIndex: spawn.targetSegmentIndex,
+      moduleId: spawn.moduleId ?? null,
+      amount: spawn.amount,
+      impactCol: spawn.impactCol,
+      impactRow: spawn.impactRow,
+      observedAt: performance.now()
+    };
+    network.transport.emit("ultra:hit-claim", claim, (result) => {
+      if (!result?.ok && result?.error) setNetworkStatus("error", `P2P 命中未提交 / ${result.error}`);
     });
-    socket.on("connect_error", () => {
-      if (localModeForced) return;
-      setNetworkButtonsDisabled(true);
-      if (network.principal) setNetworkStatus("error", "ULTRA LINK / 连接中断");
+  }
+
+  function openP2PLobby() {
+    if (!network.lobbyReady) {
+      setNetworkStatus("connecting", "正在连接 P2P 大厅");
+      return;
+    }
+    closeSettingPopovers();
+    ui.start.classList.remove("is-visible");
+    ui.p2pLobby.classList.add("is-visible");
+    renderP2PRoomList();
+    renderP2PRoom(network.room);
+    void network.p2pClient?.refreshRooms();
+  }
+
+  function closeP2PLobby() {
+    if (network.enabled) return;
+    ui.p2pLobby.classList.remove("is-visible");
+    ui.start.classList.add("is-visible");
+  }
+
+  function renderP2PRoomList() {
+    if (!ui.p2pRoomList) return;
+    ui.p2pRoomList.replaceChildren();
+    const rooms = Array.isArray(network.rooms) ? network.rooms : [];
+    if (rooms.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "p2p-room-empty";
+      empty.textContent = "当前没有公开房间。\n创建一个房间，等队友加入。";
+      ui.p2pRoomList.append(empty);
+      return;
+    }
+    for (const room of rooms) {
+      const card = document.createElement("article");
+      card.className = `p2p-room-card${room.status === "playing" ? " is-playing" : ""}`;
+      const copy = document.createElement("div");
+      const title = document.createElement("h4");
+      title.textContent = room.name;
+      const detail = document.createElement("p");
+      detail.textContent = `${room.hostName} · ${room.memberCount}/${room.maxPlayers} 人 · ${room.status === "playing" ? "进行中" : "等待中"} · ${room.code}`;
+      copy.append(title, detail);
+      const join = document.createElement("button");
+      join.className = "secondary-button";
+      join.type = "button";
+      join.textContent = room.status === "playing" ? "加入进行中" : "加入";
+      join.disabled = room.memberCount >= room.maxPlayers;
+      join.addEventListener("click", () => void joinP2PRoom({ roomId: room.id }));
+      card.append(copy, join);
+      ui.p2pRoomList.append(card);
+    }
+  }
+
+  function renderP2PRoom(room) {
+    network.room = room || null;
+    const hasRoom = Boolean(room);
+    ui.p2pLobbyBrowser.hidden = hasRoom;
+    ui.p2pRoomWaiting.hidden = !hasRoom;
+    if (!hasRoom) return;
+    ui.p2pRoomName.textContent = room.name;
+    ui.p2pRoomCode.textContent = room.code;
+    ui.p2pRoomMode.textContent = `${room.config.modeId === "standard" ? "标准模式" : room.config.modeId} · 难度 ${room.config.difficulty} · 房主运行共享世界`;
+    ui.p2pMemberCount.textContent = `${room.members.length}/${room.config.maxPlayers}`;
+    ui.p2pMemberList.replaceChildren();
+    for (const member of room.members) {
+      const row = document.createElement("li");
+      row.className = "p2p-member-row";
+      const name = document.createElement("strong");
+      name.textContent = member.name || member.playerId;
+      const meta = document.createElement("span");
+      meta.className = member.isHost ? "p2p-member-badge" : member.ready ? "p2p-member-ready" : "";
+      meta.textContent = member.isHost ? "房主" : member.ready ? "已准备" : "未准备";
+      row.append(name, meta);
+      ui.p2pMemberList.append(row);
+    }
+    const isHost = Boolean(network.p2pClient?.isHost);
+    ui.p2pHostSettings.hidden = !isHost;
+    ui.p2pRoomReady.hidden = isHost || room.status === "playing";
+    ui.p2pRoomStart.hidden = !isHost || room.status !== "waiting";
+    ui.p2pRoomReady.textContent = room.members.find((member) => member.peerId === network.p2pClient?.peerId)?.ready ? "取消准备" : "准备";
+    ui.p2pRoomHint.textContent = room.status === "playing" ? "正在建立房主星型 P2P 连接…" : isHost ? "所有玩家准备后开始行动。" : "等待房主开始行动。";
+    ui.p2pHostDifficulty.value = String(room.config.difficulty);
+    ui.p2pHostJoinProgress.value = String(room.config.allowJoinInProgress);
+  }
+
+  async function joinP2PRoom(payload) {
+    if (!network.p2pClient || network.lobbyBusy) return;
+    network.lobbyBusy = true;
+    ui.p2pLobbyStatus.textContent = "正在加入房间…";
+    const result = await network.p2pClient.joinRoom(payload);
+    network.lobbyBusy = false;
+    if (!result?.ok) ui.p2pLobbyStatus.textContent = result?.error || "加入房间失败";
+  }
+
+  async function createP2PRoom() {
+    if (!network.p2pClient || network.lobbyBusy) return;
+    network.lobbyBusy = true;
+    ui.p2pLobbyStatus.textContent = "正在创建房间…";
+    const result = await network.p2pClient.createRoom({
+      name: ui.p2pCreateName.value.trim(),
+      isPrivate: ui.p2pCreatePrivate.checked,
+      config: { maxPlayers: Number(ui.p2pCreateMax.value) }
     });
+    network.lobbyBusy = false;
+    if (!result?.ok) ui.p2pLobbyStatus.textContent = result?.error || "创建房间失败";
+  }
+
+  async function leaveP2PRoom() {
+    if (!network.p2pClient || network.lobbyBusy) return;
+    network.lobbyBusy = true;
+    ui.p2pLobbyStatus.textContent = "正在离开房间…";
+    const result = await network.p2pClient.leaveRoom();
+    network.lobbyBusy = false;
+    if (!result?.ok) {
+      ui.p2pLobbyStatus.textContent = result?.error || "离开房间失败";
+      return;
+    }
+    network.room = null;
+    renderP2PRoom(null);
+    ui.p2pLobbyStatus.textContent = "已离开房间，可以建立或加入新的房间";
+  }
+
+  function updateP2PRoomConfig() {
+    if (!network.p2pClient?.isHost || !network.room) return;
+    const config = {
+      difficulty: Number(ui.p2pHostDifficulty.value),
+      allowJoinInProgress: ui.p2pHostJoinProgress.value === "true"
+    };
+    void network.p2pClient.updateConfig(config).then((result) => {
+      if (!result?.ok) ui.p2pLobbyStatus.textContent = result?.error || "房主设置更新失败";
+    });
+  }
+
+  async function copyP2PRoomCode() {
+    const code = network.room?.code || ui.p2pRoomCode.textContent?.trim();
+    if (!code) return;
+    try {
+      await navigator.clipboard?.writeText(code);
+    } catch {
+      const helper = document.createElement("textarea");
+      helper.value = code;
+      helper.style.position = "fixed";
+      helper.style.opacity = "0";
+      document.body.append(helper);
+      helper.select();
+      document.execCommand("copy");
+      helper.remove();
+    }
+    ui.p2pLobbyStatus.textContent = `房间码 ${code} 已复制`;
+  }
+
+  function receiveNetworkWorldCommit(_commit) {
+    // World commits are reliable receipts. The next snapshot reconciles the
+    // exact enemy shape while this event lets a Unity client play the impact
+    // immediately without waiting for the 15 Hz snapshot cadence.
   }
 
   const NETWORK_PROTOCOL_REFRESH_KEY = "gss0-network-protocol-refresh";
 
-  function validateNetworkProtocols(snapshotServerVersion, playerStateServerVersion, socket) {
+  function validateNetworkProtocols(snapshotServerVersion, playerStateServerVersion, connection) {
     const snapshotClientVersion = networkSnapshotCodec.version;
     const playerStateClientVersion = networkPlayerStateCodec.version;
     if (
@@ -1770,20 +2016,20 @@
       window.location.reload();
       return false;
     }
-    socket.disconnect();
+    connection?.disconnect?.();
+    connection?.close?.();
     setNetworkStatus("error", "联机资源版本不一致 / 请刷新页面");
     return false;
   }
 
   function requestNetworkSnapshotResync(now = performance.now()) {
-    const socket = network.socket;
     if (
       !network.enabled
-      || !socket?.connected
+      || !network.transport?.connected
       || now - network.lastResyncRequestAt < NETWORK_SNAPSHOT_STALL_TIMEOUT_MS
     ) return;
     network.lastResyncRequestAt = now;
-    socket.emit("ultra:resync");
+    network.transport.emit("ultra:resync");
   }
 
   function receiveNetworkSnapshot(snapshot, reusableEntry = null) {
@@ -3140,16 +3386,16 @@
   }
 
   function sendNetworkInput(force = false, reliable = false) {
-    const socket = network.socket;
-    if (!socket?.connected || !player) return null;
+    const transport = network.transport;
+    if (!transport?.connected || !player) return null;
     const now = performance.now();
     const elapsed = now - network.lastInputAt;
     if (!force && elapsed < NETWORK_INPUT_INTERVAL_MS) return null;
     network.lastInputAt = now;
     const sequence = ++network.inputSequence;
     const payload = networkPlayerStateCodec.encode(sequence, player);
-    if (reliable) socket.emit("ultra:input", payload);
-    else socket.volatile.emit("ultra:input", payload);
+    if (reliable) transport.emit("ultra:input", payload);
+    else transport.volatile.emit("ultra:input", payload);
     return sequence;
   }
 
@@ -3329,8 +3575,8 @@
   }
 
   function claimNetworkFoodContacts() {
-    const socket = network.socket;
-    if (!socket?.connected || !player?.alive || player.ghost || player.paused || player.choosingUpgrade || foods.length === 0) return;
+    const transport = network.transport;
+    if (!transport?.connected || !player?.alive || player.ghost || player.paused || player.choosingUpgrade || foods.length === 0) return;
     const now = performance.now();
     if (now - network.lastFoodContactAt < NETWORK_FOOD_CONTACT_INTERVAL_MS) return;
     network.lastFoodContactAt = now;
@@ -3339,7 +3585,7 @@
     const requestedFoodIds = networkFoodClaimRuntime.detect(player, headRange, bodyRange, now);
     if (requestedFoodIds.length === 0) return;
     syncNetworkFoodVisibility(requestedFoodIds);
-    socket.emit("ultra:claim-food", { foodIds: requestedFoodIds }, (result) => {
+    transport.emit("ultra:claim-food", { foodIds: requestedFoodIds }, (result) => {
       const claimedFoodIds = result?.ok && Array.isArray(result.data?.claimedFoodIds)
         ? result.data.claimedFoodIds.filter(Number.isSafeInteger)
         : [];
@@ -3350,8 +3596,8 @@
 
   function emitNetworkAction(event, ...args) {
     return new Promise((resolve) => {
-      if (!network.socket?.connected) return resolve({ ok: false, error: "联机连接尚未就绪" });
-      network.socket.emit(event, ...args, (result) => resolve(result));
+      if (!network.transport?.connected) return resolve({ ok: false, error: "联机连接尚未就绪" });
+      network.transport.emit(event, ...args, (result) => resolve(result));
     });
   }
 
@@ -3772,10 +4018,14 @@
 
   function startPureLocalGame() {
     localModeForced = true;
-    const socket = network.socket;
+    const client = network.p2pClient;
     network.enabled = false;
     network.connecting = false;
-    network.socket = null;
+    network.lobbyReady = false;
+    network.p2pClient = null;
+    network.transport = null;
+    network.boundTransport = null;
+    network.room = null;
     network.selfEntityId = null;
     network.principal = null;
     network.roster = [];
@@ -3788,8 +4038,7 @@
     network.lastPresentationAt = 0;
     network.lastSelfAlive = false;
     network.upgradeOffer = null;
-    socket?.removeAllListeners?.();
-    socket?.disconnect?.();
+    client?.close?.();
     resetNetworkPredictionInput(true);
     clearNetworkViews();
     renderNetworkRoster([]);
@@ -8886,8 +9135,55 @@
   });
   window.addEventListener("resize", resize);
 
-  ui.multiplayerModeButton.addEventListener("click", startGame);
+  ui.multiplayerModeButton.addEventListener("click", openP2PLobby);
   ui.localModeButton.addEventListener("click", startPureLocalGame);
+  ui.p2pLobbyClose.addEventListener("click", closeP2PLobby);
+  ui.p2pRoomRefresh.addEventListener("click", () => {
+    ensureAudio();
+    void network.p2pClient?.refreshRooms();
+    sound("ui");
+  });
+  ui.p2pCreateForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    ensureAudio();
+    void createP2PRoom();
+  });
+  ui.p2pJoinForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    ensureAudio();
+    const code = ui.p2pJoinCode.value.trim().toUpperCase();
+    if (!code) {
+      ui.p2pLobbyStatus.textContent = "请输入房间码";
+      return;
+    }
+    void joinP2PRoom({ code });
+  });
+  ui.p2pRoomReady.addEventListener("click", () => {
+    const member = network.room?.members.find((item) => item.peerId === network.p2pClient?.peerId);
+    if (!member || network.p2pClient?.isHost) return;
+    ensureAudio();
+    void network.p2pClient?.setReady(!member.ready);
+    sound("ui");
+  });
+  ui.p2pHostDifficulty.addEventListener("change", updateP2PRoomConfig);
+  ui.p2pHostJoinProgress.addEventListener("change", updateP2PRoomConfig);
+  ui.p2pRoomStart.addEventListener("click", () => {
+    if (!network.p2pClient?.isHost) return;
+    ensureAudio();
+    ui.p2pLobbyStatus.textContent = "正在启动房间…";
+    void network.p2pClient.startRoom().then((result) => {
+      if (!result?.ok) ui.p2pLobbyStatus.textContent = result?.error || "房间暂时无法开始";
+    });
+    sound("ui");
+  });
+  ui.p2pRoomLeave.addEventListener("click", () => {
+    ensureAudio();
+    void leaveP2PRoom();
+    sound("ui");
+  });
+  ui.p2pRoomCopy.addEventListener("click", () => {
+    void copyP2PRoomCode();
+  });
   ui.lobbyButton.addEventListener("click", () => void returnToLobby());
   ui.codexButton.addEventListener("click", openCodex);
   ui.codexCloseButton.addEventListener("click", closeCodex);

@@ -7,6 +7,7 @@ const gameSource = readFileSync(new URL('../game.js', import.meta.url), 'utf8');
 const indexHtml = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const serverSource = readFileSync(new URL('../src/server/UltraWorld.ts', import.meta.url), 'utf8');
 const protocolSource = readFileSync(new URL('../src/shared/protocol.ts', import.meta.url), 'utf8');
+const roomProtocolSource = readFileSync(new URL('../src/shared/roomProtocol.ts', import.meta.url), 'utf8');
 
 interface AutomaticModeTestPlayer {
   autopilot: boolean;
@@ -54,7 +55,8 @@ describe('自动模式设置', () => {
     expect(serverSource).toContain('if (enabled && autoSelectModules && player.choosingUpgrade && player.upgradeOffer)');
     expect(serverSource).toContain('player.autopilot && player.autoSelectModules');
     expect(serverSource).toContain('MODULE_PROGRESSION.chooseAutomaticUpgradeIds');
-    expect(protocolSource).toContain("'ultra:autopilot': (preferences: AutopilotPreferences");
+    expect(protocolSource).toContain('export interface AutopilotPreferences');
+    expect(roomProtocolSource).toContain("'room:ready'");
     expect(protocolSource).toContain('autoRestart: boolean;');
     expect(gameSource).toContain('let damage = playerHeadDamage(hitHead);');
     expect(serverSource).toContain('let damage = this.playerHeadDamage(player, hitHead);');

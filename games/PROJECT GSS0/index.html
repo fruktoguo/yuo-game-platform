@@ -19,7 +19,7 @@
           <strong>代号：几何贪吃蛇</strong>
         </div>
         <span class="signature">by 四季鸽</span>
-        <span class="brand-version" aria-label="游戏版本 V118">V118</span>
+        <span class="brand-version" aria-label="游戏版本 V119">V119</span>
       </div>
 
       <div class="run-stats">
@@ -201,7 +201,7 @@
 
     <section id="start-screen" class="modal-layer start-screen is-visible" aria-labelledby="game-title">
       <div class="start-glow" aria-hidden="true"></div>
-          <div class="start-version" aria-label="游戏版本 V118"><span>BUILD</span><strong>V118</strong></div>
+          <div class="start-version" aria-label="游戏版本 V119"><span>BUILD</span><strong>V119</strong></div>
       <div class="start-layout">
         <div class="start-content">
           <div id="network-status" class="title-kicker">TACTICAL SURVIVAL / LOCAL</div>
@@ -248,6 +248,77 @@
             <p><span>波次规模随人数增加</span><span>我撞其他玩家身体：受到5点伤害</span><span>机体技能不会误伤其他玩家</span><span>阵亡后的玩家可由其它玩家复活。</span></p>
           </section>
         </aside>
+      </div>
+    </section>
+
+    <section id="p2p-lobby-screen" class="modal-layer p2p-lobby-screen" aria-labelledby="p2p-lobby-title">
+      <div class="p2p-lobby-shell">
+        <header class="p2p-lobby-header">
+          <div>
+            <span class="dialog-kicker">P2P SESSION CONTROL</span>
+            <h2 id="p2p-lobby-title">联机大厅</h2>
+            <p id="p2p-lobby-status" class="p2p-lobby-status" role="status">正在连接大厅…</p>
+          </div>
+          <button id="p2p-lobby-close" class="icon-button codex-close-button" type="button" aria-label="关闭联机大厅">×</button>
+        </header>
+
+        <div id="p2p-lobby-browser" class="p2p-lobby-browser">
+          <section class="p2p-lobby-column p2p-room-directory" aria-labelledby="p2p-room-directory-title">
+            <div class="p2p-section-heading">
+              <div><span>PUBLIC ROOMS</span><h3 id="p2p-room-directory-title">公开房间</h3></div>
+              <button id="p2p-room-refresh" class="secondary-button p2p-small-button" type="button">刷新</button>
+            </div>
+            <div id="p2p-room-list" class="p2p-room-list" aria-live="polite"></div>
+          </section>
+
+          <section class="p2p-lobby-column p2p-room-actions" aria-label="创建或加入房间">
+            <div class="p2p-action-card">
+              <div class="p2p-section-heading"><div><span>CREATE SESSION</span><h3>建立房间</h3></div></div>
+              <form id="p2p-create-form" class="p2p-form">
+                <label>房间名称<input id="p2p-create-name" type="text" maxlength="24" placeholder="我的行动小队"></label>
+                <label>最大人数<select id="p2p-create-max"><option value="2">2 人</option><option value="4">4 人</option><option value="8">8 人</option><option value="12" selected>12 人</option></select></label>
+                <label class="p2p-check-row"><input id="p2p-create-private" type="checkbox"><span>私人房间（仅凭房间码加入）</span></label>
+                <button class="primary-button" type="submit">创建并进入等待室</button>
+              </form>
+            </div>
+            <div class="p2p-action-card">
+              <div class="p2p-section-heading"><div><span>JOIN SESSION</span><h3>加入房间</h3></div></div>
+              <form id="p2p-join-form" class="p2p-form p2p-join-form">
+                <label>房间码<input id="p2p-join-code" type="text" maxlength="6" inputmode="text" autocomplete="off" placeholder="例如 7K3MNP"></label>
+                <button class="secondary-button" type="submit">使用房间码加入</button>
+              </form>
+            </div>
+          </section>
+        </div>
+
+        <div id="p2p-room-waiting" class="p2p-room-waiting" hidden>
+          <div class="p2p-room-identity">
+            <span class="dialog-kicker">ROOM CHANNEL</span>
+            <h3 id="p2p-room-name">等待室</h3>
+            <p>房间码 <strong id="p2p-room-code">------</strong><button id="p2p-room-copy" class="p2p-copy-button" type="button">复制</button></p>
+            <p id="p2p-room-mode" class="p2p-muted">标准模式 · 房主运行共享世界</p>
+          </div>
+          <div class="p2p-room-grid">
+            <section class="p2p-members-panel" aria-labelledby="p2p-members-title">
+              <div class="p2p-section-heading"><div><span>PLAYERS</span><h3 id="p2p-members-title">房间成员</h3></div><strong id="p2p-member-count">0/12</strong></div>
+              <ul id="p2p-member-list" class="p2p-member-list"></ul>
+            </section>
+            <section id="p2p-host-settings" class="p2p-host-settings" aria-labelledby="p2p-host-settings-title">
+              <div class="p2p-section-heading"><div><span>HOST SETTINGS</span><h3 id="p2p-host-settings-title">房主设置</h3></div></div>
+              <label>难度<select id="p2p-host-difficulty"><option value="1">标准</option><option value="2">强化</option><option value="3">危险</option><option value="4">极限</option><option value="5">实验</option></select></label>
+              <label>中途加入<select id="p2p-host-join-progress"><option value="true">允许</option><option value="false">关闭</option></select></label>
+              <p class="p2p-muted">后续模式选择也会放在这里，由房主统一决定。</p>
+            </section>
+          </div>
+          <div class="p2p-room-footer">
+            <span id="p2p-room-hint" class="p2p-muted">等待所有玩家准备。</span>
+            <div class="p2p-room-buttons">
+              <button id="p2p-room-ready" class="secondary-button" type="button">准备</button>
+              <button id="p2p-room-start" class="primary-button" type="button" hidden>开始行动</button>
+              <button id="p2p-room-leave" class="secondary-button" type="button">离开房间</button>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -302,6 +373,21 @@
           <button id="changelog-close-button" class="icon-button codex-close-button" type="button" aria-label="关闭更新日志" title="关闭更新日志">×</button>
         </header>
         <div class="changelog-list">
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V119</strong></div>
+              <time datetime="2026-07-24">2026.07.24</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">联机重构</span>
+              <h3>房主星型 P2P 联机重构</h3>
+              <ul>
+                <li>多人模式改为联机大厅、房间与房主浏览器 Worker 运行的 WebRTC 星型 P2P，中心服务只负责账号、信令、聊天和战绩存档。</li>
+                <li>新增建立/加入房间、准备、房主难度与中途加入设置，房主离开时房间关闭。</li>
+                <li>玩家技能命中改用 SkillSpawn、HitClaim 与 WorldCommit 可靠链路，房主以 hitId 账本去重并删除旧中心服务器联机路径。</li>
+              </ul>
+            </div>
+          </article>
           <article class="changelog-entry">
             <header>
               <div class="changelog-version"><span>BUILD</span><strong>V118</strong></div>
@@ -1841,21 +1927,22 @@
     </section>
   </main>
 
-  <script src="designer-config.js?v=118"></script>
-  <script src="status-catalog.js?v=118"></script>
-  <script src="module-catalog.js?v=118"></script>
-  <script src="module-progression.js?v=118"></script>
-  <script src="wave-director.js?v=118"></script>
-  <script src="spawn-planner.js?v=118"></script>
-  <script src="network-codec.js?v=118"></script>
-  <script src="network-player-prediction.js?v=118"></script>
-  <script src="network-player-state-codec.js?v=118"></script>
-  <script src="network-player-collisions.js?v=118"></script>
-  <script src="network-head-collisions.js?v=118"></script>
-  <script src="network-food-claims.js?v=118"></script>
-  <script src="network-projectiles.js?v=118"></script>
-  <script src="lobby-navigation.js?v=118"></script>
-  <script src="enemy-codex.js?v=118"></script>
-  <script src="game.js?v=118"></script>
+  <script src="designer-config.js?v=119"></script>
+  <script src="status-catalog.js?v=119"></script>
+  <script src="module-catalog.js?v=119"></script>
+  <script src="module-progression.js?v=119"></script>
+  <script src="wave-director.js?v=119"></script>
+  <script src="spawn-planner.js?v=119"></script>
+  <script src="network-codec.js?v=119"></script>
+  <script src="network-player-prediction.js?v=119"></script>
+  <script src="network-player-state-codec.js?v=119"></script>
+  <script src="network-player-collisions.js?v=119"></script>
+  <script src="network-head-collisions.js?v=119"></script>
+  <script src="network-food-claims.js?v=119"></script>
+  <script src="network-projectiles.js?v=119"></script>
+  <script src="lobby-navigation.js?v=119"></script>
+  <script src="enemy-codex.js?v=119"></script>
+  <script type="module" src="src/client/p2p/bootstrap.ts?v=119"></script>
+  <script src="game.js?v=119"></script>
 </body>
 </html>

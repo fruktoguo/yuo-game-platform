@@ -5,21 +5,22 @@ import express from 'express';
 import { Server } from 'socket.io';
 import { GameAuthBridge } from '@yuo-platform/server-sdk';
 import type {
-  ClientToServerEvents,
-  InterServerEvents,
-  ServerToClientEvents,
-  SocketData,
-} from '../shared/protocol';
-import { ArenaHub } from './ArenaHub';
+  LobbyClientToServerEvents,
+  LobbyInterServerEvents,
+  LobbyServerToClientEvents,
+  LobbySocketData,
+} from '../shared/roomProtocol';
+import { RoomHub } from './RoomHub';
 
 const port = parsePort(process.env.PORT, 3103);
 const host = process.env.HOST ?? '0.0.0.0';
 const dataPath = process.env.DATA_PATH ?? resolve(process.cwd(), 'data/snake-profiles.json.gz');
 const app = express();
 const httpServer = createServer(app);
-const io = new Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>(httpServer, {
+const io = new Server<LobbyClientToServerEvents, LobbyServerToClientEvents, LobbyInterServerEvents, LobbySocketData>(httpServer, {
   cors: process.env.NODE_ENV === 'production' ? undefined : { origin: true, credentials: true },
-  maxHttpBufferSize: 16 * 1024,
+  // SDP offers can exceed the old 16 KiB Socket.IO ceiling.
+  maxHttpBufferSize: 64 * 1024,
   perMessageDeflate: false,
   pingInterval: 20_000,
   pingTimeout: 10_000,
@@ -33,7 +34,7 @@ const authBridge = new GameAuthBridge({
   secureCookies: process.env.COOKIE_SECURE === 'true',
 });
 io.use(authBridge.socketMiddleware());
-const hub = await ArenaHub.create(io, dataPath);
+const hub = await RoomHub.create(io, dataPath);
 
 app.disable('x-powered-by');
 app.use(authBridge.createRouter());
@@ -59,15 +60,14 @@ if (process.env.NODE_ENV === 'production') {
 }
 
 httpServer.listen(port, host, () => {
-  hub.start();
-  console.info(`Neon Snake Arena 已启动：http://${host}:${port}`);
+  console.info(`Neon Snake P2P 大厅已启动：http://${host}:${port}`);
 });
 
 let shuttingDown = false;
 const shutdown = async (signal: string) => {
   if (shuttingDown) return;
   shuttingDown = true;
-  console.info(`收到 ${signal}，正在保存战绩并停止服务`);
+  console.info(`收到 ${signal}，正在保存大厅状态并停止服务`);
   await hub.stop();
   await new Promise<void>((resolveClose) => io.close(() => resolveClose()));
   httpServer.close(() => process.exit(0));

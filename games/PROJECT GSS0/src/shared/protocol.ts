@@ -1,4 +1,3 @@
-import type { PlatformSocketData } from '@yuo-platform/server-sdk';
 import type { ModuleId } from './modules';
 
 export const ENEMY_ARCHETYPE_IDS = ['scout', 'forager', 'courier', 'charger', 'cutter', 'coiler', 'warden'] as const;
@@ -336,42 +335,4 @@ export interface ActionResult<T = undefined> {
   ok: boolean;
   data?: T;
   error?: string;
-}
-
-export interface ServerToClientEvents {
-  'ultra:snapshot': (snapshot: Uint8Array) => void;
-  'ultra:foods': (delta: UltraFoodDelta) => void;
-  'ultra:world-objects': (delta: UltraWorldObjectDelta) => void;
-  'ultra:projectiles': (events: UltraProjectileEvent[]) => void;
-  'ultra:effects': (effects: UltraEffect[]) => void;
-  'ultra:player-head-collision': (event: PlayerHeadCollisionEvent) => void;
-  'ultra:roster': (players: RosterPlayer[]) => void;
-  'ultra:leaderboard': (entries: LeaderboardEntry[]) => void;
-  'ultra:event': (event: ArenaEvent) => void;
-  'ultra:chat': (message: ChatMessage) => void;
-  'ultra:profile': (profile: UltraProfileView) => void;
-  'ultra:upgrade': (offer: UpgradeOffer | null) => void;
-  'server:error': (message: string) => void;
-}
-
-export interface ClientToServerEvents {
-  'ultra:join': (ack: (result: ActionResult<ArenaJoinData>) => void) => void;
-  'ultra:resync': () => void;
-  'ultra:spawn': (ack: (result: ActionResult) => void) => void;
-  'ultra:restart': (ack: (result: ActionResult) => void) => void;
-  'ultra:leave-run': (ack: (result: ActionResult) => void) => void;
-  'ultra:autopilot': (preferences: AutopilotPreferences, ack: (result: ActionResult) => void) => void;
-  'ultra:pause': (paused: boolean, ack: (result: ActionResult) => void) => void;
-  'ultra:input': (payload: InputPayload) => void;
-  'ultra:collision': (claim: PlayerCollisionClaim, ack: (result: ActionResult) => void) => void;
-  'ultra:claim-food': (payload: FoodClaimPayload, ack: (result: ActionResult<FoodClaimResult>) => void) => void;
-  'ultra:upgrade': (moduleId: ModuleId, ack: (result: ActionResult) => void) => void;
-  'ultra:chat': (text: string, ack: (result: ActionResult) => void) => void;
-}
-
-export interface InterServerEvents {}
-
-export interface SocketData extends PlatformSocketData {
-  arenaEntityId?: number;
-  joinedArena?: boolean;
 }

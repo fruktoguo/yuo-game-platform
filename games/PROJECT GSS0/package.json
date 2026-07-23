@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "concurrently -k -n server,client -c green,cyan \"npm:dev:server\" \"npm:dev:client\"",
+    "dev:local": "concurrently -k -n platform,server,client -c yellow,green,cyan \"npm:dev:mock-platform\" \"npm:dev:server\" \"npm:dev:client\"",
+    "dev:mock-platform": "node scripts/mock-platform.mjs",
     "dev:server": "tsx watch src/server/index.ts",
     "dev:client": "vite",
     "build": "npm run typecheck && vite build && tsup src/server/index.ts --format esm --platform node --target node20 --out-dir dist/server --sourcemap --clean",

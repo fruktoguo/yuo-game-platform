@@ -1,7 +1,7 @@
 import { AtomicGzipJsonStore } from '@yuo-platform/persistence';
 import { PROFILE_STORE_VERSION } from '../shared/constants';
 import type { UltraProfileView } from '../shared/protocol';
-import type { RunResult } from './UltraWorld';
+import type { RunSummaryPayload } from '../shared/roomProtocol';
 
 interface StoredProfile extends UltraProfileView {
   accountId: string;
@@ -27,6 +27,12 @@ export interface ProfileUpdate {
   brokeScoreRecord: boolean;
   brokeLevelRecord: boolean;
   brokeSurvivalRecord: boolean;
+}
+
+export interface ProfileRunResult extends RunSummaryPayload {
+  accountId: string;
+  entityId: number;
+  name: string;
 }
 
 const EMPTY_PROFILE: UltraProfileView = {
@@ -75,7 +81,7 @@ export class SnakeProfileStore {
     return profile ? toView(profile) : { ...EMPTY_PROFILE };
   }
 
-  recordRun(result: RunResult, now = Date.now()): ProfileUpdate {
+  recordRun(result: ProfileRunResult, now = Date.now()): ProfileUpdate {
     const previous = this.profiles.get(result.accountId);
     const current: StoredProfile = {
       accountId: result.accountId,

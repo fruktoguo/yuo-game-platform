@@ -110,6 +110,7 @@ import type {
   UltraWorldObjectDelta,
   UpgradeOffer,
 } from '../shared/protocol';
+import type { HitClaim, SkillSpawn, WorldCommit } from '../shared/roomProtocol';
 
 const TAU = Math.PI * 2;
 const ENEMY_HEAD_RADIUS_CELLS = 0.28 * SNAKE_BODY_SIZE_SCALE;
@@ -264,6 +265,7 @@ interface TargetRef {
 }
 
 interface ProjectileEntity extends UltraProjectileView {
+  moduleId: ModuleId | null;
   speed: number;
   life: number;
   pierce: number;
@@ -283,6 +285,7 @@ interface ProjectileEntity extends UltraProjectileView {
 
 interface HazardEntity extends UltraHazardView {
   ownerEntityId: number;
+  moduleId?: ModuleId | null;
   life: number;
   arm: number;
 }
@@ -325,11 +328,13 @@ export interface UltraWorldCallbacks {
   onRunEnded?: (result: RunResult) => void;
   onEvent?: (event: ArenaEvent) => void;
   onPlayerHeadCollision?: (event: PlayerHeadCollisionEvent) => void;
+  onSkillSpawn?: (event: SkillSpawn) => void;
 }
 
 export interface UltraWorldOptions {
   random?: () => number;
   callbacks?: UltraWorldCallbacks;
+  clientAuthoritativeSkills?: boolean;
 }
 
 export class UltraWorld {
@@ -337,6 +342,7 @@ export class UltraWorld {
   private readonly playersByEntity = new Map<number, PlayerEntity>();
   private readonly randomSource: () => number;
   private readonly callbacks: UltraWorldCallbacks;
+  private readonly clientAuthoritativeSkills: boolean;
   private foods: FoodEntity[] = [];
   private enemies: EnemyEntity[] = [];
   private projectiles: ProjectileEntity[] = [];
@@ -409,10 +415,14 @@ export class UltraWorld {
   private foodSpatialDirty = true;
   private staleFoodSpatialEntries = 0;
   private now = Date.now();
+  private acceptingClientHit = false;
+  private nextSkillSpawnId = 1;
+  private activeSkillModule: ModuleId | null = null;
 
   constructor(options: UltraWorldOptions = {}) {
     this.randomSource = options.random ?? Math.random;
     this.callbacks = options.callbacks ?? {};
+    this.clientAuthoritativeSkills = options.clientAuthoritativeSkills === true;
   }
 
   connectPlayer(accountId: string, name: string, now = Date.now(), playerId = name): RosterPlayer | null {
@@ -861,6 +871,69 @@ export class UltraWorld {
     if (!player?.alive || player.ghost || !player.choosingUpgrade || !offer || !isModuleId(moduleId) || !offer.options.includes(moduleId)) return false;
     this.applyUpgrade(player, moduleId, now);
     return true;
+  }
+
+  /**
+   * Apply a hit selected by the owning client. There is deliberately no
+   * geometry check here: the client owns the feel of its own skill. The host
+   * still owns target existence, damage accounting, and the resulting commit.
+   */
+  applyClientHitClaim(accountId: string, claim: HitClaim, now = Date.now()): WorldCommit | null {
+    if (!this.clientAuthoritativeSkills || !claim || typeof claim !== 'object') return null;
+    const owner = this.playersByAccount.get(accountId);
+    if (
+      !owner?.connected
+      || !owner.alive
+      || owner.ghost
+      || claim.ownerPeerId !== accountId
+      || claim.ownerEntityId !== owner.entityId
+      || typeof claim.hitId !== 'string'
+      || claim.hitId.length === 0
+      || claim.hitId.length > 128
+      || typeof claim.spawnId !== 'string'
+      || claim.spawnId.length > 128
+      || !Number.isSafeInteger(claim.targetId)
+      || claim.targetId <= 0
+      || !Number.isSafeInteger(claim.targetSegmentIndex)
+      || !Number.isSafeInteger(claim.amount)
+      || claim.amount <= 0
+      || claim.amount > 1000
+      || !Number.isFinite(claim.impactCol)
+      || !Number.isFinite(claim.impactRow)
+      || !Number.isFinite(claim.observedAt)
+    ) return null;
+    const target = this.enemies.find((enemy) => enemy.id === claim.targetId && !enemy.dead);
+    if (!target) return null;
+    const beforeCount = target.segments.length;
+    const hitSegmentIndex = clamp(claim.targetSegmentIndex, -1, Math.max(-1, beforeCount - 1));
+    const point = {
+      col: clamp(claim.impactCol, this.projectileMinimum(), this.projectileMaximum()),
+      row: clamp(claim.impactRow, this.projectileMinimum(), this.projectileMaximum()),
+    };
+    const moduleColor = claim.moduleId && isModuleId(claim.moduleId)
+      ? MODULE_BY_ID[claim.moduleId].color
+      : PLAYER_COLORS[owner.colorIndex];
+    this.now = now;
+    this.acceptingClientHit = true;
+    try {
+      this.damageTarget(owner, target, claim.amount, point, moduleColor, hitSegmentIndex);
+    } finally {
+      this.acceptingClientHit = false;
+    }
+    return {
+      commitId: `${this.tick}:${claim.hitId}`,
+      hitId: claim.hitId,
+      ownerEntityId: owner.entityId,
+      targetId: target.id,
+      targetSegmentIndex: hitSegmentIndex,
+      amount: claim.amount,
+      beforeCount,
+      afterCount: target.segments.length,
+      enemyDead: target.dead,
+      impactCol: point.col,
+      impactRow: point.row,
+      serverTime: now,
+    };
   }
 
   step(deltaSeconds: number, now = Date.now()): void {
@@ -1496,6 +1569,7 @@ export class UltraWorld {
     if (player.corrosionFieldTrailCol === null || player.corrosionFieldTrailRow === null) {
       this.addHazard({
         id: this.allocateHazardId(), ownerEntityId: player.entityId, kind: 'corrosion',
+        moduleId: 'corrosionfield',
         col: player.col, row: player.row, life: duration, arm: 0,
         radius: this.enemySegmentRadiusCells(), color: MODULE_BY_ID.corrosionfield.color, phase: this.randomBetween(0, TAU),
       });
@@ -1509,6 +1583,7 @@ export class UltraWorld {
       const ratio = Math.min(1, index * spacing / distance);
       this.addHazard({
         id: this.allocateHazardId(), ownerEntityId: player.entityId, kind: 'corrosion',
+        moduleId: 'corrosionfield',
         col: startCol + deltaCol * ratio, row: startRow + deltaRow * ratio, life: duration, arm: 0,
         radius: this.enemySegmentRadiusCells(), color: MODULE_BY_ID.corrosionfield.color, phase: this.randomBetween(0, TAU),
       });
@@ -2535,6 +2610,7 @@ export class UltraWorld {
       point,
       PLAYER_COLORS[player.colorIndex],
       segmentIndex,
+      false,
     );
     if (!enemy.dead) this.applyRandomCollisionStatuses(player, enemy);
   }
@@ -2569,6 +2645,7 @@ export class UltraWorld {
 
   private updateModules(player: PlayerEntity, delta: number): void {
     for (const segment of player.segments) {
+      this.activeSkillModule = segment.module;
       if (!segment.module) continue;
       segment.orbit += delta * 3.8;
       if (segment.module === 'corrosionfield') continue;
@@ -2699,7 +2776,7 @@ export class UltraWorld {
           segment.timer = this.activeModuleCooldown(player, 'missile', segment.moduleLevel);
           break;
         case 'mine':
-          this.addHazard({ id: this.allocateHazardId(), ownerEntityId: player.entityId, kind: 'mine', col: segment.col, row: segment.row, life: Number.POSITIVE_INFINITY, arm: 0.55, radius: this.pixelsToCells(DESIGNER_BALANCE.moduleMineBlastRadiusPixels) * this.attackSizeMultiplier(player), color: MODULE_BY_ID.mine.color, phase: this.randomBetween(0, TAU) });
+          this.addHazard({ id: this.allocateHazardId(), ownerEntityId: player.entityId, kind: 'mine', moduleId: 'mine', col: segment.col, row: segment.row, life: Number.POSITIVE_INFINITY, arm: 0.55, radius: this.pixelsToCells(DESIGNER_BALANCE.moduleMineBlastRadiusPixels) * this.attackSizeMultiplier(player), color: MODULE_BY_ID.mine.color, phase: this.randomBetween(0, TAU) });
           this.playSkillSound(player, 'mine');
           segment.timer = this.activeModuleCooldown(player, 'mine', segment.moduleLevel);
           break;
@@ -2744,7 +2821,7 @@ export class UltraWorld {
         case 'gravity':
           if (target) {
             const point = { col: segment.col, row: segment.row };
-            this.addHazard({ id: this.allocateHazardId(), ownerEntityId: player.entityId, kind: 'gravity', ...point, life: 6, arm: 0, radius: this.pixelsToCells(95), color: MODULE_BY_ID.gravity.color, phase: this.randomBetween(0, TAU) });
+            this.addHazard({ id: this.allocateHazardId(), ownerEntityId: player.entityId, kind: 'gravity', moduleId: 'gravity', ...point, life: 6, arm: 0, radius: this.pixelsToCells(95), color: MODULE_BY_ID.gravity.color, phase: this.randomBetween(0, TAU) });
             this.playSkillSound(player, 'gravity');
           }
           segment.timer = this.activeModuleCooldown(player, 'gravity', segment.moduleLevel);
@@ -2894,6 +2971,7 @@ export class UltraWorld {
     const orbitStartRadius = kind === 'blade' ? Math.hypot(origin.col - player.col, origin.row - player.row) : 0;
     const projectile: ProjectileEntity = {
       id: this.allocateProjectileId(),
+      moduleId: this.activeSkillModule,
       ownerEntityId: player.entityId,
       kind,
       col: origin.col,
@@ -2969,14 +3047,14 @@ export class UltraWorld {
     return hits;
   }
 
-  private damageTargetParts(owner: PlayerEntity, target: EnemyEntity, hitIndexes: number[], point: GridPoint, color: string): void {
+  private damageTargetParts(owner: PlayerEntity, target: EnemyEntity, hitIndexes: number[], point: GridPoint, color: string, moduleId: ModuleId | null = this.activeSkillModule): void {
     const bodyIndexes = [...new Set(hitIndexes.filter((index) => index >= 0))].sort((left, right) => right - left);
     const hitsHead = hitIndexes.includes(-1);
     for (const index of bodyIndexes) {
       if (target.dead || index >= target.segments.length) continue;
-      this.damageTarget(owner, target, 1, target.segments[index], color, index);
+      this.damageTarget(owner, target, 1, target.segments[index], color, index, true, moduleId);
     }
-    if (!target.dead && hitsHead) this.damageTarget(owner, target, 1, point, color, -1);
+    if (!target.dead && hitsHead) this.damageTarget(owner, target, 1, point, color, -1, true, moduleId);
   }
 
   private firePulse(player: PlayerEntity, origin: GridPoint): void {
@@ -3046,7 +3124,7 @@ export class UltraWorld {
           const hitSegmentIndex = target.segments.length > 0 ? Math.floor(this.random() * target.segments.length) : -1;
           const point = hitSegmentIndex >= 0 ? target.segments[hitSegmentIndex] : target;
           const owner = target.corrosionOwnerEntityId === null ? null : this.playersByEntity.get(target.corrosionOwnerEntityId) ?? null;
-          this.damageTarget(owner, target, CORROSION_DAMAGE_PER_TICK, point, target.corrosionColor ?? MODULE_BY_ID.venom.color, hitSegmentIndex);
+          this.damageTarget(owner, target, CORROSION_DAMAGE_PER_TICK, point, target.corrosionColor ?? MODULE_BY_ID.venom.color, hitSegmentIndex, true, 'venom');
         } else {
           target.corrosionTimer = Math.min(target.corrosionTimer, effectiveInterval);
         }
@@ -3058,7 +3136,7 @@ export class UltraWorld {
             const owner = this.playersByEntity.get(application.ownerEntityId) ?? null;
             if (target.segments.length > 0) {
               const hitSegmentIndex = Math.floor(this.random() * target.segments.length);
-              this.damageTarget(owner, target, BURN_DAMAGE_PER_TICK, target.segments[hitSegmentIndex], application.color, hitSegmentIndex);
+              this.damageTarget(owner, target, BURN_DAMAGE_PER_TICK, target.segments[hitSegmentIndex], application.color, hitSegmentIndex, true, 'incendiary');
             }
             application.remaining -= 1;
             application.timer += BURN_TICK_INTERVAL;
@@ -3068,6 +3146,7 @@ export class UltraWorld {
         target.burnStacks = target.burningApplications.reduce((sum, application) => sum + application.remaining, 0);
       }
     }
+    this.activeSkillModule = null;
   }
 
   private nearestPlayer(origin: GridPoint, players: readonly PlayerEntity[]): PlayerEntity | null {
@@ -3596,7 +3675,7 @@ export class UltraWorld {
           const segmentIndex = head ? -1 : hostile.segments.indexOf(node as EnemySegment);
           if (!head && segmentIndex < 0) continue;
           projectile.hitNodes.add(node);
-          this.damageTarget(owner, hostile, 1, hitPoint, projectile.color, segmentIndex);
+          this.damageTarget(owner, hostile, 1, hitPoint, projectile.color, segmentIndex, true, projectile.moduleId);
           if (!hostile.dead && projectile.slow) hostile.slow = Math.max(hostile.slow, projectile.slow);
           if (!hostile.dead && projectile.frostStacks) this.applyFrostStacks(owner, hostile, projectile.frostStacks);
           if (!hostile.dead && projectile.corrosionStacks) {
@@ -3631,7 +3710,7 @@ export class UltraWorld {
     for (const hostile of this.enemies) {
       if (hostile.dead) continue;
       const hitIndexes = this.circularTargetHitIndexes(projectile, projectile.blastRadius, hostile);
-      if (hitIndexes.length > 0) this.damageTargetParts(owner, hostile, hitIndexes, projectile, projectile.color);
+      if (hitIndexes.length > 0) this.damageTargetParts(owner, hostile, hitIndexes, projectile, projectile.color, projectile.moduleId);
     }
   }
 
@@ -3741,7 +3820,7 @@ export class UltraWorld {
     for (const hostile of this.enemies) {
       if (hostile.dead) continue;
       const hitIndexes = this.circularTargetHitIndexes(hazard, hazard.radius, hostile);
-      if (hitIndexes.length > 0) this.damageTargetParts(owner, hostile, hitIndexes, hazard, hazard.color);
+      if (hitIndexes.length > 0) this.damageTargetParts(owner, hostile, hitIndexes, hazard, hazard.color, hazard.moduleId ?? null);
     }
     if (bounceOwner) this.bounceEntity(owner, owner.col - hazard.col, owner.row - hazard.row, hazard.color, SNAKE_SEGMENT_SPACING);
     hazard.life = 0;
@@ -4004,7 +4083,7 @@ export class UltraWorld {
     this.emitEvent('record', `${player.name} ${reason}，正在等待救援`, now, player.entityId);
   }
 
-  private damageTarget(owner: PlayerEntity | null, target: EnemyEntity, amount: number, point: GridPoint, color: string, hitSegmentIndex?: number): void {
+  private damageTarget(owner: PlayerEntity | null, target: EnemyEntity, amount: number, point: GridPoint, color: string, hitSegmentIndex?: number, skillHit = true, moduleId: ModuleId | null = this.activeSkillModule): void {
     if (!this.isTargetAlive(target)) return;
     const safeAmount = Math.max(0, Math.floor(amount));
     if (safeAmount === 0) return;
@@ -4012,6 +4091,23 @@ export class UltraWorld {
     const resolvedHitIndex = Number.isInteger(hitSegmentIndex)
       ? clamp(hitSegmentIndex!, -1, Math.max(-1, beforeCount - 1))
       : nearestEnemySegmentIndex(target, point);
+    if (owner && this.clientAuthoritativeSkills && skillHit && !this.acceptingClientHit) {
+      const spawnId = `skill:${this.nextSkillSpawnId++}`;
+      this.callbacks.onSkillSpawn?.({
+        spawnId,
+        hitId: `${spawnId}:hit`,
+        ownerPeerId: owner.accountId,
+        ownerEntityId: owner.entityId,
+        targetId: target.id,
+        targetSegmentIndex: resolvedHitIndex,
+        moduleId,
+        amount: safeAmount,
+        impactCol: point.col,
+        impactRow: point.row,
+        observedAt: this.now,
+      });
+      return;
+    }
     const hitsHead = resolvedHitIndex < 0;
     const oldHead = { col: target.col, row: target.row };
     const span = enemyDamageSpan(beforeCount, resolvedHitIndex, safeAmount);
