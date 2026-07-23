@@ -293,7 +293,7 @@ globalThis.GSS0_DESIGNER_CONFIG = {
     "execute": 75,
     "crossfire": 310,
     "phasebolt": 400,
-    "barrage": 1000,
+    "barrage": 1500,
     "nursery": 800,
     "incendiary": 360
   },

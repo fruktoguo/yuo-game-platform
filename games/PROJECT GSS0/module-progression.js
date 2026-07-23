@@ -62,7 +62,7 @@
   function baseCooldownSeconds(moduleId) {
     const percentage = Number(cooldownPercentages[moduleId]);
     if (!Number.isFinite(percentage)) throw new Error(`PROJECT GSS0 主动机体 ${moduleId} 缺少冷却百分比`);
-    return balance.activeSkillBaseCooldown * clamp(percentage, 0, 1000) / 100;
+    return balance.activeSkillBaseCooldown * clamp(percentage, 0, 2000) / 100;
   }
 
   function activeCooldownSeconds(moduleId, level = 1, cooldownRateBonus = 0) {

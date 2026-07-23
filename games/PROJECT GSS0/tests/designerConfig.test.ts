@@ -203,6 +203,8 @@ describe('设计配置', () => {
     expect(moduleCooldownSeconds('crossfire')).toBeCloseTo(18.6);
     expect(moduleCooldownPercent('fan')).toBe(375);
     expect(moduleCooldownSeconds('fan')).toBeCloseTo(22.5);
+    expect(moduleCooldownPercent('barrage')).toBe(1500);
+    expect(moduleCooldownSeconds('barrage')).toBe(90);
   });
 
   it('没有独立冷却的常驻与触发型机体统一归为被动技能', () => {
@@ -266,8 +268,8 @@ describe('设计配置', () => {
     expect(MODULES.some((module) => ['输出', '进攻', '防御', '恢复'].includes(module.category as string))).toBe(false);
     expect(MODULES.every((module) => ['攻击', '生存', '辅助', '发育'].includes(module.category))).toBe(true);
     expect(MODULES.filter((module) => module.category === '发育')).toHaveLength(9);
-    expect(editorHtml).toContain('src="module-catalog.js?v=112"');
-    expect(editorHtml).toContain('src="module-progression.js?v=112"');
+    expect(editorHtml).toContain('src="module-catalog.js?v=113"');
+    expect(editorHtml).toContain('src="module-progression.js?v=113"');
     expect(editorHtml).toContain('const MODULES = moduleCatalog;');
     expect(editorHtml).toContain('descriptionText.textContent = describeModule(module.id, draft.balance);');
     expect(editorHtml).toContain('ID: ${module.id}');
@@ -290,7 +292,7 @@ describe('设计配置', () => {
     expect(editorHtml).toContain('draft.moduleCooldownPercentages[module.id]');
     expect(editorHtml).toContain('{ key: "playerMaxHealth", group: "玩家", label: "玩家生命上限", hint: "每次出生时拥有的生命值与生命上限", min: 0, max: 100');
     expect(editorHtml).toContain('{ key: "playerHealthRegenPerSecond", group: "玩家", label: "玩家生命恢复", hint: "存活并正常行动时每秒恢复的生命值", min: 0, max: 1');
-    expect(editorHtml).toContain('range.max = "1000"');
+    expect(editorHtml).toContain('range.max = "2000"');
     expect(editorHtml).toContain('actual.textContent = `实际 ${moduleCooldownLabel(module)}`');
     expect(editorHtml).toContain('data-view="enemies"');
     expect(editorHtml).toContain('id="enemies-view"');

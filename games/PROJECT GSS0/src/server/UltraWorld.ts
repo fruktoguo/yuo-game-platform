@@ -700,7 +700,15 @@ export class UltraWorld {
     now: number,
   ): boolean {
     const target = this.playersByEntity.get(claim.targetId);
-    if (!target?.alive || target.ghost || target === source || !Number.isSafeInteger(claim.segmentIndex) || claim.segmentIndex < 0) return false;
+    if (
+      !target?.alive
+      || target.ghost
+      || target === source
+      || this.isPlayerProtected(source)
+      || this.isPlayerProtected(target)
+      || !Number.isSafeInteger(claim.segmentIndex)
+      || claim.segmentIndex < 0
+    ) return false;
     if (distanceSquared(source, target) < (this.playerHeadRadiusCells() * 2) ** 2) return false;
     const segment = target.segments[claim.segmentIndex];
     if (!segment) return false;
@@ -3595,7 +3603,7 @@ export class UltraWorld {
     for (const ghost of presentPlayers) {
       if (!ghost.ghost) continue;
       for (const rescuer of presentPlayers) {
-        if (rescuer === ghost || rescuer.ghost || !this.playersTouch(rescuer, ghost)) continue;
+        if (rescuer === ghost || rescuer.ghost || this.isPlayerProtected(rescuer) || !this.playersTouch(rescuer, ghost)) continue;
         ghost.ghost = false;
         ghost.health = MULTIPLAYER_REVIVE_HEALTH;
         ghost.invulnerable = MULTIPLAYER_REVIVE_INVULNERABILITY_DURATION;
@@ -3677,10 +3685,6 @@ export class UltraWorld {
         if (attacker === defender || !this.isPlayerProtected(defender)) continue;
         const contact = this.protectedPlayerContact(attacker, defender);
         if (!contact) continue;
-        if (contact.part === 'body') {
-          this.triggerCollisionEcho(attacker);
-          this.damagePlayer(attacker, PLAYER_WALL_COLLISION_DAMAGE, now, '撞上其他玩家的身体');
-        }
         if (attacker.alive) {
           this.bounceEntity(
             attacker,

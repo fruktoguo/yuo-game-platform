@@ -388,11 +388,11 @@
     </div>
   </main>
 
-  <script src="enemy-codex.js?v=112"></script>
-  <script src="wave-director.js?v=112"></script>
-  <script src="designer-config.js?v=112"></script>
-  <script src="module-catalog.js?v=112"></script>
-  <script src="module-progression.js?v=112"></script>
+  <script src="enemy-codex.js?v=113"></script>
+  <script src="wave-director.js?v=113"></script>
+  <script src="designer-config.js?v=113"></script>
+  <script src="module-catalog.js?v=113"></script>
+  <script src="module-progression.js?v=113"></script>
   <script>
     (() => {
       "use strict";
@@ -721,7 +721,7 @@
         for (const moduleId of Object.keys(DEFAULT_MODULE_COOLDOWN_PERCENTAGES)) {
           const candidate = Number(value?.moduleCooldownPercentages?.[moduleId]);
           const fallback = Number(DEFAULT_MODULE_COOLDOWN_PERCENTAGES[moduleId]);
-          config.moduleCooldownPercentages[moduleId] = Math.max(0, Math.min(1000, Number.isFinite(candidate) ? candidate : fallback));
+          config.moduleCooldownPercentages[moduleId] = Math.max(0, Math.min(2000, Number.isFinite(candidate) ? candidate : fallback));
         }
         for (const module of MODULES) {
           const state = value?.moduleStates?.[module.id];
@@ -1263,12 +1263,12 @@
               const title = document.createElement("strong");
               title.textContent = `冷却时间 · ${draft.moduleCooldownPercentages[module.id]}%`;
               const hint = document.createElement("span");
-              hint.textContent = "相对于公共基础冷却，范围 0%–1000%";
+              hint.textContent = "相对于公共基础冷却，范围 0%–2000%";
               copy.append(title, hint);
               const range = document.createElement("input");
               range.type = "range";
               range.min = "0";
-              range.max = "1000";
+              range.max = "2000";
               range.step = "1";
               range.value = String(draft.moduleCooldownPercentages[module.id]);
               range.setAttribute("aria-label", `${module.name}冷却时间百分比`);
@@ -1276,14 +1276,14 @@
               number.type = "number";
               number.className = "number-input cooldown-number-input";
               number.min = "0";
-              number.max = "1000";
+              number.max = "2000";
               number.step = "1";
               number.value = String(draft.moduleCooldownPercentages[module.id]);
               number.setAttribute("aria-label", `${module.name}冷却时间百分比数值`);
               const actual = document.createElement("output");
               actual.textContent = `实际 ${moduleCooldownLabel(module)}`;
               const updateCooldown = (value) => {
-                const next = Math.max(0, Math.min(1000, Math.round(Number(value) || 0)));
+                const next = Math.max(0, Math.min(2000, Math.round(Number(value) || 0)));
                 draft.moduleCooldownPercentages[module.id] = next;
                 range.value = String(next);
                 number.value = String(next);

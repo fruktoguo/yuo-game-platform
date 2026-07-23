@@ -282,7 +282,7 @@ export function moduleCooldownPercent(moduleId: string): number {
   if (typeof candidate !== 'number' || !Number.isFinite(candidate)) {
     throw new Error(`PROJECT GSS0 机体 ${moduleId} 缺少冷却百分比`);
   }
-  return Math.max(0, Math.min(1_000, candidate));
+  return Math.max(0, Math.min(2_000, candidate));
 }
 
 export function moduleCooldownSeconds(moduleId: string): number {
