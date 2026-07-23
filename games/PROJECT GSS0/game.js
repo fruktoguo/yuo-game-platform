@@ -2002,7 +2002,7 @@
     ui.p2pRoomLeave.disabled = false;
     ui.p2pRoomName.textContent = room.name;
     ui.p2pRoomCode.textContent = room.code;
-    ui.p2pRoomMode.textContent = `${room.config.modeId === "standard" ? "标准模式" : room.config.modeId} · 难度 ${room.config.difficulty} · 房主运行共享世界`;
+    ui.p2pRoomMode.textContent = `${room.config.modeId === "standard" ? "标准模式" : room.config.modeId} · 房主运行共享世界`;
     ui.p2pMemberCount.textContent = `${room.members.length}/${room.config.maxPlayers}`;
     ui.p2pMemberList.replaceChildren();
     for (const member of room.members) {
