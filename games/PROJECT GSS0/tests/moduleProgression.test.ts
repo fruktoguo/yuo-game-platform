@@ -77,6 +77,9 @@ describe('机体成长规则', () => {
     ]);
     expect(MODULE_PROGRESSION.moduleUpgradePreview('vitality', 4).lines[0].text).toBe('最大生命值 +20 → +25');
     expect(MODULE_PROGRESSION.moduleUpgradePreview('replicator', 4).lines[0].text).toBe('复制球概率 24% → 30%');
+    expect(MODULE_PROGRESSION.effects.statusStrikeApplications(3)).toBe(3);
+    expect(MODULE_PROGRESSION.effects.statusEffectMultiplier(3)).toBeCloseTo(1.3);
+    expect(MODULE_PROGRESSION.moduleUpgradePreview('statusamp', 2).lines[0].text).toBe('异常状态效果 +20% → +30%');
   });
 
   it('为机体栏提供当前等级的实际效果摘要', () => {

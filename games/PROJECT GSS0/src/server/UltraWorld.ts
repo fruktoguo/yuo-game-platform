@@ -173,8 +173,10 @@ interface EnemyEntity extends UltraEnemyView {
   think: number;
   wobble: number;
   slow: number;
+  frostPotency: number;
   knockbackX: number;
   knockbackY: number;
+  corrosionPotency: number;
   corrosionTimer: number;
   corrosionColor: string | null;
   corrosionOwnerEntityId: number | null;
@@ -2285,9 +2287,11 @@ export class UltraWorld {
       wobble: this.randomBetween(0, TAU),
       slow: 0,
       frostStacks: 0,
+      frostPotency: 0,
       knockbackX: 0,
       knockbackY: 0,
       corrosionStacks: 0,
+      corrosionPotency: 0,
       corrosionTimer: 0,
       corrosionColor: null,
       corrosionOwnerEntityId: null,
@@ -2532,6 +2536,35 @@ export class UltraWorld {
       PLAYER_COLORS[player.colorIndex],
       segmentIndex,
     );
+    if (!enemy.dead) this.applyRandomCollisionStatuses(player, enemy);
+  }
+
+  private statusEffectMultiplier(player: PlayerEntity): number {
+    return MODULE_PROGRESSION.effects.statusEffectMultiplier(this.moduleCount(player, 'statusamp'));
+  }
+
+  private applyFrostStacks(owner: PlayerEntity, target: EnemyEntity, stacks: number): void {
+    const safeStacks = Math.max(0, Math.floor(Number(stacks) || 0));
+    if (target.dead || safeStacks <= 0) return;
+    target.frostStacks += safeStacks;
+    target.frostPotency += safeStacks * this.statusEffectMultiplier(owner);
+  }
+
+  private applyRandomCollisionStatuses(owner: PlayerEntity, target: EnemyEntity): void {
+    const applications = MODULE_PROGRESSION.effects.statusStrikeApplications(this.moduleCount(owner, 'statusstrike'));
+    if (applications <= 0) return;
+    let frostStacks = 0;
+    let burnStacks = 0;
+    let corrosionStacks = 0;
+    for (let index = 0; index < applications; index += 1) {
+      const statusIndex = Math.floor(this.random() * 3);
+      if (statusIndex === 0) frostStacks += 1;
+      else if (statusIndex === 1) burnStacks += 1;
+      else corrosionStacks += 1;
+    }
+    this.applyFrostStacks(owner, target, frostStacks);
+    this.applyBurningLayers(owner, target, burnStacks, MODULE_BY_ID.incendiary.color);
+    this.applyCorrosionStack(owner, target, MODULE_BY_ID.venom.color, corrosionStacks);
   }
 
   private updateModules(player: PlayerEntity, delta: number): void {
@@ -3006,15 +3039,14 @@ export class UltraWorld {
       }
       if (target.slow > 0) target.slow -= delta;
       if (target.corrosionStacks > 0) {
-        const effectiveInterval = CORROSION_TICK_INTERVAL / target.corrosionStacks;
+        const effectiveInterval = CORROSION_TICK_INTERVAL / Math.max(1, target.corrosionPotency);
         target.corrosionTimer -= delta;
         if (target.corrosionTimer <= 0) {
           target.corrosionTimer = effectiveInterval;
-          if (target.segments.length > 0) {
-            const hitSegmentIndex = Math.floor(this.random() * target.segments.length);
-            const owner = target.corrosionOwnerEntityId === null ? null : this.playersByEntity.get(target.corrosionOwnerEntityId) ?? null;
-            this.damageTarget(owner, target, CORROSION_DAMAGE_PER_TICK, target.segments[hitSegmentIndex], target.corrosionColor ?? MODULE_BY_ID.venom.color, hitSegmentIndex);
-          }
+          const hitSegmentIndex = target.segments.length > 0 ? Math.floor(this.random() * target.segments.length) : -1;
+          const point = hitSegmentIndex >= 0 ? target.segments[hitSegmentIndex] : target;
+          const owner = target.corrosionOwnerEntityId === null ? null : this.playersByEntity.get(target.corrosionOwnerEntityId) ?? null;
+          this.damageTarget(owner, target, CORROSION_DAMAGE_PER_TICK, point, target.corrosionColor ?? MODULE_BY_ID.venom.color, hitSegmentIndex);
         } else {
           target.corrosionTimer = Math.min(target.corrosionTimer, effectiveInterval);
         }
@@ -3204,7 +3236,7 @@ export class UltraWorld {
         this.steerEnemyAwayFromWalls(enemy);
         enemy.angle = rotateToward(enemy.angle, enemy.desiredAngle, delta * enemy.turnRate * waveSpeedMultiplier);
       }
-      const frostMultiplier = Math.max(FROST_MINIMUM_SPEED_RATIO, 1 - enemy.frostStacks * FROST_SLOW_PER_STACK);
+      const frostMultiplier = Math.max(FROST_MINIMUM_SPEED_RATIO, 1 - enemy.frostPotency * FROST_SLOW_PER_STACK);
       const speed = enemy.speed * waveSpeedMultiplier * chronosMultiplier * (enemy.slow > 0 ? 0.55 : 1) * frostMultiplier;
       const previousPosition = this.enemyMovementStart;
       previousPosition.col = enemy.col;
@@ -3566,9 +3598,9 @@ export class UltraWorld {
           projectile.hitNodes.add(node);
           this.damageTarget(owner, hostile, 1, hitPoint, projectile.color, segmentIndex);
           if (!hostile.dead && projectile.slow) hostile.slow = Math.max(hostile.slow, projectile.slow);
-          if (!hostile.dead && projectile.frostStacks) hostile.frostStacks += projectile.frostStacks;
+          if (!hostile.dead && projectile.frostStacks) this.applyFrostStacks(owner, hostile, projectile.frostStacks);
           if (!hostile.dead && projectile.corrosionStacks) {
-            for (let stack = 0; stack < projectile.corrosionStacks; stack += 1) this.applyCorrosionStack(owner, hostile, projectile.color);
+            this.applyCorrosionStack(owner, hostile, projectile.color, projectile.corrosionStacks);
           }
           if (!hostile.dead && projectile.burnOnHit) this.applyBurning(owner, hostile, projectile.color);
           if (projectile.pierce > 0) projectile.pierce -= 1;
@@ -3691,10 +3723,12 @@ export class UltraWorld {
     return false;
   }
 
-  private applyCorrosionStack(owner: PlayerEntity | null, target: EnemyEntity, color: string): void {
-    if (target.dead) return;
-    target.corrosionStacks += 1;
-    const effectiveInterval = CORROSION_TICK_INTERVAL / Math.max(1, target.corrosionStacks);
+  private applyCorrosionStack(owner: PlayerEntity | null, target: EnemyEntity, color: string, stacks = 1): void {
+    const safeStacks = Math.max(0, Math.floor(Number(stacks) || 0));
+    if (target.dead || safeStacks <= 0) return;
+    target.corrosionStacks += safeStacks;
+    target.corrosionPotency += safeStacks * (owner ? this.statusEffectMultiplier(owner) : 1);
+    const effectiveInterval = CORROSION_TICK_INTERVAL / Math.max(1, target.corrosionPotency);
     target.corrosionTimer = target.corrosionTimer <= 0 ? effectiveInterval : Math.min(target.corrosionTimer, effectiveInterval);
     target.corrosionColor = color;
     target.corrosionOwnerEntityId = owner?.entityId ?? null;
@@ -4147,7 +4181,15 @@ export class UltraWorld {
   }
 
   private applyBurning(owner: PlayerEntity, target: EnemyEntity, color: string): void {
-    const remaining = Math.ceil((target.segments.length + 1) * BURN_HEALTH_FRACTION);
+    const baseLayers = Math.ceil((target.segments.length + 1) * BURN_HEALTH_FRACTION);
+    this.applyBurningLayers(owner, target, baseLayers, color);
+  }
+
+  private applyBurningLayers(owner: PlayerEntity, target: EnemyEntity, baseLayers: number, color: string): void {
+    const remaining = MODULE_PROGRESSION.rollLinearRewards(
+      Math.max(0, Number(baseLayers) || 0) * this.statusEffectMultiplier(owner),
+      () => this.random(),
+    );
     if (remaining <= 0) return;
     target.burningApplications.push({ remaining, timer: BURN_TICK_INTERVAL, color, ownerEntityId: owner.entityId });
     target.burnStacks += remaining;

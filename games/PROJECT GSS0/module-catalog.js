@@ -2,6 +2,7 @@
   "use strict";
 
   const defaultBalance = globalThis.GSS0_DESIGNER_CONFIG?.balance || {};
+  const moduleNameOverrides = globalThis.GSS0_DESIGNER_CONFIG?.moduleNames || {};
 
   function setting(balance, key, fallback) {
     const value = Number(balance?.[key]);
@@ -96,7 +97,9 @@
     { id: "doublehit", name: "倍击撞针", category: "攻击", color: "#ff5d73", shape: "triangle", cooldown: "被动效果", desc: "造成撞击伤害时，每级有20%概率使伤害翻倍。" },
     { id: "multishot", name: "齐射增殖节", category: "攻击", color: "#72e5ff", shape: "star", cooldown: "被动效果", desc: "每次发射子弹时，每级有10%概率使发射数量翻倍。" },
     { id: "rebound", name: "跳弹增幅节", category: "攻击", color: "#ffe36b", shape: "diamond", cooldown: "被动效果", desc: "每级使所有子弹的墙壁反弹次数+1。" },
-    { id: "incendiary", name: "焚身导弹节", category: "攻击", color: "#ff572f", shape: "triangle", cooldown: "", activeCooldown: true, desc: "瞄准生命值最高的敌蛇发射追踪燃烧弹；命中造成1伤害，并附带其50%生命值的燃烧层数。" }
+    { id: "incendiary", name: "焚身导弹节", category: "攻击", color: "#ff572f", shape: "triangle", cooldown: "", activeCooldown: true, desc: "瞄准生命值最高的敌蛇发射追踪燃烧弹；命中造成1伤害，并附带其50%生命值的燃烧层数。" },
+    { id: "statusstrike", name: "异态撞针", category: "攻击", color: "#d875ff", shape: "star", cooldown: "被动效果", desc: "撞击敌人时，每级随机附带1层冰冻、燃烧或腐蚀。" },
+    { id: "statusamp", name: "异态增幅节", category: "攻击", color: "#b69cff", shape: "hex", cooldown: "被动效果", desc: "每级使冰冻减速幅度、燃烧层数与腐蚀频率提高10%。" }
   ];
 
   function describeModule(moduleId, balance = defaultBalance) {
@@ -112,6 +115,10 @@
         return "发射腐蚀弹，附带1层腐蚀效果。";
       case "corrosionfield":
         return `经过的地方留下腐蚀之地；默认存在${formatNumber(setting(balance, "moduleCorrosionFieldDurationPerLevel", 2))}秒，每级延长至最多${formatNumber(setting(balance, "moduleCorrosionFieldMaxDuration", 10))}秒；敌人进入时附带1层腐蚀，持续位于其上每${formatNumber(setting(balance, "corrosionTickInterval", 3))}秒再附带1层。`;
+      case "statusstrike":
+        return `撞击敌人时，每级随机附带${formatNumber(setting(balance, "moduleStatusStrikeStacksPerLevel", 1))}层冰冻、燃烧或腐蚀。`;
+      case "statusamp":
+        return `每级使冰冻减速幅度、燃烧层数与腐蚀频率提高${formatPercent(setting(balance, "moduleStatusEffectBonusPerLevel", 0.1))}。`;
       case "cluster":
         return `发射追踪爆弹，在半径${formatNumber(setting(balance, "moduleClusterBlastRadiusCells", 5))}格内爆炸并命中每个敌方部位。`;
       case "shield":
@@ -208,18 +215,31 @@
   }
 
   function describeModuleNote(moduleId, balance = defaultBalance) {
+    if (moduleId === "statusstrike" && typeof globalThis.GSS0DescribeStatus === "function") {
+      return ["frost", "burn", "corrosion"]
+        .map((statusId) => globalThis.GSS0DescribeStatus(statusId, balance))
+        .join("\n");
+    }
     const statusId = moduleId === "frost" ? "frost" : moduleId === "venom" || moduleId === "flare" || moduleId === "corrosionfield" ? "corrosion" : moduleId === "incendiary" ? "burn" : null;
     return statusId && typeof globalThis.GSS0DescribeStatus === "function"
       ? globalThis.GSS0DescribeStatus(statusId, balance)
       : moduleBlueprints.find((module) => module.id === moduleId)?.note || "";
   }
 
-  const modules = moduleBlueprints.map((module) => Object.freeze({
-    ...module,
-    desc: describeModule(module.id, defaultBalance),
-    note: describeModuleNote(module.id, defaultBalance)
-  }));
+  const defaultModuleNames = Object.freeze(Object.fromEntries(moduleBlueprints.map((module) => [module.id, module.name])));
+  const modules = moduleBlueprints.map((module) => {
+    const configuredName = typeof moduleNameOverrides[module.id] === "string"
+      ? moduleNameOverrides[module.id].trim().slice(0, 24)
+      : "";
+    return Object.freeze({
+      ...module,
+      name: configuredName || module.name,
+      desc: describeModule(module.id, defaultBalance),
+      note: describeModuleNote(module.id, defaultBalance)
+    });
+  });
 
+  globalThis.GSS0DefaultModuleNames = defaultModuleNames;
   globalThis.GSS0DescribeModule = describeModule;
   globalThis.GSS0DescribeModuleNote = describeModuleNote;
   globalThis.GSS0ModuleCatalog = Object.freeze(modules);

@@ -93,6 +93,8 @@ describe('设计配置', () => {
       corrosionDamagePerTick: 1,
       activeSkillBaseCooldown: 6,
       moduleAttackSizePerLevel: 0.1,
+      moduleStatusStrikeStacksPerLevel: 1,
+      moduleStatusEffectBonusPerLevel: 0.1,
       moduleMineBlastRadiusPixels: 62,
       moduleMineVisualRadiusPixels: 15,
       moduleCollisionDoubleChancePerLevel: 0.2,
@@ -233,7 +235,7 @@ describe('设计配置', () => {
   it('全部现有机体都有审查状态且禁用项不会进入升级池', () => {
     const source = (globalThis as typeof globalThis & { GSS0_DESIGNER_CONFIG: { moduleStates: Record<string, string> } }).GSS0_DESIGNER_CONFIG;
     expect(Object.keys(source.moduleStates).sort()).toEqual(MODULES.map((module) => module.id).sort());
-    expect(Object.values(source.moduleStates).filter((state) => state === 'normal')).toHaveLength(52);
+    expect(Object.values(source.moduleStates).filter((state) => state === 'normal')).toHaveLength(54);
     expect(Object.values(source.moduleStates).filter((state) => state === 'tune')).toHaveLength(0);
     expect(Object.values(source.moduleStates).filter((state) => state === 'rework')).toHaveLength(0);
     expect(Object.values(source.moduleStates).filter((state) => state === 'disabled')).toHaveLength(28);
@@ -246,16 +248,16 @@ describe('设计配置', () => {
 
     expect(parameterKeys.sort()).toEqual(Object.keys(DESIGNER_BALANCE).sort());
     expect(moduleIds.sort()).toEqual(MODULES.map((module) => module.id).sort());
-    expect(moduleProgressionSource).toContain('config?.schemaVersion !== 41');
-    expect(new Set(parameterKeys).size).toBe(235);
+    expect(moduleProgressionSource).toContain('config?.schemaVersion !== 42');
+    expect(new Set(parameterKeys).size).toBe(237);
     expect(parameterKeys).not.toContain('playerSpeedPerLevel');
     expect(parameterKeys).not.toContain('moduleEffectReductionMaximum');
     expect(parameterKeys).not.toContain('newModuleOfferChance');
-    expect(new Set(moduleIds).size).toBe(80);
+    expect(new Set(moduleIds).size).toBe(82);
   });
 
   it('全部机体共用唯一描述目录且被动参数明确', () => {
-    expect(MODULES).toHaveLength(80);
+    expect(MODULES).toHaveLength(82);
     expect(MODULES.every((module) => module.desc.trim().length > 0)).toBe(true);
     expect(new Set(MODULES.map((module) => module.id)).size).toBe(MODULES.length);
     expect(MODULES.find((module) => module.id === 'spark')?.desc).toBe('向随机方向发射1枚子弹。');
@@ -268,6 +270,9 @@ describe('设计配置', () => {
     expect(MODULES.find((module) => module.id === 'ram')?.desc).toContain('敌蛇任意部位');
     expect(MODULES.find((module) => module.id === 'venom')?.desc).toBe('发射腐蚀弹，附带1层腐蚀效果。');
     expect(MODULES.find((module) => module.id === 'corrosionfield')?.desc).toContain('腐蚀之地');
+    expect(MODULES.find((module) => module.id === 'statusstrike')?.desc).toBe('撞击敌人时，每级随机附带1层冰冻、燃烧或腐蚀。');
+    expect(MODULES.find((module) => module.id === 'statusstrike')?.note.split('\n')).toHaveLength(3);
+    expect(MODULES.find((module) => module.id === 'statusamp')?.desc).toBe('每级使冰冻减速幅度、燃烧层数与腐蚀频率提高10%。');
     expect(MODULES.find((module) => module.id === 'replicator')?.desc).toBe('吃球时，每级有6%概率在蛇尾后方生成1枚球。此机体生成的球也可以再次触发此效果。');
     expect(MODULES.find((module) => module.id === 'buffer')?.category).toBe('辅助');
     expect(MODULES.find((module) => module.id === 'buffer')?.desc).toContain('撞击敌人时');
@@ -281,12 +286,14 @@ describe('设计配置', () => {
     expect(MODULES.some((module) => ['输出', '进攻', '防御', '恢复'].includes(module.category as string))).toBe(false);
     expect(MODULES.every((module) => ['攻击', '生存', '辅助', '发育'].includes(module.category))).toBe(true);
     expect(MODULES.filter((module) => module.category === '发育')).toHaveLength(9);
-    expect(editorHtml).toContain('src="module-catalog.js?v=116"');
-    expect(editorHtml).toContain('src="module-progression.js?v=116"');
+    expect(editorHtml).toContain('src="module-catalog.js?v=117"');
+    expect(editorHtml).toContain('src="module-progression.js?v=117"');
     expect(editorHtml).toContain('const MODULES = moduleCatalog;');
     expect(editorHtml).toContain('descriptionText.textContent = describeModule(module.id, draft.balance);');
     expect(editorHtml).toContain('descriptionNote.textContent = describeModuleNote(module.id, draft.balance);');
     expect(editorHtml).toContain('ID: ${module.id}');
+    expect(editorHtml).toContain('nameInput.className = "module-name-input";');
+    expect(editorHtml).toContain('draft.moduleNames[module.id] = configuredName;');
     expect(editorHtml).toContain('function bulkSetModuleStatus(state)');
     expect(editorHtml).toContain('window.confirm(`确认将当前筛选条件下的');
   });
@@ -304,6 +311,7 @@ describe('设计配置', () => {
     expect(editorHtml).not.toContain('id="description-detail"');
     expect(editorHtml).not.toContain('gss0-detailed-descriptions');
     expect(editorHtml).toContain('draft.moduleCooldownPercentages[module.id]');
+    expect(editorHtml).toContain('moduleNames: {}');
     expect(editorHtml).toContain('{ key: "playerMaxHealth", group: "玩家", label: "玩家生命上限", hint: "每次出生时拥有的生命值与生命上限", min: 0, max: 100');
     expect(editorHtml).toContain('{ key: "playerHealthRegenPerSecond", group: "玩家", label: "玩家生命恢复", hint: "存活并正常行动时每秒恢复的生命值", min: 0, max: 1');
     expect(editorHtml).toContain('range.max = "2000"');

@@ -7,11 +7,12 @@ interface DesignerConfigSource {
   balance?: Record<string, unknown>;
   waveEnemyCountSchedule?: unknown;
   moduleCooldownPercentages?: Record<string, unknown>;
+  moduleNames?: Record<string, unknown>;
   moduleStates?: Record<string, unknown>;
 }
 
 const source = (globalThis as typeof globalThis & { GSS0_DESIGNER_CONFIG?: DesignerConfigSource }).GSS0_DESIGNER_CONFIG;
-if (source?.schemaVersion !== 41) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 41');
+if (source?.schemaVersion !== 42) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 42');
 
 function numberSetting(key: string, fallback: number, minimum: number, maximum: number, integer = false): number {
   const candidate = source?.balance?.[key];
@@ -157,6 +158,8 @@ export const DESIGNER_BALANCE = Object.freeze({
   moduleAttackSizePerLevel: numberSetting('moduleAttackSizePerLevel', 0.1, 0, 1),
   moduleCorrosionFieldDurationPerLevel: numberSetting('moduleCorrosionFieldDurationPerLevel', 2, 0.1, 10),
   moduleCorrosionFieldMaxDuration: numberSetting('moduleCorrosionFieldMaxDuration', 10, 0.1, 10),
+  moduleStatusStrikeStacksPerLevel: numberSetting('moduleStatusStrikeStacksPerLevel', 1, 0, 10, true),
+  moduleStatusEffectBonusPerLevel: numberSetting('moduleStatusEffectBonusPerLevel', 0.1, 0, 2),
   moduleMineBlastRadiusPixels: numberSetting('moduleMineBlastRadiusPixels', 62, 1, 500),
   moduleMineVisualRadiusPixels: numberSetting('moduleMineVisualRadiusPixels', 15, 1, 60),
   moduleCollisionDoubleChancePerLevel: numberSetting('moduleCollisionDoubleChancePerLevel', 0.2, 0, 1),

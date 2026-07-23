@@ -106,7 +106,7 @@
 
   const TAU = Math.PI * 2;
   const DESIGNER_CONFIG = globalThis.GSS0_DESIGNER_CONFIG || {};
-  if (DESIGNER_CONFIG.schemaVersion !== 41) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 41");
+  if (DESIGNER_CONFIG.schemaVersion !== 42) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 42");
   const DESIGNER_BALANCE = DESIGNER_CONFIG.balance || {};
   const MODULE_DESIGN_STATES = DESIGNER_CONFIG.moduleStates || {};
 
@@ -3648,9 +3648,11 @@
       wobble: random(0, TAU),
       slow: 0,
       frostStacks: 0,
+      frostPotency: 0,
       knockbackX: 0,
       knockbackY: 0,
       corrosionStacks: 0,
+      corrosionPotency: 0,
       corrosionTimer: 0,
       corrosionColor: null,
       corrosionFieldTimers: new Map(),
@@ -4167,7 +4169,7 @@
     card.innerHTML = `
       <div class="card-top">
         <span class="module-swatch shape-${module.shape}" aria-hidden="true"><i></i></span>
-        <div class="card-heading"><span>${module.category}型模块</span><h3>${module.name}</h3><small class="card-cooldown">${module.activeCooldown ? `冷却 · ${module.cooldown}` : module.cooldown}</small></div>
+        <div class="card-heading"><span>${module.category}型模块</span><h3>${escapeModuleCardText(module.name)}</h3><small class="card-cooldown">${module.activeCooldown ? `冷却 · ${module.cooldown}` : module.cooldown}</small></div>
       </div>
       <p>${module.desc}${descriptionNoteMarkup}</p>
       ${progressionMarkup}
@@ -4177,6 +4179,16 @@
     card.addEventListener("pointerleave", () => resetModuleCardMotion(card));
     if (interactive) card.addEventListener("click", options.onSelect);
     return card;
+  }
+
+  function escapeModuleCardText(value) {
+    return String(value).replace(/[&<>"']/g, (character) => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      "\"": "&quot;",
+      "'": "&#39;"
+    })[character]);
   }
 
   function renderModuleCodex() {
@@ -5274,6 +5286,47 @@
     const doubleChance = MODULE_EFFECTS.collisionDoubleChance(moduleCount("doublehit"));
     if (doubleChance > 0 && random() < doubleChance) damage *= 2;
     damageEnemy(enemy, damage, node.x, node.y, player.playerColor || "#f3c600", { hitSegmentIndex: segmentIndex });
+    if (!enemy.dead) applyLocalRandomCollisionStatuses(enemy);
+  }
+
+  function localStatusEffectMultiplier() {
+    return MODULE_EFFECTS.statusEffectMultiplier(moduleCount("statusamp"));
+  }
+
+  function applyLocalFrostStacks(enemy, stacks) {
+    const safeStacks = Math.max(0, Math.floor(Number(stacks) || 0));
+    if (!enemy || enemy.dead || safeStacks <= 0) return;
+    const currentPotency = Number.isFinite(enemy.frostPotency) ? enemy.frostPotency : (enemy.frostStacks || 0);
+    enemy.frostStacks = (enemy.frostStacks || 0) + safeStacks;
+    enemy.frostPotency = currentPotency + safeStacks * localStatusEffectMultiplier();
+  }
+
+  function applyLocalBurningLayers(enemy, baseLayers, color) {
+    if (!enemy || enemy.dead) return;
+    const remaining = MODULE_PROGRESSION.rollLinearRewards(
+      Math.max(0, Number(baseLayers) || 0) * localStatusEffectMultiplier(),
+      Math.random
+    );
+    if (remaining <= 0) return;
+    enemy.burningApplications.push({ remaining, timer: BURN_TICK_INTERVAL, color });
+    enemy.burnStacks += remaining;
+  }
+
+  function applyLocalRandomCollisionStatuses(enemy) {
+    const applications = MODULE_EFFECTS.statusStrikeApplications(moduleCount("statusstrike"));
+    if (applications <= 0) return;
+    let frostStacks = 0;
+    let burnStacks = 0;
+    let corrosionStacks = 0;
+    for (let index = 0; index < applications; index += 1) {
+      const statusIndex = Math.floor(Math.random() * 3);
+      if (statusIndex === 0) frostStacks += 1;
+      else if (statusIndex === 1) burnStacks += 1;
+      else corrosionStacks += 1;
+    }
+    applyLocalFrostStacks(enemy, frostStacks);
+    applyLocalBurningLayers(enemy, burnStacks, MODULE_BY_ID.incendiary.color);
+    applyLocalCorrosionStack(enemy, MODULE_BY_ID.venom.color, corrosionStacks);
   }
 
   function playSkillSound(moduleId) {
@@ -5574,15 +5627,13 @@
       enemy.sawCooldown = Math.max(0, enemy.sawCooldown - dt);
       if (enemy.slow > 0) enemy.slow -= dt;
       if (enemy.corrosionStacks > 0) {
-        const effectiveInterval = CORROSION_TICK_INTERVAL / enemy.corrosionStacks;
+        const effectiveInterval = CORROSION_TICK_INTERVAL / Math.max(1, enemy.corrosionPotency || enemy.corrosionStacks);
         enemy.corrosionTimer -= dt;
         if (enemy.corrosionTimer <= 0) {
           enemy.corrosionTimer = effectiveInterval;
-          if (enemy.segments.length > 0) {
-            const hitSegmentIndex = Math.floor(Math.random() * enemy.segments.length);
-            const target = enemy.segments[hitSegmentIndex];
-            damageEnemy(enemy, CORROSION_DAMAGE_PER_TICK, target.x, target.y, enemy.corrosionColor || MODULE_BY_ID.venom.color, { hitSegmentIndex });
-          }
+          const hitSegmentIndex = enemy.segments.length > 0 ? Math.floor(Math.random() * enemy.segments.length) : -1;
+          const target = hitSegmentIndex >= 0 ? enemy.segments[hitSegmentIndex] : enemy;
+          damageEnemy(enemy, CORROSION_DAMAGE_PER_TICK, target.x, target.y, enemy.corrosionColor || MODULE_BY_ID.venom.color, { hitSegmentIndex });
         } else {
           enemy.corrosionTimer = Math.min(enemy.corrosionTimer, effectiveInterval);
         }
@@ -6157,7 +6208,7 @@
         steerEnemyAwayFromWalls(enemy);
         enemy.angle = rotateToward(enemy.angle, enemy.desiredAngle, dt * enemy.turnRate * waveSpeedMultiplier);
       }
-      const frostMultiplier = Math.max(FROST_MINIMUM_SPEED_RATIO, 1 - (enemy.frostStacks || 0) * FROST_SLOW_PER_STACK);
+      const frostMultiplier = Math.max(FROST_MINIMUM_SPEED_RATIO, 1 - (enemy.frostPotency || enemy.frostStacks || 0) * FROST_SLOW_PER_STACK);
       const statusMultiplier = (enemy.slow > 0 ? 0.55 : 1) * frostMultiplier;
       const speed = enemy.speed * waveSpeedMultiplier * chronosMultiplier * statusMultiplier;
       enemyMovementStart.col = enemy.col;
@@ -6490,16 +6541,13 @@
         projectile.hitNodes.add(node);
         damageEnemy(enemy, 1, node.x, node.y, projectile.color, { hitSegmentIndex });
         if (!enemy.dead && projectile.slow) enemy.slow = Math.max(enemy.slow, projectile.slow);
-        if (!enemy.dead && projectile.frostStacks) enemy.frostStacks += projectile.frostStacks;
+        if (!enemy.dead && projectile.frostStacks) applyLocalFrostStacks(enemy, projectile.frostStacks);
         if (!enemy.dead && projectile.corrosionStacks) {
           for (let stack = 0; stack < projectile.corrosionStacks; stack += 1) applyLocalCorrosionStack(enemy, projectile.color);
         }
         if (!enemy.dead && projectile.burnOnHit) {
-          const remaining = Math.ceil((enemy.segments.length + 1) * BURN_HEALTH_FRACTION);
-          if (remaining > 0) {
-            enemy.burningApplications.push({ remaining, timer: BURN_TICK_INTERVAL, color: projectile.color });
-            enemy.burnStacks += remaining;
-          }
+          const baseLayers = Math.ceil((enemy.segments.length + 1) * BURN_HEALTH_FRACTION);
+          applyLocalBurningLayers(enemy, baseLayers, projectile.color);
         }
         if (projectile.pierce > 0) projectile.pierce -= 1;
         else if (projectile.pierce === 0) {
@@ -6572,10 +6620,13 @@
     return false;
   }
 
-  function applyLocalCorrosionStack(enemy, color) {
-    if (!enemy || enemy.dead) return;
-    enemy.corrosionStacks += 1;
-    const effectiveInterval = CORROSION_TICK_INTERVAL / Math.max(1, enemy.corrosionStacks);
+  function applyLocalCorrosionStack(enemy, color, stacks = 1) {
+    const safeStacks = Math.max(0, Math.floor(Number(stacks) || 0));
+    if (!enemy || enemy.dead || safeStacks <= 0) return;
+    const currentPotency = Number.isFinite(enemy.corrosionPotency) ? enemy.corrosionPotency : (enemy.corrosionStacks || 0);
+    enemy.corrosionStacks += safeStacks;
+    enemy.corrosionPotency = currentPotency + safeStacks * localStatusEffectMultiplier();
+    const effectiveInterval = CORROSION_TICK_INTERVAL / Math.max(1, enemy.corrosionPotency);
     enemy.corrosionTimer = enemy.corrosionTimer <= 0 ? effectiveInterval : Math.min(enemy.corrosionTimer, effectiveInterval);
     enemy.corrosionColor = color;
   }

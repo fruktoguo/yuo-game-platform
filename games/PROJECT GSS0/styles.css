@@ -2375,6 +2375,7 @@ input:focus-visible {
   font-size: 0.84em;
   font-weight: 650;
   line-height: 1.45;
+  white-space: pre-line;
 }
 
 .enemy-codex-parameters {

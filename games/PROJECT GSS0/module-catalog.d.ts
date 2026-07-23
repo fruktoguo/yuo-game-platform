@@ -10,7 +10,7 @@ export type GSS0ModuleId =
   | "insight" | "headstrike" | "vitality" | "renewal" | "plating" | "replicator"
   | "medkit" | "adrenaline" | "berserk" | "recovery" | "wallbreaker" | "tailguard"
   | "deathburst" | "crisis" | "linkage" | "arsenal" | "doublehit" | "multishot"
-  | "rebound" | "incendiary" | "corrosionfield";
+  | "rebound" | "incendiary" | "corrosionfield" | "statusstrike" | "statusamp";
 
 export type GSS0ModuleCategory = "攻击" | "生存" | "辅助" | "发育";
 export type GSS0ModuleShape = "triangle" | "diamond" | "hex" | "star" | "ring" | "capsule" | "square" | "circle";
@@ -29,6 +29,7 @@ export interface GSS0ModuleCatalogEntry {
 
 declare global {
   var GSS0ModuleCatalog: readonly GSS0ModuleCatalogEntry[];
+  var GSS0DefaultModuleNames: Readonly<Record<GSS0ModuleId, string>>;
   var GSS0DescribeModule: (moduleId: GSS0ModuleId, balance?: Record<string, unknown>) => string;
   var GSS0DescribeModuleNote: (moduleId: GSS0ModuleId, balance?: Record<string, unknown>) => string;
 }
