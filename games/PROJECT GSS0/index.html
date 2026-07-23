@@ -19,7 +19,7 @@
           <strong>代号：几何贪吃蛇</strong>
         </div>
         <span class="signature">by 四季鸽</span>
-        <span class="brand-version" aria-label="游戏版本 V120">V120</span>
+        <span class="brand-version" aria-label="游戏版本 V121">V121</span>
       </div>
 
       <div class="run-stats">
@@ -201,7 +201,7 @@
 
     <section id="start-screen" class="modal-layer start-screen is-visible" aria-labelledby="game-title">
       <div class="start-glow" aria-hidden="true"></div>
-          <div class="start-version" aria-label="游戏版本 V120"><span>BUILD</span><strong>V120</strong></div>
+          <div class="start-version" aria-label="游戏版本 V121"><span>BUILD</span><strong>V121</strong></div>
       <div class="start-layout">
         <div class="start-content">
           <div id="network-status" class="title-kicker">TACTICAL SURVIVAL / LOCAL</div>
@@ -322,6 +322,8 @@
       </div>
     </section>
 
+    <output id="p2p-toast" class="p2p-toast" role="status" aria-live="polite" aria-atomic="true" aria-hidden="true"></output>
+
     <div id="level-up-banner" class="level-up-banner" aria-hidden="true">
       <span>LEVEL UP</span>
       <strong>等级突破</strong>
@@ -373,6 +375,20 @@
           <button id="changelog-close-button" class="icon-button codex-close-button" type="button" aria-label="关闭更新日志" title="关闭更新日志">×</button>
         </header>
         <div class="changelog-list">
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V121</strong></div>
+              <time datetime="2026-07-24">2026.07.24</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">联机大厅修复</span>
+              <h3>房间关闭与操作提示</h3>
+              <ul>
+                <li>房主离开或连接中断时，所有成员都会退出失效房间，等待室界面立即消失并返回房间大厅。</li>
+                <li>房间关闭、准备、开始、设置、复制与失败操作新增短暂悬浮提示；房主开始行动时会直接指出尚未准备的成员。</li>
+              </ul>
+            </div>
+          </article>
           <article class="changelog-entry">
             <header>
               <div class="changelog-version"><span>BUILD</span><strong>V120</strong></div>
@@ -1941,22 +1957,22 @@
     </section>
   </main>
 
-  <script src="designer-config.js?v=120"></script>
-  <script src="status-catalog.js?v=120"></script>
-  <script src="module-catalog.js?v=120"></script>
-  <script src="module-progression.js?v=120"></script>
-  <script src="wave-director.js?v=120"></script>
-  <script src="spawn-planner.js?v=120"></script>
-  <script src="network-codec.js?v=120"></script>
-  <script src="network-player-prediction.js?v=120"></script>
-  <script src="network-player-state-codec.js?v=120"></script>
-  <script src="network-player-collisions.js?v=120"></script>
-  <script src="network-head-collisions.js?v=120"></script>
-  <script src="network-food-claims.js?v=120"></script>
-  <script src="network-projectiles.js?v=120"></script>
-  <script src="lobby-navigation.js?v=120"></script>
-  <script src="enemy-codex.js?v=120"></script>
-  <script type="module" src="src/client/p2p/bootstrap.ts?v=120"></script>
-  <script src="game.js?v=120"></script>
+  <script src="designer-config.js?v=121"></script>
+  <script src="status-catalog.js?v=121"></script>
+  <script src="module-catalog.js?v=121"></script>
+  <script src="module-progression.js?v=121"></script>
+  <script src="wave-director.js?v=121"></script>
+  <script src="spawn-planner.js?v=121"></script>
+  <script src="network-codec.js?v=121"></script>
+  <script src="network-player-prediction.js?v=121"></script>
+  <script src="network-player-state-codec.js?v=121"></script>
+  <script src="network-player-collisions.js?v=121"></script>
+  <script src="network-head-collisions.js?v=121"></script>
+  <script src="network-food-claims.js?v=121"></script>
+  <script src="network-projectiles.js?v=121"></script>
+  <script src="lobby-navigation.js?v=121"></script>
+  <script src="enemy-codex.js?v=121"></script>
+  <script type="module" src="src/client/p2p/bootstrap.ts?v=121"></script>
+  <script src="game.js?v=121"></script>
 </body>
 </html>

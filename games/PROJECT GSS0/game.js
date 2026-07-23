@@ -124,6 +124,7 @@
     p2pRoomReady: document.querySelector("#p2p-room-ready"),
     p2pRoomStart: document.querySelector("#p2p-room-start"),
     p2pRoomLeave: document.querySelector("#p2p-room-leave"),
+    p2pToast: document.querySelector("#p2p-toast"),
     scoreboard: document.querySelector("#multiplayer-scoreboard"),
     scoreboardCount: document.querySelector("#multiplayer-count"),
     scoreboardPlayers: document.querySelector("#multiplayer-players"),
@@ -132,6 +133,7 @@
   };
 
   const TAU = Math.PI * 2;
+  const P2P_TOAST_DURATION_MS = 2800;
   const DESIGNER_CONFIG = globalThis.GSS0_DESIGNER_CONFIG || {};
   if (DESIGNER_CONFIG.schemaVersion !== 42) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 42");
   const DESIGNER_BALANCE = DESIGNER_CONFIG.balance || {};
@@ -571,6 +573,7 @@
     upgradeOffer: null,
     moduleIds: []
   };
+  let p2pToastTimer = 0;
   const networkSnapshotCodec = globalThis.GSS0NetworkCodec;
   if (!networkSnapshotCodec) throw new Error("PROJECT GSS0 网络快照解码器未加载");
   const networkProjectileRuntime = globalThis.GSS0ProjectileRuntime?.create(GRID_SIZE);
@@ -1645,6 +1648,39 @@
     });
   }
 
+  function showP2PToast(message, kind = "info") {
+    if (!ui.p2pToast || !message) return;
+    window.clearTimeout(p2pToastTimer);
+    ui.p2pToast.textContent = message;
+    ui.p2pToast.dataset.kind = kind;
+    ui.p2pToast.classList.remove("is-visible");
+    void ui.p2pToast.offsetWidth;
+    ui.p2pToast.classList.add("is-visible");
+    ui.p2pToast.setAttribute("aria-hidden", "false");
+    p2pToastTimer = window.setTimeout(() => {
+      ui.p2pToast.classList.remove("is-visible");
+      ui.p2pToast.setAttribute("aria-hidden", "true");
+    }, P2P_TOAST_DURATION_MS);
+  }
+
+  function setP2PLobbyFeedback(message, kind = "info", toast = false) {
+    if (ui.p2pLobbyStatus) ui.p2pLobbyStatus.textContent = message;
+    if (toast) showP2PToast(message, kind);
+  }
+
+  function beginP2PLobbyAction() {
+    if (!network.p2pClient) {
+      setP2PLobbyFeedback("P2P 大厅尚未连接，请稍候再试", "error", true);
+      return false;
+    }
+    if (network.lobbyBusy) {
+      setP2PLobbyFeedback("上一项房间操作仍在处理中，请稍候", "warning", true);
+      return false;
+    }
+    network.lobbyBusy = true;
+    return true;
+  }
+
   async function connectP2PLobby() {
     if (localModeForced || network.p2pClient) return;
     const runtime = await waitForP2PRuntime();
@@ -1674,23 +1710,27 @@
       const kind = status?.kind === "error" ? "error" : status?.kind === "connecting" ? "connecting" : "online";
       setNetworkStatus(kind, status?.text || "P2P 大厅");
       if (ui.p2pLobbyStatus) ui.p2pLobbyStatus.textContent = status?.text || "P2P 大厅";
+      if (kind === "error") showP2PToast(status?.text || "P2P 大厅连接失败", "error");
     });
     client.on("room-closed", (reason) => {
+      const message = reason || "房间已关闭";
       network.enabled = false;
+      network.lobbyBusy = false;
       network.room = null;
       network.transport = null;
       network.boundTransport = null;
       network.lastSelfAlive = false;
       clearNetworkViews();
       renderP2PRoom(null);
-      setNetworkStatus("error", reason || "房间已关闭");
-      if (ui.p2pLobbyStatus) ui.p2pLobbyStatus.textContent = reason || "房间已关闭";
+      setNetworkStatus("error", message);
+      setP2PLobbyFeedback(message, "warning", true);
       if (ui.p2pLobby && !localModeForced) ui.p2pLobby.classList.add("is-visible");
     });
     client.on("game-ready", (payload) => initializeP2PGame(payload));
     client.on("game-error", (message) => {
-      setNetworkStatus("error", message || "P2P 游戏连接失败");
-      if (ui.p2pLobbyStatus) ui.p2pLobbyStatus.textContent = message || "P2P 游戏连接失败";
+      const feedback = message || "P2P 游戏连接失败";
+      setNetworkStatus("error", feedback);
+      setP2PLobbyFeedback(feedback, "error", true);
     });
     setNetworkButtonsDisabled(false);
     setNetworkStatus("online", `P2P LOBBY / @${network.principal?.username || client.profile?.bestScore || "PLAYER"}`);
@@ -1827,6 +1867,7 @@
   function openP2PLobby() {
     if (!network.lobbyReady) {
       setNetworkStatus("connecting", "正在连接 P2P 大厅");
+      showP2PToast("正在连接 P2P 大厅，请稍候", "warning");
       return;
     }
     closeSettingPopovers();
@@ -1838,7 +1879,10 @@
   }
 
   function closeP2PLobby() {
-    if (network.enabled) return;
+    if (network.enabled) {
+      showP2PToast("行动进行中，暂时无法关闭联机大厅", "warning");
+      return;
+    }
     ui.p2pLobby.classList.remove("is-visible");
     ui.start.classList.add("is-visible");
   }
@@ -1879,7 +1923,25 @@
     const hasRoom = Boolean(room);
     ui.p2pLobbyBrowser.hidden = hasRoom;
     ui.p2pRoomWaiting.hidden = !hasRoom;
-    if (!hasRoom) return;
+    if (!hasRoom) {
+      ui.p2pRoomName.textContent = "等待室";
+      ui.p2pRoomCode.textContent = "------";
+      ui.p2pRoomMode.textContent = "标准模式 · 房主运行共享世界";
+      ui.p2pMemberCount.textContent = "0/0";
+      ui.p2pMemberList.replaceChildren();
+      ui.p2pHostSettings.hidden = true;
+      ui.p2pRoomReady.hidden = true;
+      ui.p2pRoomStart.hidden = true;
+      ui.p2pRoomCopy.disabled = true;
+      ui.p2pRoomReady.disabled = true;
+      ui.p2pRoomStart.disabled = true;
+      ui.p2pRoomLeave.disabled = true;
+      return;
+    }
+    ui.p2pRoomCopy.disabled = false;
+    ui.p2pRoomReady.disabled = false;
+    ui.p2pRoomStart.disabled = false;
+    ui.p2pRoomLeave.disabled = false;
     ui.p2pRoomName.textContent = room.name;
     ui.p2pRoomCode.textContent = room.code;
     ui.p2pRoomMode.textContent = `${room.config.modeId === "standard" ? "标准模式" : room.config.modeId} · 难度 ${room.config.difficulty} · 房主运行共享世界`;
@@ -1907,69 +1969,181 @@
   }
 
   async function joinP2PRoom(payload) {
-    if (!network.p2pClient || network.lobbyBusy) return;
-    network.lobbyBusy = true;
-    ui.p2pLobbyStatus.textContent = "正在加入房间…";
-    const result = await network.p2pClient.joinRoom(payload);
-    network.lobbyBusy = false;
-    if (!result?.ok) ui.p2pLobbyStatus.textContent = result?.error || "加入房间失败";
+    if (!beginP2PLobbyAction()) return;
+    setP2PLobbyFeedback("正在加入房间…");
+    try {
+      const result = await network.p2pClient.joinRoom(payload);
+      if (!result?.ok) {
+        setP2PLobbyFeedback(result?.error || "加入房间失败", "error", true);
+        return;
+      }
+      const roomName = result.data?.room?.name || network.room?.name;
+      setP2PLobbyFeedback(roomName ? `已加入房间：${roomName}` : "已加入房间", "success", true);
+    } catch (error) {
+      setP2PLobbyFeedback(error instanceof Error ? error.message : "加入房间失败", "error", true);
+    } finally {
+      network.lobbyBusy = false;
+    }
   }
 
   async function createP2PRoom() {
-    if (!network.p2pClient || network.lobbyBusy) return;
-    network.lobbyBusy = true;
-    ui.p2pLobbyStatus.textContent = "正在创建房间…";
-    const result = await network.p2pClient.createRoom({
-      name: ui.p2pCreateName.value.trim(),
-      isPrivate: ui.p2pCreatePrivate.checked,
-      config: { maxPlayers: Number(ui.p2pCreateMax.value) }
-    });
-    network.lobbyBusy = false;
-    if (!result?.ok) ui.p2pLobbyStatus.textContent = result?.error || "创建房间失败";
+    if (!beginP2PLobbyAction()) return;
+    setP2PLobbyFeedback("正在创建房间…");
+    try {
+      const result = await network.p2pClient.createRoom({
+        name: ui.p2pCreateName.value.trim(),
+        isPrivate: ui.p2pCreatePrivate.checked,
+        config: { maxPlayers: Number(ui.p2pCreateMax.value) }
+      });
+      if (!result?.ok) {
+        setP2PLobbyFeedback(result?.error || "创建房间失败", "error", true);
+        return;
+      }
+      const roomName = result.data?.room?.name || network.room?.name;
+      setP2PLobbyFeedback(roomName ? `房间已建立：${roomName}` : "房间已建立", "success", true);
+    } catch (error) {
+      setP2PLobbyFeedback(error instanceof Error ? error.message : "创建房间失败", "error", true);
+    } finally {
+      network.lobbyBusy = false;
+    }
   }
 
   async function leaveP2PRoom() {
-    if (!network.p2pClient || network.lobbyBusy) return;
-    network.lobbyBusy = true;
-    ui.p2pLobbyStatus.textContent = "正在离开房间…";
-    const result = await network.p2pClient.leaveRoom();
-    network.lobbyBusy = false;
-    if (!result?.ok) {
-      ui.p2pLobbyStatus.textContent = result?.error || "离开房间失败";
-      return;
+    if (!beginP2PLobbyAction()) return;
+    const wasHost = Boolean(network.p2pClient.isHost);
+    setP2PLobbyFeedback("正在离开房间…");
+    try {
+      const result = await network.p2pClient.leaveRoom();
+      if (!result?.ok) {
+        setP2PLobbyFeedback(result?.error || "离开房间失败", "error", true);
+        return;
+      }
+      network.room = null;
+      renderP2PRoom(null);
+      const message = wasHost ? "房间已关闭，可以建立新的房间" : "已离开房间，可以建立或加入新的房间";
+      setP2PLobbyFeedback(message, "success", true);
+    } catch (error) {
+      setP2PLobbyFeedback(error instanceof Error ? error.message : "离开房间失败", "error", true);
+    } finally {
+      network.lobbyBusy = false;
     }
-    network.room = null;
-    renderP2PRoom(null);
-    ui.p2pLobbyStatus.textContent = "已离开房间，可以建立或加入新的房间";
   }
 
-  function updateP2PRoomConfig() {
-    if (!network.p2pClient?.isHost || !network.room) return;
+  async function updateP2PRoomConfig() {
+    if (!network.p2pClient?.isHost || !network.room) {
+      setP2PLobbyFeedback("只有当前房主可以修改房间设置", "error", true);
+      return;
+    }
+    if (!beginP2PLobbyAction()) return;
     const config = {
       difficulty: Number(ui.p2pHostDifficulty.value),
       allowJoinInProgress: ui.p2pHostJoinProgress.value === "true"
     };
-    void network.p2pClient.updateConfig(config).then((result) => {
-      if (!result?.ok) ui.p2pLobbyStatus.textContent = result?.error || "房主设置更新失败";
-    });
+    try {
+      const result = await network.p2pClient.updateConfig(config);
+      if (!result?.ok) {
+        setP2PLobbyFeedback(result?.error || "房主设置更新失败", "error", true);
+        return;
+      }
+      setP2PLobbyFeedback("房间设置已更新", "success", true);
+    } catch (error) {
+      setP2PLobbyFeedback(error instanceof Error ? error.message : "房主设置更新失败", "error", true);
+    } finally {
+      network.lobbyBusy = false;
+    }
   }
 
   async function copyP2PRoomCode() {
     const code = network.room?.code || ui.p2pRoomCode.textContent?.trim();
-    if (!code) return;
-    try {
-      await navigator.clipboard?.writeText(code);
-    } catch {
-      const helper = document.createElement("textarea");
-      helper.value = code;
-      helper.style.position = "fixed";
-      helper.style.opacity = "0";
-      document.body.append(helper);
-      helper.select();
-      document.execCommand("copy");
-      helper.remove();
+    if (!code || code === "------") {
+      setP2PLobbyFeedback("当前没有可复制的房间码", "error", true);
+      return;
     }
-    ui.p2pLobbyStatus.textContent = `房间码 ${code} 已复制`;
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(code);
+      } else {
+        const helper = document.createElement("textarea");
+        helper.value = code;
+        helper.style.position = "fixed";
+        helper.style.opacity = "0";
+        document.body.append(helper);
+        helper.select();
+        const copied = document.execCommand("copy");
+        helper.remove();
+        if (!copied) throw new Error("浏览器拒绝复制房间码");
+      }
+      setP2PLobbyFeedback(`房间码 ${code} 已复制`, "success", true);
+    } catch (error) {
+      setP2PLobbyFeedback(error instanceof Error ? error.message : "复制房间码失败", "error", true);
+    }
+  }
+
+  async function refreshP2PRooms() {
+    if (!beginP2PLobbyAction()) return;
+    setP2PLobbyFeedback("正在刷新公开房间…");
+    try {
+      const result = await network.p2pClient.refreshRooms();
+      if (!result?.ok) {
+        setP2PLobbyFeedback(result?.error || "刷新房间列表失败", "error", true);
+        return;
+      }
+      setP2PLobbyFeedback(`房间列表已刷新，共 ${network.rooms.length} 个公开房间`, "success", true);
+    } catch (error) {
+      setP2PLobbyFeedback(error instanceof Error ? error.message : "刷新房间列表失败", "error", true);
+    } finally {
+      network.lobbyBusy = false;
+    }
+  }
+
+  async function toggleP2PRoomReady() {
+    const member = network.room?.members.find((item) => item.peerId === network.p2pClient?.peerId);
+    if (!member || network.p2pClient?.isHost) {
+      setP2PLobbyFeedback("当前无法切换准备状态", "error", true);
+      return;
+    }
+    if (!beginP2PLobbyAction()) return;
+    const nextReady = !member.ready;
+    try {
+      const result = await network.p2pClient.setReady(nextReady);
+      if (!result?.ok) {
+        setP2PLobbyFeedback(result?.error || "准备状态更新失败", "error", true);
+        return;
+      }
+      setP2PLobbyFeedback(nextReady ? "已准备，等待房主开始行动" : "已取消准备", "success", true);
+    } catch (error) {
+      setP2PLobbyFeedback(error instanceof Error ? error.message : "准备状态更新失败", "error", true);
+    } finally {
+      network.lobbyBusy = false;
+    }
+  }
+
+  async function startP2PRoom() {
+    if (!network.p2pClient?.isHost || !network.room) {
+      setP2PLobbyFeedback("只有当前房主可以开始行动", "error", true);
+      return;
+    }
+    const unreadyMembers = network.room.members.filter((member) => !member.isHost && !member.ready);
+    if (unreadyMembers.length > 0) {
+      const names = unreadyMembers.slice(0, 3).map((member) => member.name || member.playerId).join("、");
+      const remainder = unreadyMembers.length > 3 ? ` 等 ${unreadyMembers.length} 人` : "";
+      setP2PLobbyFeedback(`仍有玩家尚未准备：${names}${remainder}`, "warning", true);
+      return;
+    }
+    if (!beginP2PLobbyAction()) return;
+    setP2PLobbyFeedback("正在启动房间…");
+    try {
+      const result = await network.p2pClient.startRoom();
+      if (!result?.ok) {
+        setP2PLobbyFeedback(result?.error || "房间暂时无法开始", "error", true);
+        return;
+      }
+      setP2PLobbyFeedback("所有玩家已准备，正在开始行动", "success", true);
+    } catch (error) {
+      setP2PLobbyFeedback(error instanceof Error ? error.message : "房间暂时无法开始", "error", true);
+    } finally {
+      network.lobbyBusy = false;
+    }
   }
 
   function receiveNetworkWorldCommit(_commit) {
@@ -9140,7 +9314,7 @@
   ui.p2pLobbyClose.addEventListener("click", closeP2PLobby);
   ui.p2pRoomRefresh.addEventListener("click", () => {
     ensureAudio();
-    void network.p2pClient?.refreshRooms();
+    void refreshP2PRooms();
     sound("ui");
   });
   ui.p2pCreateForm.addEventListener("submit", (event) => {
@@ -9153,27 +9327,21 @@
     ensureAudio();
     const code = ui.p2pJoinCode.value.trim().toUpperCase();
     if (!code) {
-      ui.p2pLobbyStatus.textContent = "请输入房间码";
+      setP2PLobbyFeedback("请输入房间码", "error", true);
       return;
     }
     void joinP2PRoom({ code });
   });
   ui.p2pRoomReady.addEventListener("click", () => {
-    const member = network.room?.members.find((item) => item.peerId === network.p2pClient?.peerId);
-    if (!member || network.p2pClient?.isHost) return;
     ensureAudio();
-    void network.p2pClient?.setReady(!member.ready);
+    void toggleP2PRoomReady();
     sound("ui");
   });
   ui.p2pHostDifficulty.addEventListener("change", updateP2PRoomConfig);
   ui.p2pHostJoinProgress.addEventListener("change", updateP2PRoomConfig);
   ui.p2pRoomStart.addEventListener("click", () => {
-    if (!network.p2pClient?.isHost) return;
     ensureAudio();
-    ui.p2pLobbyStatus.textContent = "正在启动房间…";
-    void network.p2pClient.startRoom().then((result) => {
-      if (!result?.ok) ui.p2pLobbyStatus.textContent = result?.error || "房间暂时无法开始";
-    });
+    void startP2PRoom();
     sound("ui");
   });
   ui.p2pRoomLeave.addEventListener("click", () => {

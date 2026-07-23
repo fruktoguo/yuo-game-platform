@@ -330,18 +330,19 @@ export class RoomHub {
     const peerId = socket.data.peerId;
     socket.data.roomId = undefined;
     if (!room || !peerId) return;
-    void socket.leave(roomChannel(room.id));
     if (room.hostPeerId === peerId) {
-      this.io.to(roomChannel(room.id)).emit('room:closed', { roomId: room.id, reason: hostReason });
+      const notice = { roomId: room.id, reason: hostReason };
       for (const member of room.members.values()) {
         const memberSocket = this.io.sockets.sockets.get(member.socketId);
         if (memberSocket) {
+          if (member.peerId !== peerId) memberSocket.emit('room:closed', notice);
           memberSocket.data.roomId = undefined;
           void memberSocket.leave(roomChannel(room.id));
         }
       }
       this.rooms.delete(room.id);
     } else {
+      void socket.leave(roomChannel(room.id));
       room.members.delete(peerId);
       this.publishRoom(room);
     }
