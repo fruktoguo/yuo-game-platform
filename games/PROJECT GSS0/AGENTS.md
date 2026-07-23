@@ -23,11 +23,11 @@
 
 # Project Delivery
 
-- After completing each user request for this project, stage only the intended PROJECT GSS0 changes and create a local Git commit automatically.
-- The user permanently authorizes running `git add` and `git commit` outside the sandbox when required to complete this local delivery step.
+- After completing each user request for this project, stage only the intended PROJECT GSS0 changes, create a local Git commit automatically, and push the successful commit to the current branch automatically.
+- The user permanently authorizes running `git add`, `git commit`, and `git push` outside the sandbox when required to complete this local delivery step.
 - Every game update commit subject must use `GSS0 V<version>：[<更新日志标题>] <更新日志正文>`. Copy the Chinese headline and every body item from that version's changelog in `index.html` exactly, preserving their order and punctuation and separating body items with spaces; do not use a conventional-commit prefix.
 - Do not include unrelated workspace changes or generated caches in that commit.
-- Do not push the commit unless the user explicitly requests a push.
+- Do not skip the automatic push unless the user explicitly asks not to push or the remote is unavailable.
 
 # Lightweight Delivery Verification
 
