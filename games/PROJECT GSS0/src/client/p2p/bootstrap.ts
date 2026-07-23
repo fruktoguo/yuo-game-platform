@@ -348,15 +348,6 @@ class P2PClient {
     return this.appEvents.on(event, listener);
   }
 
-  async refreshRooms(): Promise<ActionResult<RoomSummary[]>> {
-    const result = await this.socketRequest<RoomSummary[]>('lobby:list');
-    if (result.ok && result.data) {
-      this.rooms = result.data;
-      this.appEvents.emit('rooms', this.rooms);
-    }
-    return result;
-  }
-
   async createRoom(payload: RoomCreatePayload): Promise<ActionResult<RoomJoinData>> {
     const previousRoomId = this.room?.id;
     this.ignoreCurrentRoom();

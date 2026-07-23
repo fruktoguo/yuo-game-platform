@@ -107,7 +107,6 @@ export class RoomHub {
     this.peersByAccount.set(principal.accountId, peerId);
 
     socket.on('lobby:hello', (ack) => this.handleHello(socket, ack));
-    socket.on('lobby:list', (ack) => this.handleList(ack));
     socket.on('room:create', (payload, ack) => this.handleCreate(socket, payload, ack));
     socket.on('room:join', (payload, ack) => this.handleJoin(socket, payload, ack));
     socket.on('room:leave', (ack) => this.handleLeave(socket, ack));
@@ -136,10 +135,6 @@ export class RoomHub {
         room: room ? this.roomView(room) : null,
       },
     });
-  }
-
-  private handleList(ack: (result: ActionResult<RoomSummary[]>) => void): void {
-    if (typeof ack === 'function') ack({ ok: true, data: this.roomSummaries() });
   }
 
   private handleCreate(socket: LobbySocket, payload: RoomCreatePayload, ack: (result: ActionResult<RoomJoinData>) => void): void {
@@ -281,6 +276,7 @@ export class RoomHub {
     }
     const view = this.roomView(room);
     this.io.to(roomChannel(room.id)).emit('room:updated', view);
+    this.broadcastRooms();
     ack({ ok: true, data: view });
   }
 

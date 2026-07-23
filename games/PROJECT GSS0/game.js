@@ -101,8 +101,6 @@
     p2pLobby: document.querySelector("#p2p-lobby-screen"),
     p2pLobbyClose: document.querySelector("#p2p-lobby-close"),
     p2pLobbyStatus: document.querySelector("#p2p-lobby-status"),
-    p2pLobbyBrowser: document.querySelector("#p2p-lobby-browser"),
-    p2pRoomRefresh: document.querySelector("#p2p-room-refresh"),
     p2pRoomList: document.querySelector("#p2p-room-list"),
     p2pCreateForm: document.querySelector("#p2p-create-form"),
     p2pCreateName: document.querySelector("#p2p-create-name"),
@@ -110,6 +108,7 @@
     p2pCreatePrivate: document.querySelector("#p2p-create-private"),
     p2pJoinForm: document.querySelector("#p2p-join-form"),
     p2pJoinCode: document.querySelector("#p2p-join-code"),
+    p2pRoomEmptyState: document.querySelector("#p2p-room-empty-state"),
     p2pRoomWaiting: document.querySelector("#p2p-room-waiting"),
     p2pRoomName: document.querySelector("#p2p-room-name"),
     p2pRoomCode: document.querySelector("#p2p-room-code"),
@@ -1935,7 +1934,6 @@
     ui.p2pLobby.classList.add("is-visible");
     renderP2PRoomList();
     renderP2PRoom(network.room);
-    void network.p2pClient?.refreshRooms();
   }
 
   function closeP2PLobby() {
@@ -1981,7 +1979,7 @@
   function renderP2PRoom(room) {
     network.room = room || null;
     const hasRoom = Boolean(room);
-    ui.p2pLobbyBrowser.hidden = hasRoom;
+    ui.p2pRoomEmptyState.hidden = hasRoom;
     ui.p2pRoomWaiting.hidden = !hasRoom;
     if (!hasRoom) {
       ui.p2pRoomName.textContent = "等待室";
@@ -2136,23 +2134,6 @@
       setP2PLobbyFeedback(`房间码 ${code} 已复制`, "success", true);
     } catch (error) {
       setP2PLobbyFeedback(error instanceof Error ? error.message : "复制房间码失败", "error", true);
-    }
-  }
-
-  async function refreshP2PRooms() {
-    if (!beginP2PLobbyAction()) return;
-    setP2PLobbyFeedback("正在刷新公开房间…");
-    try {
-      const result = await network.p2pClient.refreshRooms();
-      if (!result?.ok) {
-        setP2PLobbyFeedback(result?.error || "刷新房间列表失败", "error", true);
-        return;
-      }
-      setP2PLobbyFeedback(`房间列表已刷新，共 ${network.rooms.length} 个公开房间`, "success", true);
-    } catch (error) {
-      setP2PLobbyFeedback(error instanceof Error ? error.message : "刷新房间列表失败", "error", true);
-    } finally {
-      network.lobbyBusy = false;
     }
   }
 
@@ -9495,11 +9476,6 @@
   ui.multiplayerModeButton.addEventListener("click", openP2PLobby);
   ui.localModeButton.addEventListener("click", startPureLocalGame);
   ui.p2pLobbyClose.addEventListener("click", closeP2PLobby);
-  ui.p2pRoomRefresh.addEventListener("click", () => {
-    ensureAudio();
-    void refreshP2PRooms();
-    sound("ui");
-  });
   ui.p2pCreateForm.addEventListener("submit", (event) => {
     event.preventDefault();
     ensureAudio();

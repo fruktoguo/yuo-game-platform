@@ -168,7 +168,6 @@ export interface LobbyServerToClientEvents {
 
 export interface LobbyClientToServerEvents {
   'lobby:hello': (ack: (result: ActionResult<LobbyHelloData>) => void) => void;
-  'lobby:list': (ack: (result: ActionResult<RoomSummary[]>) => void) => void;
   'room:create': (payload: RoomCreatePayload, ack: (result: ActionResult<RoomJoinData>) => void) => void;
   'room:join': (payload: RoomJoinPayload, ack: (result: ActionResult<RoomJoinData>) => void) => void;
   'room:leave': (ack: (result: ActionResult) => void) => void;
