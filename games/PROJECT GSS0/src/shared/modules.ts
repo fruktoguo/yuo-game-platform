@@ -1,3 +1,5 @@
+import '../../designer-config.js';
+import '../../status-catalog.js';
 import '../../module-catalog.js';
 import type { GSS0ModuleId } from '../../module-catalog.js';
 import { formatCooldownSeconds, moduleCooldownSeconds, moduleDesignState, moduleIsUpgradeEnabled, type ModuleDesignState } from './designerConfig';

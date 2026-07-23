@@ -1,4 +1,5 @@
 import '../../designer-config.js';
+import '../../status-catalog.js';
 import '../../module-catalog.js';
 import '../../module-progression.js';
 

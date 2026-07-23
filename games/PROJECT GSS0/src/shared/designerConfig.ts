@@ -11,7 +11,7 @@ interface DesignerConfigSource {
 }
 
 const source = (globalThis as typeof globalThis & { GSS0_DESIGNER_CONFIG?: DesignerConfigSource }).GSS0_DESIGNER_CONFIG;
-if (source?.schemaVersion !== 39) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 39');
+if (source?.schemaVersion !== 40) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 40');
 
 function numberSetting(key: string, fallback: number, minimum: number, maximum: number, integer = false): number {
   const candidate = source?.balance?.[key];
@@ -143,8 +143,12 @@ export const DESIGNER_BALANCE = Object.freeze({
   enemySpawnActivationRadiusCells: numberSetting('enemySpawnActivationRadiusCells', 0.52, 0, 3),
   projectileSpeedScale: numberSetting('projectileSpeedScale', 3, 0.1, 10),
   projectileSizeScale: numberSetting('projectileSizeScale', 2, 0.1, 10),
-  poisonTickInterval: numberSetting('poisonTickInterval', 3, 0.05, 30),
-  burnTickInterval: numberSetting('burnTickInterval', 0.1, 0.05, 10),
+  frostSlowPerStack: numberSetting('frostSlowPerStack', 0.2, 0, 1),
+  frostMinimumSpeedRatio: numberSetting('frostMinimumSpeedRatio', 0.1, 0, 1),
+  burnTickInterval: numberSetting('burnTickInterval', 0.3, 0.05, 10),
+  burnDamagePerTick: numberSetting('burnDamagePerTick', 1, 0, 1000, true),
+  corrosionTickInterval: numberSetting('corrosionTickInterval', 3, 0.05, 30),
+  corrosionDamagePerTick: numberSetting('corrosionDamagePerTick', 1, 0, 1000, true),
   burnHealthFraction: numberSetting('burnHealthFraction', 0.5, 0, 1),
   enemyStatusParticleDensity: numberSetting('enemyStatusParticleDensity', 3, 1, 8, true),
   enemyStatusParticleSizeScale: numberSetting('enemyStatusParticleSizeScale', 1.6, 0.5, 4),
@@ -187,7 +191,6 @@ export const DESIGNER_BALANCE = Object.freeze({
   moduleLinkageSpacingPerLevel: numberSetting('moduleLinkageSpacingPerLevel', 0.2, 0, 5),
   moduleCacheKillsPerTrigger: numberSetting('moduleCacheKillsPerTrigger', 5, 1, 100, true),
   moduleThornsProjectileCount: numberSetting('moduleThornsProjectileCount', 6, 1, 100, true),
-  moduleFrostSlowPerHit: numberSetting('moduleFrostSlowPerHit', 0.5, 0, 1),
   moduleEchoProjectilesPerLevel: numberSetting('moduleEchoProjectilesPerLevel', 2, 0, 100, true),
   moduleBarrageProjectileCount: numberSetting('moduleBarrageProjectileCount', 16, 1, 100, true),
   moduleBladeBaseSizePixels: numberSetting('moduleBladeBaseSizePixels', 10, 1, 100),

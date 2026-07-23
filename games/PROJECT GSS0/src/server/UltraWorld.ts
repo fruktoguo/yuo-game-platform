@@ -9,6 +9,7 @@ import {
   ARENA_RESIZE_RATE,
   BOUNCE_LOCK_TIME,
   BOUNCE_SLOW_TIME,
+  BURN_DAMAGE_PER_TICK,
   BURN_HEALTH_FRACTION,
   BURN_TICK_INTERVAL,
   CANONICAL_CELL_SIZE,
@@ -65,7 +66,10 @@ import {
   PLAYER_TURN_RATE,
   PLAYER_WALL_COLLISION_DAMAGE,
   ENEMY_COLLISION_DAMAGE,
-  POISON_TICK_INTERVAL,
+  CORROSION_DAMAGE_PER_TICK,
+  CORROSION_TICK_INTERVAL,
+  FROST_MINIMUM_SPEED_RATIO,
+  FROST_SLOW_PER_STACK,
   PROJECTILE_SIZE_SCALE,
   PROJECTILE_SPEED_SCALE,
   RESPAWN_DELAY_MS,
@@ -167,9 +171,9 @@ interface EnemyEntity extends UltraEnemyView {
   slow: number;
   knockbackX: number;
   knockbackY: number;
-  poisonTimer: number;
-  poisonColor: string | null;
-  poisonOwnerEntityId: number | null;
+  corrosionTimer: number;
+  corrosionColor: string | null;
+  corrosionOwnerEntityId: number | null;
   burningApplications: BurningApplication[];
   sawCooldownsByPlayer: Map<number, number>;
   collisionCooldown: number;
@@ -259,8 +263,8 @@ interface ProjectileEntity extends UltraProjectileView {
   bounces: number;
   blastRadius: number;
   slow: number;
-  poison: number;
-  permanentSlow: number;
+  corrosionStacks: number;
+  frostStacks: number;
   burnOnHit: boolean;
   homing: number;
   target: TargetRef | null;
@@ -285,8 +289,8 @@ interface ShotOptions {
   bounces?: number;
   blastRadius?: number;
   slow?: number;
-  poison?: number;
-  permanentSlow?: number;
+  corrosionStacks?: number;
+  frostStacks?: number;
   burnOnHit?: boolean;
   homing?: number;
   angleOffset?: number;
@@ -2227,14 +2231,14 @@ export class UltraWorld {
       think: this.randomBetween(0.1, 0.5),
       wobble: this.randomBetween(0, TAU),
       slow: 0,
-      permanentSlow: 0,
+      frostStacks: 0,
       knockbackX: 0,
       knockbackY: 0,
-      poisonStacks: 0,
-      poisonTimer: 0,
-      poisonColor: null,
-      poisonOwnerEntityId: null,
-      burningTicks: 0,
+      corrosionStacks: 0,
+      corrosionTimer: 0,
+      corrosionColor: null,
+      corrosionOwnerEntityId: null,
+      burnStacks: 0,
       burningApplications: [],
       sawCooldownsByPlayer: new Map(),
       collisionCooldown: 0,
@@ -2562,7 +2566,10 @@ export class UltraWorld {
           segment.timer = this.activeModuleCooldown(player, 'spark', segment.moduleLevel);
           break;
         case 'frost':
-          if (this.spawnShot(player, segment, target, { color: MODULE_BY_ID.frost.color, speed: 310, size: 5, permanentSlow: MODULE_PROGRESSION.effects.frostSlowPerHit() })) this.playSkillSound(player, 'frost');
+          if (target) {
+            for (const offset of [-0.17, 0, 0.17]) this.spawnShot(player, segment, target, { color: MODULE_BY_ID.frost.color, speed: 310, size: 5, angleOffset: offset, frostStacks: 1 });
+            this.playSkillSound(player, 'frost');
+          }
           segment.timer = this.activeModuleCooldown(player, 'frost', segment.moduleLevel);
           break;
         case 'prism':
@@ -2624,7 +2631,7 @@ export class UltraWorld {
           segment.timer = this.activeModuleCooldown(player, 'pulse', segment.moduleLevel);
           break;
         case 'venom':
-          if (this.spawnShot(player, segment, target, { color: MODULE_BY_ID.venom.color, speed: 285, size: 5.5, poison: 1 })) this.playSkillSound(player, 'venom');
+          if (this.spawnShot(player, segment, target, { color: MODULE_BY_ID.venom.color, speed: 285, size: 5.5, corrosionStacks: 1 })) this.playSkillSound(player, 'venom');
           segment.timer = this.activeModuleCooldown(player, 'venom', segment.moduleLevel);
           break;
         case 'rail':
@@ -2691,7 +2698,7 @@ export class UltraWorld {
           segment.timer = this.activeModuleCooldown(player, 'anchor', segment.moduleLevel);
           break;
         case 'flare':
-          if (this.spawnShot(player, segment, target, { color: MODULE_BY_ID.flare.color, speed: 270, size: 5.8, poison: 4 })) this.playSkillSound(player, 'flare');
+          if (this.spawnShot(player, segment, target, { color: MODULE_BY_ID.flare.color, speed: 270, size: 5.8, corrosionStacks: 4 })) this.playSkillSound(player, 'flare');
           segment.timer = this.activeModuleCooldown(player, 'flare', segment.moduleLevel);
           break;
         case 'incendiary':
@@ -2813,8 +2820,8 @@ export class UltraWorld {
       bounces: (options.bounces ?? 0) < 0 ? options.bounces! : (options.bounces ?? 0) + bounceBonus,
       blastRadius: (options.blastRadiusCells ?? (options.blastRadius ? this.pixelsToCells(options.blastRadius) : 0)) * sizeMultiplier,
       slow: options.slow ?? 0,
-      poison: options.poison ?? 0,
-      permanentSlow: options.permanentSlow ?? 0,
+      corrosionStacks: options.corrosionStacks ?? 0,
+      frostStacks: options.frostStacks ?? 0,
       burnOnHit: options.burnOnHit ?? false,
       homing: (options.homing ?? 0) + MODULE_PROGRESSION.effects.guidanceHomingBonus(guidance),
       target: options.homing || guidance ? target : null,
@@ -2943,31 +2950,35 @@ export class UltraWorld {
         else target.sawCooldownsByPlayer.delete(playerId);
       }
       if (target.slow > 0) target.slow -= delta;
-      if (target.poisonStacks > 0) {
-        target.poisonTimer -= delta;
-        if (target.poisonTimer <= 0) {
-          target.poisonTimer = POISON_TICK_INTERVAL;
-          const owner = target.poisonOwnerEntityId === null ? null : this.playersByEntity.get(target.poisonOwnerEntityId) ?? null;
-          for (let stack = 0; stack < target.poisonStacks && !target.dead && target.segments.length > 0; stack += 1) {
+      if (target.corrosionStacks > 0) {
+        const effectiveInterval = CORROSION_TICK_INTERVAL / target.corrosionStacks;
+        target.corrosionTimer -= delta;
+        if (target.corrosionTimer <= 0) {
+          target.corrosionTimer = effectiveInterval;
+          if (target.segments.length > 0) {
             const hitSegmentIndex = Math.floor(this.random() * target.segments.length);
-            this.damageTarget(owner, target, 1, target.segments[hitSegmentIndex], target.poisonColor ?? MODULE_BY_ID.venom.color, hitSegmentIndex);
+            const owner = target.corrosionOwnerEntityId === null ? null : this.playersByEntity.get(target.corrosionOwnerEntityId) ?? null;
+            this.damageTarget(owner, target, CORROSION_DAMAGE_PER_TICK, target.segments[hitSegmentIndex], target.corrosionColor ?? MODULE_BY_ID.venom.color, hitSegmentIndex);
           }
+        } else {
+          target.corrosionTimer = Math.min(target.corrosionTimer, effectiveInterval);
         }
       }
       if (target.burningApplications.length > 0) {
         for (const application of target.burningApplications) {
           application.timer -= delta;
           while (application.remaining > 0 && application.timer <= 0 && !target.dead) {
-            const nodeIndex = Math.floor(this.random() * (target.segments.length + 1));
-            const node = nodeIndex === 0 ? target : target.segments[nodeIndex - 1];
             const owner = this.playersByEntity.get(application.ownerEntityId) ?? null;
-            this.damageTarget(owner, target, 1, node, application.color, nodeIndex - 1);
+            if (target.segments.length > 0) {
+              const hitSegmentIndex = Math.floor(this.random() * target.segments.length);
+              this.damageTarget(owner, target, BURN_DAMAGE_PER_TICK, target.segments[hitSegmentIndex], application.color, hitSegmentIndex);
+            }
             application.remaining -= 1;
             application.timer += BURN_TICK_INTERVAL;
           }
         }
         target.burningApplications = target.burningApplications.filter((application) => application.remaining > 0 && !target.dead);
-        target.burningTicks = target.burningApplications.reduce((sum, application) => sum + application.remaining, 0);
+        target.burnStacks = target.burningApplications.reduce((sum, application) => sum + application.remaining, 0);
       }
     }
   }
@@ -3138,7 +3149,8 @@ export class UltraWorld {
         this.steerEnemyAwayFromWalls(enemy);
         enemy.angle = rotateToward(enemy.angle, enemy.desiredAngle, delta * enemy.turnRate * waveSpeedMultiplier);
       }
-      const speed = enemy.speed * waveSpeedMultiplier * chronosMultiplier * (enemy.slow > 0 ? 0.55 : 1) * (1 - enemy.permanentSlow);
+      const frostMultiplier = Math.max(FROST_MINIMUM_SPEED_RATIO, 1 - enemy.frostStacks * FROST_SLOW_PER_STACK);
+      const speed = enemy.speed * waveSpeedMultiplier * chronosMultiplier * (enemy.slow > 0 ? 0.55 : 1) * frostMultiplier;
       const previousPosition = this.enemyMovementStart;
       previousPosition.col = enemy.col;
       previousPosition.row = enemy.row;
@@ -3499,12 +3511,12 @@ export class UltraWorld {
           projectile.hitNodes.add(node);
           this.damageTarget(owner, hostile, 1, hitPoint, projectile.color, segmentIndex);
           if (!hostile.dead && projectile.slow) hostile.slow = Math.max(hostile.slow, projectile.slow);
-          if (!hostile.dead && projectile.permanentSlow) hostile.permanentSlow = Math.max(hostile.permanentSlow, projectile.permanentSlow);
-          if (!hostile.dead && projectile.poison) {
-            hostile.poisonStacks += projectile.poison;
-            if (hostile.poisonTimer <= 0) hostile.poisonTimer = POISON_TICK_INTERVAL;
-            hostile.poisonColor = projectile.color;
-            hostile.poisonOwnerEntityId = owner.entityId;
+          if (!hostile.dead && projectile.frostStacks) hostile.frostStacks += projectile.frostStacks;
+          if (!hostile.dead && projectile.corrosionStacks) {
+            hostile.corrosionStacks += projectile.corrosionStacks;
+            hostile.corrosionTimer = hostile.corrosionTimer <= 0 ? CORROSION_TICK_INTERVAL / hostile.corrosionStacks : Math.min(hostile.corrosionTimer, CORROSION_TICK_INTERVAL / hostile.corrosionStacks);
+            hostile.corrosionColor = projectile.color;
+            hostile.corrosionOwnerEntityId = owner.entityId;
           }
           if (!hostile.dead && projectile.burnOnHit) this.applyBurning(owner, hostile, projectile.color);
           if (projectile.pierce > 0) projectile.pierce -= 1;
@@ -4027,7 +4039,7 @@ export class UltraWorld {
     const remaining = Math.ceil((target.segments.length + 1) * BURN_HEALTH_FRACTION);
     if (remaining <= 0) return;
     target.burningApplications.push({ remaining, timer: BURN_TICK_INTERVAL, color, ownerEntityId: owner.entityId });
-    target.burningTicks += remaining;
+    target.burnStacks += remaining;
   }
 
   private nearestTarget(_owner: PlayerEntity, origin: GridPoint, maximumDistance: number, predicate?: (enemy: EnemyEntity) => boolean): EnemyTargetSelection | null {
@@ -4602,9 +4614,9 @@ function toEnemyView(enemy: EnemyEntity): UltraEnemyView {
     angle: enemy.angle,
     color: enemy.color,
     captured: enemy.captured,
-    permanentSlow: enemy.permanentSlow,
-    poisonStacks: enemy.poisonStacks,
-    burningTicks: enemy.burningTicks,
+    frostStacks: enemy.frostStacks,
+    corrosionStacks: enemy.corrosionStacks,
+    burnStacks: enemy.burnStacks,
     segments: enemy.segments.map((segment) => ({ col: segment.col, row: segment.row })),
   };
 }

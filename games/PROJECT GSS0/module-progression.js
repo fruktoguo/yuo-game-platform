@@ -3,7 +3,7 @@
 
   const config = globalThis.GSS0_DESIGNER_CONFIG;
   const modules = globalThis.GSS0ModuleCatalog;
-  if (config?.schemaVersion !== 39 || !Array.isArray(modules) || modules.length === 0) {
+  if (config?.schemaVersion !== 40 || !Array.isArray(modules) || modules.length === 0) {
     throw new Error("PROJECT GSS0 机体成长规则依赖加载失败");
   }
 
@@ -133,7 +133,6 @@
     segmentSpacingBonus: (level) => balance.moduleLinkageSpacingPerLevel * effectLevel(level),
     cacheKillsPerTrigger: () => Math.max(1, Math.round(balance.moduleCacheKillsPerTrigger)),
     thornsProjectileCount: () => Math.max(1, Math.round(balance.moduleThornsProjectileCount)),
-    frostSlowPerHit: () => balance.moduleFrostSlowPerHit,
     echoProjectileCount: (level) => Math.max(0, Math.round(balance.moduleEchoProjectilesPerLevel * effectLevel(level))),
     barrageProjectileCount: () => Math.max(1, Math.round(balance.moduleBarrageProjectileCount)),
     bladeBaseSizePixels: () => balance.moduleBladeBaseSizePixels,

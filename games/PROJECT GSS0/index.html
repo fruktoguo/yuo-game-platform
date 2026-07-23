@@ -19,7 +19,7 @@
           <strong>代号：几何贪吃蛇</strong>
         </div>
         <span class="signature">by 四季鸽</span>
-        <span class="brand-version" aria-label="游戏版本 V114">V114</span>
+        <span class="brand-version" aria-label="游戏版本 V115">V115</span>
       </div>
 
       <div class="run-stats">
@@ -201,7 +201,7 @@
 
     <section id="start-screen" class="modal-layer start-screen is-visible" aria-labelledby="game-title">
       <div class="start-glow" aria-hidden="true"></div>
-          <div class="start-version" aria-label="游戏版本 V114"><span>BUILD</span><strong>V114</strong></div>
+          <div class="start-version" aria-label="游戏版本 V115"><span>BUILD</span><strong>V115</strong></div>
       <div class="start-layout">
         <div class="start-content">
           <div id="network-status" class="title-kicker">TACTICAL SURVIVAL / LOCAL</div>
@@ -302,6 +302,21 @@
           <button id="changelog-close-button" class="icon-button codex-close-button" type="button" aria-label="关闭更新日志" title="关闭更新日志">×</button>
         </header>
         <div class="changelog-list">
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V115</strong></div>
+              <time datetime="2026-07-23">2026.07.23</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">异常状态体系</span>
+              <h3>异常状态体系重构</h3>
+              <ul>
+                <li>冰冻改为可叠层的加算减速，每层降低20%移动速度且最低保留10%；冰棱节改为扇形发射3枚附带冰冻的子弹。</li>
+                <li>中毒统一更名为腐蚀，叠层会缩短随机损毁身体节的生效间隔；燃烧默认间隔调整为0.3秒且只损毁身体节。</li>
+                <li>冰冻、燃烧与腐蚀改用独立可复用的异常状态资料，并在设计控制台第一页分别开放状态参数区。</li>
+              </ul>
+            </div>
+          </article>
           <article class="changelog-entry">
             <header>
               <div class="changelog-version"><span>BUILD</span><strong>V114</strong></div>
@@ -1782,20 +1797,21 @@
     </section>
   </main>
 
-  <script src="designer-config.js?v=114"></script>
-  <script src="module-catalog.js?v=114"></script>
-  <script src="module-progression.js?v=114"></script>
-  <script src="wave-director.js?v=114"></script>
-  <script src="spawn-planner.js?v=114"></script>
-  <script src="network-codec.js?v=114"></script>
-  <script src="network-player-prediction.js?v=114"></script>
-  <script src="network-player-state-codec.js?v=114"></script>
-  <script src="network-player-collisions.js?v=114"></script>
-  <script src="network-head-collisions.js?v=114"></script>
-  <script src="network-food-claims.js?v=114"></script>
-  <script src="network-projectiles.js?v=114"></script>
-  <script src="lobby-navigation.js?v=114"></script>
-  <script src="enemy-codex.js?v=114"></script>
-  <script src="game.js?v=114"></script>
+  <script src="designer-config.js?v=115"></script>
+  <script src="status-catalog.js?v=115"></script>
+  <script src="module-catalog.js?v=115"></script>
+  <script src="module-progression.js?v=115"></script>
+  <script src="wave-director.js?v=115"></script>
+  <script src="spawn-planner.js?v=115"></script>
+  <script src="network-codec.js?v=115"></script>
+  <script src="network-player-prediction.js?v=115"></script>
+  <script src="network-player-state-codec.js?v=115"></script>
+  <script src="network-player-collisions.js?v=115"></script>
+  <script src="network-head-collisions.js?v=115"></script>
+  <script src="network-food-claims.js?v=115"></script>
+  <script src="network-projectiles.js?v=115"></script>
+  <script src="lobby-navigation.js?v=115"></script>
+  <script src="enemy-codex.js?v=115"></script>
+  <script src="game.js?v=115"></script>
 </body>
 </html>

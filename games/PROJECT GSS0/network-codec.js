@@ -2,7 +2,7 @@
   "use strict";
 
   const MAGIC = 0x55534e50;
-  const VERSION = 16;
+  const VERSION = 17;
   const GRID_SIZE = 24;
   const COORDINATE_PADDING = 2;
   const TAU = Math.PI * 2;
@@ -135,9 +135,9 @@
     result.angle = reader.angle();
     result.color = reader.color();
     result.captured = reader.u16();
-    result.permanentSlow = reader.u8() / 100;
-    result.poisonStacks = reader.u32();
-    result.burningTicks = reader.u32();
+    result.frostStacks = reader.u32();
+    result.corrosionStacks = reader.u32();
+    result.burnStacks = reader.u32();
     const segments = result.segments || (result.segments = []);
     const count = reader.u16();
     for (let index = 0; index < count; index += 1) {

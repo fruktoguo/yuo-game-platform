@@ -106,7 +106,7 @@
 
   const TAU = Math.PI * 2;
   const DESIGNER_CONFIG = globalThis.GSS0_DESIGNER_CONFIG || {};
-  if (DESIGNER_CONFIG.schemaVersion !== 39) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 39");
+  if (DESIGNER_CONFIG.schemaVersion !== 40) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 40");
   const DESIGNER_BALANCE = DESIGNER_CONFIG.balance || {};
   const MODULE_DESIGN_STATES = DESIGNER_CONFIG.moduleStates || {};
 
@@ -117,8 +117,12 @@
     return integer ? Math.round(clamped) : clamped;
   }
 
-  const POISON_TICK_INTERVAL = designerNumber("poisonTickInterval", 3, 0.05, 30);
-  const BURN_TICK_INTERVAL = designerNumber("burnTickInterval", 0.1, 0.05, 10);
+  const FROST_SLOW_PER_STACK = designerNumber("frostSlowPerStack", 0.2, 0, 1);
+  const FROST_MINIMUM_SPEED_RATIO = designerNumber("frostMinimumSpeedRatio", 0.1, 0, 1);
+  const BURN_TICK_INTERVAL = designerNumber("burnTickInterval", 0.3, 0.05, 10);
+  const BURN_DAMAGE_PER_TICK = designerNumber("burnDamagePerTick", 1, 0, 1000, true);
+  const CORROSION_TICK_INTERVAL = designerNumber("corrosionTickInterval", 3, 0.05, 30);
+  const CORROSION_DAMAGE_PER_TICK = designerNumber("corrosionDamagePerTick", 1, 0, 1000, true);
   const BURN_HEALTH_FRACTION = designerNumber("burnHealthFraction", 0.5, 0, 1);
   const ENEMY_STATUS_PARTICLE_DENSITY = Math.round(designerNumber("enemyStatusParticleDensity", 3, 1, 8));
   const ENEMY_STATUS_PARTICLE_SIZE_SCALE = designerNumber("enemyStatusParticleSizeScale", 1.6, 0.5, 4);
@@ -2575,9 +2579,9 @@
         bodyCells: [],
         segments: [],
         captured: 0,
-        permanentSlow: 0,
-        poisonStacks: 0,
-        burningTicks: 0,
+        frostStacks: 0,
+        corrosionStacks: 0,
+        burnStacks: 0,
         dead: false
       };
       network.spawnViews.set(item.id, spawn);
@@ -2948,9 +2952,9 @@
       enemy.archetype = item.archetype;
       enemy.behaviorState = item.behaviorState;
       enemy.behaviorPhase = interpolateNumber(old?.behaviorPhase, item.behaviorPhase, amount);
-      enemy.permanentSlow = item.permanentSlow || 0;
-      enemy.poisonStacks = item.poisonStacks || 0;
-      enemy.burningTicks = item.burningTicks || 0;
+      enemy.frostStacks = item.frostStacks || 0;
+      enemy.corrosionStacks = item.corrosionStacks || 0;
+      enemy.burnStacks = item.burnStacks || 0;
       enemy.radius = arena.cellSize * ENEMY_HEAD_RADIUS_CELLS;
       enemy.dead = false;
       const currentSegments = projectedEnemySegments(item.segments, damageOperations, enemy.currentSegmentScratch ||= []);
@@ -3639,13 +3643,13 @@
       think: random(0.1, 0.5),
       wobble: random(0, TAU),
       slow: 0,
-      permanentSlow: 0,
+      frostStacks: 0,
       knockbackX: 0,
       knockbackY: 0,
-      poisonStacks: 0,
-      poisonTimer: 0,
-      poisonColor: null,
-      burningTicks: 0,
+      corrosionStacks: 0,
+      corrosionTimer: 0,
+      corrosionColor: null,
+      burnStacks: 0,
       burningApplications: [],
       sawCooldown: 0,
       collisionCooldown: 0,
@@ -5166,8 +5170,8 @@
         bounces: (options.bounces || 0) < 0 ? options.bounces : (options.bounces || 0) + bounceBonus,
         blastRadius: (options.blastRadiusCells ? options.blastRadiusCells * arena.cellSize : (options.blastRadius || 0) * scale) * sizeMultiplier,
         slow: options.slow || 0,
-        permanentSlow: options.permanentSlow || 0,
-        poison: options.poison || 0,
+        frostStacks: options.frostStacks || 0,
+        corrosionStacks: options.corrosionStacks || 0,
         burnOnHit: Boolean(options.burnOnHit),
         homing,
         target: homing > 0 ? target : null,
@@ -5311,7 +5315,10 @@
           segment.timer = activeModuleCooldown("spark", segment.moduleLevel);
           break;
         case "frost":
-          if (spawnShot(segment, target, { color: MODULE_BY_ID.frost.color, speed: 310, size: 5, permanentSlow: MODULE_EFFECTS.frostSlowPerHit() })) playSkillSound("frost");
+          if (target) {
+            for (const offset of [-0.17, 0, 0.17]) spawnShot(segment, target, { color: MODULE_BY_ID.frost.color, speed: 310, size: 5, angleOffset: offset, frostStacks: 1 });
+            playSkillSound("frost");
+          }
           segment.timer = activeModuleCooldown("frost", segment.moduleLevel);
           break;
         case "prism":
@@ -5370,7 +5377,7 @@
           segment.timer = activeModuleCooldown("pulse", segment.moduleLevel);
           break;
         case "venom":
-          if (spawnShot(segment, target, { color: MODULE_BY_ID.venom.color, speed: 285, size: 5.5, poison: 1 })) playSkillSound("venom");
+          if (spawnShot(segment, target, { color: MODULE_BY_ID.venom.color, speed: 285, size: 5.5, corrosionStacks: 1 })) playSkillSound("venom");
           segment.timer = activeModuleCooldown("venom", segment.moduleLevel);
           break;
         case "rail":
@@ -5439,7 +5446,7 @@
           segment.timer = activeModuleCooldown("anchor", segment.moduleLevel);
           break;
         case "flare":
-          if (spawnShot(segment, target, { color: MODULE_BY_ID.flare.color, speed: 270, size: 5.8, poison: 4 })) playSkillSound("flare");
+          if (spawnShot(segment, target, { color: MODULE_BY_ID.flare.color, speed: 270, size: 5.8, corrosionStacks: 4 })) playSkillSound("flare");
           segment.timer = activeModuleCooldown("flare", segment.moduleLevel);
           break;
         case "incendiary":
@@ -5510,30 +5517,35 @@
     for (const enemy of enemies) {
       enemy.sawCooldown = Math.max(0, enemy.sawCooldown - dt);
       if (enemy.slow > 0) enemy.slow -= dt;
-      if (enemy.poisonStacks > 0) {
-        enemy.poisonTimer -= dt;
-        if (enemy.poisonTimer <= 0) {
-          enemy.poisonTimer = POISON_TICK_INTERVAL;
-          for (let stack = 0; stack < enemy.poisonStacks && !enemy.dead && enemy.segments.length > 0; stack += 1) {
+      if (enemy.corrosionStacks > 0) {
+        const effectiveInterval = CORROSION_TICK_INTERVAL / enemy.corrosionStacks;
+        enemy.corrosionTimer -= dt;
+        if (enemy.corrosionTimer <= 0) {
+          enemy.corrosionTimer = effectiveInterval;
+          if (enemy.segments.length > 0) {
             const hitSegmentIndex = Math.floor(Math.random() * enemy.segments.length);
             const target = enemy.segments[hitSegmentIndex];
-            damageEnemy(enemy, 1, target.x, target.y, enemy.poisonColor || MODULE_BY_ID.venom.color, { hitSegmentIndex });
+            damageEnemy(enemy, CORROSION_DAMAGE_PER_TICK, target.x, target.y, enemy.corrosionColor || MODULE_BY_ID.venom.color, { hitSegmentIndex });
           }
+        } else {
+          enemy.corrosionTimer = Math.min(enemy.corrosionTimer, effectiveInterval);
         }
       }
       if (enemy.burningApplications?.length) {
         for (const application of enemy.burningApplications) {
           application.timer -= dt;
           while (application.remaining > 0 && application.timer <= 0 && !enemy.dead) {
-            const nodeIndex = Math.floor(Math.random() * (enemy.segments.length + 1));
-            const target = nodeIndex === 0 ? enemy : enemy.segments[nodeIndex - 1];
-            damageEnemy(enemy, 1, target.x, target.y, application.color, { hitSegmentIndex: nodeIndex - 1 });
+            if (enemy.segments.length > 0) {
+              const hitSegmentIndex = Math.floor(Math.random() * enemy.segments.length);
+              const target = enemy.segments[hitSegmentIndex];
+              damageEnemy(enemy, BURN_DAMAGE_PER_TICK, target.x, target.y, application.color, { hitSegmentIndex });
+            }
             application.remaining -= 1;
             application.timer += BURN_TICK_INTERVAL;
           }
         }
         retainInPlace(enemy.burningApplications, (application) => application.remaining > 0 && !enemy.dead);
-        enemy.burningTicks = enemy.burningApplications.reduce((sum, application) => sum + application.remaining, 0);
+        enemy.burnStacks = enemy.burningApplications.reduce((sum, application) => sum + application.remaining, 0);
       }
     }
   }
@@ -6089,7 +6101,8 @@
         steerEnemyAwayFromWalls(enemy);
         enemy.angle = rotateToward(enemy.angle, enemy.desiredAngle, dt * enemy.turnRate * waveSpeedMultiplier);
       }
-      const statusMultiplier = (enemy.slow > 0 ? 0.55 : 1) * (1 - (enemy.permanentSlow || 0));
+      const frostMultiplier = Math.max(FROST_MINIMUM_SPEED_RATIO, 1 - (enemy.frostStacks || 0) * FROST_SLOW_PER_STACK);
+      const statusMultiplier = (enemy.slow > 0 ? 0.55 : 1) * frostMultiplier;
       const speed = enemy.speed * waveSpeedMultiplier * chronosMultiplier * statusMultiplier;
       enemyMovementStart.col = enemy.col;
       enemyMovementStart.row = enemy.row;
@@ -6421,17 +6434,17 @@
         projectile.hitNodes.add(node);
         damageEnemy(enemy, 1, node.x, node.y, projectile.color, { hitSegmentIndex });
         if (!enemy.dead && projectile.slow) enemy.slow = Math.max(enemy.slow, projectile.slow);
-        if (!enemy.dead && projectile.permanentSlow) enemy.permanentSlow = Math.max(enemy.permanentSlow || 0, projectile.permanentSlow);
-        if (!enemy.dead && projectile.poison) {
-          enemy.poisonStacks += projectile.poison;
-          if (enemy.poisonTimer <= 0) enemy.poisonTimer = POISON_TICK_INTERVAL;
-          enemy.poisonColor = projectile.color;
+        if (!enemy.dead && projectile.frostStacks) enemy.frostStacks += projectile.frostStacks;
+        if (!enemy.dead && projectile.corrosionStacks) {
+          enemy.corrosionStacks += projectile.corrosionStacks;
+          enemy.corrosionTimer = enemy.corrosionTimer <= 0 ? CORROSION_TICK_INTERVAL / enemy.corrosionStacks : Math.min(enemy.corrosionTimer, CORROSION_TICK_INTERVAL / enemy.corrosionStacks);
+          enemy.corrosionColor = projectile.color;
         }
         if (!enemy.dead && projectile.burnOnHit) {
           const remaining = Math.ceil((enemy.segments.length + 1) * BURN_HEALTH_FRACTION);
           if (remaining > 0) {
             enemy.burningApplications.push({ remaining, timer: BURN_TICK_INTERVAL, color: projectile.color });
-            enemy.burningTicks += remaining;
+            enemy.burnStacks += remaining;
           }
         }
         if (projectile.pierce > 0) projectile.pierce -= 1;
@@ -7607,9 +7620,9 @@
   }
 
   function drawEnemyStatusParticles(enemy, pieceScale) {
-    const frozen = enemy.permanentSlow > 0;
-    const corroded = enemy.poisonStacks > 0;
-    const burning = enemy.burningTicks > 0;
+    const frozen = enemy.frostStacks > 0;
+    const corroded = enemy.corrosionStacks > 0;
+    const burning = enemy.burnStacks > 0;
     if (!frozen && !corroded && !burning) return;
     ctx.save();
     ctx.globalCompositeOperation = "lighter";
@@ -7639,7 +7652,7 @@
       if (corroded) {
         const radius = (10 + (index % 4) * 1.5) * pieceScale;
         ctx.fillStyle = "rgba(105,205,48,0.2)";
-        ctx.shadowColor = enemy.poisonColor || MODULE_BY_ID.venom.color;
+        ctx.shadowColor = enemy.corrosionColor || MODULE_BY_ID.venom.color;
         ctx.shadowBlur = 10 * pieceScale * ENEMY_STATUS_PARTICLE_GLOW_SCALE;
         ctx.beginPath();
         ctx.arc(node.x, node.y, radius, 0, TAU);

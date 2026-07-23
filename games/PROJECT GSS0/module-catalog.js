@@ -18,7 +18,7 @@
 
   const moduleBlueprints = [
     { id: "spark", name: "高速枪节", category: "攻击", color: "#ff9f43", shape: "triangle", cooldown: "", activeCooldown: true, desc: "向随机方向发射1枚子弹。" },
-    { id: "frost", name: "冰棱节", category: "攻击", color: "#58d8ff", shape: "diamond", cooldown: "", activeCooldown: true, desc: "发射冰晶弹并永久降低敌蛇50%移动速度" },
+    { id: "frost", name: "冰棱节", category: "攻击", color: "#58d8ff", shape: "diamond", cooldown: "", activeCooldown: true, desc: "扇形发射3枚子弹，附带1层冰冻效果。" },
     { id: "prism", name: "三棱镜节", category: "攻击", color: "#ff5da2", shape: "hex", cooldown: "", activeCooldown: true, desc: "扇形发射3枚子弹。" },
     { id: "nova", name: "星爆节", category: "攻击", color: "#ff7043", shape: "star", cooldown: "", activeCooldown: true, desc: "向8个方向各发射1枚子弹。" },
     { id: "tesla", name: "雷鸣环节", category: "攻击", color: "#f7e85b", shape: "ring", cooldown: "", activeCooldown: true, desc: "电击最近的敌蛇，并向155px内的新目标跳跃；最多命中3条敌蛇，每条受到1伤害。" },
@@ -27,7 +27,7 @@
     { id: "mine", name: "磁暴雷节", category: "攻击", color: "#9a7cff", shape: "square", cooldown: "", activeCooldown: true, desc: "布置永久存在的磁雷；引爆时对范围内每个敌方部位分别造成1伤害，玩家触发时自身只被击退。" },
     { id: "blade", name: "旋刃节", category: "攻击", color: "#e8eef7", shape: "diamond", cooldown: "", activeCooldown: true, desc: "发射1枚永久环绕玩家蛇头的旋刃弹；无视墙壁，可无限积攒，命中敌人造成1伤害后销毁。" },
     { id: "pulse", name: "脉冲核心", category: "攻击", color: "#3eb7ff", shape: "ring", cooldown: "", activeCooldown: true, desc: "释放半径6格的冲击波，对范围内每个敌方部位分别造成1伤害。" },
-    { id: "venom", name: "腐蚀囊节", category: "攻击", color: "#8be04e", shape: "hex", cooldown: "", activeCooldown: true, desc: "发射腐蚀弹，命中后施加可无限叠加的永久中毒；中毒间隔3秒，每层中毒随机摧毁1节身体。" },
+    { id: "venom", name: "腐蚀囊节", category: "攻击", color: "#8be04e", shape: "hex", cooldown: "", activeCooldown: true, desc: "发射腐蚀弹，附带1层腐蚀效果。" },
     { id: "echo", name: "回声弹匣", category: "攻击", color: "#ff8bd7", shape: "capsule", cooldown: "被动效果", desc: "蛇头撞击敌蛇或墙壁时，每级向随机方向发射2枚子弹。" },
     { id: "rail", name: "贯穿轨炮节", category: "攻击", color: "#7ef9ff", shape: "capsule", cooldown: "", activeCooldown: true, desc: "发射可无限穿透的轨炮弹。" },
     { id: "ricochet", name: "弹射晶节", category: "攻击", color: "#ffcf5a", shape: "diamond", cooldown: "", activeCooldown: true, desc: "发射可无限反弹墙壁的晶体弹。" },
@@ -59,7 +59,7 @@
     { id: "fork", name: "双生电极", category: "攻击", color: "#d58cff", shape: "ring", cooldown: "", activeCooldown: true, desc: "向目标两侧各发射1枚追迹电弹。" },
     { id: "anchor", name: "迟滞锚弹", category: "攻击", color: "#6f8cff", shape: "triangle", cooldown: "", activeCooldown: true, desc: "发射追踪锚弹并让命中的敌蛇长时间减速。" },
     { id: "saw", name: "切割链环", category: "攻击", color: "#f06a7b", shape: "ring", cooldown: "", activeCooldown: true, desc: "持续切割靠近本机体的敌蛇，每次造成1伤害；每条敌蛇独立计算受击冷却。" },
-    { id: "flare", name: "灼蚀信标", category: "攻击", color: "#ff6b35", shape: "star", cooldown: "", activeCooldown: true, desc: "发射灼蚀弹，命中后再造成4次1伤害。" },
+    { id: "flare", name: "灼蚀信标", category: "攻击", color: "#ff6b35", shape: "star", cooldown: "", activeCooldown: true, desc: "发射灼蚀弹，命中后附带4层腐蚀效果。" },
     { id: "scatter", name: "碎晶霰舱", category: "攻击", color: "#70d6ff", shape: "hex", cooldown: "", activeCooldown: true, desc: "扇形发射7枚子弹。" },
     { id: "lance", name: "破阵光矛", category: "攻击", color: "#b9fff4", shape: "triangle", cooldown: "", activeCooldown: true, desc: "发射具有5次穿透的大型光矛。" },
     { id: "execute", name: "终结协议", category: "攻击", color: "#ff3f55", shape: "diamond", cooldown: "", activeCooldown: true, desc: "瞬间摧毁生命值为1的敌蛇；没有有效目标时保留冷却。" },
@@ -95,20 +95,20 @@
     { id: "doublehit", name: "倍击撞针", category: "攻击", color: "#ff5d73", shape: "triangle", cooldown: "被动效果", desc: "造成撞击伤害时，每级有20%概率使伤害翻倍。" },
     { id: "multishot", name: "齐射增殖节", category: "攻击", color: "#72e5ff", shape: "star", cooldown: "被动效果", desc: "每次发射子弹时，每级有10%概率使发射数量翻倍。" },
     { id: "rebound", name: "跳弹增幅节", category: "攻击", color: "#ffe36b", shape: "diamond", cooldown: "被动效果", desc: "每级使所有子弹的墙壁反弹次数+1。" },
-    { id: "incendiary", name: "焚身导弹节", category: "攻击", color: "#ff572f", shape: "triangle", cooldown: "", activeCooldown: true, desc: "瞄准生命值最高的敌蛇发射追踪燃烧弹；命中造成1伤害，并附带其50%生命值的燃烧层数。", note: "燃烧：每0.1秒，随机损毁一个身体部位（包含蛇头），并失去一层燃烧层数。" }
+    { id: "incendiary", name: "焚身导弹节", category: "攻击", color: "#ff572f", shape: "triangle", cooldown: "", activeCooldown: true, desc: "瞄准生命值最高的敌蛇发射追踪燃烧弹；命中造成1伤害，并附带其50%生命值的燃烧层数。" }
   ];
 
   function describeModule(moduleId, balance = defaultBalance) {
     const fallback = moduleBlueprints.find((module) => module.id === moduleId)?.desc || "";
     switch (moduleId) {
       case "frost":
-        return `发射冰晶弹并永久降低敌蛇${formatPercent(setting(balance, "moduleFrostSlowPerHit", 0.5))}移动速度`;
+        return "扇形发射3枚子弹，附带1层冰冻效果。";
       case "blade":
         return "发射1枚永久环绕玩家蛇头的旋刃弹；无视墙壁，可无限积攒，命中敌人造成1伤害后销毁。";
       case "pulse":
         return `释放半径${formatNumber(setting(balance, "modulePulseRadiusCells", 6))}格的冲击波，对范围内每个敌方部位分别造成1伤害。`;
       case "venom":
-        return `发射腐蚀弹，命中后施加可无限叠加的永久中毒；中毒间隔${formatNumber(setting(balance, "poisonTickInterval", 3))}秒，每层中毒随机摧毁1节身体。`;
+        return "发射腐蚀弹，附带1层腐蚀效果。";
       case "cluster":
         return `发射追踪爆弹，在半径${formatNumber(setting(balance, "moduleClusterBlastRadiusCells", 5))}格内爆炸并命中每个敌方部位。`;
       case "shield":
@@ -205,10 +205,10 @@
   }
 
   function describeModuleNote(moduleId, balance = defaultBalance) {
-    if (moduleId === "incendiary") {
-      return `燃烧：每${formatNumber(setting(balance, "burnTickInterval", 0.1))}秒，随机损毁一个身体部位（包含蛇头），并失去一层燃烧层数。`;
-    }
-    return moduleBlueprints.find((module) => module.id === moduleId)?.note || "";
+    const statusId = moduleId === "frost" ? "frost" : moduleId === "venom" || moduleId === "flare" ? "corrosion" : moduleId === "incendiary" ? "burn" : null;
+    return statusId && typeof globalThis.GSS0DescribeStatus === "function"
+      ? globalThis.GSS0DescribeStatus(statusId, balance)
+      : moduleBlueprints.find((module) => module.id === moduleId)?.note || "";
   }
 
   const modules = moduleBlueprints.map((module) => Object.freeze({

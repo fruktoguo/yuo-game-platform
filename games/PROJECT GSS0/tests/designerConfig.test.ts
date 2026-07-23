@@ -85,14 +85,18 @@ describe('设计配置', () => {
       foodsPerPlayerPerWave: 2,
       projectileSpeedScale: 3,
       projectileSizeScale: 2,
-      poisonTickInterval: 3,
+      frostSlowPerStack: 0.2,
+      frostMinimumSpeedRatio: 0.1,
+      burnTickInterval: 0.3,
+      burnDamagePerTick: 1,
+      corrosionTickInterval: 3,
+      corrosionDamagePerTick: 1,
       activeSkillBaseCooldown: 6,
       moduleAttackSizePerLevel: 0.1,
       moduleMineBlastRadiusPixels: 62,
       moduleMineVisualRadiusPixels: 15,
       moduleCollisionDoubleChancePerLevel: 0.2,
       moduleProjectileDoubleChancePerLevel: 0.12,
-      moduleFrostSlowPerHit: 0.5,
       moduleEchoProjectilesPerLevel: 2,
       moduleBarrageProjectileCount: 16,
       moduleRepulseRangePerLevelPixels: 110,
@@ -242,8 +246,8 @@ describe('设计配置', () => {
 
     expect(parameterKeys.sort()).toEqual(Object.keys(DESIGNER_BALANCE).sort());
     expect(moduleIds.sort()).toEqual(MODULES.map((module) => module.id).sort());
-    expect(moduleProgressionSource).toContain('config?.schemaVersion !== 39');
-    expect(new Set(parameterKeys).size).toBe(230);
+    expect(moduleProgressionSource).toContain('config?.schemaVersion !== 40');
+    expect(new Set(parameterKeys).size).toBe(233);
     expect(parameterKeys).not.toContain('playerSpeedPerLevel');
     expect(parameterKeys).not.toContain('moduleEffectReductionMaximum');
     expect(parameterKeys).not.toContain('newModuleOfferChance');
@@ -255,14 +259,14 @@ describe('设计配置', () => {
     expect(MODULES.every((module) => module.desc.trim().length > 0)).toBe(true);
     expect(new Set(MODULES.map((module) => module.id)).size).toBe(MODULES.length);
     expect(MODULES.find((module) => module.id === 'spark')?.desc).toBe('向随机方向发射1枚子弹。');
-    expect(MODULES.find((module) => module.id === 'frost')?.desc).toBe('发射冰晶弹并永久降低敌蛇50%移动速度');
+    expect(MODULES.find((module) => module.id === 'frost')?.desc).toBe('扇形发射3枚子弹，附带1层冰冻效果。');
     expect(MODULES.find((module) => module.id === 'echo')?.desc).toContain('每级向随机方向发射2枚子弹');
     expect(MODULES.find((module) => module.id === 'barrage')?.desc).toBe('向四周发射16枚可无限反弹墙壁的子弹。');
     expect(MODULES.find((module) => module.id === 'wallbreaker')?.desc).toBe('每级使敌蛇撞墙与互撞的伤害和击退提高50%');
     expect(MODULES.find((module) => module.id === 'haste')?.desc).toBe('每级使玩家转向速度提高20%。');
     expect(MODULES.find((module) => module.id === 'headstrike')?.desc).toContain('敌蛇蛇头');
     expect(MODULES.find((module) => module.id === 'ram')?.desc).toContain('敌蛇任意部位');
-    expect(MODULES.find((module) => module.id === 'venom')?.desc).toContain('中毒间隔3秒');
+    expect(MODULES.find((module) => module.id === 'venom')?.desc).toBe('发射腐蚀弹，附带1层腐蚀效果。');
     expect(MODULES.find((module) => module.id === 'replicator')?.desc).toBe('吃球时，每级有6%概率在蛇尾后方生成1枚球。此机体生成的球也可以再次触发此效果。');
     expect(MODULES.find((module) => module.id === 'buffer')?.category).toBe('辅助');
     expect(MODULES.find((module) => module.id === 'buffer')?.desc).toContain('撞击敌人时');
@@ -270,14 +274,14 @@ describe('设计配置', () => {
     expect(MODULES.find((module) => module.id === 'deathburst')?.desc).toContain('每级向随机方向发射2枚子弹');
     expect(MODULES.find((module) => module.id === 'arsenal')?.desc).toBe('每级使主动技能的尺寸提高10%。（各类子弹尺寸、爆炸范围与激光半径等）');
     expect(MODULES.find((module) => module.id === 'incendiary')?.desc).toBe('瞄准生命值最高的敌蛇发射追踪燃烧弹；命中造成1伤害，并附带其50%生命值的燃烧层数。');
-    expect(MODULES.find((module) => module.id === 'incendiary')?.note).toBe('燃烧：每0.1秒，随机损毁一个身体部位（包含蛇头），并失去一层燃烧层数。');
+    expect(MODULES.find((module) => module.id === 'incendiary')?.note).toBe('燃烧：每0.3秒，随机摧毁一节身体，并失去一层燃烧层数。');
     expect(MODULES.find((module) => module.id === 'doublehit')?.desc).toContain('20%概率');
     expect(MODULES.find((module) => module.id === 'multishot')?.desc).toContain('12%概率');
     expect(MODULES.some((module) => ['输出', '进攻', '防御', '恢复'].includes(module.category as string))).toBe(false);
     expect(MODULES.every((module) => ['攻击', '生存', '辅助', '发育'].includes(module.category))).toBe(true);
     expect(MODULES.filter((module) => module.category === '发育')).toHaveLength(9);
-    expect(editorHtml).toContain('src="module-catalog.js?v=114"');
-    expect(editorHtml).toContain('src="module-progression.js?v=114"');
+    expect(editorHtml).toContain('src="module-catalog.js?v=115"');
+    expect(editorHtml).toContain('src="module-progression.js?v=115"');
     expect(editorHtml).toContain('const MODULES = moduleCatalog;');
     expect(editorHtml).toContain('descriptionText.textContent = describeModule(module.id, draft.balance);');
     expect(editorHtml).toContain('descriptionNote.textContent = describeModuleNote(module.id, draft.balance);');
