@@ -1,17 +1,11 @@
 # Project Testing
 
-- Run automated tests only when the requested change includes UI or UX work.
-- For gameplay, balance, networking, simulation, server, or non-UI configuration changes, do not run automated tests or automated gameplay verification; the user will perform gameplay validation.
-- When a request combines UI/UX and gameplay work, test only because UI/UX is in scope and keep verification focused on the affected interface flows.
-- For UI/UX verification, target desktop PC viewports with a 16:9 aspect ratio. Do not test narrow, mobile, or responsive layouts unless the user explicitly requests them.
-- Syntax checks, typechecks, and production builds are not considered automated tests, but they must still stay proportional to the requested change and should be scoped to the affected files or PROJECT GSS0 package.
-- Do not add or run automated tests for low-risk copy edits, designer-number changes, module category/status changes, or similarly mechanical metadata updates when the edited code is straightforward.
-- This is a small game with fast player playtesting; keep verification proportional and do not impose commercial-scale test ceremony on routine changes.
-- This remains a fully local static game. Players may open `index.html` directly; do not add or require a production server.
-- For Codex browser verification, never navigate to a `file://` URL. Before the first browser action, start an ephemeral localhost static server, test through `http://127.0.0.1:<port>`, and stop that server after verification.
-- For Codex gameplay verification, enable the top-right `自动模式` setting and enter through the required `单人模式` or `多人模式` button. For unattended verification, also explicitly enable `自动选择机体` and `自动重开`. Do not test gameplay through normal mouse steering.
-- Keep normal play and automatic testing on the same `index.html` entry. Do not reintroduce URL query parameters for test mode.
-- Automatic mode must only steer the snake independently of manual input. Automatic module selection and automatic restart must follow their separate switches, both of which default to off for new saves. Automatic mode must respect the separate background-pause setting; disable background pause explicitly for unattended verification.
+- This is a small local game; rapid player playtesting is the primary gameplay verification. Do not impose commercial-scale test ceremony.
+- Gameplay, balance, copy, designer-number, and straightforward metadata changes do not require automated tests. The user will validate gameplay feel.
+- For changed classic JavaScript, run `node --check` when a syntax check is useful. For changed TypeScript, run a scoped `tsc --noEmit` when type checking is useful.
+- When the binary snapshot layout, snapshot fields, or join-time protocol contract changes, retain only the focused snapshot encode/decode round-trip test. Do not run a broader network test suite unless the user asks for it.
+- For UI changes, do one lightweight desktop 16:9 smoke check when practical. Automated UI suites are reserved for non-trivial interaction logic or an explicit user request.
+- The game remains a fully local static game; players may open `index.html` directly. If browser tooling is used, serve it through an ephemeral `http://127.0.0.1:<port>` URL instead of `file://`.
 
 # Project Version
 
@@ -37,11 +31,10 @@
 
 # Lightweight Delivery Verification
 
-- PROJECT GSS0 is a small game project with rapid player playtesting. There is no fixed deployment gate for routine commits or pushes.
-- Verify only what the current change can reasonably affect. Prefer syntax checks, targeted UI tests, a scoped typecheck, or the PROJECT GSS0 package build when those checks are relevant.
-- Do not run the repository-wide `npm run build`, `npm run check:limits`, Docker, container, infrastructure, or deployment checks for routine PROJECT GSS0 work unless the user explicitly requests them.
+- Verify only what the current change can reasonably affect; there is no fixed deployment gate for routine commits or pushes.
+- Do not run `npm test`, repository-wide builds, full browser suites, gameplay automation, `npm run check:limits`, Docker, container, infrastructure, or deployment checks unless the user explicitly requests them.
 - Missing unrelated build, Docker, deployment, or infrastructure tooling must not block a PROJECT GSS0 commit or push after the relevant scoped checks have passed.
-- Do not require `npm test` before committing or pushing. Follow the UI/UX-only automated-testing rules above.
+- A routine commit may rely on the lightweight checks above or on manual playtesting when no relevant automated check exists.
 - Keep production classic-script assets derived automatically from the local script references in `index.html`; do not reintroduce a manually maintained filename allowlist in `vite.config.ts`.
 
 # Forward-Only Development
