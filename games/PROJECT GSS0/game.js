@@ -10,6 +10,7 @@
   const arenaShadowCanvas = document.createElement("canvas");
   const arenaShadowCtx = arenaShadowCanvas.getContext("2d");
   const enemySpriteCache = new Map();
+  const corrosionParticleSpriteCache = new Map();
   let localModeForced = false;
   const PLAYER_COLORS = ["#f3c600", "#08c7dc", "#ef3e4a", "#8be04e", "#b49cff", "#ff8a5b", "#70d6ff", "#ff88c7"];
 
@@ -7697,6 +7698,47 @@
     return sprite;
   }
 
+  function corrosionParticleSprite(color, radius) {
+    const key = `${color}:${radius}`;
+    let sprite = corrosionParticleSpriteCache.get(key);
+    if (sprite) return sprite;
+
+    const renderScale = 2;
+    const maximumParticleSize = 3.2 * ENEMY_STATUS_PARTICLE_SIZE_SCALE;
+    const shadowBlur = 10 * ENEMY_STATUS_PARTICLE_GLOW_SCALE;
+    const halfSize = Math.ceil(radius + maximumParticleSize + shadowBlur * 2 + 2);
+    const size = halfSize * 2;
+    const spriteCanvas = document.createElement("canvas");
+    spriteCanvas.width = size * renderScale;
+    spriteCanvas.height = size * renderScale;
+    const spriteContext = spriteCanvas.getContext("2d");
+    spriteContext.setTransform(renderScale, 0, 0, renderScale, halfSize * renderScale, halfSize * renderScale);
+    spriteContext.globalCompositeOperation = "lighter";
+    spriteContext.shadowColor = color;
+    spriteContext.shadowBlur = shadowBlur * renderScale;
+    spriteContext.fillStyle = "rgba(105,205,48,0.2)";
+    spriteContext.beginPath();
+    spriteContext.arc(0, 0, radius, 0, TAU);
+    spriteContext.fill();
+    for (let particleIndex = 0; particleIndex < ENEMY_STATUS_PARTICLE_DENSITY; particleIndex += 1) {
+      const angle = particleIndex * TAU / ENEMY_STATUS_PARTICLE_DENSITY;
+      const particleSize = (2.2 + particleIndex % 2) * ENEMY_STATUS_PARTICLE_SIZE_SCALE;
+      const x = Math.cos(angle) * radius;
+      const y = Math.sin(angle) * radius;
+      spriteContext.fillStyle = "rgba(158,245,82,0.96)";
+      spriteContext.beginPath();
+      spriteContext.arc(x, y, particleSize, 0, TAU);
+      spriteContext.fill();
+      spriteContext.fillStyle = "rgba(214,255,133,0.7)";
+      spriteContext.beginPath();
+      spriteContext.arc(x - particleSize * 0.3, y - particleSize * 0.45, particleSize * 0.35, 0, TAU);
+      spriteContext.fill();
+    }
+    sprite = { canvas: spriteCanvas, size };
+    corrosionParticleSpriteCache.set(key, sprite);
+    return sprite;
+  }
+
   function warmEnemySpriteCache() {
     const variants = [];
     for (const archetype of ENEMY_ARCHETYPES) {
@@ -7801,27 +7843,15 @@
         }
       }
       if (corroded) {
-        const radius = (10 + (index % 4) * 1.5) * pieceScale;
-        ctx.fillStyle = "rgba(105,205,48,0.2)";
-        ctx.shadowColor = enemy.corrosionColor || MODULE_BY_ID.venom.color;
-        ctx.shadowBlur = 10 * pieceScale * ENEMY_STATUS_PARTICLE_GLOW_SCALE;
-        ctx.beginPath();
-        ctx.arc(node.x, node.y, radius, 0, TAU);
-        ctx.fill();
-        for (let particleIndex = 0; particleIndex < ENEMY_STATUS_PARTICLE_DENSITY; particleIndex += 1) {
-          const angle = -gameTime * 1.7 + index * 1.618 + particleIndex * TAU / ENEMY_STATUS_PARTICLE_DENSITY;
-          const size = (2.2 + particleIndex % 2) * pieceScale * ENEMY_STATUS_PARTICLE_SIZE_SCALE;
-          const x = node.x + Math.cos(angle) * radius;
-          const y = node.y + Math.sin(angle) * radius;
-          ctx.fillStyle = "rgba(158,245,82,0.96)";
-          ctx.beginPath();
-          ctx.arc(x, y, size, 0, TAU);
-          ctx.fill();
-          ctx.fillStyle = "rgba(214,255,133,0.7)";
-          ctx.beginPath();
-          ctx.arc(x - size * 0.3, y - size * 0.45, size * 0.35, 0, TAU);
-          ctx.fill();
-        }
+        const radius = 10 + (index % 4) * 1.5;
+        const sprite = corrosionParticleSprite(enemy.corrosionColor || MODULE_BY_ID.venom.color, radius);
+        ctx.save();
+        ctx.translate(node.x, node.y);
+        ctx.rotate(-gameTime * 1.7 + index * 1.618);
+        ctx.scale(pieceScale, pieceScale);
+        ctx.shadowBlur = 0;
+        ctx.drawImage(sprite.canvas, -sprite.size / 2, -sprite.size / 2, sprite.size, sprite.size);
+        ctx.restore();
       }
       if (burning) {
         const radius = (11 + index % 3) * pieceScale;
