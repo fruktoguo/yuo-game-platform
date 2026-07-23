@@ -522,6 +522,8 @@
     p2pClient: null,
     lobbyReady: false,
     lobbyBusy: false,
+    restartVotePending: false,
+    automaticRestartVoteMatchId: null,
     rooms: [],
     room: null,
     selfEntityId: null,
@@ -959,7 +961,7 @@
     return {
       enabled: automaticModeEnabled,
       autoSelectModules: automaticModuleSelectionEnabled,
-      autoRestart: automaticRestartEnabled
+      autoRestart: network.enabled ? false : automaticRestartEnabled
     };
   }
 
@@ -1008,14 +1010,11 @@
 
   function reconcileAutomaticNetworkState() {
     if (!network.enabled) return;
+    const self = network.snapshot?.players.find((item) => item.entityId === network.selfEntityId);
     if (automaticModeEnabled) {
       resetNetworkPredictionInput();
-      if (automaticRestartEnabled && state === "gameover") {
-        enterRunningState();
-        ui.gameOver.classList.remove("is-visible");
-      }
-      const self = network.snapshot?.players.find((item) => item.entityId === network.selfEntityId);
-      if (self && !self.alive && !automaticRestartEnabled && state !== "menu" && state !== "gameover") showNetworkGameOver(self);
+      if (self && !self.alive && state !== "menu" && state !== "gameover") showNetworkGameOver(self);
+      else if (self && !self.alive && state === "gameover") maybeAutomaticallyVoteNetworkRestart();
       return;
     }
     if (player?.alive && state === "running") {
@@ -1023,7 +1022,6 @@
       network.localDesiredAngle = player.desiredAngle;
       sendNetworkInput(true, true);
     }
-    const self = network.snapshot?.players.find((item) => item.entityId === network.selfEntityId);
     if (self && !self.alive && state !== "menu" && state !== "gameover") showNetworkGameOver(self);
   }
 
@@ -1678,6 +1676,63 @@
     if (toast) showP2PToast(message, kind);
   }
 
+  function updateNetworkResultActions(room = network.room) {
+    const isNetworkMatch = Boolean(network.enabled && room?.status === "playing");
+    if (!isNetworkMatch) {
+      ui.restartButton.textContent = "再来一局";
+      ui.restartButton.disabled = false;
+      ui.gameOverMenuButton.textContent = "返回主菜单";
+      ui.gameOverMenuButton.disabled = false;
+      ui.pauseRestart.hidden = false;
+      ui.pauseMenuButton.textContent = "返回主菜单";
+      ui.pauseMenuButton.disabled = false;
+      return;
+    }
+    const restartVotes = Array.isArray(room.restartVotePeerIds) ? room.restartVotePeerIds : [];
+    const peerId = network.p2pClient?.peerId;
+    const hasVoted = Boolean(peerId && restartVotes.includes(peerId));
+    ui.restartButton.textContent = `投票重开 ${restartVotes.length}/${room.members.length}`;
+    ui.restartButton.disabled = hasVoted || network.restartVotePending;
+    ui.gameOverMenuButton.textContent = "离开游戏";
+    ui.gameOverMenuButton.disabled = network.lobbyBusy;
+    ui.pauseRestart.hidden = true;
+    ui.pauseMenuButton.textContent = "离开游戏";
+    ui.pauseMenuButton.disabled = network.lobbyBusy;
+  }
+
+  function handleP2PRoomClosed(notice) {
+    const message = typeof notice === "string" ? notice : notice?.reason || "房间已关闭";
+    const shouldReturnToMenu = Boolean(notice && typeof notice === "object" && notice.returnToMenu);
+    network.enabled = false;
+    network.lobbyBusy = false;
+    network.restartVotePending = false;
+    network.automaticRestartVoteMatchId = null;
+    network.room = null;
+    network.transport = null;
+    network.boundTransport = null;
+    network.selfEntityId = null;
+    network.lastSelfAlive = false;
+    network.upgradeOffer = null;
+    resetNetworkPredictionInput(true);
+    clearNetworkViews();
+    renderNetworkRoster([]);
+    renderP2PRoom(null);
+    updateNetworkResultActions(null);
+    setNetworkStatus("error", message);
+    if (shouldReturnToMenu) {
+      state = "menu";
+      player = null;
+      visiblePlayers = [];
+      hideAllModals();
+      ui.p2pLobby?.classList.remove("is-visible");
+      ui.start.classList.add("is-visible");
+      lastFrame = performance.now();
+    } else if (ui.p2pLobby && !localModeForced) {
+      ui.p2pLobby.classList.add("is-visible");
+    }
+    setP2PLobbyFeedback(message, "warning", true);
+  }
+
   function beginP2PLobbyAction() {
     if (!network.p2pClient) {
       setP2PLobbyFeedback("P2P 大厅尚未连接，请稍候再试", "error", true);
@@ -1713,8 +1768,13 @@
       renderP2PRoomList();
     });
     client.on("room", (room) => {
+      const previousMatchId = network.room?.matchId;
       network.room = room || null;
       renderP2PRoom(room || null);
+      updateNetworkResultActions(room || null);
+      if (network.enabled && previousMatchId && room?.matchId && room.matchId !== previousMatchId) {
+        showP2PToast("全员已同意重开，正在同步开启新一局", "success");
+      }
     });
     client.on("status", (status) => {
       const kind = status?.kind === "error" ? "error" : status?.kind === "connecting" ? "connecting" : "online";
@@ -1722,20 +1782,7 @@
       if (ui.p2pLobbyStatus) ui.p2pLobbyStatus.textContent = status?.text || "P2P 大厅";
       if (kind === "error") showP2PToast(status?.text || "P2P 大厅连接失败", "error");
     });
-    client.on("room-closed", (reason) => {
-      const message = reason || "房间已关闭";
-      network.enabled = false;
-      network.lobbyBusy = false;
-      network.room = null;
-      network.transport = null;
-      network.boundTransport = null;
-      network.lastSelfAlive = false;
-      clearNetworkViews();
-      renderP2PRoom(null);
-      setNetworkStatus("error", message);
-      setP2PLobbyFeedback(message, "warning", true);
-      if (ui.p2pLobby && !localModeForced) ui.p2pLobby.classList.add("is-visible");
-    });
+    client.on("room-closed", (notice) => handleP2PRoomClosed(notice));
     client.on("game-ready", (payload) => initializeP2PGame(payload));
     client.on("game-error", (message) => {
       const feedback = message || "P2P 游戏连接失败";
@@ -1758,6 +1805,8 @@
     network.room = payload.room || network.room;
     network.enabled = true;
     network.connecting = false;
+    network.restartVotePending = false;
+    network.automaticRestartVoteMatchId = null;
     network.selfEntityId = joinData.selfEntityId;
     network.roster = joinData.roster || [];
     clearNetworkViews();
@@ -1793,6 +1842,7 @@
     applyNetworkPresentation(joinData.snapshot, joinData.snapshot, network.snapshotBuffer[0].indexes, 1, performance.now());
     ui.p2pLobby.classList.remove("is-visible");
     ui.start.classList.remove("is-visible");
+    updateNetworkResultActions(network.room);
     setNetworkButtonsDisabled(false);
     setNetworkStatus("online", network.p2pClient?.isHost ? "P2P HOST / SHARED WORLD" : "P2P CLIENT / CONNECTED");
     void startNetworkGame(Boolean(joinedSelf?.alive));
@@ -2244,13 +2294,7 @@
     }
     const selfAlive = Boolean(self?.alive);
     if (network.lastSelfAlive && self && !self.alive && state !== "menu" && state !== "gameover") {
-      if (automaticModeEnabled && automaticRestartEnabled) {
-        enterRunningState();
-        ui.upgrade.classList.remove("is-visible");
-        ui.gameOver.classList.remove("is-visible");
-      } else {
-        showNetworkGameOver(self);
-      }
+      showNetworkGameOver(self);
     }
     if (!network.lastSelfAlive && selfAlive && automaticModeEnabled && state !== "menu") {
       enterRunningState();
@@ -3785,6 +3829,62 @@
     });
   }
 
+  function maybeAutomaticallyVoteNetworkRestart() {
+    const room = network.room;
+    const peerId = network.p2pClient?.peerId;
+    const matchId = room?.matchId;
+    if (
+      !automaticModeEnabled
+      || !automaticRestartEnabled
+      || !network.enabled
+      || room?.status !== "playing"
+      || !peerId
+      || !matchId
+      || room.restartVotePeerIds?.includes(peerId)
+      || network.automaticRestartVoteMatchId === matchId
+    ) return;
+    network.automaticRestartVoteMatchId = matchId;
+    void voteNetworkRestart(true);
+  }
+
+  async function voteNetworkRestart(automatic = false) {
+    const room = network.room;
+    const client = network.p2pClient;
+    const peerId = client?.peerId;
+    if (!network.enabled || !client || room?.status !== "playing" || !peerId) {
+      if (!automatic) showP2PToast("当前无法投票重开", "warning");
+      return;
+    }
+    if (room.restartVotePeerIds?.includes(peerId)) {
+      updateNetworkResultActions(room);
+      if (!automatic) showP2PToast("你已经投过重开票了", "warning");
+      return;
+    }
+    if (network.restartVotePending) return;
+    const votedMatchId = room.matchId;
+    network.restartVotePending = true;
+    updateNetworkResultActions(room);
+    try {
+      const result = await client.voteRestart();
+      if (!result?.ok) {
+        if (automatic && network.automaticRestartVoteMatchId === votedMatchId) network.automaticRestartVoteMatchId = null;
+        showP2PToast(result?.error || "投票重开失败", "error");
+        return;
+      }
+      if (result.data && network.room?.id === result.data.id) network.room = result.data;
+      const restarted = Boolean(votedMatchId && result.data?.matchId && result.data.matchId !== votedMatchId);
+      if (!automatic || restarted) {
+        showP2PToast(restarted ? "全员已同意重开，正在同步开启新一局" : "已投票重开，等待其他玩家", "success");
+      }
+    } catch (error) {
+      if (automatic && network.automaticRestartVoteMatchId === votedMatchId) network.automaticRestartVoteMatchId = null;
+      showP2PToast(error instanceof Error ? error.message : "投票重开失败", "error");
+    } finally {
+      network.restartVotePending = false;
+      updateNetworkResultActions(network.room);
+    }
+  }
+
   async function startNetworkGame(restart = false) {
     ensureAudio();
     closeSettingPopovers();
@@ -3825,6 +3925,8 @@
     ui.finalTime.textContent = formatTime(result.survivalTime);
     ui.newBest.classList.toggle("is-visible", isNewBest);
     ui.best.textContent = Math.floor(bestScore).toLocaleString("zh-CN");
+    updateNetworkResultActions(network.room);
+    maybeAutomaticallyVoteNetworkRestart();
     window.setTimeout(() => {
       if (state === "gameover") ui.gameOver.classList.add("is-visible");
     }, 330);
@@ -4236,6 +4338,7 @@
       void startNetworkGame(network.lastSelfAlive);
       return;
     }
+    updateNetworkResultActions(null);
     ensureAudio();
     closeSettingPopovers();
     resetGame();
@@ -4282,20 +4385,44 @@
     }
   }
 
-  function returnToMenu() {
+  async function leaveNetworkGame() {
+    const client = network.p2pClient;
+    if (!client?.room) {
+      handleP2PRoomClosed({ reason: "联机房间已关闭，已返回主菜单。", returnToMenu: true });
+      return;
+    }
+    if (network.lobbyBusy) {
+      showP2PToast("房间操作仍在处理中，请稍候", "warning");
+      return;
+    }
+    network.lobbyBusy = true;
+    updateNetworkResultActions(network.room);
+    showP2PToast("正在离开游戏并解散房间…", "info");
+    try {
+      const result = await client.leaveRoom();
+      if (!result?.ok) {
+        showP2PToast(result?.error || "离开游戏失败", "error");
+        return;
+      }
+      if (network.enabled) {
+        handleP2PRoomClosed({
+          reason: "你离开了游戏，联机房间已解散，所有玩家已返回主菜单。",
+          returnToMenu: true
+        });
+      }
+    } catch (error) {
+      showP2PToast(error instanceof Error ? error.message : "离开游戏失败", "error");
+    } finally {
+      network.lobbyBusy = false;
+      updateNetworkResultActions(network.room);
+    }
+  }
+
+  async function returnToMenu() {
     if (network.enabled) {
       closeSettingPopovers();
-      if (network.lastSelfAlive) void emitNetworkAction("ultra:leave-run");
-      network.lastSelfAlive = false;
-      network.upgradeOffer = null;
-      resetNetworkPredictionInput();
-      state = "menu";
-      player = null;
-      visiblePlayers = [];
-      hideAllModals();
-      ui.start.classList.add("is-visible");
-      lastFrame = performance.now();
       sound("ui");
+      await leaveNetworkGame();
       return;
     }
     closeSettingPopovers();
@@ -9424,10 +9551,13 @@
   ui.enemyCodexCloseButton.addEventListener("click", closeEnemyCodex);
   ui.changelogButton.addEventListener("click", openChangelog);
   ui.changelogCloseButton.addEventListener("click", closeChangelog);
-  ui.restartButton.addEventListener("click", startGame);
-  ui.gameOverMenuButton.addEventListener("click", returnToMenu);
+  ui.restartButton.addEventListener("click", () => {
+    if (network.enabled) void voteNetworkRestart();
+    else startGame();
+  });
+  ui.gameOverMenuButton.addEventListener("click", () => void returnToMenu());
   ui.pauseRestart.addEventListener("click", startGame);
-  ui.pauseMenuButton.addEventListener("click", returnToMenu);
+  ui.pauseMenuButton.addEventListener("click", () => void returnToMenu());
   ui.resumeButton.addEventListener("click", () => setPaused(false));
   ui.pauseButton.addEventListener("click", () => {
     if (state === "running") setPaused(true);

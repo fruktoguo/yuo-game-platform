@@ -35,6 +35,7 @@ export interface RoomChatMessage {
 export interface RoomClosedNotice {
   roomId: string;
   reason: string;
+  returnToMenu: boolean;
 }
 
 export interface RoomSummary {
@@ -61,6 +62,7 @@ export interface RoomView {
   hostPeerId: string;
   config: RoomConfig;
   members: RoomMemberView[];
+  restartVotePeerIds: string[];
   chatHistory: RoomChatMessage[];
 }
 
@@ -173,6 +175,7 @@ export interface LobbyClientToServerEvents {
   'room:ready': (ready: boolean, ack: (result: ActionResult) => void) => void;
   'room:config': (config: Partial<RoomConfig>, ack: (result: ActionResult<RoomView>) => void) => void;
   'room:start': (ack: (result: ActionResult<RoomView>) => void) => void;
+  'room:restart-vote': (ack: (result: ActionResult<RoomView>) => void) => void;
   'room:end-match': (ack: (result: ActionResult<RoomView>) => void) => void;
   'p2p:signal': (targetPeerId: string, signal: P2PSignal, ack: (result: ActionResult) => void) => void;
   'profile:record-run': (summary: RunSummaryPayload, ack: (result: ActionResult<UltraProfileView>) => void) => void;

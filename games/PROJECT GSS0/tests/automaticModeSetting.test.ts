@@ -8,6 +8,8 @@ const indexHtml = readFileSync(new URL('../index.html', import.meta.url), 'utf8'
 const serverSource = readFileSync(new URL('../src/server/UltraWorld.ts', import.meta.url), 'utf8');
 const protocolSource = readFileSync(new URL('../src/shared/protocol.ts', import.meta.url), 'utf8');
 const roomProtocolSource = readFileSync(new URL('../src/shared/roomProtocol.ts', import.meta.url), 'utf8');
+const roomHubSource = readFileSync(new URL('../src/server/RoomHub.ts', import.meta.url), 'utf8');
+const p2pBootstrapSource = readFileSync(new URL('../src/client/p2p/bootstrap.ts', import.meta.url), 'utf8');
 
 interface AutomaticModeTestPlayer {
   autopilot: boolean;
@@ -51,12 +53,15 @@ describe('自动模式设置', () => {
     expect(gameSource).toContain('MODULE_PROGRESSION.chooseAutomaticUpgradeIds');
     expect(gameSource).toContain('if (automaticModeEnabled && automaticRestartEnabled) startGame();');
     expect(gameSource).toContain('emitNetworkAction("ultra:autopilot", automaticModePreferences())');
+    expect(gameSource).toContain('autoRestart: network.enabled ? false : automaticRestartEnabled');
+    expect(gameSource).toContain('maybeAutomaticallyVoteNetworkRestart();');
     expect(gameSource).toContain('networkPlayerPredictionRuntime.adoptLocal(player);');
     expect(serverSource).toContain('if (enabled && autoSelectModules && player.choosingUpgrade && player.upgradeOffer)');
     expect(serverSource).toContain('player.autopilot && player.autoSelectModules');
     expect(serverSource).toContain('MODULE_PROGRESSION.chooseAutomaticUpgradeIds');
     expect(protocolSource).toContain('export interface AutopilotPreferences');
     expect(roomProtocolSource).toContain("'room:ready'");
+    expect(roomProtocolSource).toContain("'room:restart-vote'");
     expect(protocolSource).toContain('autoRestart: boolean;');
     expect(gameSource).toContain('let damage = playerHeadDamage(hitHead);');
     expect(serverSource).toContain('let damage = this.playerHeadDamage(player, hitHead);');
@@ -99,7 +104,7 @@ describe('自动模式设置', () => {
     expect(deliveredOffers.at(-1)).toBeNull();
   });
 
-  it('多人自动模式把救援插入高优先目标与吃球之间', () => {
+  it('多人自动模式先追击无遮挡敌头，再让救援覆盖普通吃球目标', () => {
     const stepSource = serverSource.slice(
       serverSource.indexOf('step(deltaSeconds:'),
       serverSource.indexOf('getSnapshot('),
@@ -110,11 +115,25 @@ describe('自动模式设置', () => {
     );
 
     expect(stepSource).toContain('this.autopilotAngle(player, present)');
-    expect(autopilotSource.indexOf('for (const enemy of this.enemies)')).toBeLessThan(autopilotSource.indexOf('if (!hasHigherPriorityTarget)'));
-    expect(autopilotSource.indexOf('if (!hasHigherPriorityTarget)')).toBeLessThan(autopilotSource.indexOf('const targetCol = target.col - player.col;'));
+    expect(autopilotSource.indexOf('const headTarget = this.automaticHeadTarget')).toBeLessThan(autopilotSource.indexOf('let nearestFood'));
+    expect(autopilotSource.indexOf('for (const other of presentPlayers)')).toBeLessThan(autopilotSource.indexOf('const targetCol = target.col - player.col;'));
     expect(autopilotSource).toContain('if (other === player || !other.ghost) continue;');
     expect(autopilotSource).toContain('if (other === player || other.ghost) continue;');
     expect(autopilotSource).toContain('AUTOMATIC_TEAMMATE_AVOIDANCE_STRENGTH');
     expect(autopilotSource).toContain('AUTOMATIC_SHARP_TURN_THRESHOLD');
+  });
+
+  it('联机结算按房间成员投票重开，主动离场会解散进行中的房间', () => {
+    expect(roomProtocolSource).toContain('restartVotePeerIds: string[];');
+    expect(roomHubSource).toContain('room.restartVotes.add(peerId);');
+    expect(roomHubSource).toContain('room.restartVotes.size === room.members.size');
+    expect(roomHubSource).toContain('room.matchId = randomUUID();');
+    expect(roomHubSource).toContain("room?.status === 'playing'");
+    expect(roomHubSource).toContain('联机房间已解散，所有玩家已返回主菜单。');
+    expect(p2pBootstrapSource).toContain("return this.socketRequest<RoomView>('room:restart-vote');");
+    expect(p2pBootstrapSource).toContain("this.appEvents.emit('room-closed', notice);");
+    expect(gameSource).toContain('`投票重开 ${restartVotes.length}/${room.members.length}`');
+    expect(gameSource).toContain('ui.gameOverMenuButton.textContent = "离开游戏";');
+    expect(gameSource).toContain('client.on("room-closed", (notice) => handleP2PRoomClosed(notice));');
   });
 });

@@ -40,6 +40,7 @@ interface RoomRecord {
   hostPeerId: string;
   config: RoomConfig;
   members: Map<string, RoomMember>;
+  restartVotes: Set<string>;
   createdAt: number;
   messages: RoomChatMessage[];
 }
@@ -113,6 +114,7 @@ export class RoomHub {
     socket.on('room:ready', (ready, ack) => this.handleReady(socket, ready, ack));
     socket.on('room:config', (config, ack) => this.handleConfig(socket, config, ack));
     socket.on('room:start', (ack) => this.handleStart(socket, ack));
+    socket.on('room:restart-vote', (ack) => this.handleRestartVote(socket, ack));
     socket.on('room:end-match', (ack) => this.handleEndMatch(socket, ack));
     socket.on('p2p:signal', (targetPeerId, signal, ack) => this.handleSignal(socket, targetPeerId, signal, ack));
     socket.on('profile:record-run', (summary, ack) => this.handleRecordRun(socket, summary, ack));
@@ -155,6 +157,7 @@ export class RoomHub {
       hostPeerId: identity.peerId,
       config: normalizeRoomConfig(payload?.config),
       members: new Map(),
+      restartVotes: new Set(),
       createdAt: Date.now(),
       messages: [],
     };
@@ -205,6 +208,17 @@ export class RoomHub {
 
   private handleLeave(socket: LobbySocket, ack: (result: ActionResult) => void): void {
     if (typeof ack !== 'function') return;
+    const room = this.currentRoom(socket);
+    const peerId = socket.data.peerId;
+    const member = peerId ? room?.members.get(peerId) : null;
+    if (room?.status === 'playing' && member) {
+      this.closeRoom(room, {
+        roomId: room.id,
+        reason: `${member.name}离开了游戏，联机房间已解散，所有玩家已返回主菜单。`,
+        returnToMenu: true,
+      });
+      return ack({ ok: true });
+    }
     this.leaveCurrentRoom(socket, '房主离开，房间已关闭');
     ack({ ok: true });
   }
@@ -240,10 +254,33 @@ export class RoomHub {
     if ([...room.members.values()].some((member) => !member.isHost && !member.ready)) return ack({ ok: false, error: '仍有玩家尚未准备' });
     room.status = 'playing';
     room.matchId = randomUUID();
+    room.restartVotes.clear();
     const view = this.roomView(room);
     this.io.to(roomChannel(room.id)).emit('room:started', view);
     this.io.to(roomChannel(room.id)).emit('room:updated', view);
     this.broadcastRooms();
+    ack({ ok: true, data: view });
+  }
+
+  private handleRestartVote(socket: LobbySocket, ack: (result: ActionResult<RoomView>) => void): void {
+    if (typeof ack !== 'function') return;
+    const room = this.currentRoom(socket);
+    const peerId = socket.data.peerId;
+    if (!room || !peerId || room.status !== 'playing' || !room.members.has(peerId)) {
+      return ack({ ok: false, error: '当前无法投票重开' });
+    }
+    room.restartVotes.add(peerId);
+    if (room.restartVotes.size === room.members.size) {
+      room.restartVotes.clear();
+      room.matchId = randomUUID();
+      const view = this.roomView(room);
+      this.io.to(roomChannel(room.id)).emit('room:started', view);
+      this.io.to(roomChannel(room.id)).emit('room:updated', view);
+      this.broadcastRooms();
+      return ack({ ok: true, data: view });
+    }
+    const view = this.roomView(room);
+    this.io.to(roomChannel(room.id)).emit('room:updated', view);
     ack({ ok: true, data: view });
   }
 
@@ -253,6 +290,7 @@ export class RoomHub {
     if (!room || socket.data.peerId !== room.hostPeerId || room.status !== 'playing') return ack({ ok: false, error: '只有房主可以结束当前行动' });
     room.status = 'waiting';
     room.matchId = null;
+    room.restartVotes.clear();
     for (const member of room.members.values()) member.ready = member.isHost;
     const view = this.roomView(room);
     this.io.to(roomChannel(room.id)).emit('room:updated', view);
@@ -331,21 +369,30 @@ export class RoomHub {
     socket.data.roomId = undefined;
     if (!room || !peerId) return;
     if (room.hostPeerId === peerId) {
-      const notice = { roomId: room.id, reason: hostReason };
-      for (const member of room.members.values()) {
-        const memberSocket = this.io.sockets.sockets.get(member.socketId);
-        if (memberSocket) {
-          if (member.peerId !== peerId) memberSocket.emit('room:closed', notice);
-          memberSocket.data.roomId = undefined;
-          void memberSocket.leave(roomChannel(room.id));
-        }
-      }
-      this.rooms.delete(room.id);
+      this.closeRoom(room, {
+        roomId: room.id,
+        reason: hostReason,
+        returnToMenu: room.status === 'playing',
+      }, peerId);
+      return;
     } else {
       void socket.leave(roomChannel(room.id));
       room.members.delete(peerId);
+      room.restartVotes.delete(peerId);
       this.publishRoom(room);
     }
+    this.broadcastRooms();
+  }
+
+  private closeRoom(room: RoomRecord, notice: { roomId: string; reason: string; returnToMenu: boolean }, excludedPeerId?: string): void {
+    for (const member of room.members.values()) {
+      const memberSocket = this.io.sockets.sockets.get(member.socketId);
+      if (!memberSocket) continue;
+      if (member.peerId !== excludedPeerId) memberSocket.emit('room:closed', notice);
+      memberSocket.data.roomId = undefined;
+      void memberSocket.leave(roomChannel(room.id));
+    }
+    this.rooms.delete(room.id);
     this.broadcastRooms();
   }
 
@@ -399,6 +446,7 @@ export class RoomHub {
       hostPeerId: room.hostPeerId,
       config: { ...room.config },
       members: [...room.members.values()].map(({ socketId: _socketId, ...member }) => ({ ...member })),
+      restartVotePeerIds: [...room.restartVotes].filter((peerId) => room.members.has(peerId)),
       chatHistory: room.messages.slice(-MAX_CHAT_HISTORY),
     };
   }

@@ -377,13 +377,13 @@ class P2PClient {
 
   async leaveRoom(): Promise<ActionResult<unknown>> {
     const previousRoomId = this.room?.id;
-    this.ignoreCurrentRoom();
-    this.stopGame();
     const result = await this.socketRequest('room:leave');
     if (result.ok) {
+      if (previousRoomId) this.ignoreRoom(previousRoomId);
+      this.stopGame();
       this.room = null;
       this.appEvents.emit('room', null);
-    } else if (previousRoomId) this.ignoredRoomIds.delete(previousRoomId);
+    }
     return result;
   }
 
@@ -397,6 +397,10 @@ class P2PClient {
 
   startRoom(): Promise<ActionResult<RoomView>> {
     return this.socketRequest<RoomView>('room:start');
+  }
+
+  voteRestart(): Promise<ActionResult<RoomView>> {
+    return this.socketRequest<RoomView>('room:restart-vote');
   }
 
   endMatch(): Promise<ActionResult<RoomView>> {
@@ -456,7 +460,7 @@ class P2PClient {
       this.stopGame();
       this.room = null;
       this.appEvents.emit('room', null);
-      this.appEvents.emit('room-closed', notice.reason || '房间已经关闭');
+      this.appEvents.emit('room-closed', notice);
     });
     this.socket.on('p2p:signal', (envelope: P2PSignalEnvelope) => void this.receiveSignal(envelope));
     this.socket.on('profile:updated', (profile: UltraProfileView) => {
@@ -511,6 +515,10 @@ class P2PClient {
 
   private async beginMatch(room: RoomView): Promise<void> {
     if (!room.matchId || !this.peerId) return;
+    if (this.activeMatchId === room.matchId && this.gameReady) {
+      if (this.isHost) this.syncHostLinks(room);
+      return;
+    }
     if (this.activeMatchId && this.activeMatchId !== room.matchId) this.stopGame();
     if (this.startingMatchId === room.matchId) return;
     const matchId = room.matchId;
