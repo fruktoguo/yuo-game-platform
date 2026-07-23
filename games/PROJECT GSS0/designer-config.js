@@ -267,7 +267,7 @@ globalThis.GSS0_DESIGNER_CONFIG = {
   ],
   "moduleCooldownPercentages": {
     "spark": 50,
-    "frost": 100,
+    "frost": 180,
     "prism": 160,
     "nova": 320,
     "tesla": 300,
@@ -309,7 +309,7 @@ globalThis.GSS0_DESIGNER_CONFIG = {
   "moduleStates": {
     "spark": "normal",
     "frost": "normal",
-    "prism": "normal",
+    "prism": "disabled",
     "nova": "normal",
     "tesla": "disabled",
     "laser": "disabled",

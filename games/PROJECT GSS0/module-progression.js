@@ -306,6 +306,8 @@
     const newModuleChance = capacity > 0 ? clamp((capacity - ownedIds.size) / capacity, 0, 1) : 0;
     const newPool = canAddNew ? availableModules.filter((module) => !ownedIds.has(module.id)) : [];
     const upgradePool = availableModules.filter((module) => ownedIds.has(module.id) && levels[module.id] < maxModuleLevel);
+    const guaranteeNew = canAddNew && newPool.length > 0;
+    const guaranteeUpgrade = upgradePool.length > 0;
     const choices = [];
     const targetCount = Math.min(Math.max(0, Math.floor(count)), newPool.length + upgradePool.length);
 
@@ -321,11 +323,22 @@
       if (duplicateIndex >= 0) otherPool.splice(duplicateIndex, 1);
       choices.push(choice.id);
     }
-    if (canAddNew && newPool.length > 0 && choices.length > 0 && choices.every((id) => ownedIds.has(id))) {
+    if (guaranteeNew && newPool.length > 0 && choices.length > 0 && choices.every((id) => ownedIds.has(id))) {
       const newIndex = Math.floor(clamp(random(), 0, 0.999999999) * newPool.length);
       const [guaranteedNew] = newPool.splice(newIndex, 1);
       const replaceIndex = Math.floor(clamp(random(), 0, 0.999999999) * choices.length);
       choices[replaceIndex] = guaranteedNew.id;
+    }
+    if (
+      guaranteeUpgrade
+      && upgradePool.length > 0
+      && choices.length > (guaranteeNew ? 1 : 0)
+      && choices.every((id) => !ownedIds.has(id))
+    ) {
+      const upgradeIndex = Math.floor(clamp(random(), 0, 0.999999999) * upgradePool.length);
+      const [guaranteedUpgrade] = upgradePool.splice(upgradeIndex, 1);
+      const replaceIndex = Math.floor(clamp(random(), 0, 0.999999999) * choices.length);
+      choices[replaceIndex] = guaranteedUpgrade.id;
     }
     return choices;
   }

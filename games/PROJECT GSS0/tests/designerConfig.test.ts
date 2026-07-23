@@ -235,10 +235,11 @@ describe('设计配置', () => {
   it('全部现有机体都有审查状态且禁用项不会进入升级池', () => {
     const source = (globalThis as typeof globalThis & { GSS0_DESIGNER_CONFIG: { moduleStates: Record<string, string> } }).GSS0_DESIGNER_CONFIG;
     expect(Object.keys(source.moduleStates).sort()).toEqual(MODULES.map((module) => module.id).sort());
-    expect(Object.values(source.moduleStates).filter((state) => state === 'normal')).toHaveLength(54);
+    expect(Object.values(source.moduleStates).filter((state) => state === 'normal')).toHaveLength(53);
     expect(Object.values(source.moduleStates).filter((state) => state === 'tune')).toHaveLength(0);
     expect(Object.values(source.moduleStates).filter((state) => state === 'rework')).toHaveLength(0);
-    expect(Object.values(source.moduleStates).filter((state) => state === 'disabled')).toHaveLength(28);
+    expect(Object.values(source.moduleStates).filter((state) => state === 'disabled')).toHaveLength(29);
+    expect(moduleDesignState('prism')).toBe('disabled');
     expect(UPGRADE_MODULES.map((module) => module.id)).toEqual(MODULES.filter((module) => moduleDesignState(module.id) !== 'disabled').map((module) => module.id));
   });
 
@@ -286,8 +287,8 @@ describe('设计配置', () => {
     expect(MODULES.some((module) => ['输出', '进攻', '防御', '恢复'].includes(module.category as string))).toBe(false);
     expect(MODULES.every((module) => ['攻击', '生存', '辅助', '发育'].includes(module.category))).toBe(true);
     expect(MODULES.filter((module) => module.category === '发育')).toHaveLength(9);
-    expect(editorHtml).toContain('src="module-catalog.js?v=119"');
-    expect(editorHtml).toContain('src="module-progression.js?v=119"');
+    expect(editorHtml).toContain('src="module-catalog.js?v=120"');
+    expect(editorHtml).toContain('src="module-progression.js?v=120"');
     expect(editorHtml).toContain('const MODULES = moduleCatalog;');
     expect(editorHtml).toContain('descriptionText.textContent = describeModule(module.id, draft.balance);');
     expect(editorHtml).toContain('descriptionNote.textContent = describeModuleNote(module.id, draft.balance);');

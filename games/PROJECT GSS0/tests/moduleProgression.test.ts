@@ -19,11 +19,12 @@ describe('机体成长规则', () => {
     ]);
   });
 
-  it('未满槽时独立抽取新机体，满槽后只提供无重复的已有升级', () => {
+  it('未满槽时同时保底新机体与可升级现有机体，满槽后只提供现有升级', () => {
     const owned = [{ module: MODULES[0].id, moduleLevel: 1 }];
     const newChoices = MODULE_PROGRESSION.chooseUpgradeIds(MODULES, owned, 0, () => 0.1, 3);
     expect(new Set(newChoices).size).toBe(3);
-    expect(newChoices).not.toContain(MODULES[0].id);
+    expect(newChoices).toContain(MODULES[0].id);
+    expect(newChoices.some((id) => id !== MODULES[0].id)).toBe(true);
 
     const full = MODULES.slice(0, 5).map((module) => ({ module: module.id, moduleLevel: 1 }));
     const fullChoices = MODULE_PROGRESSION.chooseUpgradeIds(MODULES, full, 0, () => 0.25, 3);
@@ -33,7 +34,7 @@ describe('机体成长规则', () => {
     expect(MODULE_PROGRESSION.chooseUpgradeIds([MODULES[0]], owned, 0, () => 0.1, 3)).toEqual([MODULES[0].id]);
   });
 
-  it('按空槽比例抽取新机体，并保证空槽期至少出现一个新选项', () => {
+  it('按空槽比例抽取，并保证可用时新机体与现有升级都至少出现一个', () => {
     const owned = MODULES.slice(0, 2).map((module) => ({ module: module.id, moduleLevel: 1 }));
     const rolls = [0.7, 0, 0.6, 0];
     const weightedChoices = MODULE_PROGRESSION.chooseUpgradeIds(MODULES, owned, 8, () => rolls.shift() ?? 0, 2);
@@ -42,6 +43,11 @@ describe('机体成长规则', () => {
     const guaranteeOwned = MODULES.slice(0, 3).map((module) => ({ module: module.id, moduleLevel: 1 }));
     const guaranteedChoices = MODULE_PROGRESSION.chooseUpgradeIds(MODULES, guaranteeOwned, 8, () => 0.99, 2);
     expect(guaranteedChoices.some((id) => !guaranteeOwned.some((segment) => segment.module === id))).toBe(true);
+    expect(guaranteedChoices.some((id) => guaranteeOwned.some((segment) => segment.module === id))).toBe(true);
+
+    const guaranteedUpgradeChoices = MODULE_PROGRESSION.chooseUpgradeIds(MODULES, guaranteeOwned, 8, () => 0, 3);
+    expect(guaranteedUpgradeChoices.some((id) => !guaranteeOwned.some((segment) => segment.module === id))).toBe(true);
+    expect(guaranteedUpgradeChoices.some((id) => guaranteeOwned.some((segment) => segment.module === id))).toBe(true);
   });
 
   it('自动模式填满槽位前只选择新机体', () => {
@@ -62,6 +68,7 @@ describe('机体成长规则', () => {
     expect(MODULE_PROGRESSION.maxModuleLevel).toBe(5);
     expect(MODULE_PROGRESSION.activeCooldownSeconds('spark', 5)).toBeCloseTo(0.6);
     expect(MODULE_PROGRESSION.activeCooldownSeconds('spark', 100)).toBeCloseTo(0.6);
+    expect(MODULE_PROGRESSION.activeCooldownSeconds('frost', 1)).toBeCloseTo(10.8);
   });
 
   it('被动效果从零级开始，并在升级卡展示前后实际变化', () => {
