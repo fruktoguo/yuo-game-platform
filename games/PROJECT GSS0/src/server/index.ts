@@ -19,7 +19,7 @@ const app = express();
 const httpServer = createServer(app);
 const io = new Server<LobbyClientToServerEvents, LobbyServerToClientEvents, LobbyInterServerEvents, LobbySocketData>(httpServer, {
   cors: process.env.NODE_ENV === 'production' ? undefined : { origin: true, credentials: true },
-  // SDP offers can exceed the old 16 KiB Socket.IO ceiling.
+  // WebRTC SDP can exceed 16 KiB.
   maxHttpBufferSize: 64 * 1024,
   perMessageDeflate: false,
   pingInterval: 20_000,

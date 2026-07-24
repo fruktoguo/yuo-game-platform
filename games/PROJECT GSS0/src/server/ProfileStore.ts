@@ -8,19 +8,10 @@ interface StoredProfile extends UltraProfileView {
   updatedAt: number;
 }
 
-interface LegacyStoredProfile {
-  accountId: string;
-  bestScore: number;
-  bestLength: number;
-  totalKills: number;
-  gamesPlayed: number;
-  totalFood: number;
-  updatedAt: number;
+interface StoredProfileState {
+  version: typeof PROFILE_STORE_VERSION;
+  profiles: StoredProfile[];
 }
-
-type StoredProfileState =
-  | { version: 1; profiles: LegacyStoredProfile[] }
-  | { version: typeof PROFILE_STORE_VERSION; profiles: StoredProfile[] };
 
 export interface ProfileUpdate {
   profile: UltraProfileView;
@@ -31,8 +22,6 @@ export interface ProfileUpdate {
 
 export interface ProfileRunResult extends RunSummaryPayload {
   accountId: string;
-  entityId: number;
-  name: string;
 }
 
 const EMPTY_PROFILE: UltraProfileView = {
@@ -56,23 +45,7 @@ export class SnakeProfileStore {
   static async open(path: string): Promise<SnakeProfileStore> {
     const profileStore = new SnakeProfileStore(path);
     const stored = await profileStore.store.load();
-    if (stored?.version === 1) {
-      for (const legacy of stored.profiles) {
-        profileStore.profiles.set(legacy.accountId, {
-          accountId: legacy.accountId,
-          bestScore: legacy.bestScore,
-          bestLevel: 0,
-          bestSurvivalTime: 0,
-          totalKills: legacy.totalKills,
-          totalBotKills: legacy.totalKills,
-          totalPvpKills: 0,
-          gamesPlayed: legacy.gamesPlayed,
-          updatedAt: legacy.updatedAt,
-        });
-      }
-    } else {
-      for (const profile of stored?.profiles ?? []) profileStore.profiles.set(profile.accountId, profile);
-    }
+    for (const profile of stored?.profiles ?? []) profileStore.profiles.set(profile.accountId, profile);
     return profileStore;
   }
 
@@ -128,19 +101,7 @@ function isStoredProfileState(value: unknown): value is StoredProfileState {
   if (!value || typeof value !== 'object') return false;
   const candidate = value as Partial<StoredProfileState>;
   if (!Array.isArray(candidate.profiles)) return false;
-  if (candidate.version === 1) return candidate.profiles.every(isLegacyProfile);
   return candidate.version === PROFILE_STORE_VERSION && candidate.profiles.every(isStoredProfile);
-}
-
-function isLegacyProfile(value: unknown): value is LegacyStoredProfile {
-  if (!isProfileIdentity(value)) return false;
-  const candidate = value as Partial<LegacyStoredProfile>;
-  return isNonNegativeSafeInteger(candidate.bestScore)
-    && isNonNegativeSafeInteger(candidate.bestLength)
-    && isNonNegativeSafeInteger(candidate.totalKills)
-    && isNonNegativeSafeInteger(candidate.gamesPlayed)
-    && isNonNegativeSafeInteger(candidate.totalFood)
-    && isNonNegativeSafeInteger(candidate.updatedAt);
 }
 
 function isStoredProfile(value: unknown): value is StoredProfile {

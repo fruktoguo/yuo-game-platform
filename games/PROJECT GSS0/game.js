@@ -204,11 +204,6 @@
     "sniper", "flak", "fork", "anchor", "flare", "scatter", "lance", "execute",
     "crossfire", "phasebolt", "incendiary"
   ]);
-  const UNLIMITED_PROJECTILE_MODULES = new Set([
-    "spark", "frost", "prism", "nova", "missile", "venom", "echo", "rail",
-    "ricochet", "cluster", "fan", "needle", "mortar", "fork", "anchor", "flare",
-    "scatter", "lance", "crossfire", "phasebolt", "barrage", "thorns"
-  ]);
   const FOOD_COLORS = ["#b8f53f", "#36dcff", "#ff4d96", "#ffd166", "#a98cff", "#54e1a6"];
   const ENEMY_COLORS = ["#ff5c62", "#ff8a4c", "#d95cff", "#ff477e", "#f4c542"];
   const GRID_SIZE = 24;
@@ -318,9 +313,7 @@
     enemyArchetype("coiler", "Coiler", { unlockSeconds: 180, spawnWeight: 2, healthWeight: 2, speedMultiplier: 1.5, turnMultiplier: 2 }),
     enemyArchetype("warden", "Warden", { unlockSeconds: 240, spawnWeight: 1, healthWeight: 8, speedMultiplier: 0.6, turnMultiplier: 0.9 })
   ]);
-  const ENEMY_ARCHETYPE_BY_ID = Object.freeze(Object.fromEntries(ENEMY_ARCHETYPES.map((entry) => [entry.id, entry])));
   const ENEMY_PLAYER_BODY_AVOIDANCE = new Set(["courier", "charger", "cutter", "coiler", "warden"]);
-  const ENEMY_ARCHETYPE_GLYPHS = Object.freeze({ scout: "·", forager: "F", courier: "◆", charger: "!", cutter: "×", coiler: "◎", warden: "▣" });
   const ENEMY_BEHAVIOR_TUNING = Object.freeze({
     bodyAvoidanceRange: designerNumber("enemyBodyAvoidanceRange", 3.2, 0.5, 10),
     scoutFoodRange: designerNumber("enemyScoutFoodRange", 6, 0, 30),
@@ -627,10 +620,6 @@
     }
     items.length = writeIndex;
     return items;
-  }
-
-  function spatialBucketKey(node) {
-    return `${Math.floor(node.col)},${Math.floor(node.row)}`;
   }
 
   function fract(value) {
@@ -1528,10 +1517,6 @@
       + MODULE_EFFECTS.crisisRegen(moduleCount("crisis"), healthFraction);
   }
 
-  function isInsideGrid(col, row) {
-    return col >= arena.worldMin && col <= arena.worldMax && row >= arena.worldMin && row <= arena.worldMax;
-  }
-
   function directionAngle(direction) {
     return Math.atan2(direction.dy, direction.dx);
   }
@@ -1760,8 +1745,7 @@
     const runtime = await waitForP2PRuntime();
     const client = await runtime.createClient({
       ioFactory: (options) => window.io(options),
-      socketPath: gameEndpoint("socket.io").pathname,
-      principal: network.principal || {}
+      socketPath: gameEndpoint("socket.io").pathname
     });
     if (localModeForced) {
       client.close();
@@ -1914,7 +1898,6 @@
         enterRunningState();
       }
     });
-    transport.on("ultra:world-commit", (commit) => receiveNetworkWorldCommit(commit));
   }
 
   function receiveNetworkSkillSpawn(spawn) {
@@ -2206,12 +2189,6 @@
     } finally {
       network.lobbyBusy = false;
     }
-  }
-
-  function receiveNetworkWorldCommit(_commit) {
-    // World commits are reliable receipts. The next snapshot reconciles the
-    // exact enemy shape while this event lets a Unity client play the impact
-    // immediately without waiting for the 15 Hz snapshot cadence.
   }
 
   const NETWORK_PROTOCOL_REFRESH_KEY = "gss0-network-protocol-refresh";
@@ -2676,7 +2653,7 @@
         if (item.type === "enemyHeadHit") {
           const oldHead = renderedOldHead || cellCenter(item.oldHead.col, item.oldHead.row);
           if (promotedSegment) setEnemyHeadFromPromotion(renderedEnemy, promotedSegment, oldHead);
-          playEnemyHeadReformPresentation(renderedEnemy, oldHead, item.color, item.duration);
+          playEnemyHeadReformPresentation(renderedEnemy, item.color, item.duration);
         } else {
           startEnemyReconnect(renderedEnemy, item.reconnectIndex, performance.now());
         }
@@ -3449,7 +3426,6 @@
       if (pendingHeadReform) {
         playEnemyHeadReformPresentation(
           enemy,
-          cellCenter(pendingHeadReform.oldHead.col, pendingHeadReform.oldHead.row),
           pendingHeadReform.color,
           pendingHeadReform.duration
         );
@@ -3646,7 +3622,7 @@
   }
 
   function bounceNetworkSelf(normalCol, normalRow, color, impulseMultiplier = 1, mitigateCollision = false) {
-    bounceEntity(player, normalCol, normalRow, color, SNAKE_SEGMENT_SPACING, impulseMultiplier, mitigateCollision);
+    bounceEntity(player, normalCol, normalRow, color, impulseMultiplier, mitigateCollision);
     networkPlayerPredictionRuntime.adoptLocal(player);
     applyNetworkSelfPrediction(player);
     sendNetworkInput(true, true);
@@ -5541,7 +5517,7 @@
     return { x: Math.cos(correctedAngle), y: Math.sin(correctedAngle) };
   }
 
-  function bounceEntity(entity, normalX, normalY, color, segmentSpacing, extraImpulseMultiplier = 1, mitigatePlayerCollision = false) {
+  function bounceEntity(entity, normalX, normalY, color, extraImpulseMultiplier = 1, mitigatePlayerCollision = false) {
     let normalLength = Math.hypot(normalX, normalY);
     if (normalLength < 0.001) {
       normalX = -Math.cos(entity.angle);
@@ -6359,25 +6335,6 @@
     }
   }
 
-  function lineHitEnemy(origin, directionX, directionY, range, halfWidth, enemy) {
-    const nodes = [enemy, ...enemy.segments];
-    let hit = null;
-    let hitProjection = Number.POSITIVE_INFINITY;
-    for (let index = 0; index < nodes.length; index += 1) {
-      const node = nodes[index];
-      const relativeX = node.x - origin.x;
-      const relativeY = node.y - origin.y;
-      const projection = relativeX * directionX + relativeY * directionY;
-      if (projection < 0 || projection > range) continue;
-      const perpendicular = Math.abs(relativeX * directionY - relativeY * directionX);
-      const nodeRadius = index === 0 ? enemy.radius : enemySegmentRadiusPixels();
-      if (perpendicular > halfWidth + nodeRadius || projection >= hitProjection) continue;
-      hit = node;
-      hitProjection = projection;
-    }
-    return hit;
-  }
-
   function fireSweepBeam(origin, target) {
     const angle = Math.atan2(target.node.y - origin.y, target.node.x - origin.x);
     const directionX = Math.cos(angle);
@@ -6622,8 +6579,8 @@
       const collisionDamage = MODULE_PROGRESSION.rollLinearRewards(collisionDamageAmount, Math.random);
       damageEnemy(first, collisionDamage, first.x, first.y, second.color, { rewardSelf: false, hitSegmentIndex: -1 });
       damageEnemy(second, collisionDamage, second.x, second.y, first.color, { rewardSelf: false, hitSegmentIndex: -1 });
-      if (!first.dead) bounceEntity(first, normalX, normalY, first.color, SNAKE_SEGMENT_SPACING, collisionKnockback);
-      if (!second.dead) bounceEntity(second, -normalX, -normalY, second.color, SNAKE_SEGMENT_SPACING, collisionKnockback);
+      if (!first.dead) bounceEntity(first, normalX, normalY, first.color, collisionKnockback);
+      if (!second.dead) bounceEntity(second, -normalX, -normalY, second.color, collisionKnockback);
     }
 
     const bodyRangeSquared = ENEMY_BODY_CONTACT_RANGE ** 2;
@@ -6664,7 +6621,7 @@
           hitSegmentIndex: ownerSegmentIndex
         });
         damageEnemy(enemy, collisionDamage, enemy.x, enemy.y, bodyHit.owner.color, { rewardSelf: false, hitSegmentIndex: -1 });
-        if (!enemy.dead) bounceEntity(enemy, normalX, normalY, enemy.color, SNAKE_SEGMENT_SPACING, collisionKnockback);
+        if (!enemy.dead) bounceEntity(enemy, normalX, normalY, enemy.color, collisionKnockback);
       }
     }
   }
@@ -6892,8 +6849,7 @@
             enemy,
             enemy.col - playerCollision.point.col,
             enemy.row - playerCollision.point.row,
-            player.playerColor || "#f3c600",
-            SNAKE_SEGMENT_SPACING
+            player.playerColor || "#f3c600"
           );
         } else if (playerCollision.kind === "body") {
           const thorns = moduleCount("thorns");
@@ -6916,8 +6872,8 @@
           }
           applyPlayerCollisionAttack(enemy, enemy, true);
           const impulseMultiplier = enemy.archetype === "warden" ? ENEMY_BEHAVIOR_TUNING.wardenKnockbackMultiplier : 1;
-          bounceEntity(player, normalX, normalY, "#dffcff", SNAKE_SEGMENT_SPACING, impulseMultiplier, true);
-          if (!enemy.dead) bounceEntity(enemy, -normalX, -normalY, enemy.color, SNAKE_SEGMENT_SPACING, 1 + MODULE_EFFECTS.momentumKnockbackBonus(moduleCount("momentum")));
+          bounceEntity(player, normalX, normalY, "#dffcff", impulseMultiplier, true);
+          if (!enemy.dead) bounceEntity(enemy, -normalX, -normalY, enemy.color, 1 + MODULE_EFFECTS.momentumKnockbackBonus(moduleCount("momentum")));
         }
         continue;
       }
@@ -6931,7 +6887,7 @@
           Math.random
         );
         damageEnemy(enemy, wallDamage, enemy.x, enemy.y, "#f3c600", { rewardSelf: false, hitSegmentIndex: -1 });
-        if (!enemy.dead) bounceEntity(enemy, wallNormal.x, wallNormal.y, enemy.color, SNAKE_SEGMENT_SPACING, 1 + MODULE_EFFECTS.enemyWallKnockbackBonus(moduleCount("wallbreaker")));
+        if (!enemy.dead) bounceEntity(enemy, wallNormal.x, wallNormal.y, enemy.color, 1 + MODULE_EFFECTS.enemyWallKnockbackBonus(moduleCount("wallbreaker")));
         continue;
       }
       enemy.col = nextCol;
@@ -6944,7 +6900,7 @@
       if (enemy.collisionCooldown <= 0) {
         const ownBodyHit = findSelfCollision(enemy, ENEMY_SELF_COLLISION_RANGE);
         if (ownBodyHit) {
-          bounceEntity(enemy, enemy.col - ownBodyHit.col, enemy.row - ownBodyHit.row, enemy.color, SNAKE_SEGMENT_SPACING);
+          bounceEntity(enemy, enemy.col - ownBodyHit.col, enemy.row - ownBodyHit.row, enemy.color);
           continue;
         }
       }
@@ -7230,7 +7186,7 @@
         const hitIndexes = circularEnemyHitIndexes(hazard.x, hazard.y, hazard.radius, enemy);
         if (hitIndexes.length) damageEnemyParts(enemy, hitIndexes, hazard.x, hazard.y, hazard.color);
       }
-      if (playerTrigger) bounceEntity(player, player.x - hazard.x, player.y - hazard.y, hazard.color, SNAKE_SEGMENT_SPACING);
+      if (playerTrigger) bounceEntity(player, player.x - hazard.x, player.y - hazard.y, hazard.color);
       hazard.life = 0;
       sound("mine");
       triggerScreenShake(5);
@@ -7318,7 +7274,7 @@
     if (Math.hypot(tangentX, tangentY) > 0.001) enemy.angle = Math.atan2(tangentY, tangentX);
   }
 
-  function playEnemyHeadReformPresentation(enemy, _oldHead, color, duration = ENEMY_HEAD_REFORM_DURATION) {
+  function playEnemyHeadReformPresentation(enemy, color, duration = ENEMY_HEAD_REFORM_DURATION) {
     if (!enemy || enemy.dead) return;
     const safeDuration = clamp(Number(duration) || ENEMY_HEAD_REFORM_DURATION, 0.05, 2);
     const radius = enemy.radius || arena.cellSize * ENEMY_HEAD_RADIUS_CELLS;
@@ -7347,7 +7303,7 @@
     const promotedHead = hitsHead && !destroysHead ? removed.at(-1) || null : null;
     if (promotedHead) {
       setEnemyHeadFromPromotion(enemy, promotedHead, oldHead);
-      playEnemyHeadReformPresentation(enemy, oldHead, impactColor);
+      playEnemyHeadReformPresentation(enemy, impactColor);
     } else if (!destroysHead) {
       startEnemyReconnect(enemy, reconnectIndex);
     }
@@ -7539,7 +7495,7 @@
       player.row = clamp(player.row, arena.worldMin, arena.worldMax);
       triggerCollisionEcho();
       damagePlayer(PLAYER_WALL_COLLISION_DAMAGE);
-      if (state === "running") bounceEntity(player, wallNormal.x, wallNormal.y, "#b8f53f", SNAKE_SEGMENT_SPACING);
+      if (state === "running") bounceEntity(player, wallNormal.x, wallNormal.y, "#b8f53f");
       return;
     }
 
@@ -7549,7 +7505,7 @@
         const knockedBack = hasActiveKnockback(player);
         triggerCollisionEcho();
         if (!knockedBack) damagePlayer(PLAYER_WALL_COLLISION_DAMAGE);
-        if (state === "running") bounceEntity(player, player.col - ownBodyHit.col, player.row - ownBodyHit.row, "#f4ffdc", SNAKE_SEGMENT_SPACING);
+        if (state === "running") bounceEntity(player, player.col - ownBodyHit.col, player.row - ownBodyHit.row, "#f4ffdc");
         return;
       }
     }
@@ -7563,7 +7519,7 @@
             const defended = consumeDefense();
             applyPlayerCollisionAttack(enemy, segment, false);
             if (!defended) damagePlayer(PLAYER_ENEMY_BODY_COLLISION_DAMAGE);
-            if (state === "running") bounceEntity(player, player.col - segment.col, player.row - segment.row, enemy.color, SNAKE_SEGMENT_SPACING, 1, true);
+            if (state === "running") bounceEntity(player, player.col - segment.col, player.row - segment.row, enemy.color, 1, true);
             return;
           }
         }
@@ -7590,8 +7546,8 @@
       applyPlayerCollisionAttack(enemy, enemy, true);
 
       const impulseMultiplier = enemy.archetype === "warden" ? ENEMY_BEHAVIOR_TUNING.wardenKnockbackMultiplier : 1;
-      bounceEntity(player, normalX, normalY, "#dffcff", SNAKE_SEGMENT_SPACING, impulseMultiplier, true);
-      if (!enemy.dead) bounceEntity(enemy, -normalX, -normalY, enemy.color, SNAKE_SEGMENT_SPACING, 1 + MODULE_EFFECTS.momentumKnockbackBonus(moduleCount("momentum")));
+      bounceEntity(player, normalX, normalY, "#dffcff", impulseMultiplier, true);
+      if (!enemy.dead) bounceEntity(enemy, -normalX, -normalY, enemy.color, 1 + MODULE_EFFECTS.momentumKnockbackBonus(moduleCount("momentum")));
       return;
     }
   }

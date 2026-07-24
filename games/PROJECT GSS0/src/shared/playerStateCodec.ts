@@ -7,7 +7,7 @@ const SEGMENT_BYTES = 4;
 const MAX_SEGMENTS = 512;
 const SEGMENT_COORDINATE_SCALE = 128;
 
-export interface PlayerMovementSegment extends GridPoint {
+interface PlayerMovementSegment extends GridPoint {
   angle: number;
 }
 
@@ -21,37 +21,6 @@ export interface PlayerMovementState extends GridPoint {
   collisionCooldown: number;
   slow: number;
   segments: PlayerMovementSegment[];
-}
-
-export function encodePlayerMovementState(state: PlayerMovementState): Uint8Array {
-  const segmentCount = Math.min(MAX_SEGMENTS, state.segments.length);
-  const bytes = new Uint8Array(HEADER_BYTES + segmentCount * SEGMENT_BYTES);
-  const view = new DataView(bytes.buffer);
-  view.setUint16(0, MAGIC, true);
-  view.setUint8(2, PLAYER_STATE_PROTOCOL_VERSION);
-  view.setUint8(3, 0);
-  view.setUint32(4, state.sequence, true);
-  const values = [
-    state.col,
-    state.row,
-    state.angle,
-    state.desiredAngle,
-    state.speed,
-    state.knockbackX,
-    state.knockbackY,
-    state.collisionCooldown,
-    state.slow,
-  ];
-  for (let index = 0; index < values.length; index += 1) view.setFloat32(8 + index * 4, values[index], true);
-  view.setUint16(44, segmentCount, true);
-  let offset = HEADER_BYTES;
-  for (let index = 0; index < segmentCount; index += 1) {
-    const segment = state.segments[index];
-    view.setInt16(offset, fixedCoordinate(segment.col), true);
-    view.setInt16(offset + 2, fixedCoordinate(segment.row), true);
-    offset += SEGMENT_BYTES;
-  }
-  return bytes;
 }
 
 export function decodePlayerMovementState(payload: ArrayBuffer | ArrayBufferView): PlayerMovementState {
@@ -88,8 +57,4 @@ export function decodePlayerMovementState(payload: ArrayBuffer | ArrayBufferView
     offset += SEGMENT_BYTES;
   }
   return state;
-}
-
-function fixedCoordinate(value: number): number {
-  return Math.max(-32_768, Math.min(32_767, Math.round(value * SEGMENT_COORDINATE_SCALE)));
 }

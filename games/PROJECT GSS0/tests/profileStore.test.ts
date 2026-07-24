@@ -17,7 +17,7 @@ describe('SnakeProfileStore', () => {
     const path = join(directory, 'profiles.json.gz');
     const store = await SnakeProfileStore.open(path);
     const first = store.recordRun({
-      accountId: 'account-a', entityId: 1, name: '玩家甲', score: 120,
+      accountId: 'account-a', score: 120,
       level: 4, survivalTime: 82.5, kills: 3, botKills: 2, pvpKills: 1,
     }, 100);
     expect(first).toMatchObject({ brokeScoreRecord: true, brokeLevelRecord: true, brokeSurvivalRecord: true });
@@ -34,7 +34,7 @@ describe('SnakeProfileStore', () => {
       gamesPlayed: 1,
     });
     const second = restored.recordRun({
-      accountId: 'account-a', entityId: 1, name: '玩家甲', score: 80,
+      accountId: 'account-a', score: 80,
       level: 3, survivalTime: 61, kills: 2, botKills: 1, pvpKills: 1,
     }, 200);
     expect(second.brokeScoreRecord).toBe(false);

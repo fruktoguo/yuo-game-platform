@@ -264,8 +264,6 @@ export interface ArenaJoinData {
   events: ArenaEvent[];
 }
 
-export type InputPayload = Uint8Array;
-
 export type PlayerCollisionClaim =
   | { kind: 'wall'; normalCol: number; normalRow: number }
   | { kind: 'self-body' }
@@ -303,10 +301,6 @@ export interface PlayerHeadCollisionEvent {
 
 export interface FoodClaimPayload {
   foodIds: number[];
-}
-
-export interface FoodClaimResult {
-  claimedFoodIds: number[];
 }
 
 export interface AutopilotPreferences {

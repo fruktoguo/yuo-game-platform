@@ -69,10 +69,6 @@ export const ENEMY_ARCHETYPES: readonly EnemyArchetypeDefinition[] = Object.free
   }),
 ]);
 
-export const ENEMY_ARCHETYPE_BY_ID = Object.freeze(Object.fromEntries(
-  ENEMY_ARCHETYPES.map((entry) => [entry.id, entry]),
-) as Record<EnemyArchetypeId, EnemyArchetypeDefinition>);
-
 if (ENEMY_ARCHETYPES.length !== ENEMY_ARCHETYPE_IDS.length) {
   throw new Error('PROJECT GSS0 敌人类型配置不完整');
 }

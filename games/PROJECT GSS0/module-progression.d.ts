@@ -23,14 +23,10 @@ export interface GSS0ModuleCurrentEffect {
 
 export interface GSS0ModuleProgressionApi {
   readonly maxModuleLevel: number;
-  readonly compressionBase: number;
-  readonly slotUnlockLevels: readonly number[];
   readonly experienceTiers: readonly { readonly tier: number; readonly value: number; readonly color: string; readonly accent: string; readonly name: string }[];
   readonly effects: Record<string, (...args: number[]) => number>;
-  moduleLevel(segment: GSS0ProgressionSegment): number;
   moduleLevelsFromSegments(segments: readonly GSS0ProgressionSegment[]): Record<string, number>;
   moduleSlotCapacity(playerLevel: number): number;
-  baseCooldownSeconds(moduleId: GSS0ModuleId): number;
   activeCooldownSeconds(moduleId: GSS0ModuleId, level?: number, cooldownRateBonus?: number): number;
   experienceTier(tier: number): { readonly tier: number; readonly value: number; readonly color: string; readonly accent: string; readonly name: string };
   experienceValue(tier: number): number;

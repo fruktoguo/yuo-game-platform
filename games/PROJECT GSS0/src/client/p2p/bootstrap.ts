@@ -30,7 +30,6 @@ interface LobbySocketLike {
 interface P2PClientOptions {
   ioFactory: (options: Record<string, unknown>) => LobbySocketLike;
   socketPath: string;
-  principal: { username?: string; displayName?: string };
 }
 
 interface HostPeerIdentity {
@@ -316,7 +315,7 @@ class P2PClient {
   private remoteRequestId = 0;
   private gameActivatedMatchId: string | null = null;
 
-  private constructor(private readonly options: P2PClientOptions) {
+  private constructor(options: P2PClientOptions) {
     this.socket = options.ioFactory({ path: options.socketPath, transports: ['websocket', 'polling'], timeout: 8_000 });
     this.bindLobbySocket();
   }
@@ -807,7 +806,6 @@ function toUint8Array(value: unknown): Uint8Array | null {
 }
 
 const runtime = Object.freeze({
-  protocolVersion: P2P_PROTOCOL_VERSION,
   createClient: (options: P2PClientOptions) => P2PClient.connect(options),
 });
 

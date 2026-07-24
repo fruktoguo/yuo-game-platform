@@ -301,8 +301,6 @@ export class RoomHub {
     if (!identity || !normalized) return ack({ ok: false, error: '行动结算数据无效' });
     const update = this.profiles.recordRun({
       accountId: identity.accountId,
-      entityId: 0,
-      name: identity.displayName,
       ...normalized,
     });
     this.dirtyProfiles = true;

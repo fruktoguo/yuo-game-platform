@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0b0d0f">
   <meta name="description" content="代号：几何贪吃蛇 - 单人及多人共享世界肉鸽贪吃蛇战斗游戏">
   <title>代号：几何贪吃蛇</title>
-  <link rel="stylesheet" href="styles.css?v=130">
+  <link rel="stylesheet" href="styles.css?v=131">
 </head>
 <body>
   <main id="game-shell" aria-label="代号：几何贪吃蛇 游戏区域">
@@ -19,7 +19,7 @@
           <strong>代号：几何贪吃蛇</strong>
         </div>
         <span class="signature">by 四季鸽</span>
-        <span class="brand-version" aria-label="游戏版本 V130">V130</span>
+        <span class="brand-version" aria-label="游戏版本 V131">V131</span>
       </div>
 
       <div class="run-stats">
@@ -201,7 +201,7 @@
 
     <section id="start-screen" class="modal-layer start-screen is-visible" aria-labelledby="game-title">
       <div class="start-glow" aria-hidden="true"></div>
-          <div class="start-version" aria-label="游戏版本 V130"><span>BUILD</span><strong>V130</strong></div>
+          <div class="start-version" aria-label="游戏版本 V131"><span>BUILD</span><strong>V131</strong></div>
       <div class="start-layout">
         <div class="start-content">
           <div id="network-status" class="title-kicker">TACTICAL SURVIVAL / LOCAL</div>
@@ -383,6 +383,20 @@
           <button id="changelog-close-button" class="icon-button codex-close-button" type="button" aria-label="关闭更新日志" title="关闭更新日志">×</button>
         </header>
         <div class="changelog-list">
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V131</strong></div>
+              <time datetime="2026-07-24">2026.07.24</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">代码维护</span>
+              <h3>过期代码与冗余接口清理</h3>
+              <ul>
+                <li>移除已无引用的旧投射物集合、敌人索引与符号表、空间分桶键、网格判断、单目标线性命中和联机空事件处理器，并删除不再支持的 V1 战绩存档迁移分支。</li>
+                <li>精简碰撞击退、波次刷新、P2P 客户端和玩家状态编解码接口，清除未使用参数、类型与公开导出；单机与联机的现有行为保持不变。</li>
+              </ul>
+            </div>
+          </article>
           <article class="changelog-entry">
             <header>
               <div class="changelog-version"><span>BUILD</span><strong>V130</strong></div>
@@ -2089,22 +2103,22 @@
     </section>
   </main>
 
-  <script src="designer-config.js?v=130"></script>
-  <script src="status-catalog.js?v=130"></script>
-  <script src="module-catalog.js?v=130"></script>
-  <script src="module-progression.js?v=130"></script>
-  <script src="wave-director.js?v=130"></script>
-  <script src="spawn-planner.js?v=130"></script>
-  <script src="network-codec.js?v=130"></script>
-  <script src="network-player-prediction.js?v=130"></script>
-  <script src="network-player-state-codec.js?v=130"></script>
-  <script src="network-player-collisions.js?v=130"></script>
-  <script src="network-head-collisions.js?v=130"></script>
-  <script src="network-food-claims.js?v=130"></script>
-  <script src="network-projectiles.js?v=130"></script>
-  <script src="lobby-navigation.js?v=130"></script>
-  <script src="enemy-codex.js?v=130"></script>
-  <script type="module" src="src/client/p2p/bootstrap.ts?v=130"></script>
-  <script src="game.js?v=130"></script>
+  <script src="designer-config.js?v=131"></script>
+  <script src="status-catalog.js?v=131"></script>
+  <script src="module-catalog.js?v=131"></script>
+  <script src="module-progression.js?v=131"></script>
+  <script src="wave-director.js?v=131"></script>
+  <script src="spawn-planner.js?v=131"></script>
+  <script src="network-codec.js?v=131"></script>
+  <script src="network-player-prediction.js?v=131"></script>
+  <script src="network-player-state-codec.js?v=131"></script>
+  <script src="network-player-collisions.js?v=131"></script>
+  <script src="network-head-collisions.js?v=131"></script>
+  <script src="network-food-claims.js?v=131"></script>
+  <script src="network-projectiles.js?v=131"></script>
+  <script src="lobby-navigation.js?v=131"></script>
+  <script src="enemy-codex.js?v=131"></script>
+  <script type="module" src="src/client/p2p/bootstrap.ts?v=131"></script>
+  <script src="game.js?v=131"></script>
 </body>
 </html>

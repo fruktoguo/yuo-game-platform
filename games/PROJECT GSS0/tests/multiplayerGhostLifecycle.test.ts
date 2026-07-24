@@ -51,7 +51,7 @@ describe('多人幽灵生命周期', () => {
     expect(onRunEnded).toHaveBeenCalledTimes(1);
   });
 
-  it('自动玩家优先救援幽灵，但保留原有的一击可杀目标优先级', () => {
+  it('自动玩家优先救援幽灵，但无遮挡敌头仍覆盖救援目标', () => {
     const world = new UltraWorld();
     world.connectPlayer('account-a', 'Player A', 100, 'player-a');
     world.connectPlayer('account-b', 'Player B', 100, 'player-b');
@@ -72,8 +72,8 @@ describe('多人幽灵生命周期', () => {
     const rescueAngle = autopilotAngle.call(world, player, [player, ghost]);
     expect(Math.sin(rescueAngle)).toBeGreaterThan(0.9);
 
-    const enemies = Reflect.get(world, 'enemies') as Array<{ dead: boolean; segments: unknown[]; col: number; row: number }>;
-    enemies.push({ dead: false, segments: [], col: 11.5, row: 9.5 });
+    const enemies = Reflect.get(world, 'enemies') as Array<{ dead: boolean; segments: unknown[]; col: number; row: number; angle: number }>;
+    enemies.push({ dead: false, segments: [], col: 11.5, row: 9.5, angle: -Math.PI / 2 });
     const attackAngle = autopilotAngle.call(world, player, [player, ghost]);
     expect(Math.sin(attackAngle)).toBeLessThan(-0.9);
   });

@@ -366,14 +366,10 @@
 
   globalThis.GSS0ModuleProgression = Object.freeze({
     maxModuleLevel,
-    compressionBase,
-    slotUnlockLevels,
     experienceTiers,
     effects,
-    moduleLevel,
     moduleLevelsFromSegments,
     moduleSlotCapacity,
-    baseCooldownSeconds,
     activeCooldownSeconds,
     experienceTier,
     experienceValue,

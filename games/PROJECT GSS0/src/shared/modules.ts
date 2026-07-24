@@ -2,7 +2,7 @@ import '../../designer-config.js';
 import '../../status-catalog.js';
 import '../../module-catalog.js';
 import type { GSS0ModuleId } from '../../module-catalog.js';
-import { formatCooldownSeconds, moduleCooldownSeconds, moduleDesignState, moduleIsUpgradeEnabled, type ModuleDesignState } from './designerConfig';
+import { formatCooldownSeconds, moduleCooldownSeconds, moduleIsUpgradeEnabled } from './designerConfig';
 
 export type ModuleCategory = '攻击' | '生存' | '辅助' | '发育';
 export type ModuleShape = 'triangle' | 'diamond' | 'hex' | 'star' | 'ring' | 'capsule' | 'square' | 'circle';
@@ -37,10 +37,6 @@ export const MODULE_BY_ID = Object.fromEntries(MODULES.map((module) => [module.i
 export const ACTIVE_SKILL_MODULES = MODULES.filter((module) => 'activeCooldown' in module);
 const configuredUpgradeModules = MODULES.filter((module) => moduleIsUpgradeEnabled(module.id));
 export const UPGRADE_MODULES = configuredUpgradeModules.length > 0 ? configuredUpgradeModules : MODULES;
-
-export function getModuleDesignState(moduleId: ModuleId): ModuleDesignState {
-  return moduleDesignState(moduleId);
-}
 
 export function isModuleId(value: unknown): value is ModuleId {
   return typeof value === 'string' && Object.hasOwn(MODULE_BY_ID, value);
