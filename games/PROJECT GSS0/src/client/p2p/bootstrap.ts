@@ -368,13 +368,13 @@ class P2PClient {
 
   async leaveRoom(): Promise<ActionResult<unknown>> {
     const previousRoomId = this.room?.id;
+    if (previousRoomId) this.ignoreRoom(previousRoomId);
     const result = await this.socketRequest('room:leave');
     if (result.ok) {
-      if (previousRoomId) this.ignoreRoom(previousRoomId);
       this.stopGame();
       this.room = null;
       this.appEvents.emit('room', null);
-    }
+    } else if (previousRoomId) this.ignoredRoomIds.delete(previousRoomId);
     return result;
   }
 

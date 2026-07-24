@@ -203,17 +203,6 @@ export class RoomHub {
 
   private handleLeave(socket: LobbySocket, ack: (result: ActionResult) => void): void {
     if (typeof ack !== 'function') return;
-    const room = this.currentRoom(socket);
-    const peerId = socket.data.peerId;
-    const member = peerId ? room?.members.get(peerId) : null;
-    if (room?.status === 'playing' && member) {
-      this.closeRoom(room, {
-        roomId: room.id,
-        reason: `${member.name}离开了游戏，联机房间已解散，所有玩家已返回主菜单。`,
-        returnToMenu: true,
-      });
-      return ack({ ok: true });
-    }
     this.leaveCurrentRoom(socket, '房主离开，房间已关闭');
     ack({ ok: true });
   }
@@ -265,15 +254,8 @@ export class RoomHub {
       return ack({ ok: false, error: '当前无法投票重开' });
     }
     room.restartVotes.add(peerId);
-    if (room.restartVotes.size === room.members.size) {
-      room.restartVotes.clear();
-      room.matchId = randomUUID();
-      const view = this.roomView(room);
-      this.io.to(roomChannel(room.id)).emit('room:started', view);
-      this.io.to(roomChannel(room.id)).emit('room:updated', view);
-      this.broadcastRooms();
-      return ack({ ok: true, data: view });
-    }
+    const restartedView = this.restartRoomIfVoteComplete(room);
+    if (restartedView) return ack({ ok: true, data: restartedView });
     const view = this.roomView(room);
     this.io.to(roomChannel(room.id)).emit('room:updated', view);
     this.broadcastRooms();
@@ -375,9 +357,19 @@ export class RoomHub {
       void socket.leave(roomChannel(room.id));
       room.members.delete(peerId);
       room.restartVotes.delete(peerId);
-      this.publishRoom(room);
+      if (!this.restartRoomIfVoteComplete(room)) this.publishRoom(room);
     }
+  }
+
+  private restartRoomIfVoteComplete(room: RoomRecord): RoomView | null {
+    if (room.status !== 'playing' || room.members.size === 0 || room.restartVotes.size !== room.members.size) return null;
+    room.restartVotes.clear();
+    room.matchId = randomUUID();
+    const view = this.roomView(room);
+    this.io.to(roomChannel(room.id)).emit('room:started', view);
+    this.io.to(roomChannel(room.id)).emit('room:updated', view);
     this.broadcastRooms();
+    return view;
   }
 
   private closeRoom(room: RoomRecord, notice: { roomId: string; reason: string; returnToMenu: boolean }, excludedPeerId?: string): void {

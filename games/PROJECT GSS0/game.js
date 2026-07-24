@@ -1697,9 +1697,21 @@
     ui.pauseMenuButton.disabled = network.lobbyBusy;
   }
 
+  function departedRoomMembers(previousRoom, room) {
+    if (
+      !network.enabled
+      || previousRoom?.id !== room?.id
+      || previousRoom?.status !== "playing"
+      || room?.status !== "playing"
+    ) return [];
+    const currentPeerIds = new Set(room.members.map((member) => member.peerId));
+    return previousRoom.members.filter((member) => !currentPeerIds.has(member.peerId));
+  }
+
   function handleP2PRoomClosed(notice) {
     const message = typeof notice === "string" ? notice : notice?.reason || "房间已关闭";
     const shouldReturnToMenu = Boolean(notice && typeof notice === "object" && notice.returnToMenu);
+    const feedbackKind = notice && typeof notice === "object" && notice.kind === "success" ? "success" : "warning";
     network.enabled = false;
     network.lobbyBusy = false;
     network.restartVotePending = false;
@@ -1715,7 +1727,7 @@
     renderNetworkRoster([]);
     renderP2PRoom(null);
     updateNetworkResultActions(null);
-    setNetworkStatus("error", message);
+    setNetworkStatus(feedbackKind === "success" ? "online" : "error", message);
     if (shouldReturnToMenu) {
       state = "menu";
       player = null;
@@ -1727,7 +1739,7 @@
     } else if (ui.p2pLobby && !localModeForced) {
       ui.p2pLobby.classList.add("is-visible");
     }
-    setP2PLobbyFeedback(message, "warning", true);
+    setP2PLobbyFeedback(message, feedbackKind, true);
   }
 
   function beginP2PLobbyAction() {
@@ -1765,11 +1777,22 @@
       renderP2PRoomList();
     });
     client.on("room", (room) => {
-      const previousMatchId = network.room?.matchId;
+      const previousRoom = network.room;
+      const previousMatchId = previousRoom?.matchId;
+      const departedMembers = departedRoomMembers(previousRoom, room);
       network.room = room || null;
       renderP2PRoom(room || null);
       updateNetworkResultActions(room || null);
-      if (network.enabled && previousMatchId && room?.matchId && room.matchId !== previousMatchId) {
+      const restarted = Boolean(network.enabled && previousMatchId && room?.matchId && room.matchId !== previousMatchId);
+      if (departedMembers.length > 0) {
+        const names = departedMembers.map((member) => member.name).join("、");
+        showP2PToast(
+          restarted
+            ? `${names}离开了游戏；剩余玩家已全票通过，正在重开`
+            : `${names}离开了游戏，房间继续运行`,
+          restarted ? "success" : "info"
+        );
+      } else if (restarted) {
         showP2PToast("全员已同意重开，正在同步开启新一局", "success");
       }
     });
@@ -4364,6 +4387,15 @@
     }
   }
 
+  async function leaveActiveNetworkRun() {
+    if (!network.enabled || !network.lastSelfAlive) return;
+    await Promise.race([
+      emitNetworkAction("ultra:leave-run"),
+      new Promise((resolve) => window.setTimeout(resolve, 450))
+    ]);
+    network.lastSelfAlive = false;
+  }
+
   async function leaveNetworkGame() {
     const client = network.p2pClient;
     if (!client?.room) {
@@ -4374,10 +4406,12 @@
       showP2PToast("房间操作仍在处理中，请稍候", "warning");
       return;
     }
+    const wasHost = client.isHost;
     network.lobbyBusy = true;
     updateNetworkResultActions(network.room);
-    showP2PToast("正在离开游戏并解散房间…", "info");
+    showP2PToast(wasHost ? "正在离开游戏并关闭房间…" : "正在离开游戏…", "info");
     try {
+      await leaveActiveNetworkRun();
       const result = await client.leaveRoom();
       if (!result?.ok) {
         showP2PToast(result?.error || "离开游戏失败", "error");
@@ -4385,8 +4419,9 @@
       }
       if (network.enabled) {
         handleP2PRoomClosed({
-          reason: "你离开了游戏，联机房间已解散，所有玩家已返回主菜单。",
-          returnToMenu: true
+          reason: wasHost ? "你已离开游戏，房间因房主退出而关闭。" : "你已离开游戏，其他玩家可以继续行动。",
+          returnToMenu: true,
+          kind: wasHost ? "warning" : "success"
         });
       }
     } catch (error) {
@@ -4416,13 +4451,7 @@
   async function returnToLobby() {
     closeSettingPopovers();
     ui.lobbyButton.disabled = true;
-    if (network.enabled && network.lastSelfAlive) {
-      await Promise.race([
-        emitNetworkAction("ultra:leave-run"),
-        new Promise((resolve) => window.setTimeout(resolve, 450))
-      ]);
-      network.lastSelfAlive = false;
-    }
+    await leaveActiveNetworkRun();
     window.location.replace(resolveLobbyUrl());
   }
 

@@ -123,16 +123,21 @@ describe('自动模式设置', () => {
     expect(autopilotSource).toContain('AUTOMATIC_SHARP_TURN_THRESHOLD');
   });
 
-  it('联机结算按房间成员投票重开，主动离场会解散进行中的房间', () => {
+  it('联机结算按当前房间成员投票，普通成员离场后房间继续并更新票数', () => {
     expect(roomProtocolSource).toContain('restartVotePeerIds: string[];');
     expect(roomHubSource).toContain('room.restartVotes.add(peerId);');
-    expect(roomHubSource).toContain('room.restartVotes.size === room.members.size');
+    expect(roomHubSource).toContain('room.restartVotes.size !== room.members.size');
     expect(roomHubSource).toContain('room.matchId = randomUUID();');
-    expect(roomHubSource).toContain("room?.status === 'playing'");
-    expect(roomHubSource).toContain('联机房间已解散，所有玩家已返回主菜单。');
+    expect(roomHubSource).toContain('room.members.delete(peerId);');
+    expect(roomHubSource).toContain('room.restartVotes.delete(peerId);');
+    expect(roomHubSource).toContain('if (!this.restartRoomIfVoteComplete(room)) this.publishRoom(room);');
+    expect(roomHubSource).not.toContain('联机房间已解散，所有玩家已返回主菜单。');
     expect(p2pBootstrapSource).toContain("return this.socketRequest<RoomView>('room:restart-vote');");
+    expect(p2pBootstrapSource).toContain('if (previousRoomId) this.ignoreRoom(previousRoomId);');
     expect(p2pBootstrapSource).toContain("this.appEvents.emit('room-closed', notice);");
     expect(gameSource).toContain('`投票重开 ${restartVotes.length}/${room.members.length}`');
+    expect(gameSource).toContain('`${names}离开了游戏，房间继续运行`');
+    expect(gameSource).toContain('"你已离开游戏，其他玩家可以继续行动。"');
     expect(gameSource).toContain('ui.gameOverMenuButton.textContent = "离开游戏";');
     expect(gameSource).toContain('client.on("room-closed", (notice) => handleP2PRoomClosed(notice));');
   });
