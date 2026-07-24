@@ -106,7 +106,6 @@ input:focus-visible {
   background:
     linear-gradient(90deg, transparent 0 7%, rgba(255, 255, 255, 0.018) 7% 7.08%, transparent 7.08% 93%, rgba(255, 255, 255, 0.018) 93% 93.08%, transparent 93.08%),
     repeating-linear-gradient(0deg, transparent 0 5px, rgba(255, 255, 255, 0.012) 5px 6px);
-  mix-blend-mode: screen;
 }
 
 #game-shell::after {

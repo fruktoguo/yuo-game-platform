@@ -7926,42 +7926,34 @@
     ctx.restore();
   }
 
+  const ARENA_COORDINATE_LABELS = Array.from({ length: 100 }, (_, index) => String(index + 1).padStart(2, "0"));
+
+  function drawArenaGridLineBatch(major, firstVerticalLine, lastVerticalLine, firstHorizontalLine, lastHorizontalLine, visibleLeft, visibleTop, visibleRight, visibleBottom) {
+    let hasLines = false;
+    ctx.beginPath();
+    for (let index = firstVerticalLine; index <= lastVerticalLine; index += 1) {
+      if ((((index % 6) + 6) % 6 === 0) !== major) continue;
+      const offset = arena.left + (index - arena.worldMin) * arena.cellSize;
+      ctx.moveTo(offset, visibleTop);
+      ctx.lineTo(offset, visibleBottom);
+      hasLines = true;
+    }
+    for (let index = firstHorizontalLine; index <= lastHorizontalLine; index += 1) {
+      if ((((index % 6) + 6) % 6 === 0) !== major) continue;
+      const offset = arena.top + (index - arena.worldMin) * arena.cellSize;
+      ctx.moveTo(visibleLeft, offset);
+      ctx.lineTo(visibleRight, offset);
+      hasLines = true;
+    }
+    if (!hasLines) return;
+    ctx.lineWidth = major ? 1.35 : 0.7;
+    ctx.strokeStyle = major ? "rgba(231, 235, 235, 0.18)" : "rgba(198, 205, 207, 0.065)";
+    ctx.stroke();
+  }
+
   function drawArenaFloorPattern() {
     const firstLine = Math.floor(arena.worldMin);
     const lastLine = Math.ceil(arena.worldMax + 1);
-    if (!renderWorldBounds.active) {
-      for (let index = firstLine; index <= lastLine; index += 1) {
-        const offset = arena.left + (index - arena.worldMin) * arena.cellSize;
-        const major = ((index % 6) + 6) % 6 === 0;
-        ctx.beginPath();
-        ctx.moveTo(offset, arena.top);
-        ctx.lineTo(offset, arena.bottom);
-        ctx.moveTo(arena.left, offset - arena.left + arena.top);
-        ctx.lineTo(arena.right, offset - arena.left + arena.top);
-        ctx.lineWidth = major ? 1.35 : 0.7;
-        ctx.strokeStyle = major ? "rgba(231, 235, 235, 0.18)" : "rgba(198, 205, 207, 0.065)";
-        ctx.stroke();
-      }
-      ctx.fillStyle = "rgba(235, 238, 238, 0.35)";
-      ctx.font = `700 ${Math.max(7, arena.cellSize * 0.23)}px Bahnschrift, Arial Narrow, sans-serif`;
-      ctx.textAlign = "left";
-      ctx.textBaseline = "top";
-      for (let index = firstLine; index < lastLine; index += 1) {
-        if (((index % 4) + 4) % 4 !== 0) continue;
-        const offset = (index - arena.worldMin) * arena.cellSize;
-        const label = String(((index % 100) + 100) % 100 + 1).padStart(2, "0");
-        ctx.fillText(label, arena.left + offset + 3, arena.top + 3);
-        ctx.save();
-        ctx.translate(arena.left + 3, arena.top + offset + arena.cellSize - 3);
-        ctx.rotate(-Math.PI / 2);
-        ctx.fillText(label, 0, 0);
-        ctx.restore();
-      }
-      ctx.fillStyle = "rgba(0, 0, 0, 0.22)";
-      ctx.fillRect(arena.left, arena.top, arena.width, arena.cellSize * 0.18);
-      ctx.fillRect(arena.left, arena.bottom - arena.cellSize * 0.18, arena.width, arena.cellSize * 0.18);
-      return;
-    }
     const visibleLeft = renderWorldBounds.active ? Math.max(arena.left, renderWorldBounds.left) : arena.left;
     const visibleTop = renderWorldBounds.active ? Math.max(arena.top, renderWorldBounds.top) : arena.top;
     const visibleRight = renderWorldBounds.active ? Math.min(arena.right, renderWorldBounds.right) : arena.right;
@@ -7980,48 +7972,29 @@
       ? Math.min(lastLine, Math.ceil(arena.worldMin + (visibleBottom - arena.top) / arena.cellSize) + 1)
       : lastLine;
 
-    for (let index = firstVerticalLine; index <= lastVerticalLine; index += 1) {
-      const offset = arena.left + (index - arena.worldMin) * arena.cellSize;
-      const major = ((index % 6) + 6) % 6 === 0;
-      ctx.beginPath();
-      ctx.moveTo(offset, visibleTop);
-      ctx.lineTo(offset, visibleBottom);
-      ctx.lineWidth = major ? 1.35 : 0.7;
-      ctx.strokeStyle = major ? "rgba(231, 235, 235, 0.18)" : "rgba(198, 205, 207, 0.065)";
-      ctx.stroke();
-    }
-    for (let index = firstHorizontalLine; index <= lastHorizontalLine; index += 1) {
-      const offset = arena.top + (index - arena.worldMin) * arena.cellSize;
-      const major = ((index % 6) + 6) % 6 === 0;
-      ctx.beginPath();
-      ctx.moveTo(visibleLeft, offset);
-      ctx.lineTo(visibleRight, offset);
-      ctx.lineWidth = major ? 1.35 : 0.7;
-      ctx.strokeStyle = major ? "rgba(231, 235, 235, 0.18)" : "rgba(198, 205, 207, 0.065)";
-      ctx.stroke();
-    }
+    drawArenaGridLineBatch(false, firstVerticalLine, lastVerticalLine, firstHorizontalLine, lastHorizontalLine, visibleLeft, visibleTop, visibleRight, visibleBottom);
+    drawArenaGridLineBatch(true, firstVerticalLine, lastVerticalLine, firstHorizontalLine, lastHorizontalLine, visibleLeft, visibleTop, visibleRight, visibleBottom);
 
     ctx.fillStyle = "rgba(235, 238, 238, 0.35)";
-    ctx.font = `700 ${Math.max(7, arena.cellSize * 0.23)}px Bahnschrift, Arial Narrow, sans-serif`;
+    const labelFontSize = Math.max(7, Math.round(arena.cellSize * 0.23));
+    ctx.font = `700 ${labelFontSize}px Bahnschrift, Arial Narrow, sans-serif`;
     ctx.textAlign = "left";
     ctx.textBaseline = "top";
     if (!renderWorldBounds.active || arena.top + arena.cellSize >= renderWorldBounds.top) {
       for (let index = firstVerticalLine; index < lastVerticalLine; index += 1) {
         if (((index % 4) + 4) % 4 !== 0) continue;
         const offset = (index - arena.worldMin) * arena.cellSize;
-        const label = String(((index % 100) + 100) % 100 + 1).padStart(2, "0");
-        ctx.fillText(label, arena.left + offset + 3, arena.top + 3);
+        ctx.fillText(ARENA_COORDINATE_LABELS[((index % 100) + 100) % 100], arena.left + offset + 3, arena.top + 3);
       }
     }
     if (!renderWorldBounds.active || arena.left + arena.cellSize >= renderWorldBounds.left) {
       for (let index = firstHorizontalLine; index < lastHorizontalLine; index += 1) {
         if (((index % 4) + 4) % 4 !== 0) continue;
         const offset = (index - arena.worldMin) * arena.cellSize;
-        const label = String(((index % 100) + 100) % 100 + 1).padStart(2, "0");
         ctx.save();
         ctx.translate(arena.left + 3, arena.top + offset + arena.cellSize - 3);
         ctx.rotate(-Math.PI / 2);
-        ctx.fillText(label, 0, 0);
+        ctx.fillText(ARENA_COORDINATE_LABELS[((index % 100) + 100) % 100], 0, 0);
         ctx.restore();
       }
     }
