@@ -5336,7 +5336,7 @@
     return Math.abs(angleDelta(target.angle, directionToPlayer)) <= AUTOMATIC_HEAD_APPROACH_HALF_ANGLE;
   }
 
-  function automaticHeadTarget() {
+  function automaticHeadTarget(closerThanDistanceSquared = Infinity) {
     if (AUTOMATIC_HEAD_HUNT_RANGE <= 0) return null;
     const huntRangeSquared = AUTOMATIC_HEAD_HUNT_RANGE * AUTOMATIC_HEAD_HUNT_RANGE;
     let nearestTarget = null;
@@ -5344,7 +5344,7 @@
     for (const enemy of enemies) {
       if (enemy.dead || !automaticHeadApproachIsAllowed(enemy)) continue;
       const distance = (enemy.col - player.col) ** 2 + (enemy.row - player.row) ** 2;
-      if (distance > nearestDistance || !automaticHeadPathIsClear(enemy)) continue;
+      if (distance > nearestDistance || distance >= closerThanDistanceSquared || !automaticHeadPathIsClear(enemy)) continue;
       nearestTarget = enemy;
       nearestDistance = distance;
     }
@@ -5360,16 +5360,6 @@
   }
 
   function testAutopilotAngle() {
-    const headTarget = automaticHeadTarget();
-    if (headTarget) {
-      const leadPoint = automaticHeadLeadPoint(headTarget);
-      const targetX = leadPoint.col - player.col;
-      const targetY = leadPoint.row - player.row;
-      return Math.hypot(targetX, targetY) > 0.001 ? Math.atan2(targetY, targetX) : player.angle;
-    }
-
-    let vectorX = 0;
-    let vectorY = 0;
     let nearestFood = null;
     let nearestDistance = Infinity;
     for (const food of foods) {
@@ -5379,6 +5369,17 @@
         nearestFood = food;
       }
     }
+
+    const headTarget = automaticHeadTarget(nearestDistance);
+    if (headTarget) {
+      const leadPoint = automaticHeadLeadPoint(headTarget);
+      const targetX = leadPoint.col - player.col;
+      const targetY = leadPoint.row - player.row;
+      return Math.hypot(targetX, targetY) > 0.001 ? Math.atan2(targetY, targetX) : player.angle;
+    }
+
+    let vectorX = 0;
+    let vectorY = 0;
 
     if (nearestFood) {
       const targetX = nearestFood.col - player.col;

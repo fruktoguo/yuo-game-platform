@@ -15,6 +15,9 @@ interface AutomaticModeTestPlayer {
   autopilot: boolean;
   autoSelectModules: boolean;
   autoRestart: boolean;
+  col: number;
+  row: number;
+  angle: number;
   choosingUpgrade: boolean;
   upgradePending: boolean;
   upgradeOffer: UpgradeOffer | null;
@@ -104,7 +107,7 @@ describe('自动模式设置', () => {
     expect(deliveredOffers.at(-1)).toBeNull();
   });
 
-  it('单机与多人自动模式共用撞头死区和前置距离，再让救援覆盖普通吃球目标', () => {
+  it('单机与多人自动模式先比较球和敌头距离，并共用撞头死区与前置距离', () => {
     const stepSource = serverSource.slice(
       serverSource.indexOf('step(deltaSeconds:'),
       serverSource.indexOf('getSnapshot('),
@@ -115,7 +118,9 @@ describe('自动模式设置', () => {
     );
 
     expect(stepSource).toContain('this.autopilotAngle(player, present)');
-    expect(autopilotSource.indexOf('const headTarget = this.automaticHeadTarget')).toBeLessThan(autopilotSource.indexOf('let nearestFood'));
+    expect(autopilotSource.indexOf('let nearestFood')).toBeLessThan(autopilotSource.indexOf('const headTarget = this.automaticHeadTarget'));
+    expect(gameSource).toContain('automaticHeadTarget(nearestDistance)');
+    expect(serverSource).toContain('this.automaticHeadTarget(player, presentPlayers, nearestDistance)');
     expect(gameSource).toContain('automaticHeadApproachIsAllowed(enemy)');
     expect(gameSource).toContain('SNAKE_SEGMENT_SPACING * AUTOMATIC_HEAD_LEAD_DISTANCE_SEGMENTS');
     expect(serverSource).toContain('this.automaticHeadApproachIsAllowed(player, enemy)');
@@ -125,6 +130,31 @@ describe('自动模式设置', () => {
     expect(autopilotSource).toContain('if (other === player || other.ghost) continue;');
     expect(autopilotSource).toContain('AUTOMATIC_TEAMMATE_AVOIDANCE_STRENGTH');
     expect(autopilotSource).toContain('AUTOMATIC_SHARP_TURN_THRESHOLD');
+  });
+
+  it('最近球不比敌头远时优先吃球，只有敌头更近时才撞头', () => {
+    const world = new UltraWorld({ random: () => 0.5 });
+    world.connectPlayer('account-a', '玩家甲', 0, 'player-a');
+    expect(world.spawn('account-a', 0)).toBe(true);
+    const player = (Reflect.get(world, 'playersByAccount') as Map<string, AutomaticModeTestPlayer>).get('account-a')!;
+    player.col = 11.5;
+    player.row = 11.5;
+    player.angle = 0;
+
+    const spawnFood = Reflect.get(world, 'spawnFood') as (point: { col: number; row: number }, special: boolean) => void;
+    spawnFood.call(world, { col: 11.5, row: 14.5 }, false);
+    const foods = Reflect.get(world, 'foods') as Array<{ col: number; row: number }>;
+    const food = foods.at(-1)!;
+    const enemies = Reflect.get(world, 'enemies') as Array<{ dead: boolean; segments: unknown[]; col: number; row: number; angle: number }>;
+    enemies.push({ dead: false, segments: [], col: 11.5, row: 8.5, angle: Math.PI / 2 });
+    const autopilotAngle = Reflect.get(world, 'autopilotAngle') as (owner: AutomaticModeTestPlayer, players: AutomaticModeTestPlayer[]) => number;
+
+    const equalDistanceAngle = autopilotAngle.call(world, player, [player]);
+    expect(Math.sin(equalDistanceAngle)).toBeGreaterThan(0.9);
+
+    food.row = 16.5;
+    const closerEnemyAngle = autopilotAngle.call(world, player, [player]);
+    expect(Math.sin(closerEnemyAngle)).toBeLessThan(-0.9);
   });
 
   it('联机结算按当前房间成员投票，普通成员离场后房间继续并更新票数', () => {

@@ -1467,7 +1467,7 @@ export class UltraWorld {
     return Math.abs(angleDifference(target.angle, directionToPlayer)) <= AUTOMATIC_HEAD_APPROACH_HALF_ANGLE;
   }
 
-  private automaticHeadTarget(player: PlayerEntity, presentPlayers: readonly PlayerEntity[]): EnemyEntity | null {
+  private automaticHeadTarget(player: PlayerEntity, presentPlayers: readonly PlayerEntity[], closerThanDistanceSquared = Number.POSITIVE_INFINITY): EnemyEntity | null {
     if (AUTOMATIC_HEAD_HUNT_RANGE <= 0) return null;
     const huntRangeSquared = AUTOMATIC_HEAD_HUNT_RANGE * AUTOMATIC_HEAD_HUNT_RANGE;
     let nearestTarget: EnemyEntity | null = null;
@@ -1475,7 +1475,7 @@ export class UltraWorld {
     for (const enemy of this.enemies) {
       if (enemy.dead || !this.automaticHeadApproachIsAllowed(player, enemy)) continue;
       const distance = distanceSquared(player, enemy);
-      if (distance > nearestDistance || !this.automaticHeadPathIsClear(player, enemy, presentPlayers)) continue;
+      if (distance > nearestDistance || distance >= closerThanDistanceSquared || !this.automaticHeadPathIsClear(player, enemy, presentPlayers)) continue;
       nearestTarget = enemy;
       nearestDistance = distance;
     }
@@ -1491,7 +1491,16 @@ export class UltraWorld {
   }
 
   private autopilotAngle(player: PlayerEntity, presentPlayers: readonly PlayerEntity[]): number {
-    const headTarget = this.automaticHeadTarget(player, presentPlayers);
+    let nearestFood: FoodEntity | null = null;
+    let nearestDistance = Number.POSITIVE_INFINITY;
+    for (const food of this.foods) {
+      const distance = distanceSquared(player, food);
+      if (distance >= nearestDistance) continue;
+      nearestDistance = distance;
+      nearestFood = food;
+    }
+
+    const headTarget = this.automaticHeadTarget(player, presentPlayers, nearestDistance);
     if (headTarget) {
       const leadPoint = this.automaticHeadLeadPoint(headTarget);
       const targetCol = leadPoint.col - player.col;
@@ -1501,14 +1510,6 @@ export class UltraWorld {
 
     let vectorCol = 0;
     let vectorRow = 0;
-    let nearestFood: FoodEntity | null = null;
-    let nearestDistance = Number.POSITIVE_INFINITY;
-    for (const food of this.foods) {
-      const distance = distanceSquared(player, food);
-      if (distance >= nearestDistance) continue;
-      nearestDistance = distance;
-      nearestFood = food;
-    }
 
     let target: GridPoint = nearestFood ?? { col: (this.arenaMinimum() + this.arenaMaximum()) / 2, row: (this.arenaMinimum() + this.arenaMaximum()) / 2 };
     let nearestGhost: PlayerEntity | null = null;
