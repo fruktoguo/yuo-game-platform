@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { UltraWorld } from '../src/server/UltraWorld';
+import { AUTOMATIC_HEAD_LEAD_DISTANCE_SEGMENTS, SNAKE_SEGMENT_SPACING } from '../src/shared/constants';
 
 interface InternalPlayer {
   alive: boolean;
@@ -51,7 +52,7 @@ describe('多人幽灵生命周期', () => {
     expect(onRunEnded).toHaveBeenCalledTimes(1);
   });
 
-  it('自动玩家优先救援幽灵，但无遮挡敌头仍覆盖救援目标', () => {
+  it('自动玩家仅在敌头有效角内追击，并瞄准敌头前方3身位', () => {
     const world = new UltraWorld();
     world.connectPlayer('account-a', 'Player A', 100, 'player-a');
     world.connectPlayer('account-b', 'Player B', 100, 'player-b');
@@ -73,8 +74,18 @@ describe('多人幽灵生命周期', () => {
     expect(Math.sin(rescueAngle)).toBeGreaterThan(0.9);
 
     const enemies = Reflect.get(world, 'enemies') as Array<{ dead: boolean; segments: unknown[]; col: number; row: number; angle: number }>;
-    enemies.push({ dead: false, segments: [], col: 11.5, row: 9.5, angle: -Math.PI / 2 });
+    const enemy = { dead: false, segments: [], col: 11.5, row: 8.5, angle: -Math.PI / 2 };
+    enemies.push(enemy);
+    const deadZoneAngle = autopilotAngle.call(world, player, [player, ghost]);
+    expect(Math.sin(deadZoneAngle)).toBeGreaterThan(0.9);
+
+    enemy.angle = Math.PI / 2;
     const attackAngle = autopilotAngle.call(world, player, [player, ghost]);
     expect(Math.sin(attackAngle)).toBeLessThan(-0.9);
+
+    const leadPointFor = Reflect.get(world, 'automaticHeadLeadPoint') as (target: typeof enemy) => { col: number; row: number };
+    const leadPoint = leadPointFor.call(world, enemy);
+    expect(leadPoint.col).toBeCloseTo(enemy.col);
+    expect(leadPoint.row - enemy.row).toBeCloseTo(SNAKE_SEGMENT_SPACING * AUTOMATIC_HEAD_LEAD_DISTANCE_SEGMENTS);
   });
 });

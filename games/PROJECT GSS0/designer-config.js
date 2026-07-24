@@ -1,5 +1,5 @@
 globalThis.GSS0_DESIGNER_CONFIG = {
-  "schemaVersion": 44,
+  "schemaVersion": 45,
   "balance": {
     "playerBaseSpeed": 5,
     "snakeBodySizeScale": 0.775,
@@ -22,6 +22,8 @@ globalThis.GSS0_DESIGNER_CONFIG = {
     "moduleSlotGrowthIntervalAfterFullUnlock": 10,
     "playerTurnRate": 4.2,
     "automaticHeadHuntRange": 8,
+    "automaticHeadApproachHalfAngleDegrees": 120,
+    "automaticHeadLeadDistanceSegments": 3,
     "automaticSharpTurnThresholdDegrees": 70,
     "automaticSelfAvoidanceStrength": 3.2,
     "automaticSelfAvoidanceRange": 3.2,

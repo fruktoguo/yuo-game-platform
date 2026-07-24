@@ -104,7 +104,7 @@ describe('自动模式设置', () => {
     expect(deliveredOffers.at(-1)).toBeNull();
   });
 
-  it('多人自动模式先追击无遮挡敌头，再让救援覆盖普通吃球目标', () => {
+  it('单机与多人自动模式共用撞头死区和前置距离，再让救援覆盖普通吃球目标', () => {
     const stepSource = serverSource.slice(
       serverSource.indexOf('step(deltaSeconds:'),
       serverSource.indexOf('getSnapshot('),
@@ -116,6 +116,10 @@ describe('自动模式设置', () => {
 
     expect(stepSource).toContain('this.autopilotAngle(player, present)');
     expect(autopilotSource.indexOf('const headTarget = this.automaticHeadTarget')).toBeLessThan(autopilotSource.indexOf('let nearestFood'));
+    expect(gameSource).toContain('automaticHeadApproachIsAllowed(enemy)');
+    expect(gameSource).toContain('SNAKE_SEGMENT_SPACING * AUTOMATIC_HEAD_LEAD_DISTANCE_SEGMENTS');
+    expect(serverSource).toContain('this.automaticHeadApproachIsAllowed(player, enemy)');
+    expect(serverSource).toContain('SNAKE_SEGMENT_SPACING * AUTOMATIC_HEAD_LEAD_DISTANCE_SEGMENTS');
     expect(autopilotSource.indexOf('for (const other of presentPlayers)')).toBeLessThan(autopilotSource.indexOf('const targetCol = target.col - player.col;'));
     expect(autopilotSource).toContain('if (other === player || !other.ghost) continue;');
     expect(autopilotSource).toContain('if (other === player || other.ghost) continue;');

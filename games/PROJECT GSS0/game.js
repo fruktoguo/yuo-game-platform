@@ -134,7 +134,7 @@
   const TAU = Math.PI * 2;
   const P2P_TOAST_DURATION_MS = 2800;
   const DESIGNER_CONFIG = globalThis.GSS0_DESIGNER_CONFIG || {};
-  if (DESIGNER_CONFIG.schemaVersion !== 44) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 44");
+  if (DESIGNER_CONFIG.schemaVersion !== 45) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 45");
   const DESIGNER_BALANCE = DESIGNER_CONFIG.balance || {};
   const MODULE_DESIGN_STATES = DESIGNER_CONFIG.moduleStates || {};
 
@@ -262,6 +262,8 @@
   const ENEMY_COLLISION_DAMAGE = designerNumber("enemyCollisionDamage", 1, 0, 1000, true);
   const PLAYER_TURN_RATE = designerNumber("playerTurnRate", 4.2, 0.5, 12);
   const AUTOMATIC_HEAD_HUNT_RANGE = designerNumber("automaticHeadHuntRange", 8, 0, 30);
+  const AUTOMATIC_HEAD_APPROACH_HALF_ANGLE = designerNumber("automaticHeadApproachHalfAngleDegrees", 120, 0, 180) * Math.PI / 180;
+  const AUTOMATIC_HEAD_LEAD_DISTANCE_SEGMENTS = designerNumber("automaticHeadLeadDistanceSegments", 3, 0, 10);
   const AUTOMATIC_SHARP_TURN_THRESHOLD = designerNumber("automaticSharpTurnThresholdDegrees", 70, 0, 180) * Math.PI / 180;
   const AUTOMATIC_SELF_AVOIDANCE_STRENGTH = designerNumber("automaticSelfAvoidanceStrength", 3.2, 0, 20);
   const AUTOMATIC_SELF_AVOIDANCE_RANGE = designerNumber("automaticSelfAvoidanceRange", 3.2, 0, 10);
@@ -5329,13 +5331,18 @@
     return true;
   }
 
+  function automaticHeadApproachIsAllowed(target) {
+    const directionToPlayer = Math.atan2(player.row - target.row, player.col - target.col);
+    return Math.abs(angleDelta(target.angle, directionToPlayer)) <= AUTOMATIC_HEAD_APPROACH_HALF_ANGLE;
+  }
+
   function automaticHeadTarget() {
     if (AUTOMATIC_HEAD_HUNT_RANGE <= 0) return null;
     const huntRangeSquared = AUTOMATIC_HEAD_HUNT_RANGE * AUTOMATIC_HEAD_HUNT_RANGE;
     let nearestTarget = null;
     let nearestDistance = huntRangeSquared;
     for (const enemy of enemies) {
-      if (enemy.dead) continue;
+      if (enemy.dead || !automaticHeadApproachIsAllowed(enemy)) continue;
       const distance = (enemy.col - player.col) ** 2 + (enemy.row - player.row) ** 2;
       if (distance > nearestDistance || !automaticHeadPathIsClear(enemy)) continue;
       nearestTarget = enemy;
@@ -5345,9 +5352,10 @@
   }
 
   function automaticHeadLeadPoint(target) {
+    const leadDistance = SNAKE_SEGMENT_SPACING * AUTOMATIC_HEAD_LEAD_DISTANCE_SEGMENTS;
     return {
-      col: target.col + Math.cos(target.angle) * SNAKE_SEGMENT_SPACING,
-      row: target.row + Math.sin(target.angle) * SNAKE_SEGMENT_SPACING
+      col: target.col + Math.cos(target.angle) * leadDistance,
+      row: target.row + Math.sin(target.angle) * leadDistance
     };
   }
 

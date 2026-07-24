@@ -1,5 +1,7 @@
 import {
+  AUTOMATIC_HEAD_APPROACH_HALF_ANGLE,
   AUTOMATIC_HEAD_HUNT_RANGE,
+  AUTOMATIC_HEAD_LEAD_DISTANCE_SEGMENTS,
   AUTOMATIC_SELF_AVOIDANCE_RANGE,
   AUTOMATIC_SELF_AVOIDANCE_STRENGTH,
   AUTOMATIC_SHARP_TURN_THRESHOLD,
@@ -1460,13 +1462,18 @@ export class UltraWorld {
     return true;
   }
 
+  private automaticHeadApproachIsAllowed(player: PlayerEntity, target: EnemyEntity): boolean {
+    const directionToPlayer = Math.atan2(player.row - target.row, player.col - target.col);
+    return Math.abs(angleDifference(target.angle, directionToPlayer)) <= AUTOMATIC_HEAD_APPROACH_HALF_ANGLE;
+  }
+
   private automaticHeadTarget(player: PlayerEntity, presentPlayers: readonly PlayerEntity[]): EnemyEntity | null {
     if (AUTOMATIC_HEAD_HUNT_RANGE <= 0) return null;
     const huntRangeSquared = AUTOMATIC_HEAD_HUNT_RANGE * AUTOMATIC_HEAD_HUNT_RANGE;
     let nearestTarget: EnemyEntity | null = null;
     let nearestDistance = huntRangeSquared;
     for (const enemy of this.enemies) {
-      if (enemy.dead) continue;
+      if (enemy.dead || !this.automaticHeadApproachIsAllowed(player, enemy)) continue;
       const distance = distanceSquared(player, enemy);
       if (distance > nearestDistance || !this.automaticHeadPathIsClear(player, enemy, presentPlayers)) continue;
       nearestTarget = enemy;
@@ -1476,9 +1483,10 @@ export class UltraWorld {
   }
 
   private automaticHeadLeadPoint(target: EnemyEntity): GridPoint {
+    const leadDistance = SNAKE_SEGMENT_SPACING * AUTOMATIC_HEAD_LEAD_DISTANCE_SEGMENTS;
     return {
-      col: target.col + Math.cos(target.angle) * SNAKE_SEGMENT_SPACING,
-      row: target.row + Math.sin(target.angle) * SNAKE_SEGMENT_SPACING,
+      col: target.col + Math.cos(target.angle) * leadDistance,
+      row: target.row + Math.sin(target.angle) * leadDistance,
     };
   }
 

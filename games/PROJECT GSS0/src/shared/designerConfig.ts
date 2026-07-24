@@ -12,7 +12,7 @@ interface DesignerConfigSource {
 }
 
 const source = (globalThis as typeof globalThis & { GSS0_DESIGNER_CONFIG?: DesignerConfigSource }).GSS0_DESIGNER_CONFIG;
-if (source?.schemaVersion !== 44) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 44');
+if (source?.schemaVersion !== 45) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 45');
 
 function numberSetting(key: string, fallback: number, minimum: number, maximum: number, integer = false): number {
   const candidate = source?.balance?.[key];
@@ -70,6 +70,8 @@ export const DESIGNER_BALANCE = Object.freeze({
   moduleSlotGrowthIntervalAfterFullUnlock: numberSetting('moduleSlotGrowthIntervalAfterFullUnlock', 10, 1, 100, true),
   playerTurnRate: numberSetting('playerTurnRate', 4.2, 0.5, 12),
   automaticHeadHuntRange: numberSetting('automaticHeadHuntRange', 8, 0, 30),
+  automaticHeadApproachHalfAngleDegrees: numberSetting('automaticHeadApproachHalfAngleDegrees', 120, 0, 180),
+  automaticHeadLeadDistanceSegments: numberSetting('automaticHeadLeadDistanceSegments', 3, 0, 10),
   automaticSharpTurnThresholdDegrees: numberSetting('automaticSharpTurnThresholdDegrees', 70, 0, 180),
   automaticSelfAvoidanceStrength: numberSetting('automaticSelfAvoidanceStrength', 3.2, 0, 20),
   automaticSelfAvoidanceRange: numberSetting('automaticSelfAvoidanceRange', 3.2, 0, 10),
