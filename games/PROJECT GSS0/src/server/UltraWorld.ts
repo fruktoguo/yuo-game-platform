@@ -1479,11 +1479,19 @@ export class UltraWorld {
     return nearestTarget;
   }
 
+  private automaticHeadLeadPoint(target: EnemyEntity): GridPoint {
+    return {
+      col: target.col + Math.cos(target.angle) * SNAKE_SEGMENT_SPACING,
+      row: target.row + Math.sin(target.angle) * SNAKE_SEGMENT_SPACING,
+    };
+  }
+
   private autopilotAngle(player: PlayerEntity, presentPlayers = this.presentPlayers()): number {
     const headTarget = this.automaticHeadTarget(player, presentPlayers);
     if (headTarget) {
-      const targetCol = headTarget.col - player.col;
-      const targetRow = headTarget.row - player.row;
+      const leadPoint = this.automaticHeadLeadPoint(headTarget);
+      const targetCol = leadPoint.col - player.col;
+      const targetRow = leadPoint.row - player.row;
       return Math.hypot(targetCol, targetRow) > 0.001 ? Math.atan2(targetRow, targetCol) : player.angle;
     }
 

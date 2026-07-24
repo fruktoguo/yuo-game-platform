@@ -5368,11 +5368,19 @@
     return nearestTarget;
   }
 
+  function automaticHeadLeadPoint(target) {
+    return {
+      col: target.col + Math.cos(target.angle) * SNAKE_SEGMENT_SPACING,
+      row: target.row + Math.sin(target.angle) * SNAKE_SEGMENT_SPACING
+    };
+  }
+
   function testAutopilotAngle() {
     const headTarget = automaticHeadTarget();
     if (headTarget) {
-      const targetX = headTarget.col - player.col;
-      const targetY = headTarget.row - player.row;
+      const leadPoint = automaticHeadLeadPoint(headTarget);
+      const targetX = leadPoint.col - player.col;
+      const targetY = leadPoint.row - player.row;
       return Math.hypot(targetX, targetY) > 0.001 ? Math.atan2(targetY, targetX) : player.angle;
     }
 
