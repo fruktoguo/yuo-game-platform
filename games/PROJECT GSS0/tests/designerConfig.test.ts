@@ -161,9 +161,9 @@ describe('设计配置', () => {
       enemySpawnActivationParticleCount: 5,
       enemySpawnActivationParticleSpeed: 90,
       enemySpawnActivationRadiusCells: 0.52,
-      maxRenderFps: 120,
-      minRenderDpr: 0.65,
-      maxRenderDpr: 1.25,
+      maxRenderFps: 240,
+      maxRenderDpr: 2,
+      hudUpdateHz: 15,
       networkPlayerStateHz: 20,
       networkCollisionClaimCooldownMs: 500,
       networkInterpolationMinMs: 90,
@@ -250,7 +250,7 @@ describe('设计配置', () => {
 
     expect(parameterKeys.sort()).toEqual(Object.keys(DESIGNER_BALANCE).sort());
     expect(moduleIds.sort()).toEqual(MODULES.map((module) => module.id).sort());
-    expect(moduleProgressionSource).toContain('config?.schemaVersion !== 43');
+    expect(moduleProgressionSource).toContain('config?.schemaVersion !== 44');
     expect(new Set(parameterKeys).size).toBe(238);
     expect(parameterKeys).not.toContain('playerSpeedPerLevel');
     expect(parameterKeys).not.toContain('moduleEffectReductionMaximum');
@@ -288,8 +288,8 @@ describe('设计配置', () => {
     expect(MODULES.some((module) => ['输出', '进攻', '防御', '恢复'].includes(module.category as string))).toBe(false);
     expect(MODULES.every((module) => ['攻击', '生存', '辅助', '发育'].includes(module.category))).toBe(true);
     expect(MODULES.filter((module) => module.category === '发育')).toHaveLength(9);
-    expect(editorHtml).toContain('src="module-catalog.js?v=126"');
-    expect(editorHtml).toContain('src="module-progression.js?v=126"');
+    expect(editorHtml).toContain('src="module-catalog.js?v=127"');
+    expect(editorHtml).toContain('src="module-progression.js?v=127"');
     expect(editorHtml).toContain('const MODULES = moduleCatalog;');
     expect(editorHtml).toContain('descriptionText.textContent = describeModule(module.id, draft.balance);');
     expect(editorHtml).toContain('descriptionNote.textContent = describeModuleNote(module.id, draft.balance);');

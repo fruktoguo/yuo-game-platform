@@ -134,7 +134,7 @@
   const TAU = Math.PI * 2;
   const P2P_TOAST_DURATION_MS = 2800;
   const DESIGNER_CONFIG = globalThis.GSS0_DESIGNER_CONFIG || {};
-  if (DESIGNER_CONFIG.schemaVersion !== 43) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 43");
+  if (DESIGNER_CONFIG.schemaVersion !== 44) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 44");
   const DESIGNER_BALANCE = DESIGNER_CONFIG.balance || {};
   const MODULE_DESIGN_STATES = DESIGNER_CONFIG.moduleStates || {};
 
@@ -400,10 +400,9 @@
   const EXPERIENCE_COMPRESSION_GOLD_PARTICLES = designerNumber("experienceCompressionGoldParticles", 42, 1, 160, true);
   const EXPERIENCE_COMPRESSION_GRAY_SHAKE = designerNumber("experienceCompressionGrayShake", 1.8, 0, 12);
   const EXPERIENCE_COMPRESSION_GOLD_SHAKE = designerNumber("experienceCompressionGoldShake", 5.2, 0, 16);
-  const MAX_RENDER_FPS = designerNumber("maxRenderFps", 120, 30, 240, true);
-  const MIN_RENDER_DPR = designerNumber("minRenderDpr", 0.65, 0.5, 1);
-  const MAX_RENDER_DPR = Math.max(MIN_RENDER_DPR, designerNumber("maxRenderDpr", 1.25, 0.5, 2));
-  const RENDER_DPR_SESSION_KEY = "gss0-render-dpr-limit";
+  const MAX_RENDER_FPS = designerNumber("maxRenderFps", 240, 30, 240, true);
+  const MAX_RENDER_DPR = designerNumber("maxRenderDpr", 2, 1, 2);
+  const HUD_UPDATE_INTERVAL = 1 / designerNumber("hudUpdateHz", 15, 1, 60, true);
   const AMBIENT_RENDER_INTERVAL = 1 / 30;
   const AMBIENT_RENDER_SCALE = 0.55;
   const MAX_DECORATIVE_PARTICLES = 720;
@@ -427,8 +426,7 @@
   let estimatedRefreshRate = 60;
   let fastestFrameIntervals = [];
   let lastMenuFrameState = null;
-  let renderDprLimit = loadRenderDprLimit();
-  let lowFpsWindows = 0;
+  let hudUpdateElapsed = 0;
   let consecutiveFrameErrors = 0;
   let lastFrameErrorLogAt = -Infinity;
   let gameTime = 0;
@@ -1137,7 +1135,7 @@
     const rect = canvas.getBoundingClientRect();
     width = Math.max(320, rect.width);
     height = Math.max(420, rect.height);
-    dpr = Math.min(renderDprLimit, window.devicePixelRatio || 1);
+    dpr = Math.min(MAX_RENDER_DPR, window.devicePixelRatio || 1);
     canvas.width = Math.round(width * dpr);
     canvas.height = Math.round(height * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -5564,6 +5562,13 @@
     }
   }
 
+  function updateLocalHud(dt) {
+    hudUpdateElapsed += dt;
+    if (hudUpdateElapsed < HUD_UPDATE_INTERVAL) return;
+    hudUpdateElapsed %= HUD_UPDATE_INTERVAL;
+    updateHud();
+  }
+
   function hasActiveKnockback(entity) {
     return Math.hypot(entity.knockbackX || 0, entity.knockbackY || 0) >= KNOCKBACK_STOP_SPEED;
   }
@@ -7638,7 +7643,7 @@
     updateGrowthAnimation(worldDt, dt);
     if (state !== "running") {
       updateEffects(dt);
-      updateHud();
+      updateLocalHud(dt);
       return;
     }
     updateEnemySpawnWarnings(worldDt);
@@ -7653,7 +7658,7 @@
     updateHazards(worldDt);
     checkPlayerCollisions();
     updateEffects(dt);
-    updateHud();
+    updateLocalHud(dt);
   }
 
   function renderAmbientLayer(time) {
@@ -9223,7 +9228,6 @@
     fpsWindowStartedAt = now;
     fpsFrameCount = 0;
     fastestFrameIntervals.length = 0;
-    lowFpsWindows = 0;
   }
 
   function resetFrameTiming(now = performance.now()) {
@@ -9231,6 +9235,7 @@
     lastCanvasRender = 0;
     nextCanvasRenderAt = now;
     pendingUiMotionDt = 0;
+    hudUpdateElapsed = 0;
     resetFpsMeasurement(now);
   }
 
@@ -9272,25 +9277,8 @@
     const rounded = Math.round(smoothedFps);
     ui.fpsValue.textContent = String(rounded);
     ui.fpsMeter.classList.toggle("is-low", rawFps < Math.max(52, estimatedRefreshRate * 0.72));
-    tuneRenderResolution(rawFps);
     fpsWindowStartedAt = now;
     fpsFrameCount = 0;
-  }
-
-  function tuneRenderResolution(fps) {
-    if (state !== "running" || document.hidden) {
-      lowFpsWindows = 0;
-      return;
-    }
-    const targetFps = Math.max(52, estimatedRefreshRate * 0.78);
-    lowFpsWindows = fps < targetFps ? lowFpsWindows + 1 : 0;
-    if (lowFpsWindows < 2 || renderDprLimit <= MIN_RENDER_DPR) return;
-    const step = fps < targetFps * 0.65 ? 0.25 : 0.125;
-    const nextLimit = Math.max(MIN_RENDER_DPR, renderDprLimit - step);
-    renderDprLimit = nextLimit;
-    lowFpsWindows = 0;
-    try { sessionStorage.setItem(RENDER_DPR_SESSION_KEY, String(renderDprLimit)); } catch {}
-    resize();
   }
 
   function recordFastFrameInterval(interval) {
@@ -9309,14 +9297,6 @@
     let nearest = commonRates[0];
     for (const rate of commonRates) if (Math.abs(rate - observed) < Math.abs(nearest - observed)) nearest = rate;
     return Math.abs(nearest - observed) / nearest <= 0.12 ? nearest : clamp(observed, 50, 240);
-  }
-
-  function loadRenderDprLimit() {
-    try {
-      const stored = Number(sessionStorage.getItem(RENDER_DPR_SESSION_KEY));
-      if (Number.isFinite(stored)) return clamp(stored, MIN_RENDER_DPR, MAX_RENDER_DPR);
-    } catch {}
-    return MAX_RENDER_DPR;
   }
 
   function frame(now) {

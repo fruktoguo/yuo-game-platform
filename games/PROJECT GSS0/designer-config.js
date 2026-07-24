@@ -1,5 +1,5 @@
 globalThis.GSS0_DESIGNER_CONFIG = {
-  "schemaVersion": 43,
+  "schemaVersion": 44,
   "balance": {
     "playerBaseSpeed": 5,
     "snakeBodySizeScale": 0.775,
@@ -207,9 +207,9 @@ globalThis.GSS0_DESIGNER_CONFIG = {
     "cameraFollowRenderOverscanPixels": 120,
     "cameraFollowFoodIndicatorLimit": 6,
     "cameraFollowEnemyIndicatorLimit": 8,
-    "maxRenderFps": 120,
-    "minRenderDpr": 0.65,
-    "maxRenderDpr": 1.25,
+    "maxRenderFps": 240,
+    "maxRenderDpr": 2,
+    "hudUpdateHz": 15,
     "networkPlayerStateHz": 20,
     "networkManualPredictionMs": 400,
     "networkRemoteCorrectionThresholdCells": 0.75,

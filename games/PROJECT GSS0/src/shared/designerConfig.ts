@@ -12,7 +12,7 @@ interface DesignerConfigSource {
 }
 
 const source = (globalThis as typeof globalThis & { GSS0_DESIGNER_CONFIG?: DesignerConfigSource }).GSS0_DESIGNER_CONFIG;
-if (source?.schemaVersion !== 43) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 43');
+if (source?.schemaVersion !== 44) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 44');
 
 function numberSetting(key: string, fallback: number, minimum: number, maximum: number, integer = false): number {
   const candidate = source?.balance?.[key];
@@ -253,9 +253,9 @@ export const DESIGNER_BALANCE = Object.freeze({
   enemyDamageNumberDuration: numberSetting('enemyDamageNumberDuration', 0.82, 0.1, 3),
   combatTextFontSize: numberSetting('combatTextFontSize', 38, 8, 96, true),
   foodBirthDuration: numberSetting('foodBirthDuration', 0.36, 0.05, 2),
-  maxRenderFps: numberSetting('maxRenderFps', 120, 30, 240, true),
-  minRenderDpr: numberSetting('minRenderDpr', 0.65, 0.5, 1),
-  maxRenderDpr: numberSetting('maxRenderDpr', 1.25, 0.5, 2),
+  maxRenderFps: numberSetting('maxRenderFps', 240, 30, 240, true),
+  maxRenderDpr: numberSetting('maxRenderDpr', 2, 1, 2),
+  hudUpdateHz: numberSetting('hudUpdateHz', 15, 1, 60, true),
   networkPlayerStateHz: numberSetting('networkPlayerStateHz', 20, 5, 60, true),
   networkManualPredictionMs: numberSetting('networkManualPredictionMs', 400, 50, 1_000, true),
   networkRemoteCorrectionThresholdCells: numberSetting('networkRemoteCorrectionThresholdCells', 0.75, 0.1, 10),
