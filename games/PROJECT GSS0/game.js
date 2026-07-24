@@ -1790,7 +1790,7 @@
     });
     setNetworkButtonsDisabled(false);
     setNetworkStatus("online", `P2P LOBBY / @${network.principal?.username || client.profile?.bestScore || "PLAYER"}`);
-    if (ui.p2pLobbyStatus) ui.p2pLobbyStatus.textContent = "选择建立房间或加入房间";
+    if (ui.p2pLobbyStatus) ui.p2pLobbyStatus.textContent = "建立房间，或从公开列表加入房间";
     renderP2PRoomList();
     renderP2PRoom(network.room);
   }

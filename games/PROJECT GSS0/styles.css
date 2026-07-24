@@ -550,43 +550,49 @@ input:focus-visible {
 
 /* P2P lobby and room waiting room */
 .modal-layer.p2p-lobby-screen {
-  z-index: 34;
-  overflow-y: auto;
-  place-items: center;
+  z-index: 60;
+  overflow: hidden;
+  place-items: stretch;
+  padding: 0;
   background:
     linear-gradient(118deg, rgba(225, 228, 228, 0.97) 0 43%, rgba(8, 11, 13, 0.96) 43.2% 100%),
     repeating-linear-gradient(135deg, transparent 0 14px, rgba(0, 0, 0, 0.04) 14px 15px);
 }
 .p2p-lobby-screen [hidden] { display: none !important; }
-.p2p-lobby-shell { position: relative; display: grid; width: min(1280px, calc(100vw - 40px), calc((100vh - 40px) * 1.7778)); aspect-ratio: 16 / 9; min-height: 0; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; padding: clamp(20px, 2vw, 32px); border-top: 5px solid var(--yellow); background: radial-gradient(circle at var(--ui-light-x) var(--ui-light-y), #fff, transparent 60%), var(--paper); color: var(--ink); box-shadow: 0 26px 64px rgba(0, 0, 0, 0.42); clip-path: var(--cut-lg); }
+.p2p-lobby-shell { position: relative; display: grid; width: 100%; height: 100%; min-height: 0; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; padding: calc(clamp(22px, 3vh, 40px) + var(--safe-top)) clamp(24px, 3vw, 58px) calc(clamp(22px, 3vh, 40px) + var(--safe-bottom)); border-top: 5px solid var(--yellow); background: radial-gradient(circle at var(--ui-light-x) var(--ui-light-y), #fff, transparent 60%), var(--paper); color: var(--ink); }
 .p2p-lobby-header, .p2p-section-heading, .p2p-room-footer, .p2p-room-identity > p { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-.p2p-lobby-header { margin-bottom: 18px; border-bottom: 1px solid rgba(7, 10, 12, 0.18); padding-bottom: 14px; }
+.p2p-lobby-header { margin-bottom: clamp(16px, 2vh, 24px); border-bottom: 1px solid rgba(7, 10, 12, 0.18); padding-bottom: clamp(12px, 1.5vh, 18px); }
 .p2p-lobby-header h2 { margin: 8px 0 0; font-size: calc(38px * var(--font-scale)); line-height: 1; }
 .p2p-lobby-status { min-height: 1.4em; margin: 8px 0 0; color: #5f686b; font-size: calc(12px * var(--font-scale)); font-weight: 800; }
-.p2p-lobby-workspace { display: grid; min-height: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(16px, 2vw, 24px); }
-.p2p-lobby-browser { display: grid; min-height: 0; grid-template-rows: minmax(150px, 1fr) auto; gap: 14px; overflow-y: auto; }
+.p2p-lobby-back { min-width: 150px; min-height: 42px; padding: 0 18px; font-size: calc(12px * var(--font-scale)); }
+.p2p-lobby-back span { margin-right: 6px; }
+.p2p-lobby-workspace { display: grid; min-height: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(18px, 2vw, 32px); }
+.p2p-lobby-browser { display: grid; min-height: 0; grid-template-rows: minmax(0, 1fr) auto; gap: clamp(14px, 1.8vh, 22px); overflow: hidden; }
 .p2p-lobby-column, .p2p-action-card, .p2p-members-panel, .p2p-host-settings { border: 1px solid rgba(7, 10, 12, 0.18); background: rgba(255, 255, 255, 0.48); }
-.p2p-lobby-column { padding: 14px; } .p2p-action-card { min-width: 0; padding: 14px; } .p2p-action-card + .p2p-action-card { margin-top: 0; }
+.p2p-lobby-column { padding: clamp(14px, 1.5vw, 22px); } .p2p-action-card { min-width: 0; padding: 14px; } .p2p-action-card + .p2p-action-card { margin-top: 0; }
 .p2p-room-directory { display: flex; min-height: 0; flex-direction: column; }
-.p2p-room-actions { display: grid; grid-template-columns: minmax(0, 1.12fr) minmax(180px, 0.88fr); gap: 12px; align-items: start; }
+.p2p-room-actions { display: block; }
+.p2p-room-actions > .p2p-action-card { border: 0; padding: 0; background: transparent; }
 .p2p-section-heading { margin-bottom: 14px; } .p2p-section-heading > div > span { color: #737b7e; font-size: 10px; font-weight: 900; letter-spacing: 0.14em; } .p2p-section-heading h3 { margin: 3px 0 0; font-size: calc(20px * var(--font-scale)); } .p2p-section-heading > strong { color: #697174; font-size: 12px; }
 .p2p-copy-button { min-width: 0; min-height: 34px; border: 1px solid currentColor; padding: 0 12px; background: transparent; color: var(--ink); font-size: 11px; cursor: pointer; }
-.p2p-room-list { display: grid; min-height: 0; flex: 1; align-content: start; gap: 9px; overflow-y: auto; } .p2p-room-empty { display: grid; min-height: 120px; height: 100%; place-items: center; border: 1px dashed rgba(7, 10, 12, 0.24); color: #727b7e; font-size: 12px; font-weight: 800; text-align: center; }
-.p2p-room-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 12px 14px; border-left: 4px solid var(--cyan); background: rgba(255, 255, 255, 0.7); } .p2p-room-card h4 { margin: 0 0 5px; font-size: 14px; } .p2p-room-card p { margin: 0; color: #667074; font-size: 11px; line-height: 1.5; } .p2p-room-card button { min-width: 88px; min-height: 35px; padding: 0 10px; font-size: 11px; } .p2p-room-card.is-playing { border-left-color: var(--yellow); }
+.p2p-room-list { display: grid; min-height: 0; flex: 1; align-content: start; gap: 10px; overflow-y: auto; } .p2p-room-empty { display: grid; min-height: 180px; height: 100%; place-items: center; border: 1px dashed rgba(7, 10, 12, 0.24); color: #727b7e; font-size: calc(12px * var(--font-scale)); font-weight: 800; text-align: center; }
+.p2p-room-card { display: grid; min-height: 62px; grid-template-columns: minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 13px 16px; border-left: 4px solid var(--cyan); background: rgba(255, 255, 255, 0.7); } .p2p-room-card h4 { margin: 0 0 5px; font-size: calc(15px * var(--font-scale)); } .p2p-room-card p { margin: 0; color: #667074; font-size: calc(11px * var(--font-scale)); line-height: 1.5; } .p2p-room-card button { min-width: 96px; min-height: 38px; padding: 0 12px; font-size: calc(11px * var(--font-scale)); } .p2p-room-card.is-playing { border-left-color: var(--yellow); }
 .p2p-form { display: grid; gap: 9px; } .p2p-form label, .p2p-host-settings label { display: grid; gap: 5px; color: #626b6e; font-size: 11px; font-weight: 900; } .p2p-form input, .p2p-form select, .p2p-host-settings select { width: 100%; min-height: 36px; border: 1px solid rgba(7, 10, 12, 0.25); padding: 0 10px; background: rgba(255, 255, 255, 0.82); color: var(--ink); font: inherit; font-size: 13px; } .p2p-check-row { display: flex !important; align-items: center; gap: 8px !important; } .p2p-check-row input { width: 16px; min-height: 16px; } .p2p-form .primary-button, .p2p-form .secondary-button { width: 100%; min-width: 0; min-height: 40px; }
+.p2p-create-form { grid-template-columns: minmax(0, 1.4fr) minmax(120px, 0.55fr) minmax(210px, 0.8fr); align-items: end; gap: 12px; }
+.p2p-create-form .primary-button { padding: 0 14px; font-size: calc(12px * var(--font-scale)); white-space: nowrap; }
 .p2p-join-form { align-items: end; } .p2p-join-form label { min-width: 0; } .p2p-join-form button { min-height: 38px; padding: 0 12px; font-size: 11px; }
 .p2p-current-room { min-width: 0; min-height: 0; overflow: auto; border: 1px solid rgba(7, 10, 12, 0.18); padding: 18px; background: rgba(255, 255, 255, 0.58); }
 .p2p-current-room-empty { display: grid; min-height: 100%; place-content: center; border: 1px dashed rgba(7, 10, 12, 0.24); padding: 32px; color: #727b7e; text-align: center; } .p2p-current-room-empty h3 { margin: 10px 0 8px; color: var(--ink); font-size: calc(28px * var(--font-scale)); } .p2p-current-room-empty p { max-width: 360px; margin: 0; font-size: 12px; font-weight: 800; line-height: 1.7; }
 .p2p-room-waiting { display: grid; gap: 14px; } .p2p-room-identity { border-left: 5px solid var(--cyan); padding: 4px 0 4px 14px; } .p2p-room-identity h3 { margin: 6px 0 2px; font-size: calc(28px * var(--font-scale)); } .p2p-room-identity p { justify-content: flex-start; margin: 6px 0 0; color: #606a6d; font-size: 12px; } .p2p-room-identity strong { color: var(--ink); font-size: 18px; letter-spacing: 0.18em; }
 .p2p-room-grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(220px, 0.9fr); gap: 12px; } .p2p-members-panel, .p2p-host-settings { min-width: 0; padding: 14px; } .p2p-member-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; } .p2p-member-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 40px; padding: 7px 10px; background: rgba(255, 255, 255, 0.7); } .p2p-member-row strong { overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; } .p2p-member-row span { flex: 0 0 auto; color: #687275; font-size: 11px; } .p2p-member-badge { color: var(--cyan) !important; font-weight: 900; } .p2p-member-ready { color: #4c9b46 !important; font-weight: 900; }
 .p2p-host-settings { display: grid; align-content: start; gap: 14px; } .p2p-muted { margin: 0; color: #727b7e; font-size: 11px; line-height: 1.55; } .p2p-room-footer { align-items: flex-end; border-top: 1px solid rgba(7, 10, 12, 0.16); padding-top: 16px; } .p2p-room-buttons { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; } .p2p-room-buttons button { min-width: 132px; min-height: 42px; }
-.p2p-toast { position: absolute; z-index: 48; top: clamp(18px, 4vh, 42px); left: 50%; display: block; width: max-content; max-width: min(620px, calc(100% - 32px)); border: 1px solid rgba(255, 255, 255, 0.28); border-left: 5px solid var(--cyan); padding: 13px 18px; background: rgba(7, 11, 14, 0.96); color: var(--white); box-shadow: 0 18px 42px rgba(0, 0, 0, 0.36); font-size: calc(13px * var(--font-scale)); font-weight: 900; line-height: 1.45; text-align: center; pointer-events: none; opacity: 0; visibility: hidden; transform: translate(-50%, -12px); transition: opacity 160ms ease, transform 190ms ease, visibility 0s linear 190ms; }
+.p2p-toast { position: absolute; z-index: 88; top: clamp(18px, 4vh, 42px); left: 50%; display: block; width: max-content; max-width: min(620px, calc(100% - 32px)); border: 1px solid rgba(255, 255, 255, 0.28); border-left: 5px solid var(--cyan); padding: 13px 18px; background: rgba(7, 11, 14, 0.96); color: var(--white); box-shadow: 0 18px 42px rgba(0, 0, 0, 0.36); font-size: calc(13px * var(--font-scale)); font-weight: 900; line-height: 1.45; text-align: center; pointer-events: none; opacity: 0; visibility: hidden; transform: translate(-50%, -12px); transition: opacity 160ms ease, transform 190ms ease, visibility 0s linear 190ms; }
 .p2p-toast.is-visible { opacity: 1; visibility: visible; transform: translate(-50%, 0); transition-delay: 0s; }
 .p2p-toast[data-kind="success"] { border-left-color: #79d36b; }
 .p2p-toast[data-kind="warning"] { border-left-color: var(--yellow); }
 .p2p-toast[data-kind="error"] { border-left-color: #ff5c62; }
-@media (max-width: 900px) { .p2p-lobby-shell { width: min(720px, 100%); height: auto; max-height: 100%; aspect-ratio: auto; overflow: auto; } .p2p-lobby-workspace { grid-template-columns: minmax(0, 1fr); } .p2p-current-room { min-height: 360px; overflow: visible; } }
-@media (max-width: 780px) { .p2p-lobby-shell { padding: 22px 16px 26px; clip-path: none; } .p2p-room-actions, .p2p-room-grid { grid-template-columns: 1fr; } .p2p-room-list { max-height: 270px; } .p2p-lobby-header h2 { font-size: calc(30px * var(--font-scale)); } .p2p-room-footer { align-items: stretch; flex-direction: column; } .p2p-room-buttons { justify-content: stretch; } .p2p-room-buttons button { flex: 1 1 120px; } }
+@media (max-width: 900px) { .modal-layer.p2p-lobby-screen { overflow-y: auto; place-items: start stretch; } .p2p-lobby-shell { height: auto; min-height: 100%; overflow: visible; } .p2p-lobby-workspace { grid-template-columns: minmax(0, 1fr); } .p2p-lobby-browser { min-height: 620px; } .p2p-current-room { min-height: 360px; overflow: visible; } }
+@media (max-width: 780px) { .p2p-lobby-shell { padding: calc(22px + var(--safe-top)) 16px calc(26px + var(--safe-bottom)); } .p2p-lobby-header { align-items: flex-start; } .p2p-lobby-back { min-width: 0; padding: 0 12px; font-size: 0; } .p2p-lobby-back span { margin: 0; font-size: 18px; } .p2p-create-form, .p2p-room-grid { grid-template-columns: 1fr; } .p2p-room-list { max-height: 360px; } .p2p-lobby-header h2 { font-size: calc(30px * var(--font-scale)); } .p2p-room-footer { align-items: stretch; flex-direction: column; } .p2p-room-buttons { justify-content: stretch; } .p2p-room-buttons button { flex: 1 1 120px; } }
 
 .screen-shake-icon > span {
   position: relative;

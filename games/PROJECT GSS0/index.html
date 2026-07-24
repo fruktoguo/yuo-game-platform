@@ -19,7 +19,7 @@
           <strong>代号：几何贪吃蛇</strong>
         </div>
         <span class="signature">by 四季鸽</span>
-        <span class="brand-version" aria-label="游戏版本 V125">V125</span>
+        <span class="brand-version" aria-label="游戏版本 V126">V126</span>
       </div>
 
       <div class="run-stats">
@@ -201,7 +201,7 @@
 
     <section id="start-screen" class="modal-layer start-screen is-visible" aria-labelledby="game-title">
       <div class="start-glow" aria-hidden="true"></div>
-          <div class="start-version" aria-label="游戏版本 V125"><span>BUILD</span><strong>V125</strong></div>
+          <div class="start-version" aria-label="游戏版本 V126"><span>BUILD</span><strong>V126</strong></div>
       <div class="start-layout">
         <div class="start-content">
           <div id="network-status" class="title-kicker">TACTICAL SURVIVAL / LOCAL</div>
@@ -259,7 +259,7 @@
             <h2 id="p2p-lobby-title">联机大厅</h2>
             <p id="p2p-lobby-status" class="p2p-lobby-status" role="status">正在连接大厅…</p>
           </div>
-          <button id="p2p-lobby-close" class="icon-button codex-close-button" type="button" aria-label="关闭联机大厅">×</button>
+          <button id="p2p-lobby-close" class="secondary-button p2p-lobby-back" type="button"><span aria-hidden="true">←</span> 返回主菜单</button>
         </header>
 
         <div class="p2p-lobby-workspace">
@@ -271,17 +271,17 @@
               <div id="p2p-room-list" class="p2p-room-list" aria-live="polite"></div>
             </section>
 
-            <section class="p2p-lobby-column p2p-room-actions" aria-label="创建或加入房间">
+            <section class="p2p-lobby-column p2p-room-actions" aria-label="创建房间">
               <div class="p2p-action-card">
                 <div class="p2p-section-heading"><div><span>CREATE SESSION</span><h3>建立房间</h3></div></div>
-                <form id="p2p-create-form" class="p2p-form">
+                <form id="p2p-create-form" class="p2p-form p2p-create-form">
                   <label>房间名称<input id="p2p-create-name" type="text" maxlength="24" placeholder="我的行动小队"></label>
                   <label>最大人数<select id="p2p-create-max"><option value="2">2 人</option><option value="4">4 人</option><option value="8">8 人</option><option value="12" selected>12 人</option></select></label>
-                  <label class="p2p-check-row"><input id="p2p-create-private" type="checkbox"><span>私人房间（仅凭房间码加入）</span></label>
+                  <label class="p2p-check-row" hidden><input id="p2p-create-private" type="checkbox"><span>私人房间（仅凭房间码加入）</span></label>
                   <button class="primary-button" type="submit">创建并进入等待室</button>
                 </form>
               </div>
-              <div class="p2p-action-card">
+              <div class="p2p-action-card" hidden>
                 <div class="p2p-section-heading"><div><span>JOIN SESSION</span><h3>加入房间</h3></div></div>
                 <form id="p2p-join-form" class="p2p-form p2p-join-form">
                   <label>房间码<input id="p2p-join-code" type="text" maxlength="6" inputmode="text" autocomplete="off" placeholder="例如 7K3MNP"></label>
@@ -383,6 +383,20 @@
           <button id="changelog-close-button" class="icon-button codex-close-button" type="button" aria-label="关闭更新日志" title="关闭更新日志">×</button>
         </header>
         <div class="changelog-list">
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V126</strong></div>
+              <time datetime="2026-07-24">2026.07.24</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">联机大厅</span>
+              <h3>全屏联机大厅</h3>
+              <ul>
+                <li>联机大厅改为真正独立的全屏界面，取消固定1280×720弹窗上限，按当前窗口铺开左右大厅与房间区域。</li>
+                <li>公开房间列表扩展为左栏主体，创建房间区改为紧凑横向布局；暂时隐藏房间码加入和私人房间入口。</li>
+              </ul>
+            </div>
+          </article>
           <article class="changelog-entry">
             <header>
               <div class="changelog-version"><span>BUILD</span><strong>V125</strong></div>
@@ -2020,22 +2034,22 @@
     </section>
   </main>
 
-  <script src="designer-config.js?v=125"></script>
-  <script src="status-catalog.js?v=125"></script>
-  <script src="module-catalog.js?v=125"></script>
-  <script src="module-progression.js?v=125"></script>
-  <script src="wave-director.js?v=125"></script>
-  <script src="spawn-planner.js?v=125"></script>
-  <script src="network-codec.js?v=125"></script>
-  <script src="network-player-prediction.js?v=125"></script>
-  <script src="network-player-state-codec.js?v=125"></script>
-  <script src="network-player-collisions.js?v=125"></script>
-  <script src="network-head-collisions.js?v=125"></script>
-  <script src="network-food-claims.js?v=125"></script>
-  <script src="network-projectiles.js?v=125"></script>
-  <script src="lobby-navigation.js?v=125"></script>
-  <script src="enemy-codex.js?v=125"></script>
-  <script type="module" src="src/client/p2p/bootstrap.ts?v=125"></script>
-  <script src="game.js?v=125"></script>
+  <script src="designer-config.js?v=126"></script>
+  <script src="status-catalog.js?v=126"></script>
+  <script src="module-catalog.js?v=126"></script>
+  <script src="module-progression.js?v=126"></script>
+  <script src="wave-director.js?v=126"></script>
+  <script src="spawn-planner.js?v=126"></script>
+  <script src="network-codec.js?v=126"></script>
+  <script src="network-player-prediction.js?v=126"></script>
+  <script src="network-player-state-codec.js?v=126"></script>
+  <script src="network-player-collisions.js?v=126"></script>
+  <script src="network-head-collisions.js?v=126"></script>
+  <script src="network-food-claims.js?v=126"></script>
+  <script src="network-projectiles.js?v=126"></script>
+  <script src="lobby-navigation.js?v=126"></script>
+  <script src="enemy-codex.js?v=126"></script>
+  <script type="module" src="src/client/p2p/bootstrap.ts?v=126"></script>
+  <script src="game.js?v=126"></script>
 </body>
 </html>
