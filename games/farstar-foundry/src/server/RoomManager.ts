@@ -1,5 +1,6 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import type { Server, Socket } from 'socket.io';
+import type { OnlinePlayerView } from '@yuo-platform/contracts';
 import { IntervalGate, SlidingWindowRateLimiter } from '@yuo-platform/realtime';
 import {
   PRODUCTION_LINE_BY_ID,
@@ -113,6 +114,20 @@ export class RoomManager {
       online += room.connections.size;
     }
     return { rooms: this.rooms.size, running, online };
+  }
+
+  listOnlinePlayers(): OnlinePlayerView[] {
+    const players = new Map<string, OnlinePlayerView>();
+    for (const socket of this.io.sockets.sockets.values()) {
+      const principal = socket.data.platformPrincipal;
+      if (!principal || players.has(principal.accountId)) continue;
+      players.set(principal.accountId, {
+        accountId: principal.accountId,
+        username: principal.username,
+        displayName: principal.displayName,
+      });
+    }
+    return [...players.values()];
   }
 
   async dispose(): Promise<void> {

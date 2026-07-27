@@ -3,7 +3,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
 import { Server } from 'socket.io';
-import { GameAuthBridge } from '@yuo-platform/server-sdk';
+import { GameAuthBridge, startPresenceReporting } from '@yuo-platform/server-sdk';
 import type {
   LobbyClientToServerEvents,
   LobbyInterServerEvents,
@@ -35,6 +35,7 @@ const authBridge = new GameAuthBridge({
 });
 io.use(authBridge.socketMiddleware());
 const hub = await RoomHub.create(io, dataPath);
+const presenceReporting = startPresenceReporting(authBridge.serviceClient, () => hub.listOnlinePlayers());
 
 app.disable('x-powered-by');
 app.use(authBridge.createRouter());
@@ -68,6 +69,7 @@ const shutdown = async (signal: string) => {
   if (shuttingDown) return;
   shuttingDown = true;
   console.info(`收到 ${signal}，正在保存大厅状态并停止服务`);
+  presenceReporting.stop();
   await hub.stop();
   await new Promise<void>((resolveClose) => io.close(() => resolveClose()));
   httpServer.close(() => process.exit(0));

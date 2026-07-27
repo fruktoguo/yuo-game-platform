@@ -1,0 +1,43 @@
+<div class="researchBox">
+
+    <span class="backButton" id="backToReactor">返回工厂</span>
+
+    <div class="header">
+        <span class="screenEyebrow">全局科技树</span>
+        当前拥有 <b id="researchPoints" class="research">????</b> 研究点与
+        <b class="money">$<span id="money"></span></b> 资金，已完成 <b>{{have}} / {{max}}</b> 项科技。<br/>
+        <span class="miniText">科技成果会应用到全部生产区域。</span>
+    </div>
+    <br/>
+    {{#each research}}
+    {{#if changeGroup}}
+    <br style="clear:left"/><br/>
+    {{/if}}
+    <div class="researchItem" data-id="{{id}}">
+
+        <div class="icon">
+            <div class="iconSelf" style="{{iconStyle}}"></div>
+        </div>
+        <div class="buyButton" data-id="{{id}}">研究</div>
+
+        {{name}}
+        {{#if showBoughtAndMax}}
+        <span class="bought"></span>/{{max}}
+        {{/if}}
+        &nbsp;&nbsp;&nbsp;&nbsp;
+        {{#if price}}
+        <span class="priceTitle">资金：</span><span class="money">{{price}}</span>
+        {{/if}}
+        {{#if priceResearchPoints}}
+        <span class="priceTitle">研究点：</span><span class="research">{{priceResearchPoints}}</span>
+        {{/if}}
+        <br/>
+
+        <div class="description">
+            {{description}}
+        </div>
+
+    </div>
+    {{/each}}
+
+</div>

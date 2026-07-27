@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { Server, Socket } from 'socket.io';
+import type { OnlinePlayerView } from '@yuo-platform/contracts';
 import { IntervalGate, SlidingWindowRateLimiter } from '@yuo-platform/realtime';
 import {
   MAX_CHAT_HISTORY,
@@ -59,6 +60,20 @@ export class WorldHub {
 
   dispose(): void {
     clearInterval(this.metaTimer);
+  }
+
+  listOnlinePlayers(): OnlinePlayerView[] {
+    const players = new Map<string, OnlinePlayerView>();
+    for (const socketId of this.connectedOwners.values()) {
+      const principal = this.io.sockets.sockets.get(socketId)?.data.platformPrincipal;
+      if (!principal || players.has(principal.accountId)) continue;
+      players.set(principal.accountId, {
+        accountId: principal.accountId,
+        username: principal.username,
+        displayName: principal.displayName,
+      });
+    }
+    return [...players.values()];
   }
 
   private register(socket: LifeSocket): void {

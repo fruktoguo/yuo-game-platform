@@ -1,0 +1,60 @@
+<div class="componentGraph"></div>
+
+<div class="componentInfoArea">
+    <span class="title">{{component.name}}</span><br/>
+    {{#if isMeta}}建造成本 <b class="money">{{component.priceStr}}</b> &nbsp;&nbsp; {{/if}}
+    {{#if component.runningCostStr}}运行成本 <b class="money">{{component.runningCostStr}}</b>{{/if}}
+    {{#if component.effectivenessStr}}<span class="effectiveness">效率 <b class="effectiveness">{{component.effectivenessStr}}</b></span>{{/if}}
+    <br/>
+
+    <div class="specialInfo">
+        {{#if component.description}}<span class="description">{{component.description}}</span>{{/if}}
+
+        {{#if component.isBuyer}}
+        每 <b>{{component.interval}}</b> 模拟步采购 {{{component.buyStr}}}{{#if component.purchasePrice}}，花费 <b class="money">${{component.purchasePrice}}</b>{{/if}}，随后送入传送带。
+        建议连接 <b>{{component.noOfOutputs}}</b> 条输出传送带。<br/>
+        {{/if}}
+
+        {{#if component.isConverter}}
+        每 <b>{{component.interval}}</b> 模拟步消耗 {{{component.inputStr}}}，产出 {{{component.outputStr}}}。
+        至少需要 <b>{{component.noOfOutputs}}</b> 条输出传送带。<br/>
+        {{/if}}
+
+        {{#if component.isSeller}}
+        每 <b>{{component.interval}}</b> 模拟步出售 {{{component.sellStr}}}，获得 <b class="money">${{component.sellPrice}}</b>
+        {{#if component.bonusStr}}<br/>额外增益：{{{component.bonusStr}}}{{/if}}<br/>
+        {{/if}}
+
+        {{#if component.isGarbage}}
+        每 <b>{{component.interval}}</b> 模拟步处理 <b>{{component.removeAmount}}</b> 份物料。<br/>
+        {{#if isLocation}}
+        库存 <b>{{component.noOfItems}}</b>/{{component.max}}
+        {{/if}}
+        {{/if}}
+
+        {{#if component.isSorter}}
+        接收任意物料，并按设定将其分流到不同出口。
+        {{/if}}
+
+        {{#if component.isResearchCenter}}
+        每 <b>{{component.interval}}</b> 模拟步产出 <span class="research">{{{component.productionStr}}}</span>。<br/>
+        每份报告的生产增益：{{{component.bonusStr}}}<br/>
+        {{/if}}
+
+        {{#if component.isLab}}
+        每 <b>{{component.interval}}</b> 模拟步产出 <b>{{{component.outputStr}}}</b><br/>
+        每份报告的生产增益：{{{component.bonusStr}}}<br/>
+        {{/if}}
+
+        {{#if component.isTransport}}
+        在设施之间运输物料，基础吞吐为每模拟步 1 个货包。
+        {{/if}}
+
+        {{#if component.stock}}
+        <b>库存</b> {{#each component.stock}}
+        <span class="{{resourceId}}">{{resourceName}}: </span><b class="{{resource}}">{{amount}}</b>/{{max}}
+        {{/each}}
+        {{/if}}
+
+    </div>
+</div>

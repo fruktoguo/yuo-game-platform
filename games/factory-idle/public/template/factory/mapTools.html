@@ -1,0 +1,20 @@
+<div class="mapToolsBox">
+    <div class="location"></div>
+    <div class="title">地图工具</div>
+    <div class="help">按住 ALT 绘制</div>
+
+    <div class="button buttonSelected but" data-id="">无</div>
+    {{#each tools}}
+    {{#if showBreak}}
+    <br style="clear:both"/>
+    {{/if}}
+    <div class="button but{{id}}" data-id="{{id}}">
+        <div class="mapTool {{id}}" data-id="{{id}}">{{name}}</div>
+    </div>
+    {{/each}}
+    <br style="clear:both"/>
+    <br/>
+
+    <div class="title">地图数据</div>
+    <textArea id="mapData"></textArea><br/>
+</div>

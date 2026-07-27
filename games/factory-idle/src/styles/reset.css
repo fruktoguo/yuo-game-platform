@@ -1,0 +1,1736 @@
+:root {
+  color-scheme: dark;
+  --af-bg: #071012;
+  --af-surface: #0d181a;
+  --af-surface-2: #132124;
+  --af-surface-3: #192a2d;
+  --af-line: #2a3d3f;
+  --af-line-strong: #3d5759;
+  --af-text: #e9f3ef;
+  --af-muted: #91a6a3;
+  --af-cyan: #61d6d1;
+  --af-green: #a9e35b;
+  --af-amber: #f2b84b;
+  --af-coral: #f07867;
+  --af-shadow: 0 16px 45px rgb(0 0 0 / 34%);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  color: var(--af-text);
+  background: var(--af-bg);
+}
+
+body {
+  min-width: 320px;
+  min-height: 100%;
+  margin: 0;
+  color: var(--af-text);
+  font-family: Inter, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.55;
+  background-color: var(--af-bg);
+  background-image: url("../assets/img/design/background.png");
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+a,
+.button,
+input[type="button"] {
+  -webkit-tap-highlight-color: transparent;
+}
+
+a:focus-visible,
+.button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--af-cyan);
+  outline-offset: 2px;
+}
+
+.money {
+  color: var(--af-green) !important;
+}
+
+.research {
+  color: var(--af-cyan) !important;
+}
+
+.green {
+  color: var(--af-green) !important;
+}
+
+.red {
+  color: var(--af-coral) !important;
+}
+
+.miniText {
+  color: var(--af-muted) !important;
+  font-size: 12px;
+}
+
+.gameChrome {
+  position: sticky;
+  top: 0;
+  z-index: 9000;
+  display: flex;
+  min-height: 58px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 8px clamp(14px, 3vw, 36px);
+  border-bottom: 1px solid var(--af-line);
+  background: rgb(7 16 18 / 94%);
+  box-shadow: 0 8px 28px rgb(0 0 0 / 22%);
+  backdrop-filter: blur(14px);
+}
+
+.gameChromeBrand,
+.gameChromeStatus {
+  display: flex;
+  align-items: center;
+}
+
+.gameChromeBrand {
+  gap: 10px;
+  min-width: 0;
+}
+
+.gameChromeBrand div {
+  display: grid;
+  line-height: 1.15;
+}
+
+.gameChromeBrand strong {
+  font-size: 16px;
+}
+
+.gameChromeBrand small,
+.saveStatus {
+  color: var(--af-muted);
+  font-size: 11px;
+}
+
+.gameChromeMark,
+.factoryIdentityMark {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  place-items: center;
+  border: 1px solid var(--af-cyan);
+  border-radius: 5px;
+  color: var(--af-cyan);
+  background: #102325;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.gameChromeStatus {
+  justify-content: flex-end;
+  gap: 18px;
+  color: var(--af-muted);
+  white-space: nowrap;
+}
+
+.localStatus {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--af-text);
+  font-size: 12px;
+}
+
+.localStatus i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--af-green);
+  box-shadow: 0 0 12px rgb(169 227 91 / 75%);
+}
+
+#backToLobby {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  padding: 0 12px;
+  border: 1px solid var(--af-line-strong);
+  border-radius: 5px;
+  color: var(--af-text);
+  text-decoration: none;
+  transition: border-color 160ms ease, background-color 160ms ease, color 160ms ease;
+}
+
+#backToLobby:hover {
+  border-color: var(--af-cyan);
+  color: var(--af-cyan);
+  background: #102325;
+}
+
+.main,
+.fullScreen {
+  width: 100% !important;
+  min-height: calc(100vh - 58px);
+  margin: 0 !important;
+}
+
+#gameArea,
+.fullScreen .gameArea {
+  width: 100% !important;
+  min-height: calc(100vh - 58px);
+  float: none !important;
+  border: 0;
+}
+
+/* 加载与通用弹层 */
+.loadingBg,
+.alertBg,
+.confirmBg,
+#introBg,
+#helpBg,
+#settingsBg,
+#purchasesBg,
+#timeTravelBg,
+.runningInBackgroundInfoUiBg {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 9800;
+  width: auto !important;
+  height: auto !important;
+  background: rgb(2 7 8 / 78%) !important;
+  opacity: 1 !important;
+  backdrop-filter: blur(8px);
+}
+
+.loading,
+.alert,
+.confirm,
+#intro,
+#help,
+#settings,
+#purchases,
+#timeTravel,
+.runningInBackgroundInfoUi {
+  position: fixed !important;
+  inset: 50% auto auto 50% !important;
+  z-index: 9900;
+  transform: translate(-50%, -50%);
+  border: 1px solid var(--af-line-strong) !important;
+  border-radius: 8px !important;
+  color: var(--af-text) !important;
+  background-color: var(--af-surface) !important;
+  background-image: url("../assets/img/design/background.png");
+  box-shadow: var(--af-shadow);
+}
+
+.loading {
+  display: grid;
+  width: min(360px, calc(100vw - 32px)) !important;
+  min-height: 150px;
+  place-content: center;
+  padding: 26px !important;
+  text-align: center;
+}
+
+.loading .icon {
+  width: 180px;
+  height: 40px;
+  margin: 0 auto 14px;
+  image-rendering: pixelated;
+}
+
+.loading .message {
+  color: var(--af-muted);
+  font-size: 13px;
+}
+
+.alert,
+.confirm {
+  width: min(400px, calc(100vw - 32px)) !important;
+  padding: 22px !important;
+}
+
+.alert .title,
+.confirm .title {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 17px;
+}
+
+.alert .message,
+.confirm .message {
+  color: var(--af-muted);
+  font-size: 13px;
+}
+
+.alert .button,
+.confirm .okButton,
+.confirm .cancelButton,
+#help .closeButton,
+#settings .closeButton,
+#purchases .closeButton,
+#timeTravel .closeButton {
+  display: inline-flex !important;
+  min-height: 36px;
+  align-items: center;
+  justify-content: center;
+  margin-top: 18px !important;
+  padding: 0 15px !important;
+  border: 1px solid var(--af-line-strong) !important;
+  border-radius: 5px !important;
+  color: var(--af-text) !important;
+  background: var(--af-surface-2);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.alert .button,
+.confirm .okButton {
+  border-color: #6e973f !important;
+  color: var(--af-green) !important;
+}
+
+.confirm .cancelButton {
+  border-color: #8c6730 !important;
+  color: var(--af-amber) !important;
+}
+
+.tip {
+  z-index: 10000;
+  max-width: min(340px, calc(100vw - 24px));
+  padding: 7px 10px;
+  border: 1px solid var(--af-line-strong);
+  border-radius: 5px;
+  color: var(--af-text);
+  background: #091315;
+  box-shadow: 0 10px 24px rgb(0 0 0 / 35%);
+  font-size: 12px;
+}
+
+/* 首次进入 */
+#intro {
+  width: min(680px, calc(100vw - 32px)) !important;
+  padding: clamp(24px, 5vw, 48px) !important;
+  overflow: hidden;
+}
+
+#intro::before {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 4px;
+  background: var(--af-cyan);
+  content: "";
+}
+
+#intro .introEyebrow,
+.screenEyebrow,
+.screenHeader span {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--af-cyan);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+#intro .title {
+  display: block;
+  margin-bottom: 16px;
+  font-size: 34px;
+  line-height: 1.15;
+}
+
+#intro p {
+  max-width: 580px;
+  margin: 10px 0;
+  color: #b7c8c5;
+  line-height: 1.85;
+}
+
+.introHighlights {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  margin: 24px 0;
+  overflow: hidden;
+  border: 1px solid var(--af-line);
+  border-radius: 6px;
+  background: var(--af-line);
+}
+
+.introHighlights span {
+  display: grid;
+  min-height: 86px;
+  align-content: center;
+  gap: 5px;
+  padding: 14px;
+  background: var(--af-surface-2);
+  color: var(--af-muted);
+  font-size: 12px;
+}
+
+.introHighlights b {
+  color: var(--af-amber);
+  font-size: 11px;
+}
+
+#intro .introHint {
+  padding-left: 12px;
+  border-left: 2px solid var(--af-amber);
+  color: var(--af-amber);
+  font-size: 12px;
+}
+
+#intro .closeButton {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  margin-top: 16px;
+  padding: 0 22px;
+  border: 1px solid #6e973f;
+  border-radius: 5px;
+  color: #071012;
+  background: var(--af-green);
+  font-weight: 800;
+  text-decoration: none;
+}
+
+/* 工厂总览 */
+.factoriesScreen,
+.researchBox,
+.upgradesBox,
+.achievementsBox,
+.statisticsBox,
+.missionSelection {
+  width: min(1320px, 100%);
+  margin: 0 auto;
+  padding: clamp(22px, 4vw, 46px);
+}
+
+.screenHeader {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--af-line);
+}
+
+.screenHeader h1 {
+  margin: 0;
+  font-size: 30px;
+  line-height: 1.15;
+}
+
+.screenHeader.compact {
+  align-items: center;
+}
+
+.headerXX {
+  color: var(--af-muted);
+  font-size: 13px;
+}
+
+.metricDivider {
+  display: inline-block;
+  width: 1px;
+  height: 18px;
+  margin: 0 12px -4px;
+  background: var(--af-line);
+}
+
+.helpXX {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 16px 0 22px;
+  color: var(--af-muted);
+}
+
+.tickReadout {
+  flex: 0 0 auto;
+  color: var(--af-cyan);
+  font-variant-numeric: tabular-nums;
+}
+
+.factories {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 12px;
+  overflow: visible;
+}
+
+.factories .factoryButton,
+.factories .missionsButton {
+  position: relative;
+  display: flex;
+  width: auto;
+  min-height: 245px;
+  height: auto;
+  float: none;
+  flex-direction: column;
+  margin: 0;
+  padding: 20px;
+  overflow: hidden;
+  border: 1px solid var(--af-line);
+  border-radius: 7px;
+  background: var(--af-surface);
+  text-align: left;
+  transition: border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+}
+
+.factories .factoryButton::before,
+.factories .missionsButton::before {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 3px;
+  background: var(--af-cyan);
+  content: "";
+}
+
+.factories .factoryButton:nth-child(2n)::before {
+  background: var(--af-green);
+}
+
+.factories .factoryButton:nth-child(3n)::before {
+  background: var(--af-amber);
+}
+
+.factories .factoryButton:hover,
+.factories .missionsButton:hover {
+  z-index: 1;
+  border-color: var(--af-line-strong);
+  box-shadow: 0 14px 30px rgb(0 0 0 / 24%);
+  transform: translateY(-2px);
+}
+
+.factories .factoryButton .name,
+.factories .missionsButton .name {
+  height: auto;
+  margin-bottom: 4px;
+  padding: 0;
+  color: var(--af-text);
+  font-size: 18px;
+  font-weight: 800;
+  text-align: left;
+}
+
+.factories .factoryButton .paused {
+  position: static;
+  width: fit-content;
+  margin-bottom: auto;
+  padding: 2px 7px;
+  border: 1px solid var(--af-line);
+  border-radius: 4px;
+  color: var(--af-muted);
+  background: var(--af-surface-2);
+  font-size: 10px;
+}
+
+.factories .factoryButton .productionTitle {
+  margin-top: 14px;
+  color: var(--af-muted);
+  font-size: 11px;
+}
+
+.factories .factoryButton .textLine {
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+}
+
+.factories .factoryButton .button,
+.factories .missionsButton .button,
+.researchBox .researchItem .buyButton,
+.missionSelection .backButton,
+.researchBox .backButton,
+.upgradesBox .backButton,
+.achievementsBox .backButton,
+.statisticsBox .backButton {
+  display: inline-flex;
+  width: auto;
+  min-height: 36px;
+  align-items: center;
+  justify-content: center;
+  margin: 18px 0 0;
+  padding: 0 13px;
+  border: 1px solid var(--af-line-strong);
+  border-radius: 5px;
+  color: var(--af-text);
+  background: var(--af-surface-2);
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.factories .factoryButton .selectButton,
+.factories .factoryButton .buyButton:not(.cantBuy),
+.researchBox .researchItem .buyButton:not(.cantBuy) {
+  border-color: #6e973f;
+  color: var(--af-green);
+}
+
+.factories .factoryButton .cantBuy,
+.researchBox .researchItem .cantBuy {
+  border-color: #80534c;
+  color: var(--af-coral);
+  background: #211817;
+  cursor: not-allowed;
+}
+
+.factories .missionsButton .description {
+  height: auto;
+  margin: 14px 0 auto;
+  padding: 0;
+  color: var(--af-muted);
+  text-align: left;
+}
+
+/* 工厂工作台 */
+.factoryBox {
+  min-height: calc(100vh - 58px);
+  background: #081113;
+}
+
+.factoryCommandBar {
+  display: grid;
+  grid-template-columns: minmax(190px, 0.75fr) minmax(430px, 1.6fr) auto;
+  align-items: center;
+  gap: 18px;
+  min-height: 88px;
+  padding: 12px clamp(12px, 2vw, 24px);
+  border-bottom: 1px solid var(--af-line);
+  background: var(--af-surface);
+}
+
+.factoryIdentity {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+}
+
+.factoryIdentity div {
+  display: grid;
+  min-width: 0;
+  line-height: 1.2;
+}
+
+.factoryIdentity strong {
+  overflow: hidden;
+  font-size: 15px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.factoryIdentity small,
+.mapArea > header small,
+.telemetryArea > header small,
+.componentsBox header small {
+  color: var(--af-muted);
+  font-size: 10px;
+}
+
+.factoryBox .overviewArea .overviewContainer,
+.factoryBox .topArea .topContainer {
+  width: 100%;
+  height: auto;
+  overflow: visible;
+  border: 0;
+}
+
+.overviewBox {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(105px, 1fr));
+  gap: 1px;
+  border: 1px solid var(--af-line);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--af-line);
+}
+
+.overviewMetric {
+  display: grid;
+  min-height: 54px;
+  align-content: center;
+  gap: 2px;
+  padding: 7px 10px;
+  background: var(--af-surface-2);
+}
+
+.overviewMetric .miniText {
+  font-size: 9px;
+}
+
+.overviewMetric strong {
+  overflow: hidden;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.overviewMetric small {
+  color: var(--af-muted);
+  font-size: 9px;
+}
+
+.controlsBox {
+  display: grid;
+  width: auto;
+  float: none;
+  gap: 6px;
+  padding: 0;
+  overflow: visible;
+}
+
+.simulationControls,
+.maintenanceControls {
+  display: flex;
+  justify-content: flex-end;
+  gap: 5px;
+}
+
+.controlsBox .button {
+  display: inline-flex;
+  width: auto;
+  min-width: 46px;
+  min-height: 30px;
+  float: none;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0 9px;
+  border: 1px solid var(--af-line-strong);
+  border-radius: 4px;
+  color: var(--af-muted);
+  background: var(--af-surface-2);
+  font-size: 11px;
+}
+
+.controlsBox .playButton,
+.controlsBox .playFastButton {
+  border-color: #6e973f;
+  color: var(--af-green);
+}
+
+.controlsBox .stopButton,
+.controlsBox .resetFactoryButton {
+  border-color: #80534c;
+  color: var(--af-coral);
+}
+
+.controlsBox .bonusTicks {
+  font-size: 10px;
+  text-align: right;
+}
+
+.topArea {
+  border-bottom: 1px solid var(--af-line);
+  background: #0a1416;
+}
+
+.menuBox {
+  display: flex;
+  width: 100%;
+  min-height: 42px;
+  align-items: stretch;
+  gap: 0;
+  padding: 0 clamp(12px, 2vw, 24px);
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.menuBox a {
+  display: inline-flex;
+  min-width: max-content;
+  float: none;
+  align-items: center;
+  padding: 0 14px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  color: var(--af-muted);
+  background: transparent;
+  font-size: 12px;
+}
+
+.menuBox a:hover {
+  border-bottom-color: var(--af-cyan);
+  color: var(--af-text);
+  background: var(--af-surface-2);
+}
+
+.factoryWorkspace {
+  display: grid;
+  grid-template-columns: 220px minmax(420px, 1fr) 310px;
+  min-height: calc(100vh - 189px);
+}
+
+.componentsArea,
+.telemetryArea {
+  min-width: 0;
+  padding: 16px;
+  background: var(--af-surface);
+}
+
+.componentsArea {
+  border-right: 1px solid var(--af-line);
+}
+
+.telemetryArea {
+  border-left: 1px solid var(--af-line);
+}
+
+.mapArea {
+  min-width: 0;
+  overflow: hidden;
+  background: #050b0c;
+}
+
+.mapArea > header,
+.telemetryArea > header,
+.componentsBox > header {
+  display: flex;
+  min-height: 36px;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 10px;
+  color: var(--af-text);
+  font-size: 12px;
+}
+
+.mapArea > header {
+  padding: 12px 14px 10px;
+  border-bottom: 1px solid var(--af-line);
+  background: #0a1416;
+}
+
+.factoryBox .mapArea .mapContainer {
+  position: relative;
+  width: 100%;
+  height: calc(100vh - 238px);
+  min-height: 470px;
+  overflow: hidden;
+  background: #071012;
+  box-shadow: inset 0 0 40px rgb(0 0 0 / 35%);
+}
+
+.factoryMapViewport {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  touch-action: none;
+  cursor: grab;
+}
+
+.factoryMapViewport.is-building {
+  cursor: crosshair;
+}
+
+.factoryMapViewport.is-panning {
+  cursor: grabbing;
+}
+
+.factoryMapStage {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+
+.factoryMapInputLayer {
+  user-select: none;
+}
+
+.mapViewportControls {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 120;
+  display: grid;
+  grid-template-columns: 34px 34px 34px;
+  gap: 4px;
+  padding: 5px;
+  border: 1px solid var(--af-line-strong);
+  border-radius: 6px;
+  background: rgb(7 16 18 / 92%);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 35%);
+  backdrop-filter: blur(8px);
+}
+
+.mapViewportControls button {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  place-items: center;
+  border: 1px solid var(--af-line);
+  border-radius: 4px;
+  color: var(--af-text);
+  background: var(--af-surface-2);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.mapViewportControls button:hover {
+  border-color: var(--af-cyan);
+  color: var(--af-cyan);
+  background: #102325;
+}
+
+.mapZoomLevel {
+  grid-column: 1 / -1;
+  color: var(--af-muted);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.mapContainer canvas {
+  image-rendering: pixelated;
+  filter: saturate(1.08) contrast(1.04);
+}
+
+.factoryBox .componentsArea .componentsContainer,
+.factoryBox .componentsArea .mapToolsContainer {
+  width: 100%;
+  padding: 0;
+}
+
+.componentsBox {
+  margin: 0;
+  overflow: visible;
+}
+
+.componentsBox table {
+  width: auto;
+  border-collapse: separate;
+  border-spacing: 5px;
+}
+
+.componentsBox td {
+  padding: 0;
+}
+
+.componentsBox .buttonArea {
+  width: 38px;
+  height: 38px;
+}
+
+.componentsBox .buttonArea:empty {
+  width: 0;
+  height: 0;
+}
+
+.componentsBox .button {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  float: none;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--af-line);
+  border-radius: 5px;
+  background: #091315;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 2%);
+  transition: border-color 120ms ease, background-color 120ms ease, transform 120ms ease;
+}
+
+.componentsBox .button:hover {
+  border-color: var(--af-cyan);
+  background: #112427;
+  transform: translateY(-1px);
+}
+
+.componentsBox .buttonSelected {
+  border-color: var(--af-green);
+  background: #17251a;
+  box-shadow: 0 0 0 1px rgb(169 227 91 / 22%);
+}
+
+.componentsBox .icon {
+  width: 25px;
+  height: 25px;
+  background-image: url("../assets/img/componentIcons.png");
+  image-rendering: pixelated;
+  transform: scale(1.16);
+}
+
+#makeScreenShotButton {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  padding: 0 10px;
+  border: 1px solid var(--af-line);
+  border-radius: 4px;
+  color: var(--af-muted);
+  text-decoration: none;
+}
+
+#makeScreenShotButton:hover {
+  border-color: var(--af-cyan);
+  color: var(--af-cyan);
+}
+
+.componentInfo,
+.componentControls {
+  width: 100% !important;
+  height: auto;
+  min-height: 0;
+  float: none;
+  overflow: visible;
+  color: var(--af-text);
+}
+
+.componentInfo .componentGraph {
+  width: 100%;
+  float: none;
+}
+
+.componentInfo .title {
+  display: inline-block;
+  margin-bottom: 8px;
+  color: var(--af-text);
+  font-size: 16px;
+}
+
+.componentInfo .description,
+.componentInfo .specialInfo {
+  color: var(--af-muted);
+  font-size: 12px;
+  line-height: 1.75;
+}
+
+.componentInfo .effectiveness {
+  display: inline-block;
+  margin-left: 6px;
+  color: var(--af-amber);
+}
+
+.telemetryEmpty {
+  display: grid;
+  gap: 9px;
+  padding: 16px 0;
+  border-top: 1px solid var(--af-line);
+  color: var(--af-muted);
+}
+
+.telemetryEmpty strong {
+  color: var(--af-text);
+  font-size: 14px;
+}
+
+.telemetryEmpty p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.75;
+}
+
+.telemetryEmpty span {
+  padding-left: 10px;
+  border-left: 2px solid var(--af-amber);
+  color: var(--af-amber);
+  font-size: 11px;
+}
+
+.componentInfo select,
+.mapToolsBox select,
+#settings input[type="text"],
+#settings input[type="button"],
+#settings textarea {
+  min-height: 34px;
+  padding: 5px 8px;
+  border: 1px solid var(--af-line);
+  border-radius: 4px;
+  color: var(--af-text);
+  background: #081214;
+}
+
+.mapToolsBox {
+  width: 100%;
+  float: none;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--af-line);
+}
+
+.mapToolsBox .button {
+  border-color: var(--af-line);
+  border-radius: 4px;
+  background: #081214;
+}
+
+.mapToolsBox textarea {
+  width: 100%;
+}
+
+#areasLayer .mapBuyArea {
+  background: #071012;
+  opacity: 0.64;
+}
+
+#areasLayer .mapBuyAreaOver {
+  background: #183336;
+  opacity: 0.86;
+}
+
+#areasLayer .mapBuyAreaTitle {
+  color: var(--af-green) !important;
+  font-size: 12px;
+  line-height: 1.4;
+  text-shadow: 0 2px 3px #000;
+}
+
+/* 科研、升级、成就与统计 */
+.researchBox .backButton,
+.upgradesBox .backButton,
+.achievementsBox .backButton,
+.statisticsBox .backButton,
+.missionSelection .backButton {
+  margin: 0 0 24px;
+}
+
+.researchBox .header,
+.upgradesBox .header,
+.missionSelection .headerXX {
+  padding: 18px 0;
+  border-bottom: 1px solid var(--af-line);
+  color: var(--af-muted);
+}
+
+.researchBox {
+  display: flow-root;
+}
+
+.researchBox .researchItem {
+  position: relative;
+  display: grid;
+  width: calc(50% - 6px);
+  min-height: 116px;
+  float: left;
+  grid-template-columns: 42px 1fr auto;
+  align-items: start;
+  column-gap: 12px;
+  margin: 6px;
+  padding: 16px;
+  border: 1px solid var(--af-line);
+  border-radius: 6px;
+  background: var(--af-surface);
+}
+
+.researchBox .researchItem .icon {
+  grid-row: 1 / 4;
+  width: 36px;
+  height: 36px;
+  margin: 0;
+  border-color: var(--af-line);
+  background: var(--af-surface-2);
+}
+
+.researchBox .researchItem .buyButton {
+  grid-column: 3;
+  grid-row: 1;
+  margin: 0;
+}
+
+.researchBox .researchItem .description {
+  grid-column: 2 / 4;
+  margin-top: 8px;
+  color: var(--af-muted);
+  font-size: 12px;
+}
+
+.upgradesBox {
+  display: flow-root;
+}
+
+.upgradesBox .upgradeGroup {
+  width: calc(50% - 12px);
+  min-height: 58px;
+  margin: 6px;
+  padding: 12px;
+  border-color: var(--af-line);
+  border-radius: 6px;
+  background: var(--af-surface);
+}
+
+.upgradesBox .upgradeGroup .head .buildingIcon,
+.upgradesBox .upgradeItem {
+  border-color: var(--af-line);
+  background-color: var(--af-surface-2);
+}
+
+.upgradesBox .upgradeItem .upgradePopup {
+  width: min(330px, calc(100vw - 32px));
+  padding: 12px;
+  border-color: var(--af-line-strong);
+  border-radius: 6px;
+  background: #081214;
+  box-shadow: var(--af-shadow);
+}
+
+.achievementsBox {
+  display: flow-root;
+}
+
+.achievementsBox .item {
+  width: calc(33.333% - 12px);
+  min-height: 138px;
+  margin: 6px;
+  padding: 14px;
+  border-color: var(--af-line);
+  border-radius: 6px;
+  background: var(--af-surface);
+}
+
+.achievementsBox .item .name {
+  color: var(--af-text);
+  font-size: 14px;
+}
+
+.achievementsBox .item .bonus,
+.achievementsBox .item .requirements {
+  color: var(--af-muted);
+}
+
+.achievementsBox .achieved {
+  border-color: #5d7b37;
+  background: #111d14;
+}
+
+.statisticsBox h2 {
+  margin: 28px 0 10px;
+  color: var(--af-amber);
+  font-size: 15px;
+}
+
+.statisticsBox table,
+#purchases table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid var(--af-line);
+  background: var(--af-surface);
+}
+
+.statisticsBox td,
+#purchases td {
+  padding: 10px;
+  border-bottom: 1px solid var(--af-line);
+  color: var(--af-muted);
+}
+
+.statisticsBox tr:first-child td,
+#purchases .listTable .title {
+  color: var(--af-text);
+  background: var(--af-surface-2);
+  font-weight: 700;
+}
+
+.statisticsBox .graph {
+  max-width: 100%;
+  overflow: auto;
+}
+
+.missionSelection .missionButton {
+  display: inline-flex;
+  width: min(320px, 100%);
+  min-height: 100px;
+  float: none;
+  align-items: center;
+  margin: 16px 8px 0 0;
+  padding: 18px;
+  border: 1px solid var(--af-line);
+  border-radius: 6px;
+  background: var(--af-surface);
+}
+
+.missionSelection .missionButton .name {
+  height: auto;
+  padding: 0;
+  color: var(--af-text);
+}
+
+/* 帮助、存档与增益 */
+#help,
+#settings,
+#purchases {
+  width: min(920px, calc(100vw - 32px)) !important;
+  max-height: min(760px, calc(100vh - 32px));
+  padding: 22px !important;
+  overflow: auto;
+}
+
+#help {
+  display: grid;
+  grid-template-columns: 170px 1fr;
+  gap: 20px;
+}
+
+#help > .closeButton {
+  position: absolute;
+  top: 4px;
+  right: 16px;
+  margin-top: 12px !important;
+}
+
+#help .menu {
+  width: auto;
+  height: auto;
+  float: none;
+  padding: 42px 0 0;
+  border: 0;
+}
+
+#help .menu a {
+  margin: 0 0 4px;
+  padding: 8px 10px;
+  border-left: 2px solid transparent;
+  border-radius: 3px;
+  color: var(--af-muted);
+  background: var(--af-surface-2);
+  font-size: 12px;
+}
+
+#help .menu a:hover {
+  border-left-color: var(--af-cyan);
+  color: var(--af-text);
+  background: var(--af-surface-3);
+}
+
+#help .section {
+  width: auto;
+  max-width: 100%;
+  float: none;
+  margin: 0;
+  padding: 42px 10px 10px;
+  color: var(--af-muted);
+  line-height: 1.75;
+}
+
+#help .section img {
+  max-width: min(100%, 360px);
+  height: auto;
+  margin: 4px 18px 12px 0;
+  border: 1px solid var(--af-line);
+  image-rendering: pixelated;
+}
+
+#help .title,
+#settings .title {
+  color: var(--af-amber);
+  font-size: 15px;
+}
+
+#settings {
+  color: var(--af-muted);
+}
+
+#settings .userHash,
+#settings .updateUserHash,
+#settings #loadData {
+  width: min(420px, 100%);
+  margin-top: 8px;
+  user-select: text;
+}
+
+#settings a {
+  color: var(--af-cyan);
+}
+
+#settings .saveSlot {
+  width: calc(33.333% - 10px);
+  min-height: 160px;
+  margin: 12px 10px 12px 0;
+  padding: 14px;
+  border-color: var(--af-line);
+  border-radius: 6px;
+  background: var(--af-surface-2);
+}
+
+#settings input[type="button"] {
+  color: var(--af-text);
+  cursor: pointer;
+}
+
+#settings #resetGame {
+  border-color: #80534c;
+  color: var(--af-coral);
+}
+
+#purchases .specials {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+#purchases .specials .item {
+  width: auto;
+  min-height: 150px;
+  float: none;
+  margin: 0;
+  padding: 14px;
+  border-color: var(--af-line);
+  border-radius: 6px;
+  background: var(--af-surface-2);
+}
+
+#purchases .specials .item .name {
+  color: var(--af-text);
+}
+
+#purchases .specials .item .description,
+#purchases .specials .item .price,
+#purchases .listTable .description,
+#purchases .listTable .comment {
+  color: var(--af-muted);
+}
+
+#purchases .specials .item .buy .button,
+#purchases .listTable .button,
+#timeTravel a.getMore,
+#timeTravel a.travel {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  padding: 0 11px;
+  border: 1px solid #6e973f;
+  border-radius: 4px;
+  color: var(--af-green);
+  background: #111d14;
+  text-decoration: none;
+}
+
+#timeTravel {
+  width: min(520px, calc(100vw - 32px)) !important;
+  padding: 24px !important;
+  color: var(--af-muted);
+}
+
+#timeTravel .comment {
+  color: var(--af-muted);
+}
+
+.runningInBackgroundInfoUi {
+  width: min(440px, calc(100vw - 32px)) !important;
+  padding: 26px !important;
+  color: var(--af-muted) !important;
+  text-align: center;
+}
+
+.achievementPopup {
+  right: 18px;
+  bottom: 18px;
+  width: min(360px, calc(100vw - 36px));
+  padding: 14px;
+  border-color: #6e973f;
+  border-radius: 6px;
+  background: #111d14;
+  box-shadow: var(--af-shadow);
+}
+
+@media (max-width: 1080px) {
+  .factoryCommandBar {
+    grid-template-columns: 180px 1fr;
+  }
+
+  .factoryCommandBar .controlsArea {
+    grid-column: 1 / -1;
+  }
+
+  .simulationControls,
+  .maintenanceControls {
+    justify-content: flex-start;
+  }
+
+  .controlsBox {
+    grid-template-columns: auto auto 1fr;
+    align-items: center;
+  }
+
+  .controlsBox .bonusTicks {
+    text-align: right;
+  }
+
+  .factoryWorkspace {
+    grid-template-columns: 190px minmax(380px, 1fr) 260px;
+  }
+
+  .achievementsBox .item {
+    width: calc(50% - 12px);
+  }
+}
+
+@media (max-width: 800px) {
+  .gameChrome {
+    position: relative;
+  }
+
+  .saveStatus {
+    display: none;
+  }
+
+  .factoriesScreen,
+  .researchBox,
+  .upgradesBox,
+  .achievementsBox,
+  .statisticsBox,
+  .missionSelection {
+    padding: 20px 14px 32px;
+  }
+
+  .screenHeader {
+    display: block;
+  }
+
+  .screenHeader .headerXX {
+    margin-top: 16px;
+  }
+
+  .helpXX {
+    align-items: flex-start;
+    flex-direction: column-reverse;
+  }
+
+  .factoryCommandBar {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .factoryCommandBar .controlsArea {
+    grid-column: auto;
+  }
+
+  .overviewBox {
+    grid-template-columns: repeat(3, minmax(90px, 1fr));
+    overflow-x: auto;
+  }
+
+  .controlsBox {
+    display: block;
+  }
+
+  .simulationControls,
+  .maintenanceControls {
+    flex-wrap: wrap;
+    margin-bottom: 5px;
+  }
+
+  .controlsBox .bonusTicks {
+    text-align: left;
+  }
+
+  .factoryWorkspace {
+    grid-template-columns: 1fr;
+  }
+
+  .componentsArea,
+  .telemetryArea {
+    border: 0;
+    border-bottom: 1px solid var(--af-line);
+  }
+
+  .componentsBox table {
+    max-width: 100%;
+  }
+
+  .factoryBox .mapArea .mapContainer {
+    height: min(68vh, 560px);
+    min-height: 420px;
+  }
+
+  .telemetryArea {
+    border-top: 1px solid var(--af-line);
+  }
+
+  .researchBox .researchItem,
+  .upgradesBox .upgradeGroup,
+  .achievementsBox .item {
+    width: 100%;
+    float: none;
+    margin: 8px 0;
+  }
+
+  #help {
+    display: block;
+  }
+
+  #help .menu {
+    display: flex;
+    padding: 44px 0 8px;
+    overflow-x: auto;
+  }
+
+  #help .menu a {
+    min-width: max-content;
+    margin-right: 4px;
+    border-left: 0;
+    border-bottom: 2px solid transparent;
+  }
+
+  #help .section {
+    padding-top: 12px;
+  }
+
+  #purchases .specials {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  #purchases .listTable {
+    min-width: 650px;
+  }
+}
+
+@media (max-width: 520px) {
+  .gameChrome {
+    min-height: 54px;
+    padding: 8px 10px;
+  }
+
+  .gameChromeMark {
+    width: 32px;
+    height: 32px;
+    flex-basis: 32px;
+  }
+
+  .gameChromeBrand small,
+  .localStatus {
+    display: none;
+  }
+
+  #backToLobby {
+    min-height: 32px;
+    padding: 0 9px;
+    font-size: 11px;
+  }
+
+  #intro {
+    padding: 24px 20px !important;
+  }
+
+  #intro .title {
+    font-size: 28px;
+  }
+
+  .introHighlights {
+    grid-template-columns: 1fr;
+  }
+
+  .introHighlights span {
+    min-height: 58px;
+  }
+
+  .screenHeader h1 {
+    font-size: 25px;
+  }
+
+  .metricDivider {
+    display: none;
+  }
+
+  .headerXX {
+    display: grid;
+    gap: 4px;
+  }
+
+  .factories {
+    grid-template-columns: 1fr;
+  }
+
+  .factories .factoryButton,
+  .factories .missionsButton {
+    min-height: 220px;
+  }
+
+  .overviewBox {
+    display: flex;
+  }
+
+  .overviewMetric {
+    min-width: 104px;
+  }
+
+  .factoryIdentity {
+    display: none;
+  }
+
+  .menuBox {
+    padding: 0 6px;
+  }
+
+  .menuBox a {
+    padding: 0 11px;
+  }
+
+  .componentsArea,
+  .telemetryArea {
+    padding: 13px;
+  }
+
+  .factoryBox .mapArea .mapContainer {
+    height: 450px;
+    min-height: 450px;
+  }
+
+  .researchBox .researchItem {
+    grid-template-columns: 36px 1fr;
+  }
+
+  .researchBox .researchItem .buyButton {
+    grid-column: 2;
+    grid-row: auto;
+    justify-self: start;
+    margin-top: 10px;
+  }
+
+  .researchBox .researchItem .description {
+    grid-column: 1 / -1;
+  }
+
+  #settings .saveSlot {
+    width: 100%;
+    float: none;
+    margin-right: 0;
+  }
+
+  #purchases .specials {
+    grid-template-columns: 1fr;
+  }
+
+  .alert,
+  .confirm,
+  #help,
+  #settings,
+  #purchases,
+  #timeTravel {
+    width: calc(100vw - 20px) !important;
+    max-height: calc(100vh - 20px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}

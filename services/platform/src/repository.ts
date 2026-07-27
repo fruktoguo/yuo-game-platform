@@ -37,6 +37,17 @@ interface WalletEntryRow {
   created_at: Date;
 }
 
+interface GameStatsRow {
+  game_id: string;
+  launch_count: string;
+  play_seconds: string;
+}
+
+export interface GameStats {
+  launchCount: number;
+  playSeconds: number;
+}
+
 export class PlatformRepository {
   constructor(private readonly database: PostgresDatabase) {}
 
@@ -131,6 +142,35 @@ export class PlatformRepository {
       INSERT INTO platform_launch_tickets (code_hash, account_id, game_id, expires_at)
       VALUES ($1, $2, $3, $4)
     `, [codeHash, accountId, gameId, expiresAt]);
+  }
+
+  async incrementLaunchCount(gameId: string): Promise<void> {
+    await this.database.query(`
+      INSERT INTO platform_game_stats (game_id, launch_count)
+      VALUES ($1, 1)
+      ON CONFLICT (game_id) DO UPDATE
+      SET launch_count = platform_game_stats.launch_count + 1, updated_at = now()
+    `, [gameId]);
+  }
+
+  async addPlaySeconds(gameId: string, seconds: number): Promise<void> {
+    if (!Number.isFinite(seconds) || seconds <= 0) return;
+    await this.database.query(`
+      INSERT INTO platform_game_stats (game_id, play_seconds)
+      VALUES ($1, $2)
+      ON CONFLICT (game_id) DO UPDATE
+      SET play_seconds = platform_game_stats.play_seconds + $2, updated_at = now()
+    `, [gameId, Math.floor(seconds)]);
+  }
+
+  async listGameStats(): Promise<Map<string, GameStats>> {
+    const result = await this.database.query<GameStatsRow>(`
+      SELECT game_id, launch_count, play_seconds FROM platform_game_stats
+    `);
+    return new Map(result.rows.map((row) => [row.game_id, {
+      launchCount: toSafeInteger(row.launch_count),
+      playSeconds: toSafeInteger(row.play_seconds),
+    }]));
   }
 
   async consumeLaunchTicket(codeHash: string, gameId: string): Promise<GamePrincipal | null> {

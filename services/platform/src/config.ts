@@ -3,7 +3,8 @@ import type { GameManifest } from '@yuo-platform/contracts';
 export interface RegisteredGame {
   manifest: GameManifest;
   launchUrl: string;
-  serviceToken: string;
+  serviceToken: string | null;
+  staticClientDirectory?: string;
 }
 
 export type ExternalAuthImplementation = 'newapi-node-studio-v1';
@@ -57,8 +58,10 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): Platfo
           shortDescription: '争夺区域、封锁领地，在共享康威世界中率先获胜',
           coverUrl: '/life-commons-cover.png',
           launchMode: 'navigate',
+          access: 'account',
           status: 'online',
           capabilities: { realtime: true, persistentState: true, wallet: 'none' },
+          tags: ['strategy', 'competitive'],
           sortOrder: 10,
         },
         launchUrl: environment.LIFE_LAUNCH_URL ?? 'http://127.0.0.1:3101',
@@ -72,8 +75,10 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): Platfo
           shortDescription: '标准八球规则下的实时双人 3D 对局',
           coverUrl: '/billiards-cover.png',
           launchMode: 'navigate',
+          access: 'account',
           status: 'online',
           capabilities: { realtime: true, persistentState: false, wallet: 'none' },
+          tags: ['casual', 'competitive'],
           sortOrder: 20,
         },
         launchUrl: environment.BILLIARDS_LAUNCH_URL ?? 'http://127.0.0.1:3102',
@@ -87,8 +92,10 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): Platfo
           shortDescription: '鸽鸽的联机肉鸽贪吃蛇！',
           coverUrl: '/neon-snake-cover.png',
           launchMode: 'navigate',
+          access: 'account',
           status: 'online',
           capabilities: { realtime: true, persistentState: true, wallet: 'none' },
+          tags: ['combat', 'casual'],
           sortOrder: 30,
         },
         launchUrl: environment.SNAKE_LAUNCH_URL ?? 'http://127.0.0.1:3103',
@@ -102,12 +109,32 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): Platfo
           shortDescription: '开设密码房间，与伙伴共同经营持续运转的文字自动化工厂',
           coverUrl: '/farstar-foundry-cover.png?v=2',
           launchMode: 'navigate',
+          access: 'account',
           status: 'online',
           capabilities: { realtime: true, persistentState: true, wallet: 'none' },
+          tags: ['progression', 'strategy'],
           sortOrder: 40,
         },
         launchUrl: environment.FOUNDRY_LAUNCH_URL ?? 'http://127.0.0.1:3104',
         serviceToken: environment.FOUNDRY_SERVICE_TOKEN ?? 'dev-foundry-service-token-change-before-production-2026',
+      },
+      {
+        manifest: {
+          id: 'alien-factory',
+          slug: 'alien-factory',
+          name: '异星工厂',
+          shortDescription: '勘探异星资源，设计自动化产线，让工厂在离线期间持续扩张',
+          coverUrl: '/alien-factory-cover.png',
+          launchMode: 'navigate',
+          access: 'guest',
+          status: 'online',
+          capabilities: { realtime: false, persistentState: true, wallet: 'none' },
+          tags: ['single-player', 'progression', 'strategy'],
+          sortOrder: 50,
+        },
+        launchUrl: environment.ALIEN_FACTORY_LAUNCH_URL ?? new URL('/games/alien-factory/', publicBaseUrl).toString(),
+        serviceToken: null,
+        staticClientDirectory: 'games/factory-idle/dist/client',
       },
     ],
   };

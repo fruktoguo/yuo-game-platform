@@ -30,3 +30,19 @@
 ## 积分
 
 游戏服务端通过 `PlatformServiceClient.createWalletEntry()` 提交奖励、消费或退款。每个业务结果必须生成稳定且全游戏唯一的 `idempotencyKey`；同一键只允许重放完全相同的命令，参数不一致会返回 `IDEMPOTENCY_CONFLICT`。客户端不得调用内部积分接口。
+
+## 在线状态上报
+
+游戏服务端启动后调用 `startPresenceReporting(client, getPlayers)` 即可接入大厅在线展示：SDK 每 30 秒把 `getPlayers()` 返回的当前在线玩家全量快照 POST 到平台，返回的句柄可在服务关闭时 `stop()`。上报失败只告警并下一周期重试，不影响游戏运行。
+
+快照语义：平台只保存各游戏最近一次上报的内存快照，超过 90 秒未刷新的游戏自动视为无人在线，游戏服重启或中断无需显式下线即可自愈。平台按"上报间隔 × 上次在线人数"累计在线时长（单次间隔超过 120 秒按 120 秒截断），用于大厅热度排序。
+
+`OnlinePlayerView` 只有 `accountId`、`username`、`displayName` 三个字段，不包含 `gameId`——平台通过服务令牌识别上报来源游戏，游戏侧不需要也不应该自报游戏标识。
+
+## 浏览器单机游戏
+
+全程在浏览器运行的单机游戏在清单中使用 `access: 'guest'`、`tags: ['single-player', ...]`，并配置 `staticClientDirectory`。它不需要游戏服务端或服务令牌，存档、经济和模拟状态不得上传到平台。
+
+游客调用 `POST /api/v1/games/:gameId/launch` 时无需登录。平台返回带 `presence_token` 与 `lobby_url` 的启动地址并立即计入一次启动；游戏加载后应移除地址栏中的票据，并每 30 秒调用公开的同源 `POST /api/v1/games/:gameId/presence`。直接访问游戏且没有票据时，首次心跳会创建匿名会话并计入一次启动。
+
+匿名票据超过 90 秒未续期后自动离线。匿名会话只增加 `onlineNow`，不会生成 `OnlinePlayerView`，因此大厅可展示“几人在玩”而不会伪造游客身份。心跳失败不得阻塞单机游戏，下一周期重试即可。

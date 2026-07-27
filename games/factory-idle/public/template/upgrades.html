@@ -1,0 +1,65 @@
+<div class="upgradesBox">
+
+    <span class="backButton" id="backToReactor">返回工厂</span>
+
+    <div class="header">
+        <span class="screenEyebrow">区域工程升级</span>
+        可用资金 <b class="money">$<span id="money"></span></b>。<br/>
+        <span class="miniText">升级只作用于当前生产区域，可按退款比例回收。</span>
+    </div>
+    <br/>
+    {{#each groups}}
+    {{#if isBreak}}
+    <br style="clear:both"/>
+    {{else}}
+    <div class="upgradeGroup">
+        <div class="head">
+            <div class="buildingIcon">
+                <div class="buildingIconSelf" style="{{iconStyle}}"></div>
+            </div>
+            <div class="text">{{name}}</div>
+
+            {{#each upgrades}}
+            {{#if isSeparator}}
+            <div style="width:10px; height:10px; float:right;"></div>
+            {{else}}
+            <div class="upgradeItem upgradeItem_{{action}}" data-id="{{id}}" data-action="{{action}}">
+                <div class="upgradeIcon" style="{{iconStyle}}"></div>
+
+
+                <div class="upgradePopup smallText">
+
+
+                    <b>{{title}}</b> {{#if isSell}}(<u>回收</u>){{/if}}<br/>
+                    <span>已升级：</span><b class="bought green"></b>{{#if max}}<b class="red">/{{max}}</b>{{/if}}<br/>
+
+                    {{#if isBuy}}
+                    {{#if isMaxed}}
+                    <b class="red">已满级</b><br/>
+                    {{else}}
+                    <span class="priceTitle">升级费用：</span><b class="money">${{buyPrice}}</b><br/>
+                    {{/if}}
+                    <br/>
+                    {{{description}}}
+                    {{/if}}
+
+                    {{#if isSell}}
+                    {{#if canSell}}
+                    <span class="priceTitle">回收所得：</span><b class="money">${{sellPrice}}</b> <span class="miniText">（返还 {{refund}}）</span><br/>
+                    {{else}}
+                    <b class="red">当前没有可回收的等级</b><br/>
+                    {{/if}}
+                    {{/if}}
+
+                </div>
+            </div>
+            {{/if}}
+            {{/each}}
+
+        </div>
+
+    </div>
+    {{/if}}
+    {{/each}}
+
+</div>

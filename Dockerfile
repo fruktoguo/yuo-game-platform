@@ -13,6 +13,7 @@ COPY games/life-commons/package.json games/life-commons/package.json
 COPY games/billiards-arena/package.json games/billiards-arena/package.json
 COPY ["games/PROJECT GSS0/package.json", "games/PROJECT GSS0/package.json"]
 COPY games/farstar-foundry/package.json games/farstar-foundry/package.json
+COPY games/factory-idle/package.json games/factory-idle/package.json
 RUN npm ci
 
 COPY . .
@@ -52,6 +53,8 @@ COPY --from=build --chown=platform:platform ["/app/games/PROJECT GSS0/package.js
 COPY --from=build --chown=platform:platform ["/app/games/PROJECT GSS0/dist", "./games/PROJECT GSS0/dist"]
 COPY --from=build --chown=platform:platform /app/games/farstar-foundry/package.json ./games/farstar-foundry/package.json
 COPY --from=build --chown=platform:platform /app/games/farstar-foundry/dist ./games/farstar-foundry/dist
+COPY --from=build --chown=platform:platform /app/games/factory-idle/package.json ./games/factory-idle/package.json
+COPY --from=build --chown=platform:platform /app/games/factory-idle/dist ./games/factory-idle/dist
 # 生产服务器上的旧 Compose 仍可能通过历史目录启动 PROJECT GSS0。
 RUN mkdir -p games/neon-snake-arena \
   && ln -s "../PROJECT GSS0/package.json" games/neon-snake-arena/package.json \

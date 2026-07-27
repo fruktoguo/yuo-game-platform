@@ -1,0 +1,29 @@
+<div id="timeTravelBg"></div>
+<div id="timeTravel">
+    <a href="javascript:void(0);" class="closeButton" style="float:right; display:block;">关闭</a>
+
+    <b>时序跃迁</b><br/>
+    <br/>
+    使用时序技术快速结算工厂未来产出。<br/>
+    每张跃迁券可获得 <b>3 小时</b>的收入与研究点。<br/>
+    <br/>
+    当前拥有 <b class="tickets">{{tickets}}</b> 张跃迁券。<br/>
+    <a href="javascript:void(0);" class="getMore">打开增益面板</a><br style="clear:both"/>
+    <br/>
+
+    立即跃迁将推进 <b>{{ticks}}</b> 模拟步，并获得：<br/>
+    <span class="money"><b>${{profit}}</b>（每步 <b>${{profitPerTick}}</b>）</span><br/>
+    <span class="research"><b>{{researchPoints}}</b> 研究点（每步 <b>{{researchPointsPerTick}}</b>）</span><br/>
+    <span class="comment">
+        结算值来自全部工厂的综合平均产出。<br/>
+        建议等待产线稳定后再 <a href="javascript:void(0)" class="refresh">刷新预估</a>。
+    </span><br/>
+    {{#if hasTickets}}
+    <br/>
+    <a href="javascript:void(0);" class="travel">消耗 1 张跃迁券</a><br style="clear:both"/>
+    {{else}}
+    <br/>
+    当前没有可用的跃迁券。
+    {{/if}}
+
+</div>

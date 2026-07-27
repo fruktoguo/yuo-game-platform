@@ -51,6 +51,8 @@ export interface IdentityProvider {
 
 export type GameStatus = 'online' | 'maintenance' | 'coming-soon';
 export type GameLaunchMode = 'navigate' | 'embedded';
+export type GameAccessMode = 'account' | 'guest';
+export type GameTag = 'casual' | 'competitive' | 'combat' | 'progression' | 'strategy' | 'single-player';
 
 export interface GameCapabilities {
   realtime: boolean;
@@ -65,15 +67,46 @@ export interface GameManifest {
   shortDescription: string;
   coverUrl: string;
   launchMode: GameLaunchMode;
+  access: GameAccessMode;
   status: GameStatus;
   capabilities: GameCapabilities;
+  tags: GameTag[];
   sortOrder: number;
+}
+
+export interface OnlinePlayerView {
+  accountId: string;
+  username: string;
+  displayName: string;
+}
+
+export interface GamePulseView {
+  gameId: string;
+  onlineNow: number;
+  onlinePlayers: OnlinePlayerView[];
+  launchCount: number;
+  playSeconds: number;
+  hotness: number;
+}
+
+export interface PresenceReportRequest {
+  players: OnlinePlayerView[];
 }
 
 export interface LaunchGameResponse {
   gameId: string;
   launchUrl: string;
   expiresAt: string;
+}
+
+export interface GuestPresenceRequest {
+  token?: string;
+}
+
+export interface GuestPresenceResponse {
+  token: string;
+  expiresAt: string;
+  heartbeatIntervalSeconds: number;
 }
 
 export interface GamePrincipal {

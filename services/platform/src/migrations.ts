@@ -72,4 +72,15 @@ export const PLATFORM_MIGRATIONS: readonly DatabaseMigration[] = [
       CREATE INDEX platform_launch_tickets_expiry_idx ON platform_launch_tickets(expires_at);
     `,
   },
+  {
+    id: '002_game_stats',
+    sql: `
+      CREATE TABLE platform_game_stats (
+        game_id text PRIMARY KEY,
+        launch_count bigint NOT NULL DEFAULT 0,
+        play_seconds bigint NOT NULL DEFAULT 0,
+        updated_at timestamptz NOT NULL DEFAULT now()
+      );
+    `,
+  },
 ] as const;

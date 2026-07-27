@@ -1,6 +1,8 @@
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 
+const platformApiUrl = process.env.PLATFORM_API_URL ?? 'http://127.0.0.1:3100';
+
 export default defineConfig({
   plugins: [react()],
   build: {
@@ -9,9 +11,21 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      '/api': 'http://127.0.0.1:3100',
-      '/.well-known': 'http://127.0.0.1:3100',
-      '/health': 'http://127.0.0.1:3100',
+      '/api': {
+        target: platformApiUrl,
+        changeOrigin: true,
+        headers: { origin: platformApiUrl },
+      },
+      '/.well-known': {
+        target: platformApiUrl,
+        changeOrigin: true,
+        headers: { origin: platformApiUrl },
+      },
+      '/health': {
+        target: platformApiUrl,
+        changeOrigin: true,
+        headers: { origin: platformApiUrl },
+      },
     },
   },
 });

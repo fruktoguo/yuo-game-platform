@@ -1,0 +1,9 @@
+<div class="overviewBox">
+    <div class="overviewMetric primary"><span class="miniText">资金</span><strong class="money">$<b id="money"></b></strong></div>
+    <div class="overviewMetric"><span class="miniText">平均收入</span><strong class="money">$<span id="income"></span><small>/步</small></strong></div>
+    {{#if researchBought}}
+    <div class="overviewMetric"><span class="miniText">研究点</span><strong class="research"><span id="research"></span></strong></div>
+    <div class="overviewMetric"><span class="miniText">平均科研</span><strong class="research"><span id="researchIncome"></span><small>/步</small></strong></div>
+    {{/if}}
+    <div class="overviewMetric ticks"><span class="miniText">模拟速度</span><strong><span id="ticks"></span><small> 步/秒</small></strong></div>
+</div>

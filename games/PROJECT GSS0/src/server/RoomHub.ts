@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { Server, Socket } from 'socket.io';
+import type { OnlinePlayerView } from '@yuo-platform/contracts';
 import { MAX_CHAT_HISTORY, MAX_CHAT_LENGTH, PROFILE_SAVE_DELAY_MS } from '../shared/constants';
 import type { ActionResult } from '../shared/protocol';
 import {
@@ -87,6 +88,20 @@ export class RoomHub {
       members += room.members.size;
     }
     return { rooms: this.rooms.size, playing, members, lobbyPeers: this.socketsByPeer.size };
+  }
+
+  listOnlinePlayers(): OnlinePlayerView[] {
+    const players = new Map<string, OnlinePlayerView>();
+    for (const socketId of this.socketsByPeer.values()) {
+      const principal = this.io.sockets.sockets.get(socketId)?.data.platformPrincipal;
+      if (!principal || players.has(principal.accountId)) continue;
+      players.set(principal.accountId, {
+        accountId: principal.accountId,
+        username: principal.username,
+        displayName: principal.displayName,
+      });
+    }
+    return [...players.values()];
   }
 
   private register(socket: LobbySocket): void {

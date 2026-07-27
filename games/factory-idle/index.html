@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1"
+    />
+    <meta name="format-detection" content="telephone=no" />
+    <link rel="icon" href="data:," />
+    <meta name="theme-color" content="#071013" />
+    <meta name="description" content="异星工厂：在遥远行星上规划自动化产线的网页放置游戏。" />
+    <title>异星工厂</title>
+  </head>
+  <body>
+    <header class="gameChrome">
+      <div class="gameChromeBrand">
+        <span class="gameChromeMark" aria-hidden="true">AF</span>
+        <div><strong>异星工厂</strong><small>网页放置重置版</small></div>
+      </div>
+      <div class="gameChromeStatus">
+        <span class="localStatus"><i aria-hidden="true"></i>本地单机运行</span>
+        <span class="saveStatus">进度自动保存在浏览器</span>
+        <a id="backToLobby" href="/">返回游戏大厅</a>
+      </div>
+    </header>
+    <main class="main" id="main">
+      <div id="gameArea">
+        <div class="loadingBg" id="initialLoaderBg"></div>
+        <div class="loading" id="initialLoader">
+          <img src="./img/loader.gif" class="icon" alt="" />
+          <span class="message" id="loadingMessage">正在唤醒工厂系统...</span>
+        </div>
+      </div>
+    </main>
+    <script type="module" src="/src/bootloader.js"></script>
+  </body>
+</html>

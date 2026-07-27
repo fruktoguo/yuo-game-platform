@@ -8,8 +8,12 @@ import type {
   ExchangeGameSessionRequest,
   ExchangeGameSessionResponse,
   GameManifest,
+  GamePulseView,
+  GuestPresenceRequest,
+  GuestPresenceResponse,
   LaunchGameResponse,
   LoginRequest,
+  OnlinePlayerView,
   PlatformDiscovery,
   RegisterRequest,
   SessionView,
@@ -23,6 +27,7 @@ import {
   HandoffReplayGuard,
   type ExternalIdentityAdapter,
 } from './externalIdentity';
+import { computeHotness, GUEST_HEARTBEAT_INTERVAL_SECONDS, PresenceTracker } from './presence';
 import { PlatformRepository, RepositoryError } from './repository';
 
 interface RequestContext {
@@ -30,15 +35,20 @@ interface RequestContext {
   rawSessionToken: string;
 }
 
+const PRESENCE_PLAYER_LIMIT = 200;
+const PULSE_ONLINE_PLAYER_LIMIT = 12;
+
 export function createPlatformApp(
   config: PlatformConfig,
   repository: PlatformRepository,
   auth: AuthService,
   externalIdentity: ExternalIdentityAdapter | null = null,
+  presence: PresenceTracker = new PresenceTracker(),
 ) {
   const app = express();
   const authLimiter = new SlidingWindowRateLimiter({ windowMs: 60_000, maximum: 12, idleTtlMs: 10 * 60_000 });
   const launchLimiter = new SlidingWindowRateLimiter({ windowMs: 10_000, maximum: 12 });
+  const guestPresenceStartLimiter = new SlidingWindowRateLimiter({ windowMs: 60_000, maximum: 8, idleTtlMs: 10 * 60_000 });
   const handoffGuard = new HandoffReplayGuard();
   const providers = providerDescriptors(config, externalIdentity);
 
@@ -152,17 +162,80 @@ export function createPlatformApp(
     return sendSuccess(response, games);
   });
 
+  app.get('/api/v1/games/pulse', async (_request, response) => {
+    const stats = await repository.listGameStats();
+    const pulse: GamePulseView[] = config.games.map((game) => {
+      const onlinePlayers = presence.onlinePlayers(game.manifest.id);
+      const onlineNow = presence.onlineCount(game.manifest.id);
+      const gameStats = stats.get(game.manifest.id);
+      return {
+        gameId: game.manifest.id,
+        onlineNow,
+        onlinePlayers: onlinePlayers.slice(0, PULSE_ONLINE_PLAYER_LIMIT),
+        launchCount: gameStats?.launchCount ?? 0,
+        playSeconds: gameStats?.playSeconds ?? 0,
+        hotness: computeHotness(gameStats, onlineNow),
+      };
+    });
+    return sendSuccess(response, pulse);
+  });
+
+  app.post('/api/v1/games/:gameId/presence', requireSameOrigin, async (request, response) => {
+    const game = config.games.find((candidate) => candidate.manifest.id === request.params.gameId);
+    if (!game || game.manifest.status !== 'online' || game.manifest.access !== 'guest') {
+      return sendError(response, 404, 'GAME_UNAVAILABLE', '游戏当前不可用');
+    }
+
+    const requestedToken = (request.body as GuestPresenceRequest | undefined)?.token;
+    if (requestedToken !== undefined && !isGuestPresenceToken(requestedToken)) {
+      return sendError(response, 400, 'INVALID_PRESENCE_TOKEN', '在线票据格式无效');
+    }
+
+    let token = requestedToken;
+    let update = token ? presence.heartbeatGuest(game.manifest.id, token) : null;
+    if (!update) {
+      if (!guestPresenceStartLimiter.consume(`guest-presence:${request.ip}`)) {
+        return sendError(response, 429, 'RATE_LIMITED', '在线会话创建过于频繁');
+      }
+      await repository.incrementLaunchCount(game.manifest.id);
+      token = randomBytes(24).toString('base64url');
+      update = presence.startGuest(game.manifest.id, token);
+    }
+
+    if (update.playSeconds > 0) await repository.addPlaySeconds(game.manifest.id, update.playSeconds);
+    if (!token) return sendError(response, 500, 'PRESENCE_TOKEN_MISSING', '在线票据生成失败');
+    response.setHeader('Cache-Control', 'no-store');
+    return sendSuccess(response, {
+      token,
+      expiresAt: new Date(update.expiresAt).toISOString(),
+      heartbeatIntervalSeconds: GUEST_HEARTBEAT_INTERVAL_SECONDS,
+    } satisfies GuestPresenceResponse);
+  });
+
   app.post('/api/v1/games/:gameId/launch', requireSameOrigin, async (request, response) => {
-    const context = await requireSession(request, response, config, auth);
-    if (!context) return;
-    if (!launchLimiter.consume(`launch:${context.session.account.id}`)) return sendError(response, 429, 'RATE_LIMITED', '启动游戏过于频繁');
     const game = config.games.find((candidate) => candidate.manifest.id === request.params.gameId);
     if (!game || game.manifest.status !== 'online') return sendError(response, 404, 'GAME_UNAVAILABLE', '游戏当前不可用');
-    const code = randomBytes(36).toString('base64url');
-    const expiresAt = new Date(Date.now() + 60_000);
-    await repository.createLaunchTicket(context.session.account.id, game.manifest.id, hashToken(code), expiresAt);
+
+    const context = game.manifest.access === 'account'
+      ? await requireSession(request, response, config, auth)
+      : null;
+    if (game.manifest.access === 'account' && !context) return;
+    const limiterIdentity = context?.session.account.id ?? request.ip;
+    if (!launchLimiter.consume(`launch:${limiterIdentity}`)) return sendError(response, 429, 'RATE_LIMITED', '启动游戏过于频繁');
+
     const launchUrl = new URL(game.launchUrl);
-    launchUrl.searchParams.set('launch_code', code);
+    let expiresAt = new Date(Date.now() + 60_000);
+    if (context) {
+      const code = randomBytes(36).toString('base64url');
+      await repository.createLaunchTicket(context.session.account.id, game.manifest.id, hashToken(code), expiresAt);
+      launchUrl.searchParams.set('launch_code', code);
+    } else {
+      const token = randomBytes(24).toString('base64url');
+      const guestPresence = presence.startGuest(game.manifest.id, token);
+      expiresAt = new Date(guestPresence.expiresAt);
+      launchUrl.searchParams.set('presence_token', token);
+    }
+    await repository.incrementLaunchCount(game.manifest.id);
     launchUrl.searchParams.set('lobby_url', config.publicBaseUrl);
     return sendSuccess(response, {
       gameId: game.manifest.id,
@@ -207,9 +280,28 @@ export function createPlatformApp(
     }
   });
 
+  app.post('/internal/v1/presence/report', async (request, response) => {
+    const game = authenticateGameService(request, config.games);
+    if (!game) return sendError(response, 401, 'SERVICE_AUTH_REQUIRED', '游戏服务认证失败');
+    const validation = validatePresenceReport(request.body);
+    if (!validation.ok) return sendError(response, 400, 'INVALID_PRESENCE_REPORT', validation.message);
+    const playSeconds = presence.report(game.manifest.id, validation.players);
+    if (playSeconds > 0) await repository.addPlaySeconds(game.manifest.id, playSeconds);
+    return response.status(204).end();
+  });
+
   if (process.env.NODE_ENV === 'production') {
     const moduleDirectory = dirname(fileURLToPath(import.meta.url));
-    const lobbyDirectory = resolve(moduleDirectory, '../../../../apps/lobby/dist');
+    const repositoryDirectory = resolve(moduleDirectory, '../../../..');
+    const lobbyDirectory = resolve(repositoryDirectory, 'apps/lobby/dist');
+    for (const game of config.games) {
+      if (!game.staticClientDirectory) continue;
+      const mountPath = `/games/${game.manifest.slug}`;
+      const clientDirectory = resolve(repositoryDirectory, game.staticClientDirectory);
+      app.use(`${mountPath}/assets`, express.static(join(clientDirectory, 'assets'), { immutable: true, maxAge: '1y' }));
+      app.use(mountPath, express.static(clientDirectory, { index: 'index.html', maxAge: '1h' }));
+      app.use(mountPath, (_request, response) => sendError(response, 404, 'GAME_ASSET_NOT_FOUND', '游戏资源不存在'));
+    }
     app.use('/assets', express.static(join(lobbyDirectory, 'assets'), { immutable: true, maxAge: '1y' }));
     app.use(express.static(lobbyDirectory, { index: false, maxAge: '1h' }));
     app.get('/{*path}', (request, response, next) => {
@@ -250,9 +342,13 @@ function authenticateGameService(request: Request, games: RegisteredGame[]): Reg
   if (!authorization?.startsWith('Bearer ')) return null;
   const token = authorization.slice(7);
   for (const game of games) {
-    if (constantTimeTextEqual(token, game.serviceToken)) return game;
+    if (game.serviceToken && constantTimeTextEqual(token, game.serviceToken)) return game;
   }
   return null;
+}
+
+function isGuestPresenceToken(value: unknown): value is string {
+  return typeof value === 'string' && /^[A-Za-z0-9_-]{20,128}$/.test(value);
 }
 
 function constantTimeTextEqual(left: string, right: string): boolean {
@@ -275,6 +371,28 @@ function validateWalletCommand(value: Partial<WalletCommand>): { ok: true; comma
 
 function validCommandText(value: unknown, maximum: number): value is string {
   return typeof value === 'string' && value.length >= 1 && value.length <= maximum && /^[a-zA-Z0-9:._-]+$/.test(value);
+}
+
+type PresenceValidation = { ok: true; players: OnlinePlayerView[] } | { ok: false; message: string };
+
+function validatePresenceReport(value: unknown): PresenceValidation {
+  if (!value || typeof value !== 'object') return { ok: false, message: '上报格式无效' };
+  const list = (value as { players?: unknown }).players;
+  if (!Array.isArray(list)) return { ok: false, message: '玩家列表无效' };
+  if (list.length > PRESENCE_PLAYER_LIMIT) return { ok: false, message: '玩家列表超出上限' };
+  const players: OnlinePlayerView[] = [];
+  const seen = new Set<string>();
+  for (const item of list) {
+    if (!item || typeof item !== 'object') return { ok: false, message: '玩家条目无效' };
+    const { accountId, username, displayName } = item as Partial<OnlinePlayerView>;
+    if (typeof accountId !== 'string' || !/^[0-9a-f-]{36}$/i.test(accountId)) return { ok: false, message: '玩家账号标识无效' };
+    if (typeof username !== 'string' || username.length < 1 || username.length > 32) return { ok: false, message: '玩家用户名无效' };
+    if (typeof displayName !== 'string' || displayName.length < 1 || displayName.length > 48) return { ok: false, message: '玩家显示名称无效' };
+    if (seen.has(accountId)) continue;
+    seen.add(accountId);
+    players.push({ accountId, username, displayName });
+  }
+  return { ok: true, players };
 }
 
 function requireSameOrigin(request: Request, response: Response, next: () => void): void {

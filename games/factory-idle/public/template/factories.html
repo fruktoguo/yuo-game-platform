@@ -1,0 +1,51 @@
+<section class="factoriesScreen">
+<header class="screenHeader">
+    <div><span>殖民地工业总览</span><h1>异星工厂</h1></div>
+    <div class="headerXX">
+    可用资金 <span class="money">$<b id="money"></b></span>
+    <span class="metricDivider"></span>平均总收入 <span class="money">$<b id="income"></b></span>
+    {{#if researchBought}}
+    <span class="metricDivider"></span>研究点 <span class="research"><b id="researchPoints"></b></span>
+    <span class="metricDivider"></span>平均科研 <span class="research"><b id="researchIncome"></b></span>
+    {{/if}}
+</div></header>
+<div class="helpXX">
+    <div class="tickReadout"><span id="ticks"></span> 模拟步/秒</div>
+    扩建生产区域，逐步建立跨行星自动化工业体系。
+</div>
+<div id="factorySelection" class="factories">
+    {{#each factories}}
+    <div class="factoryButton {{design}}" data-id="{{id}}">
+        <div class="name">
+            {{name}}
+        </div>
+        <span class="paused">{{#if isPaused}}已暂停{{else}}运行中{{/if}}</span>
+        {{#if isBought}}
+
+        <div class="productionTitle">平均收入</div>
+        <div class="textLine money" data-id="{{id}}" data-key="income">-</div>
+        <div class="productionTitle">科研产出</div>
+        <div class="textLine research" data-id="{{id}}" data-key="researchProduction">-</div>
+        <div class="button selectButton" data-id="{{id}}">进入工厂</div>
+
+        {{else}}
+
+        <div class="productionTitle price">扩建成本</div>
+        <div class="textLine money">${{price}}</div>
+        <div class="button buyButton" data-id="{{id}}">解锁区域</div>
+
+        {{/if}}
+
+    </div>
+    {{/each}}
+    <div class="missionsButton" id="missionsButton">
+        <div class="name">
+            生产挑战
+        </div>
+        <div class="description">
+            在限定资源与布局中验证你的产线设计能力。
+        </div>
+        <div class="button">进入挑战</div>
+    </div>
+</div>
+</section>

@@ -1,0 +1,28 @@
+<div class="achievementsBox">
+
+    <span class="backButton" id="backToReactor">返回工厂</span>
+
+    <header class="screenHeader compact"><div><span>殖民进程</span><h1>成就档案</h1></div></header>
+
+    <br/>
+    {{#each achievements}}
+    {{#if changeGroup}}
+    <br style="clear:left"/><br/>
+    {{/if}}
+    <div class="item" data-id="{{id}}">
+
+        <div class="icon {{icon}}" style="float:left;"></div>
+        <div class="bonus">{{{bonus}}}</div>
+        <div class="name">
+            {{name}}
+        </div>
+        <br/>
+
+        <div class="requirements">
+            {{{requirements}}}
+        </div>
+
+    </div>
+    {{/each}}
+
+</div>

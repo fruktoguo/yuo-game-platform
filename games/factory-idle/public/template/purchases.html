@@ -1,0 +1,61 @@
+<div id="purchasesBg"></div>
+<div id="purchases">
+  <a href="javascript:void(0);" class="closeButton" style="float:right;display:block;">关闭</a>
+  <b>实验性增益</b>
+  <br />
+  <br />
+
+  <div class="specials">
+    {{#each specials}}
+    <div class="item {{#if isBought}}boughtItem{{/if}}" data-id="{{id}}">
+      <div class="name">{{name}}</div>
+      <div class="description">{{{description}}}</div>
+      <div class="buy">
+        {{#if isBought}}
+        <span class="bought">已启用</span>
+        {{else}}
+        <a href="javascript:void(0);" data-purchaseId="{{id}}" class="button">启用</a>
+        {{/if}}
+      </div>
+      <div class="price">{{#if isBought}}&nbsp;{{else}}{{priceStr}}{{/if}}</div>
+    </div>
+    {{/each}}
+  </div>
+
+  <br style="clear:both;" />
+
+  <table class="timeTravelTable listTable">
+    <tr>
+      <td colspan="4" class="title">时间跃迁补给</td>
+    </tr>
+    <tr>
+      <td colspan="4" class="description">每张跃迁券可立即结算 3 小时的收入与研究点。</td>
+    </tr>
+    {{#each timeTravelTickets}}
+    <tr class="item" data-id="{{id}}">
+      <td width="150">{{name}}</td>
+      <td width="40">{{priceStr}}</td>
+      <td class="comment">{{description}}</td>
+      <td width="50"><a href="javascript:void(0);" class="button">启用</a></td>
+    </tr>
+    {{/each}}
+  </table>
+
+  <table class="bonusTicksTable listTable">
+    <tr>
+      <td colspan="4" class="title">加速步数储备</td>
+    </tr>
+    <tr>
+      <td colspan="4" class="description">消耗储备可将模拟速度临时提升到每秒 200 步。</td>
+    </tr>
+    {{#each bonusTicks}}
+    <tr class="item" data-id="{{id}}">
+      <td width="150">{{name}}</td>
+      <td width="40">{{priceStr}}</td>
+      <td class="comment">{{description}}</td>
+      <td width="50"><a href="javascript:void(0);" class="button">启用</a></td>
+    </tr>
+    {{/each}}
+  </table>
+  <br style="clear:both;" />
+</div>

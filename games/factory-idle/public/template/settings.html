@@ -1,0 +1,50 @@
+<div id="settingsBg"></div>
+<div id="settings">
+    <a href="javascript:void(0);" class="closeButton" style="float:right; display:block;">关闭</a>
+
+    <b class="title">本地存档标识</b><br/>
+    游戏进度保存在当前浏览器中。建议记录此标识，并定期使用下方手动存档槽。<br/>
+    <input type="text" class="userHash" id="userHash" value="{{userHash}}" name="userHash" readonly="readonly"/>
+    <a href="javascript:void(0)" id="copyToClipboardButton">复制标识</a>
+    <br/>
+    <br/>
+    <b class="title">手动存档</b><br/>
+    进行大规模改造前可保存一个快照。游戏每 {{localSaveInterval}} 在浏览器中自动保存一次。<br/>
+    {{#each saveSlots}}
+    <div class="saveSlot">
+        <b>{{name}}</b><br/>
+        <input type="button" class="saveToSlot" data-id="{{id}}" value="保存"/><br/>
+        <br/>
+        {{#if hasSave}}
+        {{lastSave}}<br/>
+        模拟步版本：<b>{{ticks}}</b><br/>
+        <input type="button" class="loadSlot" data-id="{{id}}" value="读取"/>
+        {{else}}
+        当前槽位为空
+        <br/>
+        {{/if}}
+    </div>
+    {{/each}}
+    <br style="clear:both"/>
+    {{#if devMode}}
+    <b class="title">从数据载入</b><br/>
+    <input type="text" id="loadData"/><input type="button" id="loadDataButton" value="载入数据">
+    <br style="clear:both"/>
+    {{/if}}
+    <br/>
+    <b class="title">切换本地存档标识</b><br/>
+    输入已有标识后更新，页面会重新载入对应的浏览器存档。<br/>
+    <br/>
+    <input type="text" class="updateUserHash" id="updateUserHash" value="" name="updateUserHash"/>
+    <input type="button" name="updateUserHashButton" id="updateUserHashButton" value="更新标识"/>
+    <br/>
+    <br/>
+    <b class="title">重置进度</b><br/>
+    <b class="red">此操作会清除当前自动存档并重新开始。</b><br/>
+    手动存档槽会保留，可在之后读取恢复。<br/>
+    <br/>
+    <input type="button" name="resetGame" id="resetGame" value="重置当前游戏进度"/>
+
+    <div style="float:right">异星工厂重置版 1.0</div>
+    <br/>
+</div>

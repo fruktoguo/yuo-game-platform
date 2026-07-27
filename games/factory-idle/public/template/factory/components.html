@@ -1,0 +1,23 @@
+<div class="componentsBox">
+    <header><div><span>设施库</span><small>选择后放置到生产区</small></div></header>
+    <table cellspacing="0" cellpadding="0" border="0">
+        {{#each components}}
+        <tr>
+            {{#each sub}}
+            {{#if name}}
+            <td>
+                <div class="buttonArea">
+                    <div class="button but{{id}} {{#if isNoComponent}}buttonSelected{{/if}}" data-id="{{id}}" title="{{name}}" aria-label="{{name}}">
+                        <div class="icon" data-id="{{id}}" style="{{style}}"></div>
+                    </div>
+                </div>
+            </td>
+            {{/if}}
+            {{/each}}
+        </tr>
+        {{/each}}
+    </table>
+    <div style="text-align:center; margin: 10px 0 10px 0;">
+        <a href="javascript:void(0);" id="makeScreenShotButton">查看完整地图</a>
+    </div>
+</div>

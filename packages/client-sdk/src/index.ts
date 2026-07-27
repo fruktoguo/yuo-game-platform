@@ -5,8 +5,13 @@ import type {
   AuthProviderDescriptor,
   GameManifest,
   GamePrincipal,
+  GamePulseView,
+  GameTag,
+  GuestPresenceRequest,
+  GuestPresenceResponse,
   LaunchGameResponse,
   LoginRequest,
+  OnlinePlayerView,
   RegisterRequest,
   SessionView,
   WalletView,
@@ -46,12 +51,20 @@ export class PlatformApiClient {
     return this.request('/api/v1/games');
   }
 
+  getGamePulse(): Promise<GamePulseView[]> {
+    return this.request('/api/v1/games/pulse');
+  }
+
   getWallet(): Promise<WalletView> {
     return this.request('/api/v1/wallet');
   }
 
   launchGame(gameId: string): Promise<LaunchGameResponse> {
     return this.request(`/api/v1/games/${encodeURIComponent(gameId)}/launch`, { method: 'POST' });
+  }
+
+  reportGuestPresence(gameId: string, request: GuestPresenceRequest = {}): Promise<GuestPresenceResponse> {
+    return this.request(`/api/v1/games/${encodeURIComponent(gameId)}/presence`, { method: 'POST', body: request });
   }
 
   private async request<T>(path: string, options: RequestOptions = {}): Promise<T> {
@@ -129,4 +142,16 @@ export function resolveGameSocketPath(currentUrl = window.location.href): string
   return resolveGameEndpoint('socket.io', currentUrl).pathname;
 }
 
-export type { AccountView, AuthProviderDescriptor, GameManifest, GamePrincipal, SessionView, WalletView };
+export type {
+  AccountView,
+  AuthProviderDescriptor,
+  GameManifest,
+  GamePrincipal,
+  GamePulseView,
+  GameTag,
+  GuestPresenceRequest,
+  GuestPresenceResponse,
+  OnlinePlayerView,
+  SessionView,
+  WalletView,
+};

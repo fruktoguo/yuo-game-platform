@@ -1,0 +1,77 @@
+<div id="helpBg"></div>
+<div id="help">
+    <a href="javascript:void(0);" class="closeButton">关闭</a>
+    <div class="menu">
+        <a href="javascript:void(0);" data-id="gettingStarted">快速开始</a>
+        <a href="javascript:void(0);" data-id="ironProduction">铁锭产线</a>
+        <a href="javascript:void(0);" data-id="labProduction">科研系统</a>
+        <a href="javascript:void(0);" data-id="plasticProduction">塑料与废料</a>
+        <a href="javascript:void(0);" data-id="sorter">分拣器</a>
+        <a href="javascript:void(0);" data-id="proTips">进阶技巧</a>
+        <a href="javascript:void(0);" data-id="faq">常见问题</a>
+    </div>
+
+    <div class="section" id="gettingStarted">
+        <b class="title">快速开始</b><br/>
+        <img src="img/tutorial/start.png" align="left" alt="基础产线示意"/>
+        <p>左侧是设施库。选择设施后点击地图即可放置；选择传送带后，从设施出口拖向另一座设施的入口即可建立物流连接。</p>
+        <p>鼠标右键或按住 SHIFT 再点击，可拆除地图上的设施与传送带。按空格键可以在当前设施和上次选择之间快速切换。</p>
+        <p>地图可以拖动浏览。将鼠标悬停在设施上，可在右侧查看吞吐、库存、成本和效率。</p>
+        <br style="clear:both"/>
+        <b class="title">离线进度</b>
+        <p>离开游戏后会积累加速步数。返回后使用顶部的“加速”按钮，可以快速结算离线期间的生产。</p>
+    </div>
+
+    <div class="section" id="ironProduction">
+        <b class="title">建立铁锭产线</b><br/>
+        <img src="img/tutorial/iron.png" align="left" alt="铁锭产线示意"/>
+        <p>最初的目标是把铁矿石加工成铁锭并出售。基础满负荷布局通常需要 4 座铁矿采购站、2 座铁锭冶炼厂和 1 座铁锭出口站。</p>
+        <p>科技与升级会改变各设施的节拍和吞吐。观察右侧信息面板中的建议输出数量，持续调整传送带数量。</p>
+        <br style="clear:both"/>
+    </div>
+
+    <div class="section" id="labProduction">
+        <b class="title">建立科研网络</b><br/>
+        <img src="img/tutorial/lab.png" align="left" alt="科研产线示意"/>
+        <p>实验室会为研究中心提供高质量报告，从而显著提高研究点产量。高级实验室需要多种资源同时输入，应为关键原料预留独立物流路线。</p>
+        <p>科研设施成本较高，建议先稳定主营产线，再逐步扩大研究网络。</p>
+        <br style="clear:both"/>
+    </div>
+
+    <div class="section" id="plasticProduction">
+        <b class="title">塑料与工业废料</b><br/>
+        <img src="img/tutorial/plastic.png" align="left" alt="塑料产线示意"/>
+        <p>塑料生产会交替输出塑料和工业废料。输出顺序从左上出口开始，按顺时针循环。</p>
+        <p>早期可使用独立传送带或分流处理废料；解锁分拣器后可自动分类。后续洁净生产科技会彻底消除废料。</p>
+        <br style="clear:both"/>
+    </div>
+
+    <div class="section" id="sorter">
+        <b class="title">配置分拣器</b><br/>
+        <img src="img/tutorial/sorter2.png" alt="分拣器出口示意"/><br/>
+        <img src="img/tutorial/sorter.png" align="left" alt="分拣器配置示意"/>
+        <p>分拣器可以接收任意资源，并把指定资源送往对应出口。点击地图上的分拣器，在右侧面板为每个出口选择资源。</p>
+        <p>分拣器适合处理混合物流，但也有吞吐上限。高流量产线仍应优先使用独立线路。</p>
+        <br style="clear:both"/>
+    </div>
+
+    <div class="section" id="proTips">
+        <b class="title">进阶技巧</b><br/>
+        <img src="img/tutorial/orderWithNumbers.png" align="left" alt="输入输出顺序"/>
+        <p>设施输入、输出以及传送带交叉口始终按“上、右、下、左”的顺时针顺序处理。</p>
+        <p>同一设施可以连接多条输入或输出线路。若设施每模拟步产出超过一份资源，单条传送带往往会成为瓶颈。</p>
+        <br style="clear:both"/>
+        <img src="img/tutorial/split.png" align="right" alt="传送带分流示意"/>
+        <p>传送带分叉可以进行简单分流，但总吞吐不会增加。复杂产线应使用多出口、独立物流或分拣器组合。</p>
+        <p>购买升级前先观察产线比例。一次提升多个相关设施，通常比只升级其中一环更容易保持平衡。</p>
+        <br style="clear:both"/>
+    </div>
+
+    <div class="section" id="faq">
+        <b class="title">常见问题</b>
+        <p><b>采购站效率达不到 100%</b><br/>确认全部资源都能及时运出。单条出口传送带可能低于采购站的实际吞吐。</p>
+        <p><b>塑料和废料的出口顺序发生变化</b><br/>某条线路堵塞时，物料会尝试进入其他可用出口。清理拥堵后顺序会重新稳定。</p>
+        <p><b>升级后产线反而失衡</b><br/>升级会改变单台设施的节拍比例。可以同步升级上下游，调整设施数量，或按退款比例回收该升级。</p>
+        <p><b>关闭页面后是否继续运行</b><br/>游戏会记录离开时间，并在下次进入时转换为加速步数；无需保持页面常驻。</p>
+    </div>
+</div>

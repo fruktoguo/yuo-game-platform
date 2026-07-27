@@ -1,5 +1,6 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import type { Server, Socket } from 'socket.io';
+import type { OnlinePlayerView } from '@yuo-platform/contracts';
 import { IntervalGate } from '@yuo-platform/realtime';
 import type {
   ActionResult,
@@ -75,6 +76,20 @@ export class RoomManager {
       for (const timer of room.disconnectTimers.values()) clearTimeout(timer);
     }
     this.rooms.clear();
+  }
+
+  listOnlinePlayers(): OnlinePlayerView[] {
+    const players = new Map<string, OnlinePlayerView>();
+    for (const socket of this.io.sockets.sockets.values()) {
+      const principal = socket.data.platformPrincipal;
+      if (!principal || players.has(principal.accountId)) continue;
+      players.set(principal.accountId, {
+        accountId: principal.accountId,
+        username: principal.username,
+        displayName: principal.displayName,
+      });
+    }
+    return [...players.values()];
   }
 
   private createRoom(socket: GameSocket, ack: (result: ActionResult<RoomView>) => void): void {

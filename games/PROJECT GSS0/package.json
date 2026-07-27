@@ -20,6 +20,7 @@
     "node": ">=20"
   },
   "dependencies": {
+    "@yuo-platform/contracts": "1.0.0",
     "@yuo-platform/persistence": "1.0.0",
     "@yuo-platform/realtime": "1.0.0",
     "@yuo-platform/server-sdk": "1.0.0",

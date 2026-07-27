@@ -1,0 +1,24 @@
+<nav class="menuBox" aria-label="工厂功能导航">
+    {{#if isMission}}
+    <a href="javascript:void(0);" id="missionsButton">挑战</a>
+    <a href="javascript:void(0);" id="mainGameButton">工厂</a>
+    {{else}}
+    <a href="javascript:void(0);" id="factoriesButton">工厂</a>
+    {{/if}}
+    {{#if hasStatistics}}
+    <a href="javascript:void(0);" id="statisticsButton">统计</a>
+    {{/if}}
+    {{#if hasResearch}}
+    <a href="javascript:void(0);" id="researchButton">科研</a>
+    {{/if}}
+    {{#if hasUpgrades}}
+    <a href="javascript:void(0);" id="upgradesButton">升级</a>
+    {{/if}}
+    {{#if hasAchievements}}
+    <a href="javascript:void(0);" id="achievementsButton">成就</a>
+    {{/if}}
+    <a href="javascript:void(0);" id="extraButton">增益</a>
+    <a href="javascript:void(0);" id="timeTravelButton">时序跃迁</a>
+    <a href="javascript:void(0);" id="settingsButton">存档</a>
+    <a href="javascript:void(0);" id="helpButton">指南</a>
+</nav>

@@ -1,0 +1,16 @@
+<div id="missionSelection" class="missionSelection">
+    <span class="backButton" id="backToReactor">返回工厂列表</span>
+
+    <div class="headerXX">
+        <span class="screenEyebrow">生产模拟演习</span>
+        在限定条件下完成目标，验证产线布局与吞吐规划。
+    </div>
+
+    {{#each missions}}
+    <div class="missionButton" data-id="{{id}}">
+        <div class="name">
+            {{name}}
+        </div>
+    </div>
+    {{/each}}
+</div>

@@ -1,0 +1,8 @@
+{{#each locations}}
+{{name}}
+<select data-id="{{id}}">
+    {{#each resources}}
+    <option value="{{id}}">{{name}}</option>
+    {{/each}}
+</select><br/>
+{{/each}}

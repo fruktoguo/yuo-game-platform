@@ -5,6 +5,8 @@ import type {
   ExchangeGameSessionRequest,
   ExchangeGameSessionResponse,
   GamePrincipal,
+  OnlinePlayerView,
+  PresenceReportRequest,
   WalletCommand,
   WalletEntryView,
 } from '@yuo-platform/contracts';
@@ -36,6 +38,31 @@ export class PlatformServiceClient {
     return this.request('/internal/v1/wallet/entries', command);
   }
 
+  async reportPresence(players: OnlinePlayerView[]): Promise<void> {
+    const response = await fetch(new URL('/internal/v1/presence/report', this.options.platformInternalUrl), {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${this.options.serviceToken}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ players } satisfies PresenceReportRequest),
+      signal: AbortSignal.timeout(this.options.timeoutMs ?? 5_000),
+    });
+    if (response.ok) return;
+    let code = 'PLATFORM_REQUEST_FAILED';
+    let message = `平台请求失败:${response.status}`;
+    try {
+      const result = await response.json() as ApiResult<never>;
+      if (!result.ok) {
+        code = result.error.code;
+        message = result.error.message;
+      }
+    } catch {
+      // 保留默认错误信息
+    }
+    throw new PlatformServiceError(code, message, response.status);
+  }
+
   private async request<T>(path: string, body: unknown): Promise<T> {
     const response = await fetch(new URL(path, this.options.platformInternalUrl), {
       method: 'POST',
@@ -63,6 +90,30 @@ export class PlatformServiceError extends Error {
     super(message);
     this.name = 'PlatformServiceError';
   }
+}
+
+export interface PresenceReportingHandle {
+  stop(): void;
+}
+
+/**
+ * 周期性把当前在线玩家快照上报给平台(用于大厅在线人数/热度统计)。
+ * 上报失败只告警并在下一周期重试,不影响游戏自身运行。
+ */
+export function startPresenceReporting(
+  client: PlatformServiceClient,
+  getPlayers: () => OnlinePlayerView[],
+  intervalMs = 30_000,
+): PresenceReportingHandle {
+  const report = () => {
+    void client.reportPresence(getPlayers()).catch((error: unknown) => {
+      console.warn('在线状态上报失败,将在下一周期重试:', error instanceof Error ? error.message : error);
+    });
+  };
+  report();
+  const timer = setInterval(report, intervalMs);
+  timer.unref();
+  return { stop: () => clearInterval(timer) };
 }
 
 export interface GameAuthBridgeOptions extends PlatformServiceClientOptions {
