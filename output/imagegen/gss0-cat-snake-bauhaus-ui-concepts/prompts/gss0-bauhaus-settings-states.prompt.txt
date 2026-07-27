@@ -1,0 +1,9 @@
+Use case: ui-mockup
+Asset type: polished HUD controls and settings-popover specification sheet
+Input images: Images 1–7 are the real V133 font, sound, dynamic-perspective, camera, screen-shake, background-pause and auto-battle popover states. Image 8 is the mandatory Bauhaus / Swiss visual master.
+Primary request: Create one coherent 16:9 UI specification board showing the persistent top-right HUD control strip and all seven corresponding popovers in a neat, readable arrangement. Preserve the actual control types and labels from the real screenshots, but restyle them with the visual master’s charcoal/ivory panels, black hairline rules, clipped square corners, compact geometric icons, toggles, radio controls and sliders. Each popover should obviously belong to the same live battle HUD, not to a separate generic settings menu.
+Required groups (verbatim): “字体大小”, “150%”, “声音大小”, “0%”, “动态透视”, “100%”, “摄像机模式”, “固定视角”, “跟随蛇头”, “跟随缩放”, “屏幕震动”, “后台暂停”, “自动战斗”, “自动选择机体”, “自动重开”, “A”.
+Icon language: Aa, speaker, perspective-grid, crosshair camera, shake brackets, background pause, yellow A auto-battle, pause. Build each icon from circles, squares, triangles and rules; add only restrained whisker-like separators.
+Style/medium: flat Bauhaus / Swiss International Typographic Style, functional desktop control board, neutral grotesk sans, ivory paper and charcoal ink, vermilion/ultramarine/yellow accents, no glow or bevel.
+Constraints: high-density but orderly component sheet; practical interaction states; same typography, spacing, colors and line weights as Image 8; readable Chinese; no watermark.
+Avoid: generic OS control panel, mobile settings page, 3D icons, cartoon stickers covering controls, unrelated panels, illegible labels, neon cyberpunk, rounded glassmorphism.

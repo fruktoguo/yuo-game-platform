@@ -1,0 +1,7 @@
+Use case: precise-object-edit
+Asset type: correction pass for the 16:9 multiplayer battle concept
+Input images: Image 1 is the current Bauhaus multiplayer-battle concept to preserve. Image 2 is the real V133 multiplayer combat screenshot for placement and labels. Image 3 is the Bauhaus visual master for the asset language.
+Primary request: Change only the top player unit labelled “@local-smoke-b” inside the arena. Make its front-most element an unmistakable compact cream cat-face head token with two triangular ears, dot eyes, tiny “w” mouth and restrained whisker lines. Behind that head, show 3–5 completely separate geometric module segments with visible gaps and thin connector lines, using a distinct ultramarine or red player accent. The cat head must be at the leading end in the travel direction. Keep the bottom/center player unit, all enemies, arena grid, scoreboard, labels, HUD controls, panels, typography and color system unchanged.
+Style/medium: flat Bauhaus / Swiss graphic design, strict 2D orthographic top-down, ivory/charcoal surfaces, solid primary colors, no glow or bevel.
+Constraints: preserve every pixel-level layout relationship as much as possible; do not add a continuous body, legs, paws, realistic fur, 3D perspective or extra text; no watermark.
+Avoid: replacing the whole scene, moving the scoreboard, changing the right status panel, removing the “@local-smoke-b” label, or rendering a headless chain.

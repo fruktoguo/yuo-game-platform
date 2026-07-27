@@ -1,0 +1,10 @@
+Use case: ui-mockup
+Asset type: high-fidelity 2D top-down gameplay and HUD concept
+Input images: Image 1 is a real rich V133 single-player combat screenshot and is the exact camera, arena, HUD and gameplay-layout target. Image 2 is the mandatory Bauhaus / Swiss visual master and defines every redesigned asset.
+Primary request: Redraw the real battle screen as a polished Bauhaus / Swiss graphic game while preserving every HUD region and the exact 2D top-down gameplay grammar. Keep the large square arena grid, top identity and settings strip, left run-stat panel, right level/health/experience panel, bottom module slots and FPS readout. Replace neon effects with flat ink symbols, bold primary-color marks and crisp rules; keep the combat readable at a glance.
+Player: at the arena center, exactly ONE compact cream cat-face head token at the front, rotated to its travel direction, followed by 5–7 fully separate polygon module segments with visible gaps and thin black connectors. Match module colors and shapes to Image 2. The head alone is feline; there is no continuous animal torso.
+Enemies: several enemy cat-head tokens with independently segmented geometric bodies, distinct outline colors and tiny health labels. Preserve off-screen indicators, pickups, projectiles, damage numbers, hit stars and status effects using flat geometric symbols: red lines, blue rings, yellow discs, fishbone marks and cross mines. No excessive particles.
+Text (verbatim): “代号：猫猫蛇”, “存活”, “击破”, “波次 / 球数 / 敌数 · 下波”, “得分”, “LV.”, “机体耐久”, “升级进度”, “槽位”, “V133”.
+Style/medium: strict Bauhaus / Swiss International Typographic Style, flat screen-printed graphic design, charcoal arena with ivory HUD plates, vermilion/ultramarine/yellow accents, neutral grotesk sans, no glow, no bevel.
+Constraints: strict orthographic flat 2D top-down view; preserve screenshot composition and game-scale proportions; crisp high-contrast production gameplay UI; no watermark.
+Avoid: any 3D render, isometric or oblique angle, continuous snake body, full furry cat body, giant mascot, side view, cinematic depth of field, excessive particles hiding combat, neon cyberpunk.

@@ -1,0 +1,8 @@
+Use case: ui-mockup
+Asset type: shippable update-history screen concept
+Input images: Image 1 is the real V133 update-log screenshot and defines structure, card rhythm and content hierarchy. Image 2 is the mandatory Bauhaus / Swiss visual master.
+Primary request: Restyle the complete update-history interface into the Bauhaus / Swiss cat-snake system without changing its function. Preserve the large scrollable desktop modal, sticky title area, close control, stacked build entries, dates, category chips, entry headings and bullet lists. Use warm ivory build cards on a charcoal shell, numbered red/blue/yellow index marks, black hairline rules, strict left alignment and a clear scroll affordance. Keep the page calm and editorial, like a Swiss design archive.
+Text (verbatim): “更新日志”, “VERSION HISTORY”, “V133”, “2026.07.24”, “玩法优化”, “自动战斗就近目标选择”, “V132”, “V131”. Preserve the remaining visible Chinese text from Image 1 where practical.
+Style/medium: flat printed graphic UI, Bauhaus geometry and Swiss typography, no character illustration dominating the page, no glow, no bevel.
+Constraints: mature polished indie-game UI; excellent text hierarchy and scroll affordance; same grid, palette and line weight as Image 2; no watermark.
+Avoid: mobile release-notes layout, 3D assets, cute scrapbook collage, illegible decorative fonts, perspective scene, neon cyberpunk, rounded glassmorphism.
