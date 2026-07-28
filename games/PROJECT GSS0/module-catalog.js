@@ -25,7 +25,7 @@
     { id: "tesla", name: "雷鸣环节", category: "攻击", color: "#f7e85b", shape: "ring", cooldown: "", activeCooldown: true, desc: "电击最近的敌蛇，并向155px内的新目标跳跃；最多命中3条敌蛇，每条受到1伤害。" },
     { id: "laser", name: "霓虹线圈", category: "攻击", color: "#39f5a6", shape: "capsule", cooldown: "", activeCooldown: true, desc: "瞬间命中最近的敌蛇，造成1伤害。" },
     { id: "missile", name: "追迹弹舱", category: "攻击", color: "#ef476f", shape: "triangle", cooldown: "", activeCooldown: true, desc: "发射1枚能够自动追踪敌蛇的追迹弹。" },
-    { id: "mine", name: "磁暴雷节", category: "攻击", color: "#9a7cff", shape: "square", cooldown: "", activeCooldown: true, desc: "布置永久存在的磁雷；引爆时对范围内每个敌方部位分别造成1伤害，玩家触发时自身只被击退。" },
+    { id: "mine", name: "磁暴雷节", category: "攻击", color: "#9a7cff", shape: "square", cooldown: "", activeCooldown: true, desc: "布置永久存在的磁雷；引爆时对半径2格内造成范围伤害，玩家触碰磁雷时可将其弹走。" },
     { id: "blade", name: "旋刃节", category: "攻击", color: "#e8eef7", shape: "diamond", cooldown: "", activeCooldown: true, desc: "发射1枚永久环绕玩家蛇头的旋刃弹；无视墙壁，可无限积攒，命中敌人造成1伤害后销毁。" },
     { id: "pulse", name: "脉冲核心", category: "攻击", color: "#3eb7ff", shape: "ring", cooldown: "", activeCooldown: true, desc: "释放半径6格的冲击波，对范围内每个敌方部位分别造成1伤害。" },
     { id: "venom", name: "腐蚀囊节", category: "攻击", color: "#8be04e", shape: "hex", cooldown: "", activeCooldown: true, desc: "发射腐蚀弹，附带1层腐蚀效果。" },
@@ -109,6 +109,8 @@
         return "扇形发射3枚子弹，附带1层冰冻效果。";
       case "blade":
         return "发射1枚永久环绕玩家蛇头的旋刃弹；无视墙壁，可无限积攒，命中敌人造成1伤害后销毁。";
+      case "mine":
+        return `布置永久存在的磁雷；引爆时对半径${formatNumber(setting(balance, "moduleMineBlastRadiusCells", 2))}格内造成范围伤害，玩家触碰磁雷时可将其弹走。`;
       case "pulse":
         return `释放半径${formatNumber(setting(balance, "modulePulseRadiusCells", 6))}格的冲击波，对范围内每个敌方部位分别造成1伤害。`;
       case "venom":
@@ -172,7 +174,7 @@
       case "headstrike":
         return `蛇头撞击敌蛇蛇头时，每级额外造成${formatNumber(setting(balance, "moduleHeadCollisionDamagePerLevel", 2))}伤害。`;
       case "vitality":
-        return `每级使最大生命值+${formatNumber(setting(balance, "moduleMaxHealthPerLevel", 6))}；装载或升级时同步恢复等量生命。`;
+        return `每级使最大生命值+${formatNumber(setting(balance, "moduleMaxHealthPerLevel", 3))}；装载或升级时同步恢复等量生命。`;
       case "renewal":
         return `每级使每秒生命恢复+${formatNumber(setting(balance, "moduleHealthRegenPerLevel", 0.5))}。`;
       case "plating":
@@ -180,13 +182,13 @@
       case "replicator":
         return `吃球时，每级有${formatPercent(setting(balance, "moduleFoodReplicationChancePerLevel", 0.06))}概率在蛇尾后方生成1枚球。此机体生成的球也可以再次触发此效果。`;
       case "medkit":
-        return `吃球时，每级恢复${formatNumber(setting(balance, "moduleFoodHealPerLevel", 1))}生命。`;
+        return `吃球时，每级恢复${formatNumber(setting(balance, "moduleFoodHealPerLevel", 0.25))}生命。`;
       case "adrenaline":
         return `每损失${formatPercent(setting(balance, "moduleMissingHealthSpeedStep", 0.03))}最大生命值，每级使移动速度提高${formatPercent(setting(balance, "moduleMissingHealthSpeedPerStepPerLevel", 0.01))}。`;
       case "berserk":
         return `每损失${formatPercent(setting(balance, "moduleMissingHealthHeadDamageStep", 0.3))}最大生命值，每级使蛇头伤害+${formatNumber(setting(balance, "moduleMissingHealthHeadDamagePerStepPerLevel", 1))}。`;
       case "recovery":
-        return `每级使所有来源的生命恢复效果提高${formatPercent(setting(balance, "moduleHealingReceivedPerLevel", 0.2))}。`;
+        return `每级使所有来源的生命恢复效果提高${formatPercent(setting(balance, "moduleHealingReceivedPerLevel", 0.1))}。`;
       case "wallbreaker":
         return `每级使敌蛇撞墙与互撞的伤害和击退提高${formatPercent(setting(balance, "moduleEnemyWallDamagePerLevel", 0.5))}`;
       case "tailguard":

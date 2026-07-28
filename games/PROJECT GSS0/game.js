@@ -134,7 +134,7 @@
   const TAU = Math.PI * 2;
   const P2P_TOAST_DURATION_MS = 2800;
   const DESIGNER_CONFIG = globalThis.GSS0_DESIGNER_CONFIG || {};
-  if (DESIGNER_CONFIG.schemaVersion !== 45) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 45");
+  if (DESIGNER_CONFIG.schemaVersion !== 46) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 46");
   const DESIGNER_BALANCE = DESIGNER_CONFIG.balance || {};
   const MODULE_DESIGN_STATES = DESIGNER_CONFIG.moduleStates || {};
 
@@ -158,8 +158,10 @@
   const MODULE_INCENDIARY_PROJECTILE_SPEED = designerNumber("moduleIncendiaryProjectileSpeed", 230, 1, 1000);
   const MODULE_INCENDIARY_PROJECTILE_SIZE = designerNumber("moduleIncendiaryProjectileSize", 7, 1, 30);
   const MODULE_INCENDIARY_HOMING = designerNumber("moduleIncendiaryHoming", 5, 0, 20);
-  const MODULE_MINE_BLAST_RADIUS_PIXELS = designerNumber("moduleMineBlastRadiusPixels", 62, 1, 500);
+  const MODULE_MINE_BLAST_RADIUS_CELLS = designerNumber("moduleMineBlastRadiusCells", 2, 0.1, 30);
+  const MODULE_MINE_KICK_DISTANCE_CELLS = designerNumber("moduleMineKickDistanceCells", 1.25, 0.1, 10);
   const MODULE_MINE_VISUAL_RADIUS_PIXELS = designerNumber("moduleMineVisualRadiusPixels", 15, 1, 60);
+  const MINE_KICK_DIRECTION_OFFSETS = Object.freeze([0, Math.PI / 4, -Math.PI / 4, Math.PI / 2, -Math.PI / 2, Math.PI * 3 / 4, -Math.PI * 3 / 4, Math.PI]);
   const XP_REQUIREMENT_BASE = designerNumber("xpRequirementBase", 5, 1, 100, true);
   const XP_REQUIREMENT_PER_LEVEL = designerNumber("xpRequirementPerLevel", 2, 0, 20, true);
 
@@ -263,7 +265,7 @@
   const PLAYER_TURN_RATE = designerNumber("playerTurnRate", 4.2, 0.5, 12);
   const AUTOMATIC_HEAD_HUNT_RANGE = designerNumber("automaticHeadHuntRange", 8, 0, 30);
   const AUTOMATIC_HEAD_APPROACH_HALF_ANGLE = designerNumber("automaticHeadApproachHalfAngleDegrees", 120, 0, 180) * Math.PI / 180;
-  const AUTOMATIC_HEAD_LEAD_DISTANCE_SEGMENTS = designerNumber("automaticHeadLeadDistanceSegments", 3, 0, 10);
+  const AUTOMATIC_HEAD_LEAD_DISTANCE_SEGMENTS = designerNumber("automaticHeadLeadDistanceSegments", 1.5, 0, 10);
   const AUTOMATIC_SHARP_TURN_THRESHOLD = designerNumber("automaticSharpTurnThresholdDegrees", 70, 0, 180) * Math.PI / 180;
   const AUTOMATIC_SELF_AVOIDANCE_STRENGTH = designerNumber("automaticSelfAvoidanceStrength", 3.2, 0, 20);
   const AUTOMATIC_SELF_AVOIDANCE_RANGE = designerNumber("automaticSelfAvoidanceRange", 3.2, 0, 10);
@@ -3643,7 +3645,6 @@
       const normalRow = player.row - hazard.row;
       const key = `mine:${hazard.id}`;
       if (!reportNetworkCollision({ kind: "mine", targetId: hazard.id, normalCol, normalRow }, key)) return true;
-      bounceNetworkSelf(normalCol, normalRow, hazard.color);
       return true;
     }
     return false;
@@ -4661,9 +4662,51 @@
 
   function mineVisualRadius(hazard) {
     const scale = arenaVisualScale();
-    const baseBlastRadius = MODULE_MINE_BLAST_RADIUS_PIXELS * scale;
+    const baseBlastRadius = MODULE_MINE_BLAST_RADIUS_CELLS * arena.cellSize;
     const sizeMultiplier = baseBlastRadius > 0 ? Math.max(0.1, hazard.radius / baseBlastRadius) : 1;
     return MODULE_MINE_VISUAL_RADIUS_PIXELS * scale * sizeMultiplier;
+  }
+
+  function kickMine(hazard, kicker) {
+    const originX = hazard.x;
+    const originY = hazard.y;
+    let awayCol = hazard.col - kicker.col;
+    let awayRow = hazard.row - kicker.row;
+    if (Math.hypot(awayCol, awayRow) < 0.001) {
+      const fallbackAngle = Number.isFinite(kicker.angle) ? kicker.angle : hazard.phase || 0;
+      awayCol = Math.cos(fallbackAngle);
+      awayRow = Math.sin(fallbackAngle);
+    }
+    const baseAngle = Math.atan2(awayRow, awayCol);
+    let destinationCol = hazard.col;
+    let destinationRow = hazard.row;
+    let bestSeparationSquared = (hazard.col - kicker.col) ** 2 + (hazard.row - kicker.row) ** 2;
+    let bestMovementSquared = 0;
+    for (const offset of MINE_KICK_DIRECTION_OFFSETS) {
+      const angle = baseAngle + offset;
+      const candidateCol = clamp(hazard.col + Math.cos(angle) * MODULE_MINE_KICK_DISTANCE_CELLS, arena.worldMin, arena.worldMax);
+      const candidateRow = clamp(hazard.row + Math.sin(angle) * MODULE_MINE_KICK_DISTANCE_CELLS, arena.worldMin, arena.worldMax);
+      const separationSquared = (candidateCol - kicker.col) ** 2 + (candidateRow - kicker.row) ** 2;
+      const movementSquared = (candidateCol - hazard.col) ** 2 + (candidateRow - hazard.row) ** 2;
+      if (
+        separationSquared > bestSeparationSquared + 0.000001
+        || (Math.abs(separationSquared - bestSeparationSquared) <= 0.000001 && movementSquared > bestMovementSquared)
+      ) {
+        destinationCol = candidateCol;
+        destinationRow = candidateRow;
+        bestSeparationSquared = separationSquared;
+        bestMovementSquared = movementSquared;
+      }
+    }
+    if (bestMovementSquared <= 0.000001) return false;
+    hazard.col = destinationCol;
+    hazard.row = destinationRow;
+    syncNodePosition(hazard);
+    burst(originX, originY, hazard.color, 13, 135);
+    effects.push({ type: "ring", x: originX, y: originY, color: hazard.color, life: 0.38, maxLife: 0.38, radius: 5, endRadius: arena.cellSize * 0.85 });
+    sound("bounce");
+    triggerScreenShake(2.5);
+    return true;
   }
 
   function repulseRangePixels() {
@@ -6081,7 +6124,7 @@
           segment.timer = activeModuleCooldown("missile", segment.moduleLevel);
           break;
         case "mine":
-          hazards.push({ kind: "mine", x: segment.x, y: segment.y, col: segment.col, row: segment.row, life: Infinity, arm: 0.55, radius: MODULE_MINE_BLAST_RADIUS_PIXELS * arenaVisualScale() * attackSizeMultiplier(), color: MODULE_BY_ID.mine.color, phase: random(0, TAU) });
+          hazards.push({ kind: "mine", x: segment.x, y: segment.y, col: segment.col, row: segment.row, life: Infinity, arm: 0.55, radius: MODULE_MINE_BLAST_RADIUS_CELLS * arena.cellSize * attackSizeMultiplier(), color: MODULE_BY_ID.mine.color, phase: random(0, TAU) });
           playSkillSound("mine");
           segment.timer = activeModuleCooldown("mine", segment.moduleLevel);
           break;
@@ -7187,7 +7230,11 @@
       if (hazard.arm > 0) continue;
       const enemyTrigger = hasEnemyJointWithinDistance(hazard, hazard.radius);
       const playerTrigger = Math.hypot(player.x - hazard.x, player.y - hazard.y) < player.radius + mineVisualRadius(hazard);
-      if (!enemyTrigger && !playerTrigger) continue;
+      if (playerTrigger) {
+        kickMine(hazard, player);
+        continue;
+      }
+      if (!enemyTrigger) continue;
       effects.push({ type: "ring", x: hazard.x, y: hazard.y, color: hazard.color, life: 0.5, maxLife: 0.5, radius: 10, endRadius: hazard.radius });
       burst(hazard.x, hazard.y, hazard.color, 18, 150);
       for (const enemy of enemies) {
@@ -7195,7 +7242,6 @@
         const hitIndexes = circularEnemyHitIndexes(hazard.x, hazard.y, hazard.radius, enemy);
         if (hitIndexes.length) damageEnemyParts(enemy, hitIndexes, hazard.x, hazard.y, hazard.color);
       }
-      if (playerTrigger) bounceEntity(player, player.x - hazard.x, player.y - hazard.y, hazard.color);
       hazard.life = 0;
       sound("mine");
       triggerScreenShake(5);

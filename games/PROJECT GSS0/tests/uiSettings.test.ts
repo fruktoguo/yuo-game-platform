@@ -10,7 +10,7 @@ describe('界面设置', () => {
   it('使用正式游戏名并在左上品牌卡显示当前版本', () => {
     expect(indexHtml).toContain('<title>代号：几何贪吃蛇</title>');
     expect(indexHtml).toContain('<h1 id="game-title"><span>代号：几何贪吃蛇</span></h1>');
-    expect(indexHtml).toContain('<span class="brand-version" aria-label="游戏版本 V129">V129</span>');
+    expect(indexHtml).toContain('<span class="brand-version" aria-label="游戏版本 V134">V134</span>');
     expect(styles).toContain('.brand-version');
     const brandTitleRule = styles.match(/\.brand-lockup strong\s*\{([^}]*)\}/)?.[1];
     const brandVersionRule = styles.match(/\.brand-version\s*\{([^}]*)\}/)?.[1];

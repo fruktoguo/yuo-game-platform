@@ -45,7 +45,7 @@ describe('设计配置', () => {
       playerTurnRate: 4.2,
       automaticHeadHuntRange: 8,
       automaticHeadApproachHalfAngleDegrees: 120,
-      automaticHeadLeadDistanceSegments: 3,
+      automaticHeadLeadDistanceSegments: 1.5,
       automaticSharpTurnThresholdDegrees: 70,
       automaticSelfAvoidanceStrength: 3.2,
       automaticSelfAvoidanceRange: 3.2,
@@ -98,7 +98,8 @@ describe('设计配置', () => {
       moduleAttackSizePerLevel: 0.1,
       moduleStatusStrikeStacksPerLevel: 1,
       moduleStatusEffectBonusPerLevel: 0.1,
-      moduleMineBlastRadiusPixels: 62,
+      moduleMineBlastRadiusCells: 2,
+      moduleMineKickDistanceCells: 1.25,
       moduleMineVisualRadiusPixels: 15,
       moduleCollisionDoubleChancePerLevel: 0.2,
       moduleProjectileDoubleChancePerLevel: 0.12,
@@ -124,11 +125,12 @@ describe('设计配置', () => {
       moduleEnemyWallKnockbackPerLevel: 0.5,
       moduleDeathBurstProjectilesPerLevel: 2,
       moduleBonusXpChancePerLevel: 0.1,
-      moduleMaxHealthPerLevel: 5,
+      moduleMaxHealthPerLevel: 3,
       moduleHealthRegenPerLevel: 0.25,
       moduleDamageReductionPerLevel: 0.1,
       moduleFoodReplicationChancePerLevel: 0.06,
-      moduleFoodHealPerLevel: 0.5,
+      moduleFoodHealPerLevel: 0.25,
+      moduleHealingReceivedPerLevel: 0.1,
       moduleCacheKillsPerTrigger: 5,
       moduleCrisisRegenPerLevel: 0.5,
       arenaBaseArea: 300,
@@ -217,8 +219,8 @@ describe('设计配置', () => {
     expect(moduleCooldownSeconds('fan')).toBeCloseTo(22.5);
     expect(moduleCooldownPercent('barrage')).toBe(1500);
     expect(moduleCooldownSeconds('barrage')).toBe(90);
-    expect(moduleCooldownPercent('shield')).toBe(500);
-    expect(moduleCooldownSeconds('shield')).toBe(30);
+    expect(moduleCooldownPercent('shield')).toBe(600);
+    expect(moduleCooldownSeconds('shield')).toBe(36);
   });
 
   it('没有独立冷却的常驻与触发型机体统一归为被动技能', () => {
@@ -252,8 +254,8 @@ describe('设计配置', () => {
 
     expect(parameterKeys.sort()).toEqual(Object.keys(DESIGNER_BALANCE).sort());
     expect(moduleIds.sort()).toEqual(MODULES.map((module) => module.id).sort());
-    expect(moduleProgressionSource).toContain('config?.schemaVersion !== 45');
-    expect(new Set(parameterKeys).size).toBe(240);
+    expect(moduleProgressionSource).toContain('config?.schemaVersion !== 46');
+    expect(new Set(parameterKeys).size).toBe(241);
     expect(parameterKeys).not.toContain('playerSpeedPerLevel');
     expect(parameterKeys).not.toContain('moduleEffectReductionMaximum');
     expect(parameterKeys).not.toContain('newModuleOfferChance');
@@ -266,6 +268,7 @@ describe('设计配置', () => {
     expect(new Set(MODULES.map((module) => module.id)).size).toBe(MODULES.length);
     expect(MODULES.find((module) => module.id === 'spark')?.desc).toBe('向随机方向发射1枚子弹。');
     expect(MODULES.find((module) => module.id === 'frost')?.desc).toBe('扇形发射3枚子弹，附带1层冰冻效果。');
+    expect(MODULES.find((module) => module.id === 'mine')?.desc).toBe('布置永久存在的磁雷；引爆时对半径2格内造成范围伤害，玩家触碰磁雷时可将其弹走。');
     expect(MODULES.find((module) => module.id === 'echo')?.desc).toContain('每级向随机方向发射2枚子弹');
     expect(MODULES.find((module) => module.id === 'barrage')?.desc).toBe('向四周发射16枚可无限反弹墙壁的子弹。');
     expect(MODULES.find((module) => module.id === 'wallbreaker')?.desc).toBe('每级使敌蛇撞墙与互撞的伤害和击退提高50%');
@@ -290,8 +293,8 @@ describe('设计配置', () => {
     expect(MODULES.some((module) => ['输出', '进攻', '防御', '恢复'].includes(module.category as string))).toBe(false);
     expect(MODULES.every((module) => ['攻击', '生存', '辅助', '发育'].includes(module.category))).toBe(true);
     expect(MODULES.filter((module) => module.category === '发育')).toHaveLength(9);
-    expect(editorHtml).toContain('src="module-catalog.js?v=133"');
-    expect(editorHtml).toContain('src="module-progression.js?v=133"');
+    expect(editorHtml).toContain('src="module-catalog.js?v=134"');
+    expect(editorHtml).toContain('src="module-progression.js?v=134"');
     expect(editorHtml).toContain('const MODULES = moduleCatalog;');
     expect(editorHtml).toContain('descriptionText.textContent = describeModule(module.id, draft.balance);');
     expect(editorHtml).toContain('descriptionNote.textContent = describeModuleNote(module.id, draft.balance);');

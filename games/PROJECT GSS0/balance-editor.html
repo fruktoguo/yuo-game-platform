@@ -401,12 +401,12 @@
     </div>
   </main>
 
-  <script src="enemy-codex.js?v=133"></script>
-  <script src="wave-director.js?v=133"></script>
-  <script src="designer-config.js?v=133"></script>
-  <script src="status-catalog.js?v=133"></script>
-  <script src="module-catalog.js?v=133"></script>
-  <script src="module-progression.js?v=133"></script>
+  <script src="enemy-codex.js?v=134"></script>
+  <script src="wave-director.js?v=134"></script>
+  <script src="designer-config.js?v=134"></script>
+  <script src="status-catalog.js?v=134"></script>
+  <script src="module-catalog.js?v=134"></script>
+  <script src="module-progression.js?v=134"></script>
   <script>
     (() => {
       "use strict";
@@ -562,7 +562,8 @@
         { key: "moduleCorrosionFieldMaxDuration", moduleId: "corrosionfield", group: "腐蚀地痕节", label: "地形时长上限", hint: "腐蚀地形存在时间的最高值", min: 0.1, max: 10, step: 0.1, unit: "秒" },
         { key: "moduleStatusStrikeStacksPerLevel", moduleId: "statusstrike", group: "异态撞针", label: "每级随机异常层数", hint: "每次撞击敌人时，每一级独立随机附加的异常状态层数", min: 0, max: 10, step: 1, unit: "层/级" },
         { key: "moduleStatusEffectBonusPerLevel", moduleId: "statusamp", group: "异态增幅节", label: "每级异常效果", hint: "每一级提高冰冻减速幅度、燃烧层数与腐蚀生效频率的比例", min: 0, max: 2, step: 0.01, unit: "倍率/级" },
-        { key: "moduleMineBlastRadiusPixels", moduleId: "mine", group: "磁暴雷节", label: "地雷爆炸半径", hint: "武装扩容倍率生效前，磁暴雷的基础触发与爆炸范围", min: 1, max: 500, step: 1, unit: "px" },
+        { key: "moduleMineBlastRadiusCells", moduleId: "mine", group: "磁暴雷节", label: "地雷爆炸半径", hint: "武装扩容倍率生效前，磁暴雷的基础触发与爆炸范围", min: 0.1, max: 30, step: 0.1, unit: "格" },
+        { key: "moduleMineKickDistanceCells", moduleId: "mine", group: "磁暴雷节", label: "地雷弹开距离", hint: "玩家蛇头触碰时，磁雷沿远离玩家方向弹开的距离", min: 0.1, max: 10, step: 0.05, unit: "格" },
         { key: "moduleMineVisualRadiusPixels", moduleId: "mine", group: "磁暴雷节", label: "地雷标记半径", hint: "武装扩容倍率生效前，圆形地雷标记的基础视觉与触碰半径", min: 1, max: 60, step: 1, unit: "px" },
         { key: "moduleCollisionDoubleChancePerLevel", moduleId: "doublehit", group: "倍击撞针", label: "每级撞击翻倍概率", hint: "每次造成撞击伤害时，使该次伤害翻倍的概率", min: 0, max: 1, step: 0.01, unit: "概率/级" },
         { key: "moduleProjectileDoubleChancePerLevel", moduleId: "multishot", group: "齐射增殖节", label: "每级倍弹概率", hint: "每次发射子弹时，使该枚子弹复制为两枚的概率", min: 0, max: 1, step: 0.01, unit: "概率/级" },
@@ -730,7 +731,7 @@
       const filePickerSupported = typeof window.showOpenFilePicker === "function";
 
       function normalizeConfig(value) {
-        const config = { schemaVersion: 45, balance: {}, waveEnemyCountSchedule: [], moduleCooldownPercentages: {}, moduleNames: {}, moduleStates: {} };
+        const config = { schemaVersion: 46, balance: {}, waveEnemyCountSchedule: [], moduleCooldownPercentages: {}, moduleNames: {}, moduleStates: {} };
         for (const definition of ALL_PARAMETER_DEFINITIONS) {
           const candidate = Number(value?.balance?.[definition.key]);
           config.balance[definition.key] = Number.isFinite(candidate) ? Math.max(definition.min, Math.min(definition.max, candidate)) : definition.min;
@@ -769,7 +770,7 @@
         const end = text.lastIndexOf("}");
         if (start < 0 || end <= start) throw new Error("配置内容不完整");
         const parsed = JSON.parse(text.slice(start, end + 1));
-        if (parsed?.schemaVersion !== 45) throw new Error("配置版本无效，需要 schemaVersion 45");
+        if (parsed?.schemaVersion !== 46) throw new Error("配置版本无效，需要 schemaVersion 46");
         return normalizeConfig(parsed);
       }
 

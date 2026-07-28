@@ -116,6 +116,7 @@ import type {
 import type { HitClaim, SkillSpawn, WorldCommit } from '../shared/roomProtocol';
 
 const TAU = Math.PI * 2;
+const MINE_KICK_DIRECTION_OFFSETS = [0, Math.PI / 4, -Math.PI / 4, Math.PI / 2, -Math.PI / 2, Math.PI * 3 / 4, -Math.PI * 3 / 4, Math.PI] as const;
 const ENEMY_HEAD_RADIUS_CELLS = 0.28 * SNAKE_BODY_SIZE_SCALE;
 const SNAKE_BODY_CONTACT_RANGE = 0.42 * SNAKE_BODY_SIZE_SCALE;
 const ENEMY_BODY_CONTACT_RANGE = 0.46 * SNAKE_BODY_SIZE_SCALE;
@@ -628,7 +629,7 @@ export class UltraWorld {
     if (claim.kind === 'mine') {
       const hazard = this.hazards.find((item) => item.id === claim.targetId && item.ownerEntityId === player.entityId && item.kind === 'mine');
       if (!hazard || hazard.life <= 0 || hazard.arm > 0 || distanceSquared(player, hazard) > 9) return false;
-      this.triggerMine(hazard, player, false);
+      this.kickMine(hazard, player);
       return true;
     }
     const enemy = this.enemies.find((item) => item.id === claim.targetId && !item.dead);
@@ -2828,7 +2829,7 @@ export class UltraWorld {
           segment.timer = this.activeModuleCooldown(player, 'missile', segment.moduleLevel);
           break;
         case 'mine':
-          this.addHazard({ id: this.allocateHazardId(), ownerEntityId: player.entityId, kind: 'mine', moduleId: 'mine', col: segment.col, row: segment.row, life: Number.POSITIVE_INFINITY, arm: 0.55, radius: this.pixelsToCells(DESIGNER_BALANCE.moduleMineBlastRadiusPixels) * this.attackSizeMultiplier(player), color: MODULE_BY_ID.mine.color, phase: this.randomBetween(0, TAU) });
+          this.addHazard({ id: this.allocateHazardId(), ownerEntityId: player.entityId, kind: 'mine', moduleId: 'mine', col: segment.col, row: segment.row, life: Number.POSITIVE_INFINITY, arm: 0.55, radius: DESIGNER_BALANCE.moduleMineBlastRadiusCells * this.attackSizeMultiplier(player), color: MODULE_BY_ID.mine.color, phase: this.randomBetween(0, TAU) });
           this.playSkillSound(player, 'mine');
           segment.timer = this.activeModuleCooldown(player, 'mine', segment.moduleLevel);
           break;
@@ -3799,8 +3800,11 @@ export class UltraWorld {
         }
       }
       const ownerTriggered = owner.autopilot && owner.alive && !owner.ghost && Math.hypot(owner.col - hazard.col, owner.row - hazard.row) < this.playerHeadRadiusCells() + this.mineVisualRadiusCells(hazard);
-      if (!trigger && !ownerTriggered) continue;
-      this.triggerMine(hazard, owner, ownerTriggered);
+      if (ownerTriggered) {
+        this.kickMine(hazard, owner);
+        continue;
+      }
+      if (trigger) this.triggerMine(hazard, owner);
     }
     this.updateCorrosionFields(delta);
   }
@@ -3864,7 +3868,48 @@ export class UltraWorld {
     target.corrosionOwnerEntityId = owner?.entityId ?? null;
   }
 
-  private triggerMine(hazard: HazardEntity, owner: PlayerEntity, bounceOwner: boolean): void {
+  private kickMine(hazard: HazardEntity, owner: PlayerEntity): void {
+    const originCol = hazard.col;
+    const originRow = hazard.row;
+    let awayCol = hazard.col - owner.col;
+    let awayRow = hazard.row - owner.row;
+    if (Math.hypot(awayCol, awayRow) < 0.001) {
+      awayCol = Math.cos(owner.angle);
+      awayRow = Math.sin(owner.angle);
+    }
+    const baseAngle = Math.atan2(awayRow, awayCol);
+    let destinationCol = hazard.col;
+    let destinationRow = hazard.row;
+    let bestSeparationSquared = distanceSquared(hazard, owner);
+    let bestMovementSquared = 0;
+    for (const offset of MINE_KICK_DIRECTION_OFFSETS) {
+      const angle = baseAngle + offset;
+      const candidateCol = clamp(hazard.col + Math.cos(angle) * DESIGNER_BALANCE.moduleMineKickDistanceCells, this.arenaMinimum(), this.arenaMaximum());
+      const candidateRow = clamp(hazard.row + Math.sin(angle) * DESIGNER_BALANCE.moduleMineKickDistanceCells, this.arenaMinimum(), this.arenaMaximum());
+      const separationSquared = (candidateCol - owner.col) ** 2 + (candidateRow - owner.row) ** 2;
+      const movementSquared = (candidateCol - hazard.col) ** 2 + (candidateRow - hazard.row) ** 2;
+      if (
+        separationSquared > bestSeparationSquared + 0.000001
+        || (Math.abs(separationSquared - bestSeparationSquared) <= 0.000001 && movementSquared > bestMovementSquared)
+      ) {
+        destinationCol = candidateCol;
+        destinationRow = candidateRow;
+        bestSeparationSquared = separationSquared;
+        bestMovementSquared = movementSquared;
+      }
+    }
+    if (bestMovementSquared <= 0.000001) return;
+    hazard.col = destinationCol;
+    hazard.row = destinationRow;
+    this.pendingHazardRemovals.delete(hazard.id);
+    this.pendingHazardUpserts.set(hazard.id, hazard);
+    this.burst(originCol, originRow, hazard.color, 13, 135, owner.entityId);
+    this.ring(originCol, originRow, hazard.color, 0.38, 5, 0.85, owner.entityId, 'cells');
+    this.feedback('bounce', owner.entityId);
+    this.effectSound('bounce', owner.entityId);
+  }
+
+  private triggerMine(hazard: HazardEntity, owner: PlayerEntity): void {
     this.ring(hazard.col, hazard.row, hazard.color, 0.5, 10, hazard.radius, owner.entityId);
     this.burst(hazard.col, hazard.row, hazard.color, 18, 150, owner.entityId);
     this.feedback('blast', owner.entityId);
@@ -3873,7 +3918,6 @@ export class UltraWorld {
       const hitIndexes = this.circularTargetHitIndexes(hazard, hazard.radius, hostile);
       if (hitIndexes.length > 0) this.damageTargetParts(owner, hostile, hitIndexes, hazard, hazard.color, hazard.moduleId ?? null);
     }
-    if (bounceOwner) this.bounceEntity(owner, owner.col - hazard.col, owner.row - hazard.row, hazard.color);
     hazard.life = 0;
     this.effectSound('mine', owner.entityId);
   }
@@ -4415,7 +4459,7 @@ export class UltraWorld {
   }
 
   private mineVisualRadiusCells(hazard: HazardEntity): number {
-    const baseBlastRadius = this.pixelsToCells(DESIGNER_BALANCE.moduleMineBlastRadiusPixels);
+    const baseBlastRadius = DESIGNER_BALANCE.moduleMineBlastRadiusCells;
     const sizeMultiplier = baseBlastRadius > 0 ? Math.max(0.1, hazard.radius / baseBlastRadius) : 1;
     return this.pixelsToCells(DESIGNER_BALANCE.moduleMineVisualRadiusPixels) * sizeMultiplier;
   }

@@ -12,7 +12,7 @@ interface DesignerConfigSource {
 }
 
 const source = (globalThis as typeof globalThis & { GSS0_DESIGNER_CONFIG?: DesignerConfigSource }).GSS0_DESIGNER_CONFIG;
-if (source?.schemaVersion !== 45) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 45');
+if (source?.schemaVersion !== 46) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 46');
 
 function numberSetting(key: string, fallback: number, minimum: number, maximum: number, integer = false): number {
   const candidate = source?.balance?.[key];
@@ -71,7 +71,7 @@ export const DESIGNER_BALANCE = Object.freeze({
   playerTurnRate: numberSetting('playerTurnRate', 4.2, 0.5, 12),
   automaticHeadHuntRange: numberSetting('automaticHeadHuntRange', 8, 0, 30),
   automaticHeadApproachHalfAngleDegrees: numberSetting('automaticHeadApproachHalfAngleDegrees', 120, 0, 180),
-  automaticHeadLeadDistanceSegments: numberSetting('automaticHeadLeadDistanceSegments', 3, 0, 10),
+  automaticHeadLeadDistanceSegments: numberSetting('automaticHeadLeadDistanceSegments', 1.5, 0, 10),
   automaticSharpTurnThresholdDegrees: numberSetting('automaticSharpTurnThresholdDegrees', 70, 0, 180),
   automaticSelfAvoidanceStrength: numberSetting('automaticSelfAvoidanceStrength', 3.2, 0, 20),
   automaticSelfAvoidanceRange: numberSetting('automaticSelfAvoidanceRange', 3.2, 0, 10),
@@ -163,7 +163,8 @@ export const DESIGNER_BALANCE = Object.freeze({
   moduleCorrosionFieldMaxDuration: numberSetting('moduleCorrosionFieldMaxDuration', 10, 0.1, 10),
   moduleStatusStrikeStacksPerLevel: numberSetting('moduleStatusStrikeStacksPerLevel', 1, 0, 10, true),
   moduleStatusEffectBonusPerLevel: numberSetting('moduleStatusEffectBonusPerLevel', 0.1, 0, 2),
-  moduleMineBlastRadiusPixels: numberSetting('moduleMineBlastRadiusPixels', 62, 1, 500),
+  moduleMineBlastRadiusCells: numberSetting('moduleMineBlastRadiusCells', 2, 0.1, 30),
+  moduleMineKickDistanceCells: numberSetting('moduleMineKickDistanceCells', 1.25, 0.1, 10),
   moduleMineVisualRadiusPixels: numberSetting('moduleMineVisualRadiusPixels', 15, 1, 60),
   moduleCollisionDoubleChancePerLevel: numberSetting('moduleCollisionDoubleChancePerLevel', 0.2, 0, 1),
   moduleProjectileDoubleChancePerLevel: numberSetting('moduleProjectileDoubleChancePerLevel', 0.12, 0, 1),
@@ -210,16 +211,16 @@ export const DESIGNER_BALANCE = Object.freeze({
   moduleShieldMaxCharges: numberSetting('moduleShieldMaxCharges', 5, 1, 20, true),
   moduleBonusXpChancePerLevel: numberSetting('moduleBonusXpChancePerLevel', 0.1, 0, 1),
   moduleHeadCollisionDamagePerLevel: numberSetting('moduleHeadCollisionDamagePerLevel', 2, 0, 100, true),
-  moduleMaxHealthPerLevel: numberSetting('moduleMaxHealthPerLevel', 6, 0, 100),
+  moduleMaxHealthPerLevel: numberSetting('moduleMaxHealthPerLevel', 3, 0, 100),
   moduleHealthRegenPerLevel: numberSetting('moduleHealthRegenPerLevel', 0.5, 0, 20),
   moduleDamageReductionPerLevel: numberSetting('moduleDamageReductionPerLevel', 0.1, 0, 1),
   moduleFoodReplicationChancePerLevel: numberSetting('moduleFoodReplicationChancePerLevel', 0.06, 0, 1),
-  moduleFoodHealPerLevel: numberSetting('moduleFoodHealPerLevel', 1, 0, 100),
+  moduleFoodHealPerLevel: numberSetting('moduleFoodHealPerLevel', 0.25, 0, 100),
   moduleMissingHealthSpeedStep: numberSetting('moduleMissingHealthSpeedStep', 0.03, 0.01, 1),
   moduleMissingHealthSpeedPerStepPerLevel: numberSetting('moduleMissingHealthSpeedPerStepPerLevel', 0.01, 0, 1),
   moduleMissingHealthHeadDamageStep: numberSetting('moduleMissingHealthHeadDamageStep', 0.3, 0.01, 1),
   moduleMissingHealthHeadDamagePerStepPerLevel: numberSetting('moduleMissingHealthHeadDamagePerStepPerLevel', 1, 0, 100, true),
-  moduleHealingReceivedPerLevel: numberSetting('moduleHealingReceivedPerLevel', 0.2, 0, 5),
+  moduleHealingReceivedPerLevel: numberSetting('moduleHealingReceivedPerLevel', 0.1, 0, 5),
   moduleEnemyWallDamagePerLevel: numberSetting('moduleEnemyWallDamagePerLevel', 0.5, 0, 10),
   moduleEnemyWallKnockbackPerLevel: numberSetting('moduleEnemyWallKnockbackPerLevel', 0.5, 0, 10),
   moduleTailGuardSegmentsPerLevel: numberSetting('moduleTailGuardSegmentsPerLevel', 2, 0, 20, true),
