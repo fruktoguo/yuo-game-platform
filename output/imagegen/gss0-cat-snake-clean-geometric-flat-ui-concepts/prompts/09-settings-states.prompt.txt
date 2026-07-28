@@ -1,0 +1,8 @@
+Use case: ui-mockup
+Asset type: polished HUD controls and settings-popover specification sheet
+Input images: Images 1–7 are the real GSS0 font, sound, dynamic-perspective, camera, screen-shake, background-pause and auto-battle popover states. Image 8 is the mandatory clean geometric flat visual master.
+Primary request: Create one coherent 16:9 UI specification board showing the persistent top-right HUD control strip and all seven corresponding popovers in a neat readable arrangement. Preserve the real control types, values and labels, but use Image 8’s flat panels, thick near-black outlines, generous spacing, solid state colors and minimal icons. Every popover must clearly belong to the same live battle HUD rather than a separate settings app.
+Component treatment: off-white panels on deep navy, large sliders, simple toggles and radio rows, one-color focus states, very few nested borders. Icons are direct geometric symbols: Aa, speaker, perspective grid, crosshair camera, shake brackets, background pause, yellow A auto-battle and pause. Do not use paws, ears, faces or mascot decoration in controls.
+Required groups (verbatim): “字体大小”, “150%”, “声音大小”, “0%”, “动态透视”, “100%”, “摄像机模式”, “固定视角”, “跟随蛇头”, “跟随缩放”, “屏幕震动”, “后台暂停”, “自动战斗”, “自动选择机体”, “自动重开”, “A”.
+Constraints: high-density but orderly component sheet; practical interaction states; same typography, colors, spacing and outline weight as Image 8; readable Chinese; no watermark.
+Avoid: generic OS settings page, visual clutter, too many borders, cat stickers, 3D icons, gradients, neon glow, glassmorphism, paper/editorial layout, unrelated panels, illegible labels.

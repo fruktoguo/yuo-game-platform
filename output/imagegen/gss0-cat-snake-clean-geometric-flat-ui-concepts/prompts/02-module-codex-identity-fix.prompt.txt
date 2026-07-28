@@ -1,0 +1,6 @@
+Use case: precise-object-edit
+Asset type: final identity-text correction for the clean geometric flat module-codex concept
+Input images: Image 1 is the edit target. Image 2 is the approved clean geometric flat visual master and confirms the correct game identity and typography.
+Primary request: Change only the small identity text in the top-left header of Image 1. Replace “代号：几何贪吃蛇” with “代号：猫猫蛇”, and replace the adjacent yellow build tag “V133” with “V134”. Keep the existing logo mark, “by 四季鸽”, positions, font weight, scale, colors and baseline.
+Constraints: preserve every other part of Image 1 as closely as possible: “机体图鉴”, MODULE ARCHIVE, close button, filters, 53-count label, all six module rows, icons, names, descriptions, values, archive numbers, palette, spacing, borders, background and exact 16:9 composition. No redesign, no reflow, no new text, no watermark.
+Avoid: changing any module card, moving the header, changing category colors, adding cat decoration, repainting the screen, changing the title, changing “by 四季鸽”, 3D, gradients or glow.

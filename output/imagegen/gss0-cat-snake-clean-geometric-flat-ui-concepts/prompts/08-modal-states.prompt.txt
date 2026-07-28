@@ -1,0 +1,10 @@
+Use case: ui-mockup
+Asset type: polished game interaction-state concept sheet
+Input images: Image 1 is the real GSS0 pause screen. Image 2 is the real module-upgrade selection. Image 3 is the real game-over result screen. Image 4 is the mandatory clean geometric flat visual master.
+Primary request: Create one cohesive 16:9 presentation sheet with three large clearly separated in-game panels: left “行动暂停”, center “选择身体模块”, right “行动结束”. Preserve each real screenshot’s layout and interaction hierarchy while applying Image 4’s clean flat panels, thick outlines, generous spacing and solid category colors.
+Pause panel: quiet dimmed top-down arena behind one compact off-white modal with large simple buttons: “继续游戏”, “重新开始”, “返回主菜单”.
+Upgrade panel: quiet dimmed arena behind three practical off-white module cards. Each card has one large module token whose silhouette/color exactly matches the battle and codex system, plus type, short description, current/next level and upgrade/new state. Use one small “LEVEL UP / 等级突破” strip.
+Result panel: quiet dimmed arena behind a clear score card showing final score, level, kills, survival time and two actions.
+Text (verbatim): “行动暂停”, “OPERATION PAUSED”, “继续游戏”, “重新开始”, “返回主菜单”, “选择身体模块”, “MODULE ACQUISITION”, “等级提升至”, “生命扩容节”, “涡轮节”, “超频增幅节”, “行动结束”, “OPERATION COMPLETE”, “最终得分”, “等级”, “击破”, “存活”, “再来一局”.
+Constraints: three panels share identical arena, palette, outline weight, typography, card and button system; immediately readable desktop controls; no watermark.
+Avoid: three unrelated styles, ornate cards, too many borders, cat stickers, 3D, gradients, stained glass, editorial poster, continuous snake bodies, phone screens, oversized illustrations.

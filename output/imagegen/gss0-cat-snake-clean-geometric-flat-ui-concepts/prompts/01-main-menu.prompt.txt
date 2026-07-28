@@ -1,0 +1,9 @@
+Use case: ui-mockup
+Asset type: shippable 16:9 desktop game main-menu concept
+Input images: Image 1 is the real GSS0 main-menu screenshot and is the mandatory layout, function and information-hierarchy target. Image 2 is the approved clean geometric flat visual master and is the mandatory style and asset reference.
+Primary request: Redraw the real main menu as “GSS0 / 猫猫蛇” using Image 2’s clean flat color blocks, bold uniform outlines and restrained cat expressions. Preserve the real scan order and functional zones: identity/build, network status, large single-player and multiplayer buttons, three archive buttons, local high score and action-brief panel.
+Backdrop: a calm nearly solid deep-navy arena with a very sparse grid. Include one small strict top-down player unit as atmosphere: exactly one cream expressive cat-face head followed by clearly separated solid-color module tokens with thin connectors. Keep the backdrop quiet and subordinate to the menu.
+UI treatment: large simple off-white and category-color rectangles with thick near-black borders, generous padding, minimal iconography and no decorative micro-patterns. Buttons must be recognizable by shape and color before their labels are read. Cat personality is limited to the unit head and one small identity icon.
+Text (verbatim): “代号：猫猫蛇”, “吞噬 / 构筑 / 生存”, “单人模式”, “多人模式”, “机体图鉴”, “敌人图鉴”, “更新日志”, “本地最高分”, “行动简报”, “V134”. Preserve other useful Chinese gameplay copy from Image 1 where practical; do not add slogans.
+Constraints: practical Chinese desktop game UI; same palette, outline weight, module shapes and typography as Image 2; clean 16:9 hierarchy; large readable controls; no watermark.
+Avoid: visual clutter, editorial poster layout, Swiss measurement marks, paper texture, cat stickers everywhere, giant mascot, continuous snake body, 3D, isometric or oblique view, neon glow, gradients, glass panels, mobile layout, ornamental typography.
