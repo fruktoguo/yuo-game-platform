@@ -1,0 +1,9 @@
+Use case: ui-mockup
+Asset type: shippable 16:9 desktop arcade-game main-menu concept
+Input images: Image 1 is the real V133 main-menu screenshot and defines the functional zones, proportions and scan order. Image 2 is the mandatory Kinetic Swiss Arcade visual master and defines all redesigned assets.
+Primary request: Restyle the real V133 main menu into a high-energy “Kinetic Swiss Arcade / 动势包豪斯” direction without changing its function. Preserve game identity/build, network status, large single-player and multiplayer actions, three archive buttons, local high score and action brief. Keep a rigorous Swiss grid but use a dynamic diagonal split, saturated mode blocks, oversized cropped numerals, directional chevrons and restrained color-registration shadows. The selected action should feel ready to launch immediately.
+Backdrop: deep charcoal strict 2D arena grid with one small playable cat-snake token: exactly one cream cat head at the leading end followed by clearly separate colored modules and thin connectors. Add a short two-frame afterimage and speed rail, not a cinematic scene.
+Style/medium: flat Kinetic Swiss arcade UI; dark field, ivory text, electric cyan, cobalt, magenta, orange, yellow and lime spot colors; bold neutral grotesk type; selective glow on active elements only.
+Text (verbatim): “代号：猫猫蛇”, “吞噬 / 构筑 / 生存”, “单人模式”, “多人模式”, “机体图鉴”, “敌人图鉴”, “更新日志”, “本地最高分”, “行动简报”, “V133”. Preserve other readable Chinese gameplay copy from Image 1 where practical; do not add slogans.
+Constraints: production desktop UI, practical button hierarchy, strong color separation, same asset language as Image 2, clear 16:9 layout; no watermark.
+Avoid: mostly beige poster, giant mascot, continuous snake, 3D, isometric view, generic cyberpunk metal, mobile cards, decorative gradients, illegible typography.
