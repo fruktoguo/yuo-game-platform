@@ -1,6 +1,0 @@
-Use case: precise-object-edit
-Asset type: direction-readability correction for the multiplayer battle concept
-Input images: Image 1 is the current Kinetic Swiss Arcade multiplayer battle concept to preserve. Image 2 is the real V133 multiplayer screenshot for layout reference. Image 3 is the kinetic visual master for exact effects and geometry.
-Primary request: Change only Player A, labelled “@local-smoke-a”, near the upper arena. Keep its cream cat-face head token at the LEFT leading end and its separated yellow/cyan modules trailing to the RIGHT. Remove cyan speed streaks from the LEFT/front side of the head. Add a small left-pointing yellow direction wedge immediately ahead of the cat head and a short cyan/yellow registration-offset trail behind the last module on the RIGHT. Player B is already correct and must remain unchanged.
-Constraints: preserve both player labels, scoreboard, right status panel, bottom HUD, arena, pickups, hazards, all numbers and every other layout relationship; strict flat top-down; visible gaps and thin connectors; no watermark.
-Avoid: moving either player, changing Player B, headless chains, continuous bodies, scene replacement, extra text or excessive particles.

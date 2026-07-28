@@ -1,9 +1,0 @@
-Use case: ui-mockup
-Asset type: shippable module-codex screen concept
-Input images: Image 1 is the real V133 module-codex screenshot and defines layout, card density, filters and hierarchy. Image 2 is the mandatory Kinetic Swiss Arcade visual master.
-Primary request: Redesign the full module archive in the visual language of Image 2. Preserve header, close control, category filters, result count and dense scrollable module grid. Keep the Swiss baseline grid and compact readable data, but make category recognition immediate through saturated top rails, large geometric icons, alternating dark/ivory card fields and active color-offset shadows. Every icon is one independent body-module token, never a whole snake.
-Cards: show type badge, icon, Chinese name, cooldown/passive label, concise description, level/stat line and archive number. Include “高速枪节”, “生命扩容节”, “涡轮节”, “超频增幅节”, “星爆节”, “腐蚀囊节”. Category coding: attack hot magenta/vermilion, survival cobalt/lime, support electric cyan/teal, growth acid yellow/orange.
-Text (verbatim): “机体图鉴”, “MODULE ARCHIVE”, “全部”, “攻击”, “生存”, “辅助”, “发育”, “53 个机体”.
-Style/medium: flat kinetic Swiss graphic UI, dark shell, mixed charcoal and ivory cards, saturated spot-color rails, crisp vector icons, subtle halftone texture.
-Constraints: practical information density, readable Chinese hierarchy, consistent line weight and semantic color, no watermark.
-Avoid: uniform beige cards, 3D loot renders, fantasy collectible cards, continuous snake body, phone layout, excessive glow, rainbow noise.

@@ -27,6 +27,7 @@
 - The user permanently authorizes running `git add`, `git commit`, and `git push` outside the sandbox when required to complete this local delivery step.
 - Every game update commit subject must use `GSS0 V<version>：[<更新日志标题>] <更新日志正文>`. Copy the Chinese headline and every body item from that version's changelog in `index.html` exactly, preserving their order and punctuation and separating body items with spaces; do not use a conventional-commit prefix.
 - Do not include unrelated workspace changes or generated caches in that commit.
+- Treat repository-root `output/imagegen/` and `tmp/` as permanently local-only directories; never stage, commit, force-add, or push their contents, and preserve their local files when removing any existing Git tracking.
 - Do not skip the automatic push unless the user explicitly asks not to push or the remote is unavailable.
 
 # Lightweight Delivery Verification

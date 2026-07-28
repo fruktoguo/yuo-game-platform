@@ -1,8 +1,0 @@
-Use case: ui-mockup
-Asset type: shippable enemy-codex screen concept
-Input images: Image 1 is the real V133 enemy-codex screenshot and defines the full-screen archive shell and information hierarchy. Image 2 is the mandatory Bauhaus / Swiss visual master.
-Primary request: Redesign the enemy archive as a cohesive Bauhaus bestiary while preserving the real full-screen archive shell, close control and seven information-rich enemy articles. For every enemy preview, use only a distinct flat cat-face head token at the front and multiple clearly separated geometric body segments with visible gaps and thin connector lines. Use Swiss numbered articles, black hairline dividers, ivory data cards and solid red/blue/yellow accent strips.
-Enemy names (verbatim): “浮游体”, “觅食者”, “搬运者”, “冲角者”, “截断者”, “巡猎者”, “守卫者”. Also preserve “敌人图鉴”, “HOSTILE ARCHIVE”, parameter rows, behavior tags and archive numbers.
-Style/medium: Bauhaus / Swiss International Typographic Style, flat screen-printed graphic design, neutral grotesk typography, matte ivory/charcoal surfaces, no glow or 3D.
-Constraints: strict 2D top-down preview assets inside each card; readable compact Chinese data; practical production desktop UI; the same geometry, palette and line weight as Image 2; no watermark.
-Avoid: continuous organic snake body, one-piece animal torso, side-view cats, realistic fur, 3D models, cinematic diorama, generic monster portraits, neon cyberpunk, ornamental clutter.

@@ -1,8 +1,0 @@
-Use case: ui-mockup
-Asset type: high-fidelity 2D top-down multiplayer arcade battle and scoreboard concept
-Input images: Image 1 is the real V133 multiplayer combat screenshot and defines arena, HUD and scoreboard. Image 2 is the mandatory Kinetic Swiss Arcade visual master.
-Primary request: Redraw this exact multiplayer battle in the unified kinetic Swiss direction. Preserve the left “多人记分板” with two player rows plus all battle HUD regions. Show TWO visible player cat-snakes: each must have one unmistakable cat-face head token at its leading end followed by separate geometric modules and thin connectors. Player A uses electric cyan + acid yellow; Player B uses hot magenta + cobalt. Give both short color afterimages and name-rail arrows without obscuring enemies.
-Text (verbatim): “代号：猫猫蛇”, “共享行动”, “2P”, “ID”, “LV”, “积分”, “@local-smoke-a”, “@local-smoke-b”, “存活”, “击破”, “得分”, “机体耐久”, “升级进度”.
-Style/medium: dark 2D Kinetic Swiss Arcade, compact charcoal HUD, bright type, saturated player rails, hard-edged impacts and selective glow.
-Constraints: both player heads clearly visible; scoreboard and gameplay hierarchy preserved; no split screen; no watermark.
-Avoid: headless module chains, continuous bodies, static beige layout, 3D/isometric scene, realistic cats, oversized portraits, excessive particles.

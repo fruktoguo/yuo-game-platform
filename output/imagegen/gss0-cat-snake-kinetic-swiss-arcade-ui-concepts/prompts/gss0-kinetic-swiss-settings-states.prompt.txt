@@ -1,9 +1,0 @@
-Use case: ui-mockup
-Asset type: polished live-HUD controls and settings-popover specification sheet
-Input images: Images 1–7 are the real V133 font, sound, dynamic-perspective, camera, screen-shake, background-pause and auto-battle popovers. Image 8 is the mandatory Kinetic Swiss Arcade visual master.
-Primary request: Create one coherent 16:9 specification board showing the persistent top-right HUD strip and all seven popovers. Preserve real controls and labels, but use compact charcoal plates, ivory text, saturated active rails, bold geometric icons, segmented sliders, offset-color focus shadows and tiny diagonal motion markers. Keep the board energetic and colorful while every state remains instantly comparable.
-Required groups (verbatim): “字体大小”, “150%”, “声音大小”, “0%”, “动态透视”, “100%”, “摄像机模式”, “固定视角”, “跟随蛇头”, “跟随缩放”, “屏幕震动”, “后台暂停”, “自动战斗”, “自动选择机体”, “自动重开”, “A”.
-Icon language: Aa, speaker, perspective grid, crosshair camera, shake brackets, background pause, yellow A auto-battle, pause. Use Bauhaus shapes and functional saturated coding.
-Style/medium: Kinetic Swiss component board, dark field with mixed charcoal/ivory panels, electric cyan/cobalt/magenta/orange/yellow/lime states, crisp sans typography.
-Constraints: high density but orderly; each popover belongs to the live battle HUD; consistent spacing and line weight; readable Chinese; no watermark.
-Avoid: mostly beige static specification, generic OS settings, mobile page, 3D icons, cartoon sticker clutter, illegible labels, excessive bloom.

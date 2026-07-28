@@ -1,8 +1,0 @@
-Use case: ui-mockup
-Asset type: shippable multiplayer lobby and waiting-room concept
-Input images: Image 1 is the real V133 two-player ready-room screenshot and is the exact layout/function target. Image 2 is the mandatory Kinetic Swiss Arcade visual master.
-Primary request: Restyle the real full-screen lobby while preserving its two-column structure: public-room list and create-session controls on the left; current room, code, members, ready states, host settings and actions on the right. Use a Swiss network grid animated by saturated connection rails, player-color bars, pulsing ready markers, diagonal flow arrows and large room numerals. Keep it practical, not a poster.
-Text (verbatim): “联机大厅”, “P2P SESSION CONTROL”, “公开房间”, “建立房间”, “房间名称”, “最大人数”, “猫猫蛇双人测试”, “当前房间”, “房间成员”, “2/2”, “房主”, “已准备”, “房主设置”, “中途加入”, “开始行动”, “离开房间”, “返回主菜单”.
-Style/medium: dark kinetic Swiss terminal, high-saturation player accents, ivory text surfaces used sparingly, crisp controls and color-offset active states.
-Constraints: preserve fields, statuses and button hierarchy; readable Chinese; same component language as Image 2; no watermark.
-Avoid: monotone beige control sheet, chat-app redesign, mobile lobby, fantasy tavern, 3D characters, ornamental clutter, generic cyberpunk hardware.

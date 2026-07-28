@@ -1,9 +1,0 @@
-Use case: ui-mockup
-Asset type: shippable module-codex screen concept
-Input images: Image 1 is the real V133 module-codex screenshot and defines layout, card density, filters and information hierarchy. Image 2 is the mandatory Bauhaus / Swiss visual master.
-Primary request: Redesign the real module archive in the exact Bauhaus / Swiss visual language of Image 2. Preserve the full-screen desktop archive shell, header, close control, category filters, result count and dense scrollable grid of practical module cards. Every card icon must be one independent geometric body-module token from the master, never a whole snake or animal body. Use ivory cards, black rules, bold category bars and disciplined alignment; avoid collectible-card fantasy styling.
-Cards: show type badge, icon, Chinese module name, active cooldown or passive label, concise description, level/stat line and archive number. Include representative readable names such as “高速枪节”, “生命扩容节”, “涡轮节”, “超频增幅节”, “星爆节”, “腐蚀囊节”. Keep category coding stable: attack vermilion, survival ultramarine, support teal, growth cadmium yellow.
-Style/medium: flat printed graphic UI, warm ivory paper surfaces, charcoal shell, neutral grotesk sans, strict Swiss grid, geometric circles/triangles/squares, no glow, no bevel.
-Text (verbatim): “机体图鉴”, “MODULE ARCHIVE”, “全部”, “攻击”, “生存”, “辅助”, “发育”, “53 个机体”.
-Constraints: preserve practical information density and real hierarchy; Chinese text should be compact and readable; crisp icons with one consistent line weight; no watermark.
-Avoid: 3D item renders, fantasy loot cards, large character portraits, continuous snake bodies, perspective scenes, phone layout, rounded glassmorphism, neon effects, random decorative stickers.

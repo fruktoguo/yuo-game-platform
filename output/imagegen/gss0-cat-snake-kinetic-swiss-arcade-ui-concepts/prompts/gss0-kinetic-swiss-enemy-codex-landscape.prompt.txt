@@ -1,8 +1,0 @@
-Use case: ui-mockup
-Asset type: 16:9 shippable enemy-codex screen concept
-Input images: Image 1 is the real V133 landscape enemy-codex screenshot and defines the canvas and archive structure. Image 2 is the mandatory Kinetic Swiss Arcade visual master.
-Primary request: Recompose the enemy archive as a true widescreen desktop screen containing all seven enemies. Preserve the practical multi-column archive, descriptions, parameter rows and tags. Give every article one clear cat-face head token at the leading end plus separated geometric body segments. Combine Swiss numbered articles and disciplined alignment with saturated archetype rails, directional motion arrows, compact threat meters and controlled registration-offset portraits.
-Text (verbatim): “敌人图鉴”, “HOSTILE ARCHIVE”, “浮游体”, “觅食者”, “搬运者”, “冲角者”, “截断者”, “巡猎者”, “守卫者”.
-Style/medium: dark Kinetic Swiss archive, alternating charcoal and ivory data fields, hot magenta, orange, cobalt, cyan, yellow and lime enemy coding; bold functional typography.
-Constraints: LANDSCAPE 16:9 only; all seven entries visible; strict flat top-down unit previews; disconnected module segments; readable data; no watermark.
-Avoid: portrait poster, mostly beige static editorial page, continuous snake body, realistic cats, 3D/isometric units, excessive particle effects.

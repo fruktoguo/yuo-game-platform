@@ -1,8 +1,0 @@
-Use case: ui-mockup
-Asset type: corrected 16:9 shippable enemy-codex screen concept
-Input images: Image 1 is the real V133 landscape enemy-codex screenshot and is the mandatory canvas and layout target. Image 2 is the mandatory Bauhaus / Swiss visual master.
-Primary request: Recompose the enemy archive as a true widescreen 16:9 desktop game screen matching Image 1. Fit all seven enemy articles inside one landscape archive shell in a practical multi-column grid or horizontal-card layout. Each article must show one cat-face head token followed by clearly separate geometric body segments, plus name, concise behavior description, parameter rows and tags. Preserve the strong information density while applying strict Swiss alignment, numbered sections and primary-color blocks.
-Text (verbatim): “敌人图鉴”, “HOSTILE ARCHIVE”, “浮游体”, “觅食者”, “搬运者”, “冲角者”, “截断者”, “巡猎者”, “守卫者”.
-Style/medium: flat Bauhaus / Swiss graphic UI, ivory paper cards on charcoal, ink-black rules, vermilion red, ultramarine blue and cadmium yellow accents, neutral grotesk sans.
-Constraints: LANDSCAPE 16:9 only, never portrait; full-screen desktop UI; all seven entries visible; strict flat 2D top-down unit previews; disconnected body-module segments; no watermark.
-Avoid: portrait page, vertical poster, continuous snake body, realistic cats, 3D or isometric assets, neon glow, rounded glass panels, decorative clutter.

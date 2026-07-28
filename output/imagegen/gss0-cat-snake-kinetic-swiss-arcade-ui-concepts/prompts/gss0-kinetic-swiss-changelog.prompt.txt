@@ -1,8 +1,0 @@
-Use case: ui-mockup
-Asset type: shippable update-history screen concept
-Input images: Image 1 is the real V133 update-log screenshot and defines structure, card rhythm and hierarchy. Image 2 is the mandatory Kinetic Swiss Arcade visual master.
-Primary request: Restyle the complete update history into the kinetic Swiss system without changing function. Preserve the large scrollable desktop modal, sticky title, close control, stacked builds, dates, chips, headings and bullet lists. Keep excellent editorial readability, but introduce bold version numerals, alternating dark and ivory bands, saturated category bars, diagonal page markers and small registration-offset accents so it belongs to an energetic arcade game.
-Text (verbatim): “更新日志”, “VERSION HISTORY”, “V133”, “2026.07.24”, “玩法优化”, “自动战斗就近目标选择”, “V132”, “V131”. Preserve remaining visible Chinese text where practical.
-Style/medium: Kinetic Swiss editorial UI, charcoal/ivory contrast, vermilion/cobalt/yellow/magenta index colors, subtle halftone, crisp sans typography.
-Constraints: mature polished game UI, clear scrolling and text hierarchy, no dominating character illustration, no watermark.
-Avoid: flat monotone beige release notes, mobile layout, 3D assets, scrapbook collage, illegible decorative fonts, excessive glow.

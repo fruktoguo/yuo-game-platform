@@ -5,6 +5,7 @@ data/
 artifacts/
 coverage/
 output/imagegen/
+tmp/
 .env
 .env.*
 !.env.example

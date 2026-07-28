@@ -1,8 +1,0 @@
-Use case: ui-mockup
-Asset type: high-fidelity 2D top-down multiplayer gameplay and scoreboard concept
-Input images: Image 1 is the real V133 multiplayer combat screenshot and defines exact arena, HUD and scoreboard layout. Image 2 is the mandatory Bauhaus / Swiss visual master.
-Primary request: Redraw this exact multiplayer battle in the unified Bauhaus / Swiss art direction. Preserve every single-player HUD region plus the left-side “多人记分板” with two player rows, levels and scores. Show two distinguishable player cat-snakes in the arena using different collar/outline primary colors but the same construction rules: one cat-face head token only, followed by completely separate geometric module segments and thin connectors. Enemy units follow the same head-only cat replacement rule. Use bold red and blue player markers, yellow score highlights and black rules.
-Text (verbatim): “代号：猫猫蛇”, “共享行动”, “2P”, “ID”, “LV”, “积分”, “@local-smoke-a”, “@local-smoke-b”, “存活”, “击破”, “得分”, “机体耐久”, “升级进度”.
-Style/medium: flat Bauhaus / Swiss desktop game UI, strict orthographic top-down arena, ivory data plates on charcoal, neutral grotesk typography, solid primary-color accents, no glow or 3D.
-Constraints: preserve scoreboard and gameplay hierarchy; use Image 2’s exact palette, UI geometry, module-token and arena language; no watermark.
-Avoid: 3D or isometric scene, continuous animal bodies, realistic cats, split-screen, MOBA perspective, oversized portraits, neon cyberpunk, rounded glass panels.

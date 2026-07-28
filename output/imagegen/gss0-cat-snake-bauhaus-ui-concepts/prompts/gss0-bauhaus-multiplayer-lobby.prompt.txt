@@ -1,8 +1,0 @@
-Use case: ui-mockup
-Asset type: shippable multiplayer lobby and waiting-room screen concept
-Input images: Image 1 is the real V133 two-player ready-room screenshot and is the exact layout/function target. Image 2 is the mandatory Bauhaus / Swiss visual master.
-Primary request: Restyle the real full-screen multiplayer lobby while preserving its combined two-column structure. Keep the left public-room list and create-session controls, and the right current-room/waiting-room panel with room code, member list, ready states, host settings and start/leave actions. Make it feel like a precise Swiss network terminal: red/blue/yellow status bars, numbered fields, black rules and a generous modular grid. Cat personality remains limited to the small head token and a few whisker-like separator lines.
-Text (verbatim): “联机大厅”, “P2P SESSION CONTROL”, “公开房间”, “建立房间”, “房间名称”, “最大人数”, “猫猫蛇双人测试”, “当前房间”, “房间成员”, “2/2”, “房主”, “已准备”, “房主设置”, “中途加入”, “开始行动”, “离开房间”, “返回主菜单”.
-Style/medium: flat Bauhaus / Swiss desktop UI, ivory paper cards over charcoal, neutral grotesk sans, solid primary-color accents, no glow or bevel.
-Constraints: preserve real alignment, field types, status visibility and button hierarchy from Image 1; use Image 2’s geometry and typography; readable Chinese; no watermark.
-Avoid: chat-app redesign, mobile lobby, fantasy tavern, 3D characters, ornamental background obscuring controls, neon cyberpunk, rounded glass panels.

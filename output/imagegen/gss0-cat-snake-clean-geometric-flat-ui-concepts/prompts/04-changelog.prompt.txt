@@ -1,8 +1,0 @@
-Use case: ui-mockup
-Asset type: shippable update-history screen concept
-Input images: Image 1 is the real GSS0 update-log screenshot and defines the mandatory desktop modal structure, stacked-entry rhythm and content hierarchy. Image 2 is the mandatory clean geometric flat visual master.
-Primary request: Restyle the complete update-history interface without changing its function. Preserve the large scrollable desktop panel, sticky title, close control, stacked version entries, dates, category chips, headings and bullet lists. Make long-form reading calmer than every other screen: warm off-white entry cards, deep-navy shell, one solid color bar per version, thick outer frame, thin internal rules and generous vertical spacing.
-Cat styling: one small expressive cat-head identity icon may appear in the title area only. Do not use paws, ears or faces as repeated bullets or decoration.
-Text (verbatim): “更新日志”, “VERSION HISTORY”, “V134”, “磁暴雷触碰体验与参数封装”, “V133”, “自动战斗就近目标选择”, “2026.07.28”, “V132”. Preserve remaining visible Chinese text from Image 1 where practical.
-Constraints: mature polished indie-game desktop UI; excellent Chinese text hierarchy and scroll affordance; flat colors; consistent outline weight and palette from Image 2; no watermark.
-Avoid: dense ornament, scrapbook, Swiss poster layout, stained glass, gradients, paper texture, 3D assets, character illustration dominating the page, mobile release notes, illegible decorative fonts.

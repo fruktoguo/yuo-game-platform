@@ -1,9 +1,0 @@
-Use case: ui-mockup
-Asset type: shippable module-codex screen concept
-Input images: Image 1 is the real GSS0 module-codex screenshot and defines the exact full-screen archive structure, filters, card density and hierarchy. Image 2 is the mandatory clean geometric flat visual master.
-Primary request: Redesign the module archive using the exact visual language of Image 2. Preserve the header, close control, category filters, result count, dense scrollable card grid and pagination. Simplify every card so the module icon is the dominant recognition cue: one bold silhouette, one solid category color, one centered glyph and a thick near-black outline.
-Category system: attack cards use coral red and pointed/triangular tokens; survival cards use mint green and shield/rounded-square tokens; support cards use sky blue and circle/cross tokens; growth cards use golden yellow and diamond/stack tokens. The same icons must plausibly appear as independent body segments in battle and upgrade cards.
-Cards: show type badge, module icon, Chinese module name, active cooldown or passive label, concise description, level/stat line and archive number. Use large spacing and quiet off-white card interiors; avoid nested frames and decorative fragments.
-Text (verbatim): “机体图鉴”, “MODULE ARCHIVE”, “全部”, “攻击”, “生存”, “辅助”, “发育”, “53 个机体”, “高速枪节”, “生命扩容节”, “涡轮节”, “超频增幅节”, “星爆节”, “腐蚀囊节”.
-Constraints: preserve the practical desktop information density while keeping strong whitespace; flat fills only; readable Chinese; consistent module silhouettes and outline weight; no watermark.
-Avoid: collectible-card fantasy art, multiple internal color slices, stained glass, paper-editorial styling, 3D item renders, neon glow, gradients, whole snakes, animal bodies, large portraits, mobile layout, illegible microtext.

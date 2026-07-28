@@ -1,9 +1,0 @@
-Use case: ui-mockup
-Asset type: shippable 16:9 enemy-codex screen concept
-Input images: Image 1 is the real GSS0 enemy-codex screenshot and is the mandatory landscape canvas, archive structure and information target. Image 2 is the mandatory clean geometric flat visual master.
-Primary request: Redesign the enemy archive as one clean widescreen desktop screen containing all seven enemy articles. Preserve the real close control, archive hierarchy, names, concise behaviors, parameter rows and tags. Use a practical multi-column grid with large breathing room and immediately recognizable unit previews.
-Enemy previews: each article shows exactly one flat cat-face head token followed by clearly separate geometric body modules with visible gaps and thin connectors. Use seven unmistakable simple expressions from Image 2—sleepy, hungry, focused, angry, sly, alert and stoic—plus different ear/head silhouettes and one accent color. Faces must remain readable at thumbnail size; the rest of each unit stays abstract and modular.
-UI treatment: deep-navy shell, off-white cards, thick near-black outlines, flat color headers and minimal dividers. Avoid internal decoration; let each expression and silhouette carry identity.
-Text (verbatim): “代号：猫猫蛇”, “敌人图鉴”, “HOSTILE ARCHIVE”, “浮游体”, “觅食者”, “搬运者”, “冲角者”, “截断者”, “巡猎者”, “守卫者”.
-Constraints: LANDSCAPE 16:9 only; all seven entries visible; strict flat 2D top-down previews; one cat head per unit; disconnected module segments; readable Chinese data; no watermark.
-Avoid: portrait poster, visual clutter, realistic cat portraits, continuous snake body, full animal torso, stained glass, editorial numbering, 3D or isometric assets, gradients, neon glow, decorative scenery.

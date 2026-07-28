@@ -1,9 +1,0 @@
-Use case: ui-mockup
-Asset type: high-fidelity 2D top-down multiplayer gameplay and scoreboard concept
-Input images: Image 1 is the real GSS0 multiplayer combat screenshot and defines the exact arena, complete HUD and left scoreboard layout. Image 2 is the mandatory clean geometric flat visual master.
-Primary request: Redraw this exact multiplayer battle using Image 2’s flat colors, thick outlines and expressive cat-head tokens. Preserve every single-player HUD region plus the left “多人记分板” with two player rows, levels and scores.
-Players: show EXACTLY TWO distinguishable player units. Each must have exactly one visible cat-face head at its own forward end, followed by completely separate body-module segments with clear gaps and thin connectors. Player one uses a focused cream/coral head accent; player two uses an alert cream/sky-blue head accent. Both use the same category module language and strict top-down construction.
-Enemies and effects: enemy units also use one expressive cat head plus independent modules. Use the same calm sparse arena and primitive projectile language as Image 2. Keep the scoreboard and players visually dominant over incidental effects.
-Text (verbatim): “代号：猫猫蛇”, “共享行动”, “2P”, “多人记分板”, “ID”, “LV”, “积分”, “@local-smoke-a”, “@local-smoke-b”, “存活”, “击破”, “得分”, “机体耐久”, “升级进度”.
-Constraints: strict flat 2D orthographic top-down; exactly two player cat heads visible; preserve scoreboard and gameplay hierarchy; clear differences between the two players; no watermark.
-Avoid: missing player heads, a shared head, more than two player heads, continuous animal bodies, clutter, neon glow, gradients, 3D or isometric view, split screen, MOBA perspective, portraits, decorative cat motifs outside heads.

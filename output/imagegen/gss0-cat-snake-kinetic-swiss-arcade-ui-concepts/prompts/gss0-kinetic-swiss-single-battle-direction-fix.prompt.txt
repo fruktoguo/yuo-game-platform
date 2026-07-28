@@ -1,6 +1,0 @@
-Use case: precise-object-edit
-Asset type: direction-readability correction for the single-player battle concept
-Input images: Image 1 is the current Kinetic Swiss Arcade battle concept to preserve. Image 2 is the real V133 battle screenshot for layout reference. Image 3 is the kinetic visual master for exact effects and geometry.
-Primary request: Change only the cyan/cream PLAYER construction near the center-left. Keep its cat-face head token at the LEFT leading end and keep all separate body-module tokens trailing to its RIGHT. Remove the cyan afterimage silhouettes currently placed to the LEFT of the cat head because they contradict the travel direction. Add a small clear left-pointing yellow/cyan direction wedge immediately in front of the cat head and place any short cyan/magenta color-offset afterimage behind the final trailing modules on the RIGHT. The player must instantly read as moving LEFT with the cat head leading.
-Constraints: keep arena, HUD, stats, module slots, enemy units, pickups, bullets, impact star, labels, numbers, palette and all other composition unchanged; preserve strict top-down flat geometry and visible module gaps; no watermark.
-Avoid: moving the cat head to the middle, continuous body, changing enemy directions, replacing the scene, adding excessive glow or text.
