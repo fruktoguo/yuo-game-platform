@@ -12,7 +12,7 @@ interface DesignerConfigSource {
 }
 
 const source = (globalThis as typeof globalThis & { GSS0_DESIGNER_CONFIG?: DesignerConfigSource }).GSS0_DESIGNER_CONFIG;
-if (source?.schemaVersion !== 46) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 46');
+if (source?.schemaVersion !== 47) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 47');
 
 function numberSetting(key: string, fallback: number, minimum: number, maximum: number, integer = false): number {
   const candidate = source?.balance?.[key];
@@ -53,7 +53,8 @@ export const DESIGNER_BALANCE = Object.freeze({
   playerMaxHealth: numberSetting('playerMaxHealth', 30, 0, 100),
   playerHealthRegenPerSecond: numberSetting('playerHealthRegenPerSecond', 1, 0, 1),
   playerEnemyBodyCollisionDamage: numberSetting('playerEnemyBodyCollisionDamage', 10, 0, 10_000),
-  playerWallCollisionDamage: numberSetting('playerWallCollisionDamage', 5, 0, 10_000),
+  playerWallCollisionDamage: numberSetting('playerWallCollisionDamage', 10, 0, 10_000),
+  playerOtherBodyCollisionDamage: numberSetting('playerOtherBodyCollisionDamage', 10, 0, 10_000),
   playerKnockbackRearBlockedAngleDegrees: numberSetting('playerKnockbackRearBlockedAngleDegrees', 60, 0, 180),
   playerKnockbackRearCorrectionAngleDegrees: numberSetting('playerKnockbackRearCorrectionAngleDegrees', 150, 90, 180),
   playerCollisionDamage: numberSetting('playerCollisionDamage', 1, 0, 1_000, true),
@@ -216,6 +217,7 @@ export const DESIGNER_BALANCE = Object.freeze({
   moduleDamageReductionPerLevel: numberSetting('moduleDamageReductionPerLevel', 0.1, 0, 1),
   moduleFoodReplicationChancePerLevel: numberSetting('moduleFoodReplicationChancePerLevel', 0.06, 0, 1),
   moduleFoodHealPerLevel: numberSetting('moduleFoodHealPerLevel', 0.25, 0, 100),
+  moduleLevelUpHealFractionPerLevel: numberSetting('moduleLevelUpHealFractionPerLevel', 0.1, 0, 1),
   moduleMissingHealthSpeedStep: numberSetting('moduleMissingHealthSpeedStep', 0.03, 0.01, 1),
   moduleMissingHealthSpeedPerStepPerLevel: numberSetting('moduleMissingHealthSpeedPerStepPerLevel', 0.01, 0, 1),
   moduleMissingHealthHeadDamageStep: numberSetting('moduleMissingHealthHeadDamageStep', 0.3, 0.01, 1),

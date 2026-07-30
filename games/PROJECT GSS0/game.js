@@ -134,7 +134,7 @@
   const TAU = Math.PI * 2;
   const P2P_TOAST_DURATION_MS = 2800;
   const DESIGNER_CONFIG = globalThis.GSS0_DESIGNER_CONFIG || {};
-  if (DESIGNER_CONFIG.schemaVersion !== 46) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 46");
+  if (DESIGNER_CONFIG.schemaVersion !== 47) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 47");
   const DESIGNER_BALANCE = DESIGNER_CONFIG.balance || {};
   const MODULE_DESIGN_STATES = DESIGNER_CONFIG.moduleStates || {};
 
@@ -257,7 +257,8 @@
   const PLAYER_MAX_HEALTH = designerNumber("playerMaxHealth", 30, 0, 100);
   const PLAYER_HEALTH_REGEN_PER_SECOND = designerNumber("playerHealthRegenPerSecond", 1, 0, 1);
   const PLAYER_ENEMY_BODY_COLLISION_DAMAGE = designerNumber("playerEnemyBodyCollisionDamage", 10, 0, 10000);
-  const PLAYER_WALL_COLLISION_DAMAGE = designerNumber("playerWallCollisionDamage", 5, 0, 10000);
+  const PLAYER_WALL_COLLISION_DAMAGE = designerNumber("playerWallCollisionDamage", 10, 0, 10000);
+  const PLAYER_OTHER_BODY_COLLISION_DAMAGE = designerNumber("playerOtherBodyCollisionDamage", 10, 0, 10000);
   const PLAYER_KNOCKBACK_REAR_BLOCKED_ANGLE = designerNumber("playerKnockbackRearBlockedAngleDegrees", 60, 0, 180) * Math.PI / 180;
   const PLAYER_KNOCKBACK_REAR_CORRECTION_ANGLE = designerNumber("playerKnockbackRearCorrectionAngleDegrees", 150, 90, 180) * Math.PI / 180;
   const PLAYER_COLLISION_DAMAGE = designerNumber("playerCollisionDamage", 1, 0, 1000, true);
@@ -3702,7 +3703,7 @@
         { kind: "player-body", targetId: collision.targetId, segmentIndex: collision.segmentIndex },
         `player-body:${collision.targetId}`
       );
-      if (claimed && player.invulnerable <= 0) predictNetworkPlayerHurt(PLAYER_WALL_COLLISION_DAMAGE);
+      if (claimed && player.invulnerable <= 0) predictNetworkPlayerHurt(PLAYER_OTHER_BODY_COLLISION_DAMAGE);
       bounceNetworkSelf(
         player.col - collision.point.col,
         player.row - collision.point.row,
@@ -4921,6 +4922,7 @@
     xp = 0;
     xpNeeded = experienceRequiredForLevel(level);
     score += 250 * level;
+    applyPlayerLevelUpHealing();
     upgradePending = false;
     upgradeRevealTimer = 0;
     ui.upgrade.classList.remove("is-visible");
@@ -4991,6 +4993,12 @@
       : Math.min(player.health, nextMaximum);
   }
 
+  function applyPlayerLevelUpHealing(firstAcquisition = false) {
+    const moduleLevel = moduleCount("levelheal");
+    const amount = MODULE_PROGRESSION.levelUpHealAmount(player.maxHealth, moduleLevel, firstAcquisition);
+    healPlayer(amount, MODULE_BY_ID.levelheal.color, true);
+  }
+
   function selectUpgrade(module) {
     if (state !== "upgrade") return;
     if (network.enabled) {
@@ -5025,6 +5033,7 @@
     refreshActiveModuleCooldown(module.id, upgradedSegment);
     syncPlayerMaximumHealth(previousMaximumHealth);
     syncTailGuardSegments();
+    applyPlayerLevelUpHealing(module.id === "levelheal" && !existing);
     recentPicks.push(module.id);
     if (recentPicks.length > 6) recentPicks.shift();
     score += 250 * level;

@@ -32,6 +32,7 @@ export interface GSS0ModuleProgressionApi {
   experienceValue(tier: number): number;
   findCompressionIndexes(segments: readonly GSS0ProgressionSegment[], tier: number): number[];
   rollLinearRewards(amount: number, random?: () => number): number;
+  levelUpHealAmount(maximumHealth: number, moduleLevel: number, firstAcquisition?: boolean): number;
   moduleCurrentEffect(moduleId: GSS0ModuleId, level?: number): GSS0ModuleCurrentEffect;
   moduleUpgradePreview(moduleId: GSS0ModuleId, currentLevel?: number): GSS0UpgradePreview;
   chooseUpgradeIds(

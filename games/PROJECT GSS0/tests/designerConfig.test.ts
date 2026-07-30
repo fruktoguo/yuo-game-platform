@@ -25,10 +25,11 @@ describe('设计配置', () => {
       playerBaseSpeed: 5,
       snakeBodySizeScale: 0.775,
       snakeSegmentSpacing: 0.66,
-      playerMaxHealth: 15,
-      playerHealthRegenPerSecond: 0.25,
+      playerMaxHealth: 20,
+      playerHealthRegenPerSecond: 0.1,
       playerEnemyBodyCollisionDamage: 10,
-      playerWallCollisionDamage: 5,
+      playerWallCollisionDamage: 10,
+      playerOtherBodyCollisionDamage: 10,
       playerKnockbackRearBlockedAngleDegrees: 60,
       playerKnockbackRearCorrectionAngleDegrees: 150,
       playerCollisionDamage: 1,
@@ -126,13 +127,14 @@ describe('设计配置', () => {
       moduleDeathBurstProjectilesPerLevel: 2,
       moduleBonusXpChancePerLevel: 0.1,
       moduleMaxHealthPerLevel: 3,
-      moduleHealthRegenPerLevel: 0.25,
+      moduleHealthRegenPerLevel: 0.1,
       moduleDamageReductionPerLevel: 0.1,
       moduleFoodReplicationChancePerLevel: 0.06,
       moduleFoodHealPerLevel: 0.25,
+      moduleLevelUpHealFractionPerLevel: 0.1,
       moduleHealingReceivedPerLevel: 0.1,
       moduleCacheKillsPerTrigger: 5,
-      moduleCrisisRegenPerLevel: 0.5,
+      moduleCrisisRegenPerLevel: 0.2,
       arenaBaseArea: 300,
       arenaAreaPerLevel: 0.1,
       cameraFollowZoomMin: 0.75,
@@ -219,8 +221,8 @@ describe('设计配置', () => {
     expect(moduleCooldownSeconds('fan')).toBeCloseTo(22.5);
     expect(moduleCooldownPercent('barrage')).toBe(1500);
     expect(moduleCooldownSeconds('barrage')).toBe(90);
-    expect(moduleCooldownPercent('shield')).toBe(600);
-    expect(moduleCooldownSeconds('shield')).toBe(36);
+    expect(moduleCooldownPercent('shield')).toBe(1500);
+    expect(moduleCooldownSeconds('shield')).toBe(90);
   });
 
   it('没有独立冷却的常驻与触发型机体统一归为被动技能', () => {
@@ -243,7 +245,7 @@ describe('设计配置', () => {
     expect(Object.values(source.moduleStates).filter((state) => state === 'normal')).toHaveLength(53);
     expect(Object.values(source.moduleStates).filter((state) => state === 'tune')).toHaveLength(0);
     expect(Object.values(source.moduleStates).filter((state) => state === 'rework')).toHaveLength(0);
-    expect(Object.values(source.moduleStates).filter((state) => state === 'disabled')).toHaveLength(29);
+    expect(Object.values(source.moduleStates).filter((state) => state === 'disabled')).toHaveLength(30);
     expect(moduleDesignState('prism')).toBe('disabled');
     expect(UPGRADE_MODULES.map((module) => module.id)).toEqual(MODULES.filter((module) => moduleDesignState(module.id) !== 'disabled').map((module) => module.id));
   });
@@ -254,16 +256,16 @@ describe('设计配置', () => {
 
     expect(parameterKeys.sort()).toEqual(Object.keys(DESIGNER_BALANCE).sort());
     expect(moduleIds.sort()).toEqual(MODULES.map((module) => module.id).sort());
-    expect(moduleProgressionSource).toContain('config?.schemaVersion !== 46');
-    expect(new Set(parameterKeys).size).toBe(241);
+    expect(moduleProgressionSource).toContain('config?.schemaVersion !== 47');
+    expect(new Set(parameterKeys).size).toBe(243);
     expect(parameterKeys).not.toContain('playerSpeedPerLevel');
     expect(parameterKeys).not.toContain('moduleEffectReductionMaximum');
     expect(parameterKeys).not.toContain('newModuleOfferChance');
-    expect(new Set(moduleIds).size).toBe(82);
+    expect(new Set(moduleIds).size).toBe(83);
   });
 
   it('全部机体共用唯一描述目录且被动参数明确', () => {
-    expect(MODULES).toHaveLength(82);
+    expect(MODULES).toHaveLength(83);
     expect(MODULES.every((module) => module.desc.trim().length > 0)).toBe(true);
     expect(new Set(MODULES.map((module) => module.id)).size).toBe(MODULES.length);
     expect(MODULES.find((module) => module.id === 'spark')?.desc).toBe('向随机方向发射1枚子弹。');
@@ -288,13 +290,14 @@ describe('设计配置', () => {
     expect(MODULES.find((module) => module.id === 'arsenal')?.desc).toBe('每级使主动技能的尺寸提高10%。（各类子弹尺寸、爆炸范围与激光半径等）');
     expect(MODULES.find((module) => module.id === 'incendiary')?.desc).toBe('瞄准生命值最高的敌蛇发射追踪燃烧弹；命中造成1伤害，并附带其50%生命值的燃烧层数。');
     expect(MODULES.find((module) => module.id === 'incendiary')?.note).toBe('燃烧：每0.3秒，随机摧毁一节身体，并失去一层燃烧层数。');
+    expect(MODULES.find((module) => module.id === 'levelheal')?.desc).toBe('玩家等级提升时，按本机体等级恢复10%～50%最大生命值；首次装载时恢复全部生命值。');
     expect(MODULES.find((module) => module.id === 'doublehit')?.desc).toContain('20%概率');
     expect(MODULES.find((module) => module.id === 'multishot')?.desc).toContain('12%概率');
     expect(MODULES.some((module) => ['输出', '进攻', '防御', '恢复'].includes(module.category as string))).toBe(false);
     expect(MODULES.every((module) => ['攻击', '生存', '辅助', '发育'].includes(module.category))).toBe(true);
     expect(MODULES.filter((module) => module.category === '发育')).toHaveLength(9);
-    expect(editorHtml).toContain('src="module-catalog.js?v=134"');
-    expect(editorHtml).toContain('src="module-progression.js?v=134"');
+    expect(editorHtml).toContain('src="module-catalog.js?v=135"');
+    expect(editorHtml).toContain('src="module-progression.js?v=135"');
     expect(editorHtml).toContain('const MODULES = moduleCatalog;');
     expect(editorHtml).toContain('descriptionText.textContent = describeModule(module.id, draft.balance);');
     expect(editorHtml).toContain('descriptionNote.textContent = describeModuleNote(module.id, draft.balance);');

@@ -3,7 +3,7 @@
 
   const config = globalThis.GSS0_DESIGNER_CONFIG;
   const modules = globalThis.GSS0ModuleCatalog;
-  if (config?.schemaVersion !== 46 || !Array.isArray(modules) || modules.length === 0) {
+  if (config?.schemaVersion !== 47 || !Array.isArray(modules) || modules.length === 0) {
     throw new Error("PROJECT GSS0 机体成长规则依赖加载失败");
   }
 
@@ -150,6 +150,7 @@
     damageReduction: (level) => reduction(level, balance.moduleDamageReductionPerLevel),
     foodReplicationChance: (level) => reduction(level, balance.moduleFoodReplicationChancePerLevel),
     foodHeal: (level) => balance.moduleFoodHealPerLevel * effectLevel(level),
+    levelUpHealFraction: (level) => reduction(level, balance.moduleLevelUpHealFractionPerLevel),
     missingHealthSpeedBonus: (level, missingFraction = 0) => (
       Math.floor(Math.max(0, missingFraction) / balance.moduleMissingHealthSpeedStep + 1e-9)
       * balance.moduleMissingHealthSpeedPerStepPerLevel
@@ -171,6 +172,12 @@
       * effectLevel(level)
     )
   });
+
+  function levelUpHealAmount(maximumHealth, moduleLevel, firstAcquisition = false) {
+    const health = Math.max(0, Number(maximumHealth) || 0);
+    if (effectLevel(moduleLevel) <= 0) return 0;
+    return firstAcquisition ? health : health * effects.levelUpHealFraction(moduleLevel);
+  }
 
   function formatNumber(value, digits = 2) {
     return String(Number(Number(value).toFixed(digits)));
@@ -235,6 +242,7 @@
       case "plating": return [{ label: "所有伤害", value: effects.damageReduction(level), format: (value) => formatPercent(-value, false) }];
       case "replicator": return [{ label: "复制球概率", value: effects.foodReplicationChance(level), format: (value) => formatPercent(value, false) }];
       case "medkit": return [{ label: "吃球恢复", value: effects.foodHeal(level), format: (value) => `${formatNumber(value)}生命` }];
+      case "levelheal": return [{ label: "玩家等级提升恢复", value: effects.levelUpHealFraction(level), format: (value) => formatPercent(value, false) }];
       case "adrenaline": return [{ label: "每损失3%生命的移动速度", value: balance.moduleMissingHealthSpeedPerStepPerLevel * safeLevel(level), format: formatPercent }];
       case "berserk": return [{ label: "每损失30%生命的蛇头伤害", value: balance.moduleMissingHealthHeadDamagePerStepPerLevel * safeLevel(level), format: (value) => `+${formatNumber(value)}` }];
       case "recovery": return [{ label: "生命恢复效果", value: effects.healingReceivedBonus(level), format: formatPercent }];
@@ -375,6 +383,7 @@
     experienceValue,
     findCompressionIndexes,
     rollLinearRewards,
+    levelUpHealAmount,
     moduleCurrentEffect,
     moduleUpgradePreview,
     chooseUpgradeIds,

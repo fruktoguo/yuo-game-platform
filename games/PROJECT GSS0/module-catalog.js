@@ -99,7 +99,8 @@
     { id: "rebound", name: "跳弹增幅节", category: "攻击", color: "#ffe36b", shape: "diamond", cooldown: "被动效果", desc: "每级使所有子弹的墙壁反弹次数+1。" },
     { id: "incendiary", name: "焚身导弹节", category: "攻击", color: "#ff572f", shape: "triangle", cooldown: "", activeCooldown: true, desc: "瞄准生命值最高的敌蛇发射追踪燃烧弹；命中造成1伤害，并附带其50%生命值的燃烧层数。" },
     { id: "statusstrike", name: "异态撞针", category: "攻击", color: "#d875ff", shape: "star", cooldown: "被动效果", desc: "撞击敌人时，每级随机附带1层冰冻、燃烧或腐蚀。" },
-    { id: "statusamp", name: "异态增幅节", category: "攻击", color: "#b69cff", shape: "hex", cooldown: "被动效果", desc: "每级使冰冻减速幅度、燃烧层数与腐蚀频率提高10%。" }
+    { id: "statusamp", name: "异态增幅节", category: "攻击", color: "#b69cff", shape: "hex", cooldown: "被动效果", desc: "每级使冰冻减速幅度、燃烧层数与腐蚀频率提高10%。" },
+    { id: "levelheal", name: "晋升修复节", category: "生存", color: "#7cf5b2", shape: "star", cooldown: "被动效果", desc: "玩家等级提升时，按本机体等级恢复10%～50%最大生命值；首次装载时恢复全部生命值。" }
   ];
 
   function describeModule(moduleId, balance = defaultBalance) {
@@ -211,6 +212,11 @@
         return `瞄准生命值最高的敌蛇发射追踪燃烧弹；命中造成1伤害，并附带其${formatPercent(setting(balance, "burnHealthFraction", 0.5))}生命值的燃烧层数。`;
       case "cache":
         return `每击破${formatNumber(setting(balance, "moduleCacheKillsPerTrigger", 5))}名敌人，按机体等级生成等量的球。`;
+      case "levelheal": {
+        const perLevel = setting(balance, "moduleLevelUpHealFractionPerLevel", 0.1);
+        const maximumLevel = Math.max(1, Math.round(setting(balance, "maxModuleLevel", 5)));
+        return `玩家等级提升时，按本机体等级恢复${formatPercent(perLevel)}～${formatPercent(Math.min(1, perLevel * maximumLevel))}最大生命值；首次装载时恢复全部生命值。`;
+      }
       default:
         return fallback;
     }

@@ -66,6 +66,7 @@ import {
   PLAYER_KNOCKBACK_REAR_BLOCKED_ANGLE,
   PLAYER_KNOCKBACK_REAR_CORRECTION_ANGLE,
   PLAYER_MAX_HEALTH,
+  PLAYER_OTHER_BODY_COLLISION_DAMAGE,
   PLAYER_TURN_RATE,
   PLAYER_WALL_COLLISION_DAMAGE,
   ENEMY_COLLISION_DAMAGE,
@@ -740,7 +741,7 @@ export class UltraWorld {
     const collisionPoint = closestPointOnGridSegment(source, previous, segment);
     if (distanceSquared(source, collisionPoint) > 9) return false;
     this.triggerCollisionEcho(source);
-    this.damagePlayer(source, PLAYER_WALL_COLLISION_DAMAGE, now, '撞上其他玩家的身体');
+    this.damagePlayer(source, PLAYER_OTHER_BODY_COLLISION_DAMAGE, now, '撞上其他玩家的身体');
     return true;
   }
 
@@ -1809,6 +1810,7 @@ export class UltraWorld {
     player.xp = 0;
     player.xpNeeded = experienceRequiredForLevel(player.level);
     player.score += 250 * player.level;
+    this.applyPlayerLevelUpHealing(player);
     player.choosingUpgrade = false;
     player.upgradePending = false;
     player.upgradeOffer = null;
@@ -1858,6 +1860,7 @@ export class UltraWorld {
     this.refreshActiveModuleCooldown(player, moduleId, upgradedSegment);
     this.syncPlayerMaximumHealth(player, previousMaximumHealth);
     this.syncTailGuardSegments(player);
+    this.applyPlayerLevelUpHealing(player, moduleId === 'levelheal' && !existing);
     player.recentPicks.push(moduleId);
     if (player.recentPicks.length > 6) player.recentPicks.shift();
     player.score += 250 * player.level;
@@ -1879,6 +1882,12 @@ export class UltraWorld {
     player.health = increase > 0
       ? Math.min(nextMaximum, player.health + increase)
       : Math.min(player.health, nextMaximum);
+  }
+
+  private applyPlayerLevelUpHealing(player: PlayerEntity, firstAcquisition = false): void {
+    const moduleLevel = this.moduleCount(player, 'levelheal');
+    const amount = MODULE_PROGRESSION.levelUpHealAmount(player.maxHealth, moduleLevel, firstAcquisition);
+    this.healPlayer(player, amount, MODULE_BY_ID.levelheal.color, true);
   }
 
   private syncTailGuardSegments(player: PlayerEntity): void {
@@ -4082,7 +4091,7 @@ export class UltraWorld {
     const contact = bodyConnectionContact(attacker, defender, SNAKE_BODY_CONTACT_RANGE);
     if (!contact) return;
     this.triggerCollisionEcho(attacker);
-    this.damagePlayer(attacker, PLAYER_WALL_COLLISION_DAMAGE, now, '撞上其他玩家的身体');
+    this.damagePlayer(attacker, PLAYER_OTHER_BODY_COLLISION_DAMAGE, now, '撞上其他玩家的身体');
     if (attacker.alive) this.bounceEntity(attacker, attacker.col - contact.point.col, attacker.row - contact.point.row, PLAYER_COLORS[defender.colorIndex]);
   }
 

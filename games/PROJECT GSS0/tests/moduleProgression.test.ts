@@ -82,11 +82,16 @@ describe('机体成长规则', () => {
     expect(passive.lines.map((line) => line.text)).toEqual([
       '转向速度 +40% → +60%',
     ]);
-    expect(MODULE_PROGRESSION.moduleUpgradePreview('vitality', 4).lines[0].text).toBe('最大生命值 +20 → +25');
+    expect(MODULE_PROGRESSION.moduleUpgradePreview('vitality', 4).lines[0].text).toBe('最大生命值 +12 → +15');
     expect(MODULE_PROGRESSION.moduleUpgradePreview('replicator', 4).lines[0].text).toBe('复制球概率 24% → 30%');
     expect(MODULE_PROGRESSION.effects.statusStrikeApplications(3)).toBe(3);
     expect(MODULE_PROGRESSION.effects.statusEffectMultiplier(3)).toBeCloseTo(1.3);
     expect(MODULE_PROGRESSION.moduleUpgradePreview('statusamp', 2).lines[0].text).toBe('异常状态效果 +20% → +30%');
+    expect(MODULE_PROGRESSION.effects.levelUpHealFraction(1)).toBeCloseTo(0.1);
+    expect(MODULE_PROGRESSION.effects.levelUpHealFraction(5)).toBeCloseTo(0.5);
+    expect(MODULE_PROGRESSION.levelUpHealAmount(20, 1, true)).toBe(20);
+    expect(MODULE_PROGRESSION.levelUpHealAmount(20, 1, false)).toBeCloseTo(2);
+    expect(MODULE_PROGRESSION.levelUpHealAmount(20, 5, false)).toBeCloseTo(10);
   });
 
   it('为机体栏提供当前等级的实际效果摘要', () => {

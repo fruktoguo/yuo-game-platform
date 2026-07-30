@@ -10,7 +10,7 @@ describe('界面设置', () => {
   it('使用正式游戏名并在左上品牌卡显示当前版本', () => {
     expect(indexHtml).toContain('<title>代号：几何贪吃蛇</title>');
     expect(indexHtml).toContain('<h1 id="game-title"><span>代号：几何贪吃蛇</span></h1>');
-    expect(indexHtml).toContain('<span class="brand-version" aria-label="游戏版本 V134">V134</span>');
+    expect(indexHtml).toContain('<span class="brand-version" aria-label="游戏版本 V135">V135</span>');
     expect(styles).toContain('.brand-version');
     const brandTitleRule = styles.match(/\.brand-lockup strong\s*\{([^}]*)\}/)?.[1];
     const brandVersionRule = styles.match(/\.brand-version\s*\{([^}]*)\}/)?.[1];
@@ -80,7 +80,7 @@ describe('界面设置', () => {
   });
 
   it('升级卡展示机体等级变化且机体架显示槽位占用', () => {
-    expect(indexHtml).toContain('src="module-progression.js?v=129"');
+    expect(indexHtml).toContain('src="module-progression.js?v=135"');
     expect(gameSource).toContain('MODULE_PROGRESSION.moduleUpgradePreview');
     expect(gameSource).toContain('progression.levelLabel');
     expect(gameSource).toContain('ui.rack.dataset.capacity');
@@ -121,7 +121,7 @@ describe('界面设置', () => {
       serverSource.indexOf('private enterGhostState('),
     );
 
-    expect(indexHtml).toContain('<span id="health-value">15.0</span> / <span id="health-max">15.0</span>');
+    expect(indexHtml).toContain('<span id="health-value">20.0</span> / <span id="health-max">20.0</span>');
     expect(gameSource).toContain('setText(ui.health, currentHealth.toFixed(1));');
     expect(gameSource).toContain('setText(ui.maxHealth, maximumHealth.toFixed(1));');
     expect(gameSource).toContain('drainPlayerHealth(-rate * dt);');
@@ -199,7 +199,7 @@ describe('界面设置', () => {
     expect(tooltipRule).not.toContain('transition');
     expect(indexHtml).not.toContain('id="description-button"');
     expect(indexHtml).not.toContain('id="description-toggle"');
-    expect(indexHtml).toContain('src="module-catalog.js?v=129"');
+    expect(indexHtml).toContain('src="module-catalog.js?v=135"');
     expect(gameSource).toContain('const MODULE_CATALOG = globalThis.GSS0ModuleCatalog;');
     expect(gameSource).not.toContain('SHORT_MODULE_DESCRIPTIONS');
     expect(gameSource).not.toContain('gss0-detailed-descriptions');
