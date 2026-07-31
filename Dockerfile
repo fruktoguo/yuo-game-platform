@@ -12,6 +12,7 @@ COPY packages/realtime/package.json packages/realtime/package.json
 COPY games/life-commons/package.json games/life-commons/package.json
 COPY games/billiards-arena/package.json games/billiards-arena/package.json
 COPY ["games/PROJECT GSS0/package.json", "games/PROJECT GSS0/package.json"]
+COPY ["games/PROJECT GSS0 CLASSIC/package.json", "games/PROJECT GSS0 CLASSIC/package.json"]
 COPY games/farstar-foundry/package.json games/farstar-foundry/package.json
 COPY games/factory-idle/package.json games/factory-idle/package.json
 RUN npm ci
@@ -26,7 +27,7 @@ ENV NODE_ENV=production
 WORKDIR /app
 
 RUN groupadd --system platform && useradd --system --gid platform --home /app platform \
-  && mkdir -p /app/data/life /app/data/snake /app/data/foundry /app/data/platform \
+  && mkdir -p /app/data/life /app/data/snake /app/data/snake-classic /app/data/foundry /app/data/platform \
   && chown -R platform:platform /app
 
 COPY --from=build --chown=platform:platform /app/package.json /app/package-lock.json ./
@@ -51,6 +52,8 @@ COPY --from=build --chown=platform:platform /app/games/billiards-arena/package.j
 COPY --from=build --chown=platform:platform /app/games/billiards-arena/dist ./games/billiards-arena/dist
 COPY --from=build --chown=platform:platform ["/app/games/PROJECT GSS0/package.json", "./games/PROJECT GSS0/package.json"]
 COPY --from=build --chown=platform:platform ["/app/games/PROJECT GSS0/dist", "./games/PROJECT GSS0/dist"]
+COPY --from=build --chown=platform:platform ["/app/games/PROJECT GSS0 CLASSIC/package.json", "./games/PROJECT GSS0 CLASSIC/package.json"]
+COPY --from=build --chown=platform:platform ["/app/games/PROJECT GSS0 CLASSIC/dist", "./games/PROJECT GSS0 CLASSIC/dist"]
 COPY --from=build --chown=platform:platform /app/games/farstar-foundry/package.json ./games/farstar-foundry/package.json
 COPY --from=build --chown=platform:platform /app/games/farstar-foundry/dist ./games/farstar-foundry/dist
 COPY --from=build --chown=platform:platform /app/games/factory-idle/package.json ./games/factory-idle/package.json

@@ -1,0 +1,2182 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#0b0d0f">
+  <meta name="description" content="代号：几何贪吃蛇 - 单人及多人共享世界肉鸽贪吃蛇战斗游戏">
+  <title>代号：几何贪吃蛇</title>
+  <link rel="stylesheet" href="styles.css?v=135">
+</head>
+<body>
+  <main id="game-shell" aria-label="代号：几何贪吃蛇 游戏区域">
+    <canvas id="game" aria-label="游戏画布"></canvas>
+
+    <header class="hud hud-top" aria-label="对局信息">
+      <div class="brand-lockup">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <div>
+          <strong>代号：几何贪吃蛇</strong>
+        </div>
+        <span class="signature">by 四季鸽</span>
+        <span class="brand-version" aria-label="游戏版本 V135">V135</span>
+      </div>
+
+      <div class="run-stats">
+        <div class="stat">
+          <span>存活</span>
+          <strong id="time-value">00:00</strong>
+        </div>
+        <div class="stat">
+          <span>击破</span>
+          <strong id="kill-value">0</strong>
+        </div>
+        <div class="stat stat-wave">
+          <span>波次 / 球数 / 敌数 · 下波</span>
+          <strong id="wave-value">0/0/0 · --</strong>
+        </div>
+        <div class="stat stat-score">
+          <span>得分</span>
+          <strong id="score-value">0</strong>
+        </div>
+      </div>
+
+      <div class="hud-actions">
+        <div class="setting-control" data-tooltip="返回大厅">
+          <button id="lobby-button" class="icon-button lobby-icon" type="button" aria-label="返回大厅">
+            <span aria-hidden="true"></span>
+          </button>
+        </div>
+        <div class="setting-control" data-tooltip="字体大小 150%">
+          <button id="font-button" class="icon-button font-icon" type="button" aria-label="调节字体大小，当前 150%" aria-expanded="false" aria-controls="font-popover">
+            <span aria-hidden="true">Aa</span>
+          </button>
+          <div id="font-popover" class="setting-popover" role="group" aria-label="字体大小" aria-hidden="true">
+            <div class="setting-heading"><span>字体大小</span><output id="font-output" for="font-slider">150%</output></div>
+            <input id="font-slider" type="range" min="50" max="200" step="10" value="150" aria-label="字体大小百分比">
+          </div>
+        </div>
+        <div class="setting-control" data-tooltip="声音大小 100%">
+          <button id="sound-button" class="icon-button" type="button" aria-label="调节声音大小，当前 100%" aria-expanded="false" aria-controls="sound-popover">
+            <span class="sound-on" aria-hidden="true">♪</span>
+            <span class="sound-off" aria-hidden="true">×</span>
+          </button>
+          <div id="sound-popover" class="setting-popover" role="group" aria-label="声音大小" aria-hidden="true">
+            <div class="setting-heading"><span>声音大小</span><output id="sound-output" for="sound-slider">100%</output></div>
+            <input id="sound-slider" type="range" min="0" max="300" step="5" value="100" aria-label="声音大小百分比">
+          </div>
+        </div>
+        <div class="setting-control" data-tooltip="动态透视强度 100%">
+          <button id="motion-button" class="icon-button" type="button" aria-label="调节动态透视强度，当前 100%" aria-expanded="false" aria-controls="motion-popover">
+            <span class="motion-icon" aria-hidden="true"></span>
+          </button>
+          <div id="motion-popover" class="setting-popover" role="group" aria-label="动态透视强度" aria-hidden="true">
+            <div class="setting-heading"><span>动态透视</span><output id="motion-output" for="motion-slider">100%</output></div>
+            <input id="motion-slider" type="range" min="100" max="300" step="25" value="100" aria-label="动态透视强度百分比">
+          </div>
+        </div>
+        <div class="setting-control" data-tooltip="摄像机 跟随蛇头">
+          <button id="camera-button" class="icon-button camera-mode-icon is-follow" type="button" aria-label="摄像机模式，当前跟随蛇头" aria-expanded="false" aria-controls="camera-popover">
+            <span aria-hidden="true">⌖</span>
+          </button>
+          <div id="camera-popover" class="setting-popover camera-popover" role="group" aria-label="摄像机模式" aria-hidden="true">
+            <div class="setting-heading"><span>摄像机模式</span><output id="camera-mode-output">跟随蛇头</output></div>
+            <div class="camera-mode-options" role="radiogroup" aria-label="摄像机模式选项">
+              <label>
+                <input id="camera-mode-fixed" type="radio" name="camera-mode" value="fixed">
+                <span>固定视角</span>
+              </label>
+              <label>
+                <input id="camera-mode-follow" type="radio" name="camera-mode" value="follow" checked>
+                <span>跟随蛇头</span>
+              </label>
+            </div>
+            <div id="camera-zoom-status" class="camera-zoom-status" aria-hidden="true">
+              <span>跟随缩放</span>
+              <output id="camera-zoom-output">150%</output>
+            </div>
+          </div>
+        </div>
+        <div class="setting-control" data-tooltip="屏幕震动已开启">
+          <button id="screen-shake-button" class="icon-button screen-shake-icon" type="button" aria-label="屏幕震动已开启" aria-expanded="false" aria-controls="screen-shake-popover">
+            <span aria-hidden="true"></span>
+          </button>
+          <div id="screen-shake-popover" class="setting-popover toggle-popover" role="group" aria-label="屏幕震动" aria-hidden="true">
+            <label class="toggle-row" for="screen-shake-toggle">
+              <span>屏幕震动</span>
+              <input id="screen-shake-toggle" type="checkbox" checked>
+              <i aria-hidden="true"></i>
+            </label>
+          </div>
+        </div>
+        <div class="setting-control" data-tooltip="后台暂停已开启">
+          <button id="background-pause-button" class="icon-button" type="button" aria-label="后台暂停已开启" aria-expanded="false" aria-controls="background-pause-popover">
+            <span class="background-pause-icon" aria-hidden="true"></span>
+          </button>
+          <div id="background-pause-popover" class="setting-popover toggle-popover" role="group" aria-label="后台暂停" aria-hidden="true">
+            <label class="toggle-row" for="background-pause-toggle">
+              <span>后台暂停</span>
+              <input id="background-pause-toggle" type="checkbox" checked>
+              <i aria-hidden="true"></i>
+            </label>
+          </div>
+        </div>
+        <div id="automatic-mode-control" class="setting-control" data-tooltip="自动战斗已关闭 · A 键切换">
+          <button id="automatic-mode-button" class="icon-button automatic-mode-icon" type="button" aria-label="自动战斗已关闭，按 A 键切换" aria-expanded="false" aria-controls="automatic-mode-popover">
+            <span aria-hidden="true">A</span>
+          </button>
+          <div id="automatic-mode-popover" class="setting-popover toggle-popover automatic-mode-popover" role="group" aria-label="自动战斗设置" aria-hidden="true">
+            <label class="toggle-row" for="automatic-mode-toggle">
+              <span class="toggle-row-label">自动战斗 <kbd class="setting-shortcut">A</kbd></span>
+              <input id="automatic-mode-toggle" type="checkbox">
+              <i aria-hidden="true"></i>
+            </label>
+            <label class="toggle-row" for="automatic-module-selection-toggle">
+              <span>自动选择机体</span>
+              <input id="automatic-module-selection-toggle" type="checkbox">
+              <i aria-hidden="true"></i>
+            </label>
+            <label class="toggle-row" for="automatic-restart-toggle">
+              <span>自动重开</span>
+              <input id="automatic-restart-toggle" type="checkbox">
+              <i aria-hidden="true"></i>
+            </label>
+          </div>
+        </div>
+        <div class="setting-control" data-tooltip="暂停">
+          <button id="pause-button" class="icon-button pause-icon" type="button" aria-label="暂停">
+            <span aria-hidden="true"></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <aside id="module-rack" class="module-rack" aria-label="已装载身体模块"></aside>
+
+    <aside id="multiplayer-scoreboard" class="multiplayer-scoreboard" aria-label="多人记分板" aria-hidden="true">
+      <header>
+        <strong>共享行动</strong>
+        <span id="multiplayer-count">0P</span>
+      </header>
+      <div class="scoreboard-columns" aria-hidden="true">
+        <span>ID</span><span>LV</span><span>积分</span>
+      </div>
+      <ol id="multiplayer-players"></ol>
+    </aside>
+
+    <output id="fps-meter" class="fps-meter" aria-label="实时帧率" aria-hidden="true"><span>FPS</span><strong id="fps-value">--</strong></output>
+
+    <section class="hud hud-bottom" aria-label="等级与经验">
+      <div class="level-badge">
+        <span>LV.</span>
+        <strong id="level-value">0</strong>
+      </div>
+      <div class="xp-panel">
+        <div id="health-group" class="resource-group health-group">
+          <div class="xp-row health-row">
+            <span>机体耐久</span>
+            <strong><span id="health-value">20.0</span> / <span id="health-max">20.0</span></strong>
+          </div>
+          <div id="shield-fill" class="shield-fill" aria-hidden="true"></div>
+          <div class="health-track" aria-hidden="true">
+            <div id="health-fill" class="health-fill"></div>
+          </div>
+        </div>
+        <div class="resource-group xp-group">
+          <div class="xp-row">
+            <span>升级进度</span>
+            <strong><span id="xp-value">0</span> / <span id="xp-needed">5</span></strong>
+          </div>
+          <div class="xp-track" aria-hidden="true">
+            <div id="xp-fill" class="xp-fill"></div>
+            <div id="xp-pips" class="xp-pips"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div id="touch-indicator" class="touch-indicator" aria-hidden="true">
+      <span></span>
+    </div>
+
+    <section id="start-screen" class="modal-layer start-screen is-visible" aria-labelledby="game-title">
+      <div class="start-glow" aria-hidden="true"></div>
+          <div class="start-version" aria-label="游戏版本 V135"><span>BUILD</span><strong>V135</strong></div>
+      <div class="start-layout">
+        <div class="start-content">
+          <div id="network-status" class="title-kicker">TACTICAL SURVIVAL / LOCAL</div>
+          <h1 id="game-title"><span>代号：几何贪吃蛇</span></h1>
+          <p>吞噬 / 构筑 / 生存</p>
+          <div class="start-actions">
+            <button id="local-mode-button" class="primary-button mode-entry-button local-mode-button" type="button">
+              <span aria-hidden="true">1P</span>
+              单人模式
+            </button>
+            <button id="multiplayer-mode-button" class="secondary-button mode-entry-button multiplayer-mode-button" type="button" disabled>
+              <span aria-hidden="true">MP</span>
+              多人模式
+            </button>
+            <button id="codex-button" class="secondary-button codex-button" type="button">
+              <span aria-hidden="true">M</span>
+              机体图鉴
+            </button>
+            <button id="enemy-codex-button" class="secondary-button enemy-codex-button" type="button">
+              <span aria-hidden="true">E</span>
+              敌人图鉴
+            </button>
+          </div>
+          <div class="start-secondary-actions">
+            <button id="changelog-button" class="secondary-button changelog-button" type="button">
+              <span aria-hidden="true">V</span>
+              更新日志
+            </button>
+          </div>
+          <div class="best-line">本地最高分 <strong id="best-value">0</strong></div>
+        </div>
+
+        <aside class="start-guide" aria-labelledby="start-guide-title">
+          <header>
+            <span>HOW TO PLAY</span>
+            <h2 id="start-guide-title">行动简报</h2>
+          </header>
+          <section>
+            <strong>【单人模式】</strong>
+            <p><span>吃球升级</span><span>我撞敌蛇头：造成1伤害</span><span>我撞敌身体：造成1伤害并受到10伤害</span><span>我撞墙/撞自己身体：受到10伤害</span><span>敌撞我：直接摧毁</span><span>敌蛇会吃球，摧毁后全部爆出</span></p>
+          </section>
+          <section>
+            <strong>【多人模式】</strong>
+            <p><span>波次规模随人数增加</span><span>我撞其他玩家身体：受到10点伤害</span><span>机体技能不会误伤其他玩家</span><span>阵亡后的玩家可由其它玩家复活。</span></p>
+          </section>
+        </aside>
+      </div>
+    </section>
+
+    <section id="p2p-lobby-screen" class="modal-layer p2p-lobby-screen" aria-labelledby="p2p-lobby-title">
+      <div class="p2p-lobby-shell">
+        <header class="p2p-lobby-header">
+          <div>
+            <span class="dialog-kicker">P2P SESSION CONTROL</span>
+            <h2 id="p2p-lobby-title">联机大厅</h2>
+            <p id="p2p-lobby-status" class="p2p-lobby-status" role="status">正在连接大厅…</p>
+          </div>
+          <button id="p2p-lobby-close" class="secondary-button p2p-lobby-back" type="button"><span aria-hidden="true">←</span> 返回主菜单</button>
+        </header>
+
+        <div class="p2p-lobby-workspace">
+          <div id="p2p-lobby-browser" class="p2p-lobby-browser">
+            <section class="p2p-lobby-column p2p-room-directory" aria-labelledby="p2p-room-directory-title">
+              <div class="p2p-section-heading">
+                <div><span>PUBLIC ROOMS · LIVE</span><h3 id="p2p-room-directory-title">公开房间</h3></div>
+              </div>
+              <div id="p2p-room-list" class="p2p-room-list" aria-live="polite"></div>
+            </section>
+
+            <section class="p2p-lobby-column p2p-room-actions" aria-label="创建房间">
+              <div class="p2p-action-card">
+                <div class="p2p-section-heading"><div><span>CREATE SESSION</span><h3>建立房间</h3></div></div>
+                <form id="p2p-create-form" class="p2p-form p2p-create-form">
+                  <label>房间名称<input id="p2p-create-name" type="text" maxlength="24" placeholder="我的行动小队"></label>
+                  <label>最大人数<select id="p2p-create-max"><option value="2">2 人</option><option value="4">4 人</option><option value="8">8 人</option><option value="12" selected>12 人</option></select></label>
+                  <label class="p2p-check-row" hidden><input id="p2p-create-private" type="checkbox"><span>私人房间（仅凭房间码加入）</span></label>
+                  <button class="primary-button" type="submit">创建并进入等待室</button>
+                </form>
+              </div>
+              <div class="p2p-action-card" hidden>
+                <div class="p2p-section-heading"><div><span>JOIN SESSION</span><h3>加入房间</h3></div></div>
+                <form id="p2p-join-form" class="p2p-form p2p-join-form">
+                  <label>房间码<input id="p2p-join-code" type="text" maxlength="6" inputmode="text" autocomplete="off" placeholder="例如 7K3MNP"></label>
+                  <button class="secondary-button" type="submit">使用房间码加入</button>
+                </form>
+              </div>
+            </section>
+          </div>
+
+          <aside class="p2p-current-room" aria-label="当前房间">
+            <div id="p2p-room-empty-state" class="p2p-current-room-empty">
+              <span class="dialog-kicker">CURRENT ROOM</span>
+              <h3>尚未加入房间</h3>
+              <p>从左侧建立房间，或加入一个正在等待的行动小队。</p>
+            </div>
+            <div id="p2p-room-waiting" class="p2p-room-waiting" hidden>
+              <div class="p2p-room-identity">
+                <span class="dialog-kicker">ROOM CHANNEL</span>
+                <h3 id="p2p-room-name">等待室</h3>
+                <p>房间码 <strong id="p2p-room-code">------</strong><button id="p2p-room-copy" class="p2p-copy-button" type="button">复制</button></p>
+                <p id="p2p-room-mode" class="p2p-muted">标准模式 · 房主运行共享世界</p>
+              </div>
+              <div class="p2p-room-grid">
+                <section class="p2p-members-panel" aria-labelledby="p2p-members-title">
+                  <div class="p2p-section-heading"><div><span>PLAYERS</span><h3 id="p2p-members-title">房间成员</h3></div><strong id="p2p-member-count">0/12</strong></div>
+                  <ul id="p2p-member-list" class="p2p-member-list"></ul>
+                </section>
+                <section id="p2p-host-settings" class="p2p-host-settings" aria-labelledby="p2p-host-settings-title">
+                  <div class="p2p-section-heading"><div><span>HOST SETTINGS</span><h3 id="p2p-host-settings-title">房主设置</h3></div></div>
+                  <label hidden>难度<select id="p2p-host-difficulty"><option value="1">标准</option><option value="2">强化</option><option value="3">危险</option><option value="4">极限</option><option value="5">实验</option></select></label>
+                  <label>中途加入<select id="p2p-host-join-progress"><option value="true">允许</option><option value="false">关闭</option></select></label>
+                  <p class="p2p-muted">后续模式选择也会放在这里，由房主统一决定。</p>
+                </section>
+              </div>
+              <div class="p2p-room-footer">
+                <span id="p2p-room-hint" class="p2p-muted">等待所有玩家准备。</span>
+                <div class="p2p-room-buttons">
+                  <button id="p2p-room-ready" class="secondary-button" type="button">准备</button>
+                  <button id="p2p-room-start" class="primary-button" type="button" hidden>开始行动</button>
+                  <button id="p2p-room-leave" class="secondary-button" type="button">离开房间</button>
+                </div>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </section>
+
+    <output id="p2p-toast" class="p2p-toast" role="status" aria-live="polite" aria-atomic="true" aria-hidden="true"></output>
+
+    <div id="level-up-banner" class="level-up-banner" aria-hidden="true">
+      <span>LEVEL UP</span>
+      <strong>等级突破</strong>
+    </div>
+
+    <section id="codex-screen" class="modal-layer codex-screen" aria-labelledby="codex-title">
+      <div class="codex-shell">
+        <header class="codex-header">
+          <div>
+            <span class="dialog-kicker">MODULE ARCHIVE</span>
+            <h2 id="codex-title">机体图鉴</h2>
+          </div>
+          <button id="codex-close-button" class="icon-button codex-close-button" type="button" aria-label="关闭机体图鉴" title="关闭机体图鉴">×</button>
+        </header>
+        <div class="codex-toolbar">
+          <div id="codex-category-filter" class="codex-category-filter" role="group" aria-label="按机体类型筛选">
+            <button class="is-active" type="button" data-category="all" aria-pressed="true">全部</button>
+            <button type="button" data-category="攻击" aria-pressed="false">攻击</button>
+            <button type="button" data-category="生存" aria-pressed="false">生存</button>
+            <button type="button" data-category="辅助" aria-pressed="false">辅助</button>
+            <button type="button" data-category="发育" aria-pressed="false">发育</button>
+          </div>
+          <output id="codex-count" class="codex-count" aria-live="polite"></output>
+        </div>
+        <div id="codex-list" class="codex-list"></div>
+      </div>
+    </section>
+
+    <section id="enemy-codex-screen" class="modal-layer codex-screen enemy-codex-screen" aria-labelledby="enemy-codex-title">
+      <div class="codex-shell enemy-codex-shell">
+        <header class="codex-header">
+          <div>
+            <span class="dialog-kicker">HOSTILE ARCHIVE</span>
+            <h2 id="enemy-codex-title">敌人图鉴</h2>
+          </div>
+          <button id="enemy-codex-close-button" class="icon-button codex-close-button" type="button" aria-label="关闭敌人图鉴" title="关闭敌人图鉴">×</button>
+        </header>
+        <div id="enemy-codex-list" class="enemy-codex-list"></div>
+      </div>
+    </section>
+
+    <section id="changelog-screen" class="modal-layer codex-screen changelog-screen" aria-labelledby="changelog-title">
+      <div class="codex-shell changelog-shell">
+        <header class="codex-header">
+          <div>
+            <span class="dialog-kicker">VERSION HISTORY</span>
+            <h2 id="changelog-title">更新日志</h2>
+          </div>
+          <button id="changelog-close-button" class="icon-button codex-close-button" type="button" aria-label="关闭更新日志" title="关闭更新日志">×</button>
+        </header>
+        <div class="changelog-list">
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V135</strong></div>
+              <time datetime="2026-07-31">2026.07.31</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">生存构筑</span>
+              <h3>晋升修复节与碰撞伤害调整</h3>
+              <ul>
+                <li>新增生存机体“晋升修复节”：首次装载时恢复全部生命值，之后每次玩家等级提升时按机体等级恢复10%～50%最大生命值；重复强化不再触发满血。</li>
+                <li>玩家撞墙、自己的身体、其他玩家身体或敌蛇身体时，碰撞受伤统一为10点；单人与多人行动简报同步更新。</li>
+                <li>同步封装玩家生命上限与自然恢复、恒愈芯节、危态代偿节、碧玉护盾冷却、摄生转化节启停等本期设计参数。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V134</strong></div>
+              <time datetime="2026-07-28">2026.07.28</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">玩法优化</span>
+              <h3>磁暴雷触碰体验与参数封装</h3>
+              <ul>
+                <li>玩家蛇头触碰磁雷时改为将地雷弹开约1.25格，磁雷不再被摧毁，玩家自身也不再受到击退。</li>
+                <li>磁暴雷的基础爆炸半径改为2格，并同步更新机体文案与设计控制台单位。</li>
+                <li>同步封装自动撞头前置距离、生命扩容、摄生转化、愈合增幅与碧玉护盾冷却等本期设计参数。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V133</strong></div>
+              <time datetime="2026-07-24">2026.07.24</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">玩法优化</span>
+              <h3>自动战斗就近目标选择</h3>
+              <ul>
+                <li>自动战斗现在比较最近球与可追击敌头的距离：球更近或距离相同时优先吃球，只有敌头更近时才会放弃吃球执行撞头。</li>
+                <li>单机与联机的目标优先级保持一致，原有撞头有效角、无遮挡检测和头前3身位瞄准规则不变。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V132</strong></div>
+              <time datetime="2026-07-24">2026.07.24</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">玩法优化</span>
+              <h3>自动撞头死区与前置距离</h3>
+              <ul>
+                <li>自动战斗只有在玩家位于敌蛇行进方向的 -120°～+120° 范围内时才会主动撞头，处于敌蛇后方死区时恢复寻球与避障。</li>
+                <li>撞头预期移动点由敌头前方1身位调整为3身位；有效半角与前置距离均已加入设计控制台，并由单机和联机共用。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V131</strong></div>
+              <time datetime="2026-07-24">2026.07.24</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">代码维护</span>
+              <h3>过期代码与冗余接口清理</h3>
+              <ul>
+                <li>移除已无引用的旧投射物集合、敌人索引与符号表、空间分桶键、网格判断、单目标线性命中和联机空事件处理器，并删除不再支持的 V1 战绩存档迁移分支。</li>
+                <li>精简碰撞击退、波次刷新、P2P 客户端和玩家状态编解码接口，清除未使用参数、类型与公开导出；单机与联机的现有行为保持不变。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V130</strong></div>
+              <time datetime="2026-07-24">2026.07.24</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">自动战斗</span>
+              <h3>自动撞头改为前置预判</h3>
+              <ul>
+                <li>自动移动发现无遮挡敌头后，不再直追敌人当前头部中心，而会瞄准其前方 1 节身体长度的位置，减少尾随并更主动地与移动中的敌蛇迎头相撞。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V129</strong></div>
+              <time datetime="2026-07-24">2026.07.24</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">性能修复</span>
+              <h3>场地网格渲染稳定性修复</h3>
+              <ul>
+                <li>场地扩张时，坐标文字不再以每帧变化的小数字号反复重建字形缓存；字号改为清晰的整数档位，坐标文本也改为复用预生成标签。</li>
+                <li>场地网格线由逐条描边改为按主次网格批量绘制，并移除视觉等价但会强制全屏混合的叠加层，空场景不再因背景渲染突然跌至低帧。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V128</strong></div>
+              <time datetime="2026-07-24">2026.07.24</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">联机房间</span>
+              <h3>成员自由离场与投票同步</h3>
+              <ul>
+                <li>联机对局中普通成员现在可以随时离开，房间与其他玩家的行动不会再被解散；剩余玩家会收到明确的浮动提示。</li>
+                <li>结算界面同样支持单人离场，重开票数会按当前成员立即更新；若离场后剩余玩家已经全票同意，将直接同步重开。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V127</strong></div>
+              <time datetime="2026-07-24">2026.07.24</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">性能与画质</span>
+              <h3>清晰渲染与帧稳定性修复</h3>
+              <ul>
+                <li>移除短暂低帧触发的画布分辨率降档与会话持久化，游戏现在按设备像素密度清晰绘制，最高支持2倍DPR。</li>
+                <li>默认绘制上限提高到240帧，避免144Hz与165Hz屏幕受120帧非整除节流影响；单人HUD改为15Hz定频刷新，减少每帧DOM开销。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V126</strong></div>
+              <time datetime="2026-07-24">2026.07.24</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">联机大厅</span>
+              <h3>全屏联机大厅</h3>
+              <ul>
+                <li>联机大厅改为真正独立的全屏界面，取消固定1280×720弹窗上限，按当前窗口铺开左右大厅与房间区域。</li>
+                <li>公开房间列表扩展为左栏主体，创建房间区改为紧凑横向布局；暂时隐藏房间码加入和私人房间入口。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V125</strong></div>
+              <time datetime="2026-07-24">2026.07.24</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">联机大厅</span>
+              <h3>隐藏未开放的联机难度</h3>
+              <ul>
+                <li>房主设置暂时隐藏尚未开放的难度选项，等待室也不再显示难度数值，避免误以为游戏已经提供多档难度。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V124</strong></div>
+              <time datetime="2026-07-24">2026.07.24</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">联机大厅</span>
+              <h3>双栏大厅与实时房间列表</h3>
+              <ul>
+                <li>联机大厅扩大为接近主菜单尺寸的16:9双栏界面，左侧保留公开房间与创建/加入入口，右侧始终显示当前房间。</li>
+                <li>移除手动刷新按钮；任意房间的成员、准备、设置、状态或重开投票发生变化时，服务器都会向全部在线玩家广播最新房间列表。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V123</strong></div>
+              <time datetime="2026-07-24">2026.07.24</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">联机体验</span>
+              <h3>重开投票与全员离场</h3>
+              <ul>
+                <li>联机结算的“再来一局”改为“投票重开 n/m”，每名玩家只能投票一次；全员同意后，房间会为所有人同步开启全新对局。</li>
+                <li>联机对局中任意玩家点击“离开游戏”都会解散当前房间，全体返回主菜单并收到明确的悬浮提示。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V122</strong></div>
+              <time datetime="2026-07-24">2026.07.24</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">自动战斗</span>
+              <h3>自动撞头追击强化</h3>
+              <ul>
+                <li>自动战斗现在会优先直冲8格内头部路径无遮挡的敌蛇，不再要求目标能被一次撞头击破。</li>
+                <li>敌蛇身体、其他蛇头、玩家自身后段机体或联机队友挡住路线时，会立即放弃追头并恢复寻球与避障。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V121</strong></div>
+              <time datetime="2026-07-24">2026.07.24</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">联机大厅修复</span>
+              <h3>房间关闭与操作提示</h3>
+              <ul>
+                <li>房主离开或连接中断时，所有成员都会退出失效房间，等待室界面立即消失并返回房间大厅。</li>
+                <li>房间关闭、准备、开始、设置、复制与失败操作新增短暂悬浮提示；房主开始行动时会直接指出尚未准备的成员。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V120</strong></div>
+              <time datetime="2026-07-24">2026.07.24</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">平衡调整</span>
+              <h3>机体平衡与升级保底</h3>
+              <ul>
+                <li>禁用三棱镜节，冰棱节冷却调整为180%。</li>
+                <li>升级三选一在存在可升级的现有机体时，保证至少出现1个现有机体升级选项；原有的新机体保底继续生效。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V119</strong></div>
+              <time datetime="2026-07-24">2026.07.24</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">联机重构</span>
+              <h3>房主星型 P2P 联机重构</h3>
+              <ul>
+                <li>多人模式改为联机大厅、房间与房主浏览器 Worker 运行的 WebRTC 星型 P2P，中心服务只负责账号、信令、聊天和战绩存档。</li>
+                <li>新增建立/加入房间、准备、房主难度与中途加入设置，房主离开时房间关闭。</li>
+                <li>玩家技能命中改用 SkillSpawn、HitClaim 与 WorldCommit 可靠链路，房主以 hitId 账本去重并删除旧中心服务器联机路径。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V118</strong></div>
+              <time datetime="2026-07-23">2026.07.23</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">性能优化</span>
+              <h3>腐蚀特效性能优化</h3>
+              <ul>
+                <li>腐蚀粒子改用预渲染辉光贴图，长身体敌蛇附带腐蚀时不再为每节实时重复计算多层阴影，大幅降低持续绘制开销。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V117</strong></div>
+              <time datetime="2026-07-23">2026.07.23</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">异常状态</span>
+              <h3>异常状态被动与机体命名</h3>
+              <ul>
+                <li>腐蚀现在可以摧毁仅剩蛇头的1生命值敌蛇，不再因没有身体节而失效。</li>
+                <li>新增被动攻击机体“异态撞针”，撞击敌人时每级随机附带1层冰冻、燃烧或腐蚀，并展示三种异常状态说明。</li>
+                <li>新增被动攻击机体“异态增幅节”，每级使冰冻减速、燃烧层数与腐蚀频率提高10%；燃烧层数使用带权随机取整。</li>
+                <li>设计控制台的机体图鉴现在可以直接编辑每个机体的名称，并随配置保存。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V116</strong></div>
+              <time datetime="2026-07-23">2026.07.23</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">攻击机体</span>
+              <h3>腐蚀地痕机体</h3>
+              <ul>
+                <li>新增被动攻击机体“腐蚀地痕节”，经过的地方会留下腐蚀之地，敌人进入时立即附带1层腐蚀。</li>
+                <li>敌人持续位于腐蚀之地时，每3秒再附带1层腐蚀；离开地形后清空该敌人的生效计时。</li>
+                <li>腐蚀地痕节升级会延长地形存在时间，默认每级增加2秒，最高10秒。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V115</strong></div>
+              <time datetime="2026-07-23">2026.07.23</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">异常状态体系</span>
+              <h3>异常状态体系重构</h3>
+              <ul>
+                <li>冰冻改为可叠层的加算减速，每层降低20%移动速度且最低保留10%；冰棱节改为扇形发射3枚附带冰冻的子弹。</li>
+                <li>中毒统一更名为腐蚀，叠层会缩短随机损毁身体节的生效间隔；燃烧默认间隔调整为0.3秒且只损毁身体节。</li>
+                <li>冰冻、燃烧与腐蚀改用独立可复用的异常状态资料，并在设计控制台第一页分别开放状态参数区。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V114</strong></div>
+              <time datetime="2026-07-23">2026.07.23</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">机制调整</span>
+              <h3>战斗标识与敌人转向整合</h3>
+              <ul>
+                <li>焚身导弹节改用分层燃烧说明，明确燃烧间隔、随机损毁部位与层数消耗。</li>
+                <li>磁暴雷节改为更醒目的大尺寸圆形警戒框与叉形标记；武装扩容节现在也会同步放大地雷标记和爆炸范围。</li>
+                <li>敌人最低与最高转向参数合并为基础转向，默认2.4；猎杀齐射节每级弹数调整为2，碧玉护盾冷却调整为500%。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V113</strong></div>
+              <time datetime="2026-07-23">2026.07.23</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">机制调整</span>
+              <h3>多人保护与冷却配置调整</h3>
+              <ul>
+                <li>暂停、选择升级及各类无敌状态中的玩家不再能够复活幽灵队友；队友撞上受保护玩家时只会被弹开，不再因此掉血。</li>
+                <li>主动技能冷却时间配置上限提高至2000%，镜反弹幕节冷却调整为1500%。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V112</strong></div>
+              <time datetime="2026-07-23">2026.07.23</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">性能优化</span>
+              <h3>持续帧循环精益优化</h3>
+              <ul>
+                <li>本地敌人头部互撞改为复用邻近空间分桶，并复用食物状态集合与移动坐标缓存，减少每帧重复扫描和临时对象分配。</li>
+                <li>子弹碰撞会先用敌人整体边界排除远处目标并复用命中缓存；敌人绘制与动态背景也减少了重复数组、贴图查找和字符串生成。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V111</strong></div>
+              <time datetime="2026-07-23">2026.07.23</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">性能优化</span>
+              <h3>高分辨率帧率稳定优化</h3>
+              <ul>
+                <li>高分辨率设备持续低帧时，现在会进一步降低游戏画布的内部像素密度，并将最高绘制帧率调整为120，减少帧率在高位与30帧之间反复跳变。</li>
+                <li>本地敌群避障与互撞检测改用可复用的邻近空间分桶，只检查附近敌蛇机体，避免敌人数与身体节增长时产生重复全量扫描。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V110</strong></div>
+              <time datetime="2026-07-23">2026.07.23</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">敌人图鉴</span>
+              <h3>敌人参数档案</h3>
+              <ul>
+                <li>主菜单敌人图鉴新增首次出现、刷新权重、生命权重、速度倍率、转向倍率与敌群避障范围，方便横向比较七类敌人的基础定位。</li>
+                <li>各敌人同步展示抢球范围、球团识别、追头摆幅、截断距离与头撞击退等专属参数，设计特色一眼可见。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V109</strong></div>
+              <time datetime="2026-07-23">2026.07.23</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">敌人生态</span>
+              <h3>敌群避障与巡猎者重做</h3>
+              <ul>
+                <li>盘踞者更名为“巡猎者”，移除球群盘旋机制，改为在抢球范围内持续觅食并主动避开玩家身体。</li>
+                <li>守卫者移除护卫队友逻辑，改为随机游荡、顺手追逐附近球，并保留主动避障与强化头撞。</li>
+                <li>所有敌人现在都会主动避让其他敌蛇的头部与身体，降低敌群因互撞损血而自行减员的频率。</li>
+                <li>同步调整冲角者、截断者、巡猎者、守卫者的解锁时间与战斗参数，并将基础场地面积调整为300。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V108</strong></div>
+              <time datetime="2026-07-22">2026.07.22</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">体验改善</span>
+              <h3>击退自撞保护</h3>
+              <ul>
+                <li>玩家处于任意击退效果期间撞到自身身体时，现在会立即弹开且不再受到此次自撞伤害。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V107</strong></div>
+              <time datetime="2026-07-22">2026.07.22</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">战斗系统</span>
+              <h3>旋刃弹与动能缓冲修正</h3>
+              <ul>
+                <li>旋刃节完全重做为冷却120%的主动输出机体，每次从机体位置发射1枚旋刃弹。</li>
+                <li>旋刃弹会永久环绕玩家蛇头、无视墙壁并可无限积攒，首次命中敌人后造成1伤害并销毁。</li>
+                <li>动能缓冲节现在只在撞击敌人时降低击退与减速，不再缩短撞墙、撞到自身或其他玩家后的碰撞保护时间。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V106</strong></div>
+              <time datetime="2026-07-22">2026.07.22</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">战斗系统</span>
+              <h3>跳弹增幅与焚身导弹</h3>
+              <ul>
+                <li>新增攻击类被动机体“跳弹增幅节”，每级使所有子弹的墙壁反弹次数+1。</li>
+                <li>新增冷却360%的攻击类主动机体“焚身导弹节”，追踪生命值最高的敌蛇并在命中后燃烧摧毁其当前生命值一半向上取整的随机机体节。</li>
+                <li>显著强化冰冻与腐蚀状态粒子，并为燃烧加入高辨识度的橙黄火星与热光效果。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V105</strong></div>
+              <time datetime="2026-07-22">2026.07.22</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">多人联机</span>
+              <h3>多人碰撞反馈修复</h3>
+              <ul>
+                <li>恢复敌蛇受击、断体、死亡以及定向音效与反馈的可靠传输，避免丢包后只能等待快照补状态。</li>
+                <li>高刷新率设备重新逐帧更新远端插值与碰撞视图，消除 60 Hz 呈现上限带来的阶梯感和接触延迟。</li>
+                <li>手动玩家远端预测窗口放宽至 400 毫秒，碰撞请求会先可靠同步最新位置，降低网络抖动下的校验延迟。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V104</strong></div>
+              <time datetime="2026-07-22">2026.07.22</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">多人联机</span>
+              <h3>多人同步与性能优化</h3>
+              <ul>
+                <li>手动玩家继续保持本地即时操控；服务器现在限制失联玩家的远端预测时间并约束场地边界，避免其他玩家直线飞出场外后突然回跳。</li>
+                <li>远端玩家的大幅位置修正改为平滑追位，高刷新率设备同步降低重复全场插值开销。</li>
+                <li>战斗表现消息改为可丢弃传输，玩家身体上行状态采用紧凑坐标编码，并新增服务器网络负载指标。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V103</strong></div>
+              <time datetime="2026-07-22">2026.07.22</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">显示设置</span>
+              <h3>屏幕震动开关</h3>
+              <ul>
+                <li>右上角新增屏幕震动设置，默认开启，可统一关闭游戏中的所有震屏效果。</li>
+                <li>修复机体成长规则与最新设计配置版本不一致导致的页面初始化失败。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V102</strong></div>
+              <time datetime="2026-07-22">2026.07.22</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">自动战斗</span>
+              <h3>自动战斗安全与重开控制</h3>
+              <ul>
+                <li>自动移动现在会主动避开队友的蛇头与身体，并在大角度转弯时加强对自身身体的规避。</li>
+                <li>自动重开从自动战斗中拆分为独立开关，默认关闭；自动选择机体也调整为默认关闭。</li>
+                <li>设计控制台新增自动移动急转弯、自体规避与队友规避参数。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V101</strong></div>
+              <time datetime="2026-07-22">2026.07.22</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">规则调整</span>
+              <h3>挂机成长与对局信息更新</h3>
+              <ul>
+                <li>联机玩家复活后现在仅保留1点生命值，新存档的摄像机模式默认改为跟随蛇头。</li>
+                <li>左侧对局信息将球数与敌数分开显示，波次信息更加清晰。</li>
+                <li>25级解锁9个机体槽位后，每提升10级可继续获得1个机体槽位，且不设上限。</li>
+                <li>设计控制台同步开放联机复活生命值与满槽后扩容间隔参数。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V100</strong></div>
+              <time datetime="2026-07-22">2026.07.22</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">机体机制</span>
+              <h3>机体机制与护盾表现更新</h3>
+              <ul>
+                <li>壁垒共振节现在同时增强敌蛇撞墙与互撞的伤害和击退，每级增幅调整为50%；冰棱节改为一次性永久减速50%，不再叠加。</li>
+                <li>回声弹匣每级撞击发射2枚子弹，并在设计控制台开放弹数；新增镜反弹幕节，以1000%冷却向四周发射16枚可无限反弹墙壁的子弹。</li>
+                <li>碧玉护盾改为生命条上方按层延伸的细线，持盾时蛇头同步覆盖碧玉色护盾图层。</li>
+                <li>同步封装本期设计参数与机体启停调整。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V99</strong></div>
+              <time datetime="2026-07-22">2026.07.22</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">交互优化</span>
+              <h3>自动战斗支持快捷切换与选机控制</h3>
+              <ul>
+                <li>自动战斗现在支持按 A 键快捷开启或关闭，右上角入口支持悬停展开，并同步显示当前状态与快捷键提示。</li>
+                <li>自动战斗下拉列表新增“自动选择机体”开关，默认开启；关闭后升级时会暂停等待玩家手动选择，单人和多人模式保持一致。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V98</strong></div>
+              <time datetime="2026-07-22">2026.07.22</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">碰撞优化</span>
+              <h3>玩家击退后方角度修正</h3>
+              <ul>
+                <li>玩家受到击退时，正后方60度范围内的击退方向会按左右修正到后方150度边界，避免蛇头被直接推回自己的身体。</li>
+                <li>设计控制台新增玩家后方击退屏蔽角与修正角参数。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V97</strong></div>
+              <time datetime="2026-07-22">2026.07.22</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">性能优化</span>
+              <h3>跟随摄像机后期渲染优化</h3>
+              <ul>
+                <li>跟随蛇头模式现在只绘制视口附近的蛇身、敌人、球、弹体、特效与场地网格，大幅减少后期离屏绘制开销。</li>
+                <li>离屏球与敌人指示器改为优先显示最近目标并限制数量，避免大量标记在屏幕边缘重复绘制。</li>
+                <li>设计控制台新增跟随视角渲染缓冲范围及球、敌人指示器数量上限参数。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V96</strong></div>
+              <time datetime="2026-07-22">2026.07.22</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">攻击成长</span>
+              <h3>攻击类被动与攻击尺寸成长</h3>
+              <ul>
+                <li>机体分类“进攻”统一更名为“攻击”，并新增武装扩容节、倍击撞针与齐射增殖节三种攻击类被动机体。</li>
+                <li>攻击尺寸成长现在同步影响子弹、旋刃、爆炸范围与激光半径；撞击伤害与子弹数量可按机体等级概率翻倍。</li>
+                <li>设计控制台新增旋刃环绕半径及三种攻击类被动参数。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V95</strong></div>
+              <time datetime="2026-07-22">2026.07.22</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">碰撞规则</span>
+              <h3>玩家身体碰撞规则统一</h3>
+              <ul>
+                <li>玩家撞到自己的身体或其他玩家的身体时，会受到5点伤害，并触发与撞墙相同的碰撞效果。</li>
+                <li>行动简报已按最新单人碰撞、敌蛇拦截、多人误伤与队友复活规则重新编写。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V94</strong></div>
+              <time datetime="2026-07-22">2026.07.22</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">摄像机</span>
+              <h3>新增蛇头跟随摄像机</h3>
+              <ul>
+                <li>右上角设置新增“固定视角”与“跟随蛇头”两种摄像机模式，新存档默认使用固定视角。</li>
+                <li>跟随蛇头模式始终将玩家蛇头置于画面中心，并让场景延伸到左右侧界面下方。</li>
+                <li>跟随蛇头模式支持使用鼠标滚轮调整缩放，缩放值会独立保存。</li>
+                <li>设计控制台新增跟随视角的默认、最小与最大缩放参数，初始分别为1.5、0.75与2.5倍。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V93</strong></div>
+              <time datetime="2026-07-22">2026.07.22</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">难度设计</span>
+              <h3>难度设计改为按波次驱动</h3>
+              <ul>
+                <li>设计控制台的“敌人全局”参数已移入第四页，原“波次曲线”页面重命名为“难度设计”。</li>
+                <li>敌人速度成长改为按波次计算，第1波保持基础速度，之后每波按配置倍率递增。</li>
+                <li>波次速度倍率现在同时作用于敌人的移动速度与转向速率，使高速敌人保持原有转向能力。</li>
+                <li>“每波次速度成长”默认值设为0.01，可在0至0.1之间调整，并在关键波次预览中直接核对速度倍率。</li>
+                <li>本次一并封装场地每级面积成长0.1、高速枪节冷却60%与十字火力节冷却300%的设计参数调整。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V92</strong></div>
+              <time datetime="2026-07-22">2026.07.22</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">敌人刷新</span>
+              <h3>敌蛇预生成改为真实休眠实体</h3>
+              <ul>
+                <li>敌蛇预生成阶段现在直接显示按真实机体间距创建的完整敌蛇，激活前后不再缩短或跳位。</li>
+                <li>预生成敌蛇保持半透明闪烁，期间无法移动、碰撞、受伤或参与索敌，倒计时结束后才正式激活。</li>
+                <li>敌蛇激活时蛇头与每节机体都会播放独立的显现粒子与扩散环，相关参数已加入设计控制台。</li>
+                <li>敌人时间速度倍率上限同步调整为2倍，每波威胁线性成长参数同步调整为1%。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V91</strong></div>
+              <time datetime="2026-07-22">2026.07.22</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">战斗信息</span>
+              <h3>所有浮动战斗信息统一放大</h3>
+              <ul>
+                <li>“击破”、LEVEL UP、经验、治疗等所有浮动战斗信息统一使用与伤害数字相同的38px字号。</li>
+                <li>伤害数字现在显示攻击的完整伤害值，击杀低生命敌人时也会保留溢出伤害。</li>
+                <li>新增浮动战斗文字字号参数，可在设计控制台中继续调整。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V90</strong></div>
+              <time datetime="2026-07-22">2026.07.22</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">主动技能</span>
+              <h3>弹道机制与技能说明完成校准</h3>
+              <ul>
+                <li>贯穿轨炮与弹射晶改为无限穿透、无限反弹，相位回旋弹不再穿透敌人。</li>
+                <li>赤焰炮更名高速枪并改为随机方向射击，精简所有子弹的默认伤害文案。</li>
+                <li>旋刃重绘为中心对称造型，并同步纳入最新场地、冷却与机体启用参数。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V89</strong></div>
+              <time datetime="2026-07-22">2026.07.22</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">机体碰撞</span>
+              <h3>连接线现在可以拦截敌蛇</h3>
+              <ul>
+                <li>玩家头部与相邻机体之间、各机体之间的连接线全部加入连续碰撞体。</li>
+                <li>延展耦合后的长连接不再形成碰撞空洞，高速敌蛇穿越连接线也会正常触发拦截。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V88</strong></div>
+              <time datetime="2026-07-22">2026.07.22</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">升级流程</span>
+              <h3>经验满后立即进入升级演出</h3>
+              <ul>
+                <li>经验条满时会立即结算并中断身上尚未完成的吃球成长动画。</li>
+                <li>同步终止所有经验节合成动画，不再等待连锁合成结束才显示升级界面。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V87</strong></div>
+              <time datetime="2026-07-22">2026.07.22</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">出生预警</span>
+              <h3>预生成轮廓与敌蛇完全对齐</h3>
+              <ul>
+                <li>敌蛇出生前直接显示与本体相同尺寸、位置和朝向的头部与每节身体。</li>
+                <li>移除偏大的圆环和叉号标记，改用原尺寸轮廓闪烁提示即将生成。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V86</strong></div>
+              <time datetime="2026-07-22">2026.07.22</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">敌人刷新</span>
+              <h3>随机出生点替代墙角聚集</h3>
+              <ul>
+                <li>敌人会在全部合格位置中均匀随机刷新，不再优先选择离玩家最远的墙角。</li>
+                <li>出生点保持固定安全距离并避开玩家前进通道，相关距离可在设计控制台调整。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V85</strong></div>
+              <time datetime="2026-07-22">2026.07.22</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">波次修复</span>
+              <h3>高速机体不再造成连续空波</h3>
+              <ul>
+                <li>敌人出生安全距离不再随玩家的速度加成扩大，临界推进节等加速效果不会阻止敌人生成。</li>
+                <li>单人及多人模式采用相同规则，波次可稳定生成对应敌人。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V84</strong></div>
+              <time datetime="2026-07-22">2026.07.22</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">辅助机体</span>
+              <h3>延展耦合节加入升级池</h3>
+              <ul>
+                <li>每级使自身机体连接距离提高20%，满级提高100%。</li>
+                <li>效果只改变持有者的身体跟随间距，不影响蛇体大小、碰撞体积或敌蛇。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V83</strong></div>
+              <time datetime="2026-07-22">2026.07.22</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">多人协作</span>
+              <h3>全员幽灵正确结算并主动救援</h3>
+              <ul>
+                <li>幽灵移动速度提高至原来的两倍；所有在场玩家均为幽灵时立即结束本轮。</li>
+                <li>自动玩家会在原有高优先行为完成后优先复活幽灵队友，再继续吃球。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V82</strong></div>
+              <time datetime="2026-07-22">2026.07.22</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">战斗反馈</span>
+              <h3>伤害数字更醒目且不再被击破提示遮挡</h3>
+              <ul>
+                <li>敌蛇伤害数字的字号提高为原来的两倍，描边同步加粗。</li>
+                <li>玩家头撞直接摧毁敌蛇时，伤害数字会与击破提示错位显示并保持在最上层。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V81</strong></div>
+              <time datetime="2026-07-22">2026.07.22</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">生命系统</span>
+              <h3>生命衰减不再触发受伤反馈</h3>
+              <ul>
+                <li>负生命恢复现在连续扣除生命，不再触发受伤动画、音效、震动、闪屏或护盾。</li>
+                <li>当前生命值与生命上限始终保留一位小数。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V80</strong></div>
+              <time datetime="2026-07-22">2026.07.22</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">数值调整</span>
+              <h3>最新平衡参数正式定版</h3>
+              <ul>
+                <li>收录设计控制台中的最新玩家、敌人、蛇体间距、机体效果与冷却参数。</li>
+                <li>采用新的波次敌人数曲线，并暂时禁用仍需调整的激光节与导弹节。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V79</strong></div>
+              <time datetime="2026-07-22">2026.07.22</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">设计控制台</span>
+              <h3>蛇体大小与连接距离独立调节</h3>
+              <ul>
+                <li>蛇体大小统一控制玩家与敌蛇的头部、身体节和对应碰撞体积。</li>
+                <li>连接线距离统一控制相邻身体节间距；修复设计配置保存时被错误拒绝的问题。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V78</strong></div>
+              <time datetime="2026-07-22">2026.07.22</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">机体视觉</span>
+              <h3>蛇体尺寸与间距恢复紧凑比例</h3>
+              <ul>
+                <li>蛇体视觉倍率默认设为0.775，抵消基础场地缩小带来的额外放大。</li>
+                <li>玩家与敌蛇身体节间距同步收紧，并新增三项设计控制台参数供独立微调。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V77</strong></div>
+              <time datetime="2026-07-22">2026.07.22</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">机体视觉</span>
+              <h3>机体完整跟随场地比例缩放</h3>
+              <ul>
+                <li>移除机体视觉尺寸的上下限，场地缩小时整条蛇会随格子等比放大。</li>
+                <li>机体、连接线、描边与内部图形保持统一比例，不再因场地面积变化显得松散。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V76</strong></div>
+              <time datetime="2026-07-22">2026.07.22</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">机体与设置</span>
+              <h3>引力井归位，旋刃减速，音量范围扩展</h3>
+              <ul>
+                <li>引力井节改为在自身机体位置生成，不再造成初始范围伤害，仅持续拉扯并减速敌蛇。</li>
+                <li>旋刃旋转速度降低40%并加入设计控制台；命中蛇头时继续使用统一的断首与新头接替动画。</li>
+                <li>声音默认值改为100%，可调上限提高至300%；音效制作仍统一以50%档位作为设计基准。</li>
+                <li>玩家基础转向改为3.6；敌蛇转向区间改为1.8至2.4，波次间隔改为6秒，威胁时间系数改为4.5、每波成长改为3%，各阶段敌人数增加1。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V75</strong></div>
+              <time datetime="2026-07-22">2026.07.22</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">多人协作</span>
+              <h3>生命归零化身幽灵，等待队友接触复活</h3>
+              <ul>
+                <li>多人模式生命归零后不再死亡、掉级或爆出经验，等级、经验与整条机体均会保留。</li>
+                <li>幽灵无法接触球、敌蛇或发动技能，只能以每秒0.3格的固定速度移动并持续呼救。</li>
+                <li>存活队友的任意部位接触幽灵的任意部位即可将其复活，恢复50%生命并获得2秒无敌。</li>
+                <li>新增低频呼吸式虚化、头部求救信标、呼救浮字与复活反馈，并在多人记分板标明幽灵状态。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V74</strong></div>
+              <time datetime="2026-07-22">2026.07.22</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">场地与平衡</span>
+              <h3>基础场地收紧，机体参数继续调整</h3>
+              <ul>
+                <li>新增“基础场地面积”参数，默认由576格²缩小40%至345.6格²；单机与多人共用。</li>
+                <li>玩家基础速度改为3、每秒恢复改为0.25；敌人基础速度改为2.4、波次间隔改为9秒，威胁时间系数改为12。</li>
+                <li>调整引力环节、吞噬涡轮、生命扩容、恒愈芯节、摄生转化与危态代偿的效果参数，以及磁暴雷、再生芽、终结协议和相位回旋的冷却倍率。</li>
+                <li>追迹弹舱、截击反应节、平衡陀螺、幸运星节、钨针贯节、震荡榴巢、近炸蜂巢和双生电极现标记为禁用。</li>
+                <li>腐蚀囊节显示基础中毒间隔，孢子复制节精简描述；动能缓冲节改为辅助类。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V73</strong></div>
+              <time datetime="2026-07-22">2026.07.22</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">多人界面</span>
+              <h3>联机对局恢复显示机体槽</h3>
+              <ul>
+                <li>修复多人模式下左下角机体栏被隐藏的问题，空槽与已有机体现在会正常显示。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V72</strong></div>
+              <time datetime="2026-07-22">2026.07.22</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">战斗反馈</span>
+              <h3>头部命中特效更加克制</h3>
+              <ul>
+                <li>将敌蛇断首后的新头重构特效缩至蛇头大小，并移除夸张的大范围粒子与连接光束。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V71</strong></div>
+              <time datetime="2026-07-22">2026.07.22</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">界面修复</span>
+              <h3>升级选项重新居中</h3>
+              <ul>
+                <li>修复桌面端升级界面受右侧 HUD 留白影响而向左错位的问题，使选项始终在场地中央对齐。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V70</strong></div>
+              <time datetime="2026-07-22">2026.07.22</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">升级权重</span>
+              <h3>空槽越多，新机体出现概率越高</h3>
+              <ul>
+                <li>新机体选项概率改为“空闲槽位数 ÷ 总槽位数”，并保证只要仍有空槽，每轮升级至少提供一个新机体。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V69</strong></div>
+              <time datetime="2026-07-22">2026.07.22</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">多人规则</span>
+              <h3>共享场地按全队总等级扩张</h3>
+              <ul>
+                <li>多人模式的场地面积成长改为读取所有在场玩家的总等级，不再只取最高玩家等级。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V68</strong></div>
+              <time datetime="2026-07-22">2026.07.22</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">战斗反馈</span>
+              <h3>玩家伤害获得醒目的数字反馈</h3>
+              <ul>
+                <li>玩家对敌蛇造成伤害时显示更醒目的伤害数字；敌蛇撞墙与敌蛇之间的碰撞伤害不显示数字。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V67</strong></div>
+              <time datetime="2026-07-22">2026.07.22</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">战斗反馈</span>
+              <h3>敌蛇断首后由颈节自然接替</h3>
+              <ul>
+                <li>所有头部命中会直接摧毁旧头，溢出伤害继续摧毁临近身体，第一节幸存身体自动接替为新头。</li>
+                <li>新增旧头碎裂、能量传递与身体变形动画，本地和联机战斗保持一致。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V66</strong></div>
+              <time datetime="2026-07-22">2026.07.22</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">自动构筑</span>
+              <h3>自动模式优先扩展机体阵列</h3>
+              <ul>
+                <li>自动模式在仍有空槽位时只选择尚未装载的新机体；槽位填满后才升级已有机体。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V65</strong></div>
+              <time datetime="2026-07-22">2026.07.22</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">机体体系重构</span>
+              <h3>十四种新机体与战斗规则统一</h3>
+              <ul>
+                <li>新增经验、头撞、生命、恢复、减伤、复制、失血增益、撞墙强化、尾部拦截与敌蛇死亡齐射等十四种被动机体。</li>
+                <li>重做冰棱、中毒、旋刃、护盾、回声弹匣、终结协议及多种进攻机体；范围攻击与穿透统一按敌蛇部位结算。</li>
+                <li>护盾层数直接覆盖显示在生命条上，生命恢复获得专属音效、粒子、浮字与 HUD 反馈。</li>
+                <li>设计控制台同步全部新参数，并移除敌蛇生成数量上限。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V64</strong></div>
+              <time datetime="2026-07-21">2026.07.21</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">战斗与界面</span>
+              <h3>战术 HUD 与智能交战</h3>
+              <ul>
+                <li>机体栏改为单行固定槽位，并可悬浮查看当前等级效果；升级时机体栏与生命、经验面板保持可见。</li>
+                <li>玩家生命上限调整为 20、每秒恢复调整为 0.5；设计范围分别收紧至 0–100 与 0–1。</li>
+                <li>所有敌人会提前避开墙壁；自动战斗只规避敌蛇身体，并会主动撞击可击破的敌蛇头。</li>
+                <li>球生成时增加本体展开动画，机体分类统一为进攻、生存、辅助与发育。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V63</strong></div>
+              <time datetime="2026-07-21">2026.07.21</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">平衡调整</span>
+              <h3>敌群权重与机体轮换</h3>
+              <ul>
+                <li>调整信使、冲锋、切割、盘旋与守卫敌人的生成权重。</li>
+                <li>缩短冰棱节与磁暴雷节的主动技能冷却时间。</li>
+                <li>暂时禁用 15 个待调整机体，并从升级池与主菜单图鉴中隐藏。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V62</strong></div>
+              <time datetime="2026-07-21">2026.07.21</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">工具与图鉴</span>
+              <h3>可靠保存与机体筛选</h3>
+              <ul>
+                <li>设计控制台新增立即保存按钮，可强制把当前内存草稿写回配置文件。</li>
+                <li>机体状态切换不再跳回页面顶部，主动技能冷却百分比支持直接输入。</li>
+                <li>主菜单机体图鉴隐藏禁用机体，并支持按输出、防御、辅助与发育类型筛选。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V61</strong></div>
+              <time datetime="2026-07-21">2026.07.21</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">生存机制</span>
+              <h3>耐久系统与碰撞战斗</h3>
+              <ul>
+                <li>玩家获得 30 点耐久与每秒 1 点恢复；撞敌蛇身体受到 10 点伤害，撞墙受到 5 点伤害。</li>
+                <li>蛇头取消自动开火，改为撞击敌蛇造成 1 点伤害；玩家互撞身体不再死亡或受伤。</li>
+                <li>敌蛇撞墙或撞上其他敌蛇时受到 1 点伤害，并新增受伤音效、闪烁、震屏与红色伤害浮字。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V60</strong></div>
+              <time datetime="2026-07-21">2026.07.21</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">平衡调整</span>
+              <h3>敌人参数重调与配置精简</h3>
+              <ul>
+                <li>降低时间威胁成长，并全面调整七类敌人的刷新、生命、移动与转向参数。</li>
+                <li>场地每级面积成长降至 3%；所有机体状态恢复正常，原禁用机体重新加入升级池。</li>
+                <li>移除玩家每级速度成长与被动减免效果上限两项废弃参数。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V59</strong></div>
+              <time datetime="2026-07-21">2026.07.21</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">敌人 AI</span>
+              <h3>避障分层与追头行为重构</h3>
+              <ul>
+                <li>浮游体改为范围内抢球，浮游体与觅食者不再主动避开玩家身体。</li>
+                <li>搬运者取消满载撤离，始终寻找球群，并在接近玩家身体时优先避障。</li>
+                <li>冲角者取消蓄力冲锋，改为持续追踪最近玩家蛇头，同时保留摆动、渐进转向与机体避障。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V58</strong></div>
+              <time datetime="2026-07-21">2026.07.21</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">联机优化</span>
+              <h3>高密度战场同步与绘制提速</h3>
+              <ul>
+                <li>碰撞特效按插值时间播放并跟随当前蛇头位置，减少延迟下的错位反馈。</li>
+                <li>修复个人特效误发给全房间的问题，分流普通世界特效并合并同帧重复音效，避免可靠消息积压。</li>
+                <li>缓存敌蛇头部与身体外观、复用粒子对象，显著降低大量敌蛇与爆发特效同时出现时的绘制和回收开销。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V57</strong></div>
+              <time datetime="2026-07-21">2026.07.21</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">机体规范</span>
+              <h3>五级成长与批量状态管理</h3>
+              <ul>
+                <li>所有主动与被动机体统一封顶 5 级；主动技能最高降至 20% 冷却，被动效果按最多 5 级计算。</li>
+                <li>升级主动机体时立即刷新技能冷却，并将“恢复”分类统一更名为“发育”。</li>
+                <li>设计控制台显示机体 ID，并支持确认后按当前筛选结果批量设置机体状态。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V56</strong></div>
+              <time datetime="2026-07-21">2026.07.21</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">联机优化</span>
+              <h3>低频世界对象退出运动快照</h3>
+              <ul>
+                <li>地雷、引力场与敌人出生预警改为可靠的生成、更新和销毁增量，不再随每帧运动快照重复传输。</li>
+                <li>复用服务端吃球候选与敌人碰球扫描容器，降低大量经验球和长局中的垃圾回收停顿。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V55</strong></div>
+              <time datetime="2026-07-21">2026.07.21</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">联机架构</span>
+              <h3>多人入口统一为共享世界</h3>
+              <ul>
+                <li>联机房间从第一名玩家加入起就始终使用多人记分板、头顶 ID 与共享世界规则，不再随人数隐式切换模式。</li>
+                <li>取消联机单人升级时的全世界慢动作；只有所有存活玩家都暂停或选模块时，共享世界才整体停止。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V54</strong></div>
+              <time datetime="2026-07-21">2026.07.21</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">设计审查</span>
+              <h3>完成首轮机体健康分级</h3>
+              <ul>
+                <li>逐项审查 58 个机体，标记为 33 个正常、12 个需调数值、6 个需大改与 7 个禁用。</li>
+                <li>禁用机体仅从局内升级池隐藏，目录、效果与设计记录继续保留，便于未来重做且避免重复设计。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V53</strong></div>
+              <time datetime="2026-07-21">2026.07.21</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">成长重构</span>
+              <h3>经验与机体可以持续压缩升级</h3>
+              <ul>
+                <li>经验身体采用灰、蓝、金三档进位压缩，并加入分级动画、音效、粒子与仅影响自己的镜头反馈。</li>
+                <li>功能机体改为槽位制；重复选择会升级原机体，主动技能按等级加快冷却，被动效果按等级线性成长。</li>
+                <li>升级卡显示等级与实际数值变化，设计控制台开放全部成长、压缩与机体专属参数。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V52</strong></div>
+              <time datetime="2026-07-21">2026.07.21</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">机体规范</span>
+              <h3>明确主动与被动技能</h3>
+              <ul>
+                <li>拥有独立冷却的机体统一归为主动技能，其余常驻与触发型机体统一显示为“被动效果”。</li>
+                <li>吞噬涡轮不设触发冷却，每次吃球都会立即获得并刷新持续增益。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V51</strong></div>
+              <time datetime="2026-07-21">2026.07.21</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">紧急修复</span>
+              <h3>恢复大厅启动流程</h3>
+              <ul>
+                <li>修复生产构建遗漏新增脚本，导致设置、按钮和网络连接均未初始化的问题。</li>
+                <li>构建流程改为自动收集游戏入口引用的全部本地脚本，防止后续再次漏发。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V50</strong></div>
+              <time datetime="2026-07-21">2026.07.21</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">信息规范</span>
+              <h3>统一机体说明</h3>
+              <ul>
+                <li>移除简略与详细描述开关，全部机体改用精简且参数明确的统一说明。</li>
+                <li>游戏图鉴、升级界面、局内提示与设计控制台共享同一份机体目录。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V49</strong></div>
+              <time datetime="2026-07-21">2026.07.21</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">界面修复</span>
+              <h3>左上角游戏名完整显示</h3>
+              <ul>
+                <li>修复中文游戏名顶部被行盒裁切的问题，并将名称与版本徽标向下对齐。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V48</strong></div>
+              <time datetime="2026-07-21">2026.07.21</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">敌人曲线</span>
+              <h3>重建波次数量与生命预算</h3>
+              <ul>
+                <li>敌人数改用固定波次计划，每 5 波的高压波同时将数量与总威胁翻倍。</li>
+                <li>敌人生命改由预期经验、等级与 DPS 推导总预算，再按各类型生命权重独立浮动分配。</li>
+                <li>设计控制台新增波次曲线页面，可编辑数量计划并实时核对关键波次数据。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V47</strong></div>
+              <time datetime="2026-07-21">2026.07.21</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">品牌更新</span>
+              <h3>启用正式游戏名称</h3>
+              <ul>
+                <li>游戏内与游戏大厅统一更名为“代号：几何贪吃蛇”，大厅简介同步更新。</li>
+                <li>战斗界面左上角品牌卡新增当前版本号，版本信息更易确认。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V46</strong></div>
+              <time datetime="2026-07-21">2026.07.21</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">成长调整</span>
+              <h3>升级经验需求提高</h3>
+              <ul>
+                <li>每级升级所需经验调整为 5 + 当前等级 × 2，单机与联机规则保持一致。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V45</strong></div>
+              <time datetime="2026-07-21">2026.07.21</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">操作优化</span>
+              <h3>关闭游戏页右键菜单</h3>
+              <ul>
+                <li>游戏页面不再弹出浏览器右键菜单，避免战斗和菜单操作时误触。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V44</strong></div>
+              <time datetime="2026-07-21">2026.07.21</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">流畅度优化</span>
+              <h3>吃球判定改用空间索引</h3>
+              <ul>
+                <li>玩家与敌人只检查各关节附近的经验球，不再反复遍历场上全部球。</li>
+                <li>保留磁吸、全身采集、敌人抢球与原有接触半径，球量增大时帧率更加稳定。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V43</strong></div>
+              <time datetime="2026-07-21">2026.07.21</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">索敌改进</span>
+              <h3>火力会瞄准最近关节</h3>
+              <ul>
+                <li>所有弹道与即时火力会从敌蛇头部和每节身体中选择距发射点最近的关节。</li>
+                <li>追踪弹会持续追踪发射时选中的关节，联机客户端也会同步相同目标。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V42</strong></div>
+              <time datetime="2026-07-21">2026.07.21</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">卡死修复</span>
+              <h3>冲角者不再终止战斗画面</h3>
+              <ul>
+                <li>修复冲角者蓄势或冲锋时触发的绘制异常，单机与联机画面不再因此停在一帧。</li>
+                <li>帧循环新增异常自恢复与联机快照重同步，并兼容缺少原生圆角路径的浏览器。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V41</strong></div>
+              <time datetime="2026-07-21">2026.07.21</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">流畅度修复</span>
+              <h3>暂停恢复不再拖低帧率</h3>
+              <ul>
+                <li>FPS 只统计实际战斗绘制帧，暂停画面的低频刷新不再污染恢复后的显示值。</li>
+                <li>解除暂停或升级中断时立即重建帧计时与绘制相位，避免首帧沿用低频调度造成短顿。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V40</strong></div>
+              <time datetime="2026-07-21">2026.07.21</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">设计工具</span>
+              <h3>设计控制台恢复正常启动</h3>
+              <ul>
+                <li>本地启动器现已完整提供敌人图鉴依赖，控制台不再卡在加载状态。</li>
+                <li>启动器自检会自动核对页面脚本，未来缺失依赖会在启动前明确报错。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V39</strong></div>
+              <time datetime="2026-07-20">2026.07.20</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">战斗反馈</span>
+              <h3>火力会真正击碎命中的机体</h3>
+              <ul>
+                <li>敌蛇改为从实际受击位置损失机体，多点伤害会连续摧毁命中处附近的身体。</li>
+                <li>中段被打断后，后段身体会短暂追赶并重新衔接，不再固定从尾部扣除。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V38</strong></div>
+              <time datetime="2026-07-20">2026.07.20</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">敌人档案</span>
+              <h3>敌人生态加入完整图鉴</h3>
+              <ul>
+                <li>主菜单新增敌人图鉴，可查看七类敌人的完整身体外形与行为特征。</li>
+                <li>设计控制台新增敌人配置页，各类型专属参数从通用列表迁入对应档案。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V37</strong></div>
+              <time datetime="2026-07-20">2026.07.20</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">导航修复</span>
+              <h3>返回大厅不再陷入循环跳转</h3>
+              <ul>
+                <li>返回时优先使用实际来源大厅，并拒绝指回当前游戏的异常启动地址。</li>
+                <li>退出改为替换当前历史记录，旧链接与错误参数不再造成重复重定向。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V36</strong></div>
+              <time datetime="2026-07-20">2026.07.20</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">操作模式</span>
+              <h3>自动行动改为随时切换</h3>
+              <ul>
+                <li>自动测试抽离为右上角自动模式，可在单人或多人对局中随时开启和关闭。</li>
+                <li>自动模式仅接管移动、升级选择和死亡重开，其余设置与玩法保持独立。</li>
+                <li>主菜单入口重排为左上单人模式、右上多人模式，图鉴与更新日志位于第二行。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V35</strong></div>
+              <time datetime="2026-07-20">2026.07.20</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">联机修复</span>
+              <h3>后加入玩家同步不再冻结</h3>
+              <ul>
+                <li>修复第二名及后续玩家偶发停留在加入首帧、看不到自己移动的问题。</li>
+                <li>客户端与服务器加入时校验快照协议，过期运行资源会自动刷新。</li>
+                <li>加入和断流恢复改用可靠快照补帧，短暂丢包后可自动恢复同步。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V34</strong></div>
+              <time datetime="2026-07-20">2026.07.20</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">参数整理</span>
+              <h3>蛇头攻击间隔直接可调</h3>
+              <ul>
+                <li>移除重复的蛇头攻击间隔倍率，基础攻击间隔调整为 3 秒。</li>
+                <li>毒伤首次延迟与后续间隔改为独立参数，保持原有毒伤节奏不变。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V33</strong></div>
+              <time datetime="2026-07-20">2026.07.20</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">敌人生态</span>
+              <h3>七类敌人与时间威胁曲线</h3>
+              <ul>
+                <li>新增浮游体、觅食者、搬运者、冲角者、截断者、盘踞者与守卫者，各自拥有独立外形和行动逻辑。</li>
+                <li>敌人强度与波次预算改为随对局时间成长，不再读取玩家等级；多人预算仍随存活人数等比增加。</li>
+                <li>加入周期性加压波及恢复间隔，后期继续保留大量低生命敌人，兼顾压迫、清场与翻盘空间。</li>
+                <li>球和敌人数量不再影响波次倒计时，只有增压信标等对应机体能够改变倒计时倍率。</li>
+                <li>设计控制台已开放全部敌人类型、难度曲线与波次参数。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V32</strong></div>
+              <time datetime="2026-07-20">2026.07.20</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">战斗调整</span>
+              <h3>子弹体积全面提升</h3>
+              <ul>
+                <li>所有子弹的绘制尺寸与命中体积统一提升至原来的两倍。</li>
+                <li>设计控制台新增全局子弹体积倍率，可随时调整。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V31</strong></div>
+              <time datetime="2026-07-20">2026.07.20</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">易用性</span>
+              <h3>操作提示即时显示</h3>
+              <ul>
+                <li>右上角的返回大厅与暂停按钮改用零延迟提示。</li>
+                <li>全部对局配置与操作按钮现在使用一致的悬停反馈。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V30</strong></div>
+              <time datetime="2026-07-20">2026.07.20</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">联机反馈</span>
+              <h3>战斗音画即时对齐</h3>
+              <ul>
+                <li>多人战斗音效不再被其他玩家的同类声音挤掉。</li>
+                <li>敌蛇撞上自己的身体时会立即完整播放摧毁特效、文字与音效。</li>
+                <li>服务端确认期间持续隐藏旧快照残影，避免敌蛇死亡后短暂闪回。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V29</strong></div>
+              <time datetime="2026-07-20">2026.07.20</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">交付流程</span>
+              <h3>部署不再受单元测试阻断</h3>
+              <ul>
+                <li>移除旧版 snakeArena 单元测试套件。</li>
+                <li>自动部署取消单元测试门禁，继续保留生产构建与服务健康检查。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V28</strong></div>
+              <time datetime="2026-07-20">2026.07.20</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">联机优化</span>
+              <h3>密集球场与本地反馈</h3>
+              <ul>
+                <li>球改用可靠增量同步，静止球不再反复占用高频快照带宽。</li>
+                <li>吃球、牵引、敌人寻球与大量掉落改用空间索引和批量计算，降低后期阵卡。</li>
+                <li>震屏强度由本地客户端生成，且只响应与自己有关的吃球、攻击、升级和碰撞。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V27</strong></div>
+              <time datetime="2026-07-20">2026.07.20</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">易用性</span>
+              <h3>更大的界面与即时提示</h3>
+              <ul>
+                <li>字体缩放上限提升至 200%，新存档默认使用 150%。</li>
+                <li>玩家头顶铭牌会随字体设置整体缩放。</li>
+                <li>右上角配置按钮的说明改为悬停后立即显示。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V26</strong></div>
+              <time datetime="2026-07-20">2026.07.20</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">火力重构</span>
+              <h3>全场索敌与独立冷却</h3>
+              <ul>
+                <li>攻击机体改为全场索敌，子弹会持续飞行到命中目标或撞上墙壁。</li>
+                <li>主动技能改用公共基础冷却与独立百分比，并重新平衡全部输出机体。</li>
+                <li>设计控制台可逐个调整主动机体冷却，并即时查看换算后的实际秒数。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V25</strong></div>
+              <time datetime="2026-07-20">2026.07.20</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">模式入口</span>
+              <h3>随时切换纯单机</h3>
+              <ul>
+                <li>主菜单新增独立的单机模式按钮。</li>
+                <li>从游戏大厅进入时也可立即断开联机，改用完整的本地游戏逻辑。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V24</strong></div>
+              <time datetime="2026-07-20">2026.07.20</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">复活定位</span>
+              <h3>快速找到自己的蛇头</h3>
+              <ul>
+                <li>每次出生或复活后，双层定位框会从屏幕外收束到自己的蛇头。</li>
+                <li>白色实线内框与动态黄色虚线外框会在到位后平滑淡出。</li>
+                <li>收束与淡出时长均可在设计控制台调整。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V23</strong></div>
+              <time datetime="2026-07-20">2026.07.20</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">联机识别</span>
+              <h3>玩家铭牌回归</h3>
+              <ul>
+                <li>多人模式重新在每名玩家蛇头上方显示斜切 ID 铭牌。</li>
+                <li>自己使用黄底黑字白框，其他玩家使用黑底白字及对应玩家色边框。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V22</strong></div>
+              <time datetime="2026-07-20">2026.07.20</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">成长修复</span>
+              <h3>升级球即时结算</h3>
+              <ul>
+                <li>最后一格经验球会立即结束待播放的蛇身脉冲并进入升级演出。</li>
+                <li>所有尚未完成的身体增长都会完整结算，升级期间不再重复吃球。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V21</strong></div>
+              <time datetime="2026-07-20">2026.07.20</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">部署修复</span>
+              <h3>二进制状态验证修正</h3>
+              <ul>
+                <li>修正玩家状态包测试对 Float32 量化值使用精确相等判断的问题。</li>
+                <li>全部量化移动字段统一按编码精度校验，避免同类构建误报。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V20</strong></div>
+              <time datetime="2026-07-20">2026.07.20</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">碰撞同步</span>
+              <h3>可见即发生的蛇头碰撞</h3>
+              <ul>
+                <li>玩家头撞改为本地即时反馈，并通过唯一事件可靠同步给全房间。</li>
+                <li>服务器按短时位置历史回溯接触帧，双端重复上报只会产生一次裁决。</li>
+                <li>远端弹开增加画面对齐等待、连续分离和平滑视觉补间，减少隔空碰撞、重叠与瞬移。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V19</strong></div>
+              <time datetime="2026-07-20">2026.07.20</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">联机碰撞</span>
+              <h3>本地权威移动与碰撞</h3>
+              <ul>
+                <li>手动玩家的蛇头、身体、反弹与自身死亡改为本地即时裁决。</li>
+                <li>完整蛇身状态以紧凑数据包同步，服务器不再用碰撞快照强行拉回手动玩家。</li>
+                <li>敌蛇整体死亡时，头部和每节身体都会按位置播放分层爆散粒子。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V18</strong></div>
+              <time datetime="2026-07-20">2026.07.20</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">操控优化</span>
+              <h3>完整本地移动预测</h3>
+              <ul>
+                <li>联机时自己的蛇头与全部身体改为本地即时移动和旋转。</li>
+                <li>未确认输入会在服务器快照后自动重放，降低网络延迟造成的操控滞后。</li>
+                <li>位置误差平滑校正，碰撞、伤害和死亡仍由服务器统一裁决。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V17</strong></div>
+              <time datetime="2026-07-20">2026.07.20</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">联机优化</span>
+              <h3>响应与长局稳定性</h3>
+              <ul>
+                <li>优化联机转向响应，操控反馈更加及时。</li>
+                <li>降低长时间游玩时的网络同步和内存开销。</li>
+                <li>移除会让整个房间周期性停顿的重复刷新任务。</li>
+              </ul>
+            </div>
+          </article>
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V16</strong></div>
+              <time datetime="2026-07-19">2026.07.19</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">界面更新</span>
+              <h3>主菜单与版本记录</h3>
+              <ul>
+                <li>新增更新日志界面，可从主菜单随时查看版本内容。</li>
+                <li>主菜单四个入口调整为 2×2 排列。</li>
+                <li>从 V16 起，每次版本更新都会同步记录变更。</li>
+              </ul>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="pause-screen" class="modal-layer" aria-labelledby="pause-title">
+      <div class="dialog compact-dialog">
+        <span class="dialog-kicker">OPERATION PAUSED</span>
+        <h2 id="pause-title">行动暂停</h2>
+        <div class="dialog-actions pause-actions">
+          <button id="resume-button" class="primary-button" type="button">继续游戏</button>
+          <button id="pause-restart-button" class="secondary-button" type="button">重新开始</button>
+          <button id="pause-menu-button" class="secondary-button pause-menu-button" type="button">返回主菜单</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="upgrade-screen" class="modal-layer upgrade-screen" aria-labelledby="upgrade-title">
+      <div class="upgrade-wrap">
+        <span class="dialog-kicker">MODULE ACQUISITION</span>
+        <h2 id="upgrade-title">选择身体模块</h2>
+        <p class="upgrade-level">等级提升至 <strong id="upgrade-level-value">1</strong></p>
+        <div id="upgrade-options" class="upgrade-options"></div>
+      </div>
+    </section>
+
+    <section id="game-over-screen" class="modal-layer" aria-labelledby="game-over-title">
+      <div class="dialog result-dialog">
+        <span class="dialog-kicker">OPERATION COMPLETE</span>
+        <h2 id="game-over-title">行动结束</h2>
+        <div class="result-score">
+          <span>最终得分</span>
+          <strong id="final-score">0</strong>
+          <em id="new-best">NEW BEST</em>
+        </div>
+        <div class="result-grid">
+          <div><span>等级</span><strong id="final-level">0</strong></div>
+          <div><span>击破</span><strong id="final-kills">0</strong></div>
+          <div><span>存活</span><strong id="final-time">00:00</strong></div>
+        </div>
+        <div class="dialog-actions result-actions">
+          <button id="restart-button" class="primary-button" type="button">再来一局</button>
+          <button id="game-over-menu-button" class="secondary-button" type="button">返回主菜单</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="designer-config.js?v=135"></script>
+  <script src="status-catalog.js?v=135"></script>
+  <script src="module-catalog.js?v=135"></script>
+  <script src="module-progression.js?v=135"></script>
+  <script src="wave-director.js?v=135"></script>
+  <script src="spawn-planner.js?v=135"></script>
+  <script src="network-codec.js?v=135"></script>
+  <script src="network-player-prediction.js?v=135"></script>
+  <script src="network-player-state-codec.js?v=135"></script>
+  <script src="network-player-collisions.js?v=135"></script>
+  <script src="network-head-collisions.js?v=135"></script>
+  <script src="network-food-claims.js?v=135"></script>
+  <script src="network-projectiles.js?v=135"></script>
+  <script src="lobby-navigation.js?v=135"></script>
+  <script src="enemy-codex.js?v=135"></script>
+  <script type="module" src="src/client/p2p/bootstrap.ts?v=135"></script>
+  <script src="game.js?v=135"></script>
+</body>
+</html>

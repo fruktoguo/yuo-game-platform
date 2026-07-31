@@ -9,6 +9,27 @@ describe('平台游戏目录', () => {
       shortDescription: '鸽鸽的联机肉鸽贪吃蛇！',
     });
   });
+
+  it('为怀旧服发布独立的大厅条目与网络身份', () => {
+    const game = loadConfig({
+      SNAKE_CLASSIC_LAUNCH_URL: 'http://127.0.0.1:3105',
+      SNAKE_CLASSIC_SERVICE_TOKEN: 'classic-service-token',
+    }).games.find(({ manifest }) => manifest.id === 'neon-snake-arena-classic');
+    expect(game).toMatchObject({
+      launchUrl: 'http://127.0.0.1:3105',
+      serviceToken: 'classic-service-token',
+      manifest: {
+        id: 'neon-snake-arena-classic',
+        slug: 'neon-snake-arena-classic',
+        name: '代号：几何贪吃蛇 怀旧服',
+        shortDescription: '20260731大改前备份',
+      },
+    });
+    expect(loadConfig({}).games.map(({ manifest }) => manifest.id)).toEqual(expect.arrayContaining([
+      'neon-snake-arena',
+      'neon-snake-arena-classic',
+    ]));
+  });
 });
 
 describe('平台身份配置', () => {

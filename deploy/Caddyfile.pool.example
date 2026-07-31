@@ -21,6 +21,11 @@ game.dstopology.com {
 		reverse_proxy 127.0.0.1:3103
 	}
 
+	redir /snake-classic /snake-classic/ 308
+	handle_path /snake-classic/* {
+		reverse_proxy 127.0.0.1:3105
+	}
+
 	handle {
 		reverse_proxy 127.0.0.1:3100
 	}

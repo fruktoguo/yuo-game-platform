@@ -1,0 +1,1534 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PROJECT GSS0 设计控制台</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Bahnschrift, "Microsoft YaHei UI", Arial, sans-serif;
+      background: #0b0e10;
+      color: #f4f6f5;
+      letter-spacing: 0;
+      --ink: #0b0e10;
+      --panel: #14191c;
+      --panel-2: #1b2226;
+      --line: #354047;
+      --muted: #9ba7ac;
+      --yellow: #f3c600;
+      --cyan: #24c7d9;
+      --green: #54d59b;
+      --orange: #ff9f43;
+      --red: #ff5c62;
+    }
+
+    * { box-sizing: border-box; }
+    body { margin: 0; min-width: 320px; background: var(--ink); }
+    button, input, select { font: inherit; letter-spacing: 0; }
+    button, input, select { border-radius: 3px; }
+    button { cursor: pointer; }
+    button:disabled { cursor: not-allowed; opacity: 0.42; }
+    :focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+
+    .topbar {
+      position: sticky;
+      z-index: 20;
+      top: 0;
+      display: grid;
+      grid-template-columns: minmax(240px, 1fr) auto;
+      gap: 20px;
+      align-items: center;
+      min-height: 76px;
+      padding: 14px clamp(18px, 3vw, 42px);
+      border-bottom: 1px solid var(--line);
+      background: rgba(11, 14, 16, 0.96);
+      backdrop-filter: blur(14px);
+    }
+
+    .brand { display: flex; min-width: 0; align-items: center; gap: 14px; }
+    .brand-mark { width: 8px; height: 42px; flex: 0 0 auto; background: var(--yellow); box-shadow: 8px 0 0 var(--cyan); }
+    .brand span { display: block; color: var(--yellow); font-size: 10px; font-weight: 900; }
+    .brand h1 { margin: 3px 0 0; font-size: 21px; line-height: 1; }
+    .file-state { margin-left: 8px; padding-left: 12px; border-left: 1px solid var(--line); color: var(--muted); font-size: 11px; font-weight: 800; }
+    .file-state.is-dirty { color: var(--orange); }
+    .file-state.is-saved { color: var(--green); }
+
+    .commands { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+    .command {
+      min-height: 38px;
+      padding: 0 14px;
+      border: 1px solid var(--line);
+      background: var(--panel-2);
+      color: #f4f6f5;
+      font-size: 12px;
+      font-weight: 900;
+    }
+    .command:hover:not(:disabled) { border-color: var(--cyan); }
+    .command:disabled { opacity: 0.48; cursor: not-allowed; }
+    .command.primary { border-color: var(--yellow); background: var(--yellow); color: #080a0b; }
+    .scale-control {
+      display: grid;
+      min-height: 38px;
+      grid-template-columns: auto 92px 42px;
+      gap: 9px;
+      align-items: center;
+      padding: 0 12px;
+      border: 1px solid var(--line);
+      border-radius: 3px;
+      background: var(--panel-2);
+      color: #f4f6f5;
+      font-size: 12px;
+      font-weight: 900;
+    }
+    .scale-control input { width: 92px; accent-color: var(--cyan); }
+    .scale-control output { color: var(--cyan); text-align: right; font-variant-numeric: tabular-nums; }
+
+    .workspace { display: grid; grid-template-columns: 190px minmax(0, 1fr); min-height: calc(100vh - 76px); }
+    .sidebar { position: sticky; top: 76px; height: calc(100vh - 76px); padding: 28px 18px; border-right: 1px solid var(--line); background: #0f1315; }
+    .sidebar-label { margin: 0 8px 12px; color: var(--muted); font-size: 9px; font-weight: 900; }
+    .tab {
+      display: grid;
+      width: 100%;
+      min-height: 44px;
+      grid-template-columns: 25px 1fr;
+      align-items: center;
+      margin-bottom: 6px;
+      padding: 0 11px;
+      border: 1px solid transparent;
+      background: transparent;
+      color: #c7ced1;
+      text-align: left;
+      font-size: 12px;
+      font-weight: 900;
+    }
+    .tab b { color: var(--muted); font-size: 10px; }
+    .tab.is-active { border-color: var(--line); border-left: 4px solid var(--yellow); background: var(--panel); color: #fff; }
+
+    .content { width: min(1240px, 100%); padding: 34px clamp(18px, 4vw, 56px) 70px; }
+    .view[hidden] { display: none; }
+    .view-head { display: flex; align-items: end; justify-content: space-between; gap: 20px; margin-bottom: 24px; }
+    .view-head span { color: var(--cyan); font-size: 10px; font-weight: 900; }
+    .view-head h2 { margin: 5px 0 0; font-size: 26px; }
+    .view-count { color: var(--muted); font-size: 12px; font-weight: 800; }
+
+    .parameter-groups { display: grid; gap: 30px; }
+    .parameter-group { border-top: 3px solid var(--line); }
+    .parameter-group h3 { margin: 0; padding: 14px 0 12px; font-size: 14px; }
+    .parameter-row {
+      display: grid;
+      grid-template-columns: minmax(190px, 0.8fr) minmax(220px, 1fr) 116px 60px;
+      gap: 18px;
+      align-items: center;
+      min-height: 72px;
+      padding: 11px 0;
+      border-top: 1px solid #252d31;
+    }
+    .parameter-copy strong { display: block; font-size: 13px; }
+    .parameter-copy span { display: block; margin-top: 4px; color: var(--muted); font-size: 10px; line-height: 1.45; }
+    input[type="range"] { width: 100%; accent-color: var(--yellow); }
+    .number-input, .filter-input, select {
+      min-height: 38px;
+      border: 1px solid var(--line);
+      background: #0f1315;
+      color: #fff;
+    }
+    .number-input { width: 100%; padding: 0 10px; text-align: right; font-variant-numeric: tabular-nums; }
+    .unit { color: var(--muted); font-size: 11px; font-weight: 800; }
+
+    .wave-overview { display: grid; grid-template-columns: minmax(330px, 0.78fr) minmax(460px, 1.22fr); gap: 24px; margin-bottom: 30px; }
+    .wave-panel { border-top: 4px solid var(--yellow); background: #12171a; }
+    .wave-panel.is-cyan { border-top-color: var(--cyan); }
+    .wave-panel > header { padding: 18px 20px 14px; border-bottom: 1px solid var(--line); }
+    .wave-panel > header span { color: var(--muted); font-size: 9px; font-weight: 900; }
+    .wave-panel > header h3 { margin: 5px 0 0; font-size: 16px; }
+    .wave-schedule-list { padding: 0 20px 10px; }
+    .wave-schedule-row { display: grid; grid-template-columns: 34px minmax(120px, 1fr) minmax(120px, 1fr); gap: 12px; align-items: end; min-height: 68px; border-bottom: 1px solid #293237; }
+    .wave-schedule-row:last-child { border-bottom: 0; }
+    .wave-tier-index { display: grid; width: 28px; height: 28px; margin-bottom: 5px; place-items: center; background: var(--yellow); color: #0b0e10; font-size: 10px; font-weight: 1000; }
+    .wave-schedule-field { display: grid; gap: 5px; padding-bottom: 9px; color: var(--muted); font-size: 9px; font-weight: 900; }
+    .wave-schedule-field input { width: 100%; min-height: 34px; padding: 0 9px; border: 1px solid var(--line); background: #0b0f11; color: #fff; text-align: right; font-variant-numeric: tabular-nums; }
+    .wave-schedule-field input:disabled { color: #778187; opacity: 0.72; }
+    .wave-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .wave-metric { min-height: 108px; padding: 18px 20px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+    .wave-metric:nth-child(2n) { border-right: 0; }
+    .wave-metric:nth-last-child(-n + 2) { border-bottom: 0; }
+    .wave-metric span { display: block; color: var(--muted); font-size: 9px; font-weight: 900; }
+    .wave-metric strong { display: block; margin-top: 9px; color: var(--cyan); font-size: 24px; font-variant-numeric: tabular-nums; }
+    .wave-metric small { display: block; margin-top: 5px; color: #bdc6c9; font-size: 9px; line-height: 1.4; }
+    .difficulty-parameter-groups { display: grid; gap: 30px; margin-bottom: 30px; }
+    .wave-preview { border-top: 4px solid var(--cyan); }
+    .wave-preview > header { display: flex; align-items: end; justify-content: space-between; gap: 20px; padding: 16px 0 13px; }
+    .wave-preview > header span { color: var(--cyan); font-size: 9px; font-weight: 900; }
+    .wave-preview > header h3 { margin: 5px 0 0; font-size: 17px; }
+    .wave-table-wrap { overflow-x: auto; border: 1px solid var(--line); }
+    .wave-table { width: 100%; border-collapse: collapse; min-width: 900px; font-size: 10px; font-variant-numeric: tabular-nums; }
+    .wave-table th { padding: 11px 12px; background: #0b0f11; color: var(--muted); text-align: right; font-size: 9px; }
+    .wave-table th:first-child, .wave-table th:nth-child(2), .wave-table td:first-child, .wave-table td:nth-child(2) { text-align: left; }
+    .wave-table td { padding: 12px; border-top: 1px solid #293237; text-align: right; }
+    .wave-table tr.is-pressure td { background: rgba(243, 198, 0, 0.075); color: #fff2b8; }
+    .wave-table tr.is-pressure td:nth-child(2) { color: var(--yellow); font-weight: 900; }
+
+    .module-toolbar { display: grid; grid-template-columns: minmax(220px, 1fr) 170px 170px; gap: 10px; margin-bottom: 18px; }
+    .filter-input, select { width: 100%; padding: 0 12px; }
+    .module-bulk-actions { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 18px; padding: 12px 14px; border-left: 3px solid var(--cyan); background: #101518; }
+    .module-bulk-copy strong { display: block; color: #fff; font-size: 11px; }
+    .module-bulk-copy span { display: block; margin-top: 4px; color: var(--muted); font-size: 9px; }
+    .module-bulk-buttons { display: grid; grid-template-columns: repeat(4, minmax(84px, 1fr)); gap: 6px; min-width: 390px; }
+    .module-bulk-buttons button { min-height: 32px; padding: 0 9px; border: 1px solid var(--line); background: #0b0f11; color: #d8e0e1; font-size: 10px; font-weight: 900; }
+    .module-bulk-buttons button[data-state="normal"] { border-color: var(--green); }
+    .module-bulk-buttons button[data-state="tune"] { border-color: var(--yellow); }
+    .module-bulk-buttons button[data-state="rework"] { border-color: var(--orange); }
+    .module-bulk-buttons button[data-state="disabled"] { border-color: var(--red); }
+    .module-list { border-top: 3px solid var(--line); }
+    .module-row {
+      display: grid;
+      grid-template-columns: 42px minmax(155px, 0.46fr) minmax(260px, 1fr) minmax(330px, auto);
+      gap: 16px;
+      align-items: center;
+      min-height: 104px;
+      padding: 15px 0;
+      border-bottom: 1px solid #293237;
+    }
+    .swatch { display: grid; width: 34px; height: 34px; place-items: center; border: 1px solid currentColor; color: var(--module-color); }
+    .swatch::after { width: 13px; height: 13px; background: currentColor; content: ""; transform: rotate(45deg); }
+    .module-name { min-width: 0; }
+    .module-name-input {
+      display: block;
+      width: 100%;
+      min-height: 34px;
+      padding: 0 9px;
+      border: 1px solid var(--line);
+      background: #0b0f11;
+      color: #fff;
+      font-size: 13px;
+      font-weight: 900;
+    }
+    .module-name-input:focus { border-color: var(--module-color); }
+    .module-name span { display: block; margin-top: 5px; color: var(--module-color); font-size: 10px; font-weight: 900; }
+    .module-name code { display: block; margin-top: 4px; color: var(--muted); font-size: 9px; font-family: Consolas, monospace; }
+    .module-desc { color: #bdc6c9; font-size: 11px; line-height: 1.58; }
+    .module-desc small { display: block; margin-top: 5px; color: var(--muted); font-weight: 800; }
+    .module-description-note { display: block; margin-top: 4px; color: #7e898d; font-size: 10px; white-space: pre-line; }
+    .cooldown-control {
+      grid-column: 3 / -1;
+      display: grid;
+      grid-template-columns: minmax(150px, 0.55fr) minmax(200px, 1fr) 92px 110px;
+      gap: 14px;
+      align-items: center;
+      padding: 10px 12px;
+      border-left: 3px solid var(--module-color);
+      background: #101518;
+    }
+    .cooldown-control strong { display: block; color: #fff; font-size: 11px; }
+    .cooldown-control span { display: block; margin-top: 3px; color: var(--muted); font-size: 9px; }
+    .cooldown-number-input { min-width: 0; }
+    .cooldown-control output { color: var(--yellow); text-align: right; font-size: 11px; font-weight: 900; font-variant-numeric: tabular-nums; }
+    .module-parameter-list {
+      grid-column: 3 / -1;
+      padding: 0 12px;
+      border-left: 3px solid var(--module-color);
+      background: #101518;
+    }
+    .module-parameter-list .parameter-row { padding: 10px 0; }
+    .module-parameter-list .parameter-row:last-child { border-bottom: 0; }
+    .status-control { display: grid; grid-template-columns: repeat(4, minmax(64px, 1fr)); border: 1px solid var(--line); }
+    .status-control button { min-height: 34px; padding: 0 7px; border: 0; border-right: 1px solid var(--line); background: #101518; color: #9ba7ac; font-size: 10px; font-weight: 900; }
+    .status-control button:last-child { border-right: 0; }
+    .status-control button.is-active[data-state="normal"] { background: var(--green); color: #07110c; }
+    .status-control button.is-active[data-state="tune"] { background: var(--yellow); color: #101000; }
+    .status-control button.is-active[data-state="rework"] { background: var(--orange); color: #160b02; }
+    .status-control button.is-active[data-state="disabled"] { background: var(--red); color: #fff; }
+    .empty { padding: 48px 0; color: var(--muted); text-align: center; }
+
+    .enemy-config-list { display: grid; gap: 28px; }
+    .enemy-config-card {
+      --enemy-color: var(--red);
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-top: 4px solid var(--enemy-color);
+      background: #12171a;
+    }
+    .enemy-config-overview {
+      display: grid;
+      grid-template-columns: minmax(280px, 0.82fr) minmax(320px, 1fr);
+      border-bottom: 1px solid var(--line);
+    }
+    .enemy-config-visual {
+      display: grid;
+      min-width: 0;
+      place-items: center;
+      border-right: 1px solid var(--line);
+      background: #0b0f11;
+    }
+    .enemy-config-visual canvas { display: block; width: 100%; height: auto; aspect-ratio: 52 / 25; }
+    .enemy-config-copy { min-width: 0; padding: 24px 28px; }
+    .enemy-config-copy > span { color: var(--enemy-color); font-size: 9px; font-weight: 900; }
+    .enemy-config-copy h3 { margin: 6px 0 11px; font-size: 21px; }
+    .enemy-config-copy p { margin: 0; color: #bdc6c9; font-size: 11px; line-height: 1.62; overflow-wrap: anywhere; }
+    .enemy-config-copy ul { display: grid; gap: 6px; margin: 15px 0 0; padding: 0; list-style: none; }
+    .enemy-config-copy li { position: relative; padding-left: 16px; color: #e5e9e9; font-size: 10px; font-weight: 800; }
+    .enemy-config-copy li::before { position: absolute; top: 0.55em; left: 0; width: 8px; height: 3px; background: var(--enemy-color); content: ""; }
+    .enemy-parameter-list { padding: 0 20px 8px; }
+    .enemy-parameter-list .parameter-row:last-child { border-bottom: 0; }
+
+    @media (max-width: 980px) {
+      .topbar { grid-template-columns: 1fr; }
+      .commands { justify-content: flex-start; }
+      .workspace { grid-template-columns: 1fr; }
+      .sidebar { position: sticky; top: 128px; z-index: 15; display: flex; width: 100%; height: auto; gap: 8px; padding: 10px 18px; border-right: 0; border-bottom: 1px solid var(--line); }
+      .sidebar-label { display: none; }
+      .tab { width: auto; min-width: 132px; margin: 0; }
+      .module-row { grid-template-columns: 38px minmax(140px, 0.5fr) 1fr; }
+      .status-control, .cooldown-control { grid-column: 2 / -1; }
+      .module-bulk-actions { align-items: stretch; flex-direction: column; }
+      .module-bulk-buttons { min-width: 0; }
+      .enemy-config-overview { grid-template-columns: minmax(230px, 0.72fr) minmax(300px, 1fr); }
+    }
+
+    @media (max-width: 660px) {
+      .topbar { position: relative; padding: 14px; }
+      .brand { flex-wrap: wrap; }
+      .file-state { display: block; width: 100%; margin: 8px 0 0; padding: 7px 0 0; border-top: 1px solid var(--line); border-left: 0; }
+      .workspace { min-height: 0; }
+      .sidebar { top: 0; overflow-x: auto; padding: 8px 14px; }
+      .content { padding: 25px 14px 50px; }
+      .view-head { align-items: flex-start; flex-direction: column; }
+      .parameter-row { grid-template-columns: 1fr 88px 44px; gap: 10px; padding: 15px 0; }
+      .parameter-copy { grid-column: 1 / -1; }
+      .parameter-row input[type="range"] { grid-column: 1 / 2; }
+      .module-toolbar { grid-template-columns: 1fr 1fr; }
+      .filter-input { grid-column: 1 / -1; }
+      .module-bulk-buttons { grid-template-columns: repeat(2, 1fr); }
+      .module-row { grid-template-columns: 34px 1fr; }
+      .module-desc, .status-control, .cooldown-control, .module-parameter-list { grid-column: 1 / -1; }
+      .cooldown-control { grid-template-columns: 1fr; gap: 8px; }
+      .cooldown-control output { text-align: left; }
+      .status-control { grid-template-columns: repeat(2, 1fr); }
+      .status-control button:nth-child(2) { border-right: 0; }
+      .status-control button:nth-child(-n + 2) { border-bottom: 1px solid var(--line); }
+      .enemy-config-overview { grid-template-columns: 1fr; }
+      .enemy-config-visual { border-right: 0; border-bottom: 1px solid var(--line); }
+      .enemy-config-copy { padding: 20px; }
+      .enemy-parameter-list { padding: 0 14px 6px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <i class="brand-mark" aria-hidden="true"></i>
+      <div><span>PROJECT GSS0 / LOCAL DESIGN</span><h1>设计控制台</h1></div>
+      <output id="file-state" class="file-state">designer-config.js · 正在加载</output>
+    </div>
+    <div class="commands">
+      <label class="scale-control">
+        <span>界面缩放</span>
+        <input id="interface-scale" type="range" min="80" max="160" step="10" value="100">
+        <output id="interface-scale-output" for="interface-scale">100%</output>
+      </label>
+      <button id="save-config" class="command primary" type="button" aria-keyshortcuts="Control+S Meta+S">立即保存</button>
+      <button id="open-config" class="command" type="button">授权自动保存</button>
+      <button id="reload-config" class="command" type="button">重新加载</button>
+    </div>
+  </header>
+
+  <main class="workspace">
+    <nav class="sidebar" aria-label="设计视图">
+      <p class="sidebar-label">CONTROL VIEWS</p>
+      <button class="tab is-active" type="button" data-view="balance"><b>01</b><span>参数列表</span></button>
+      <button class="tab" type="button" data-view="modules"><b>02</b><span>机体图鉴</span></button>
+      <button class="tab" type="button" data-view="enemies"><b>03</b><span>敌人图鉴</span></button>
+      <button class="tab" type="button" data-view="waves"><b>04</b><span>难度设计</span></button>
+    </nav>
+
+    <div class="content">
+      <section id="balance-view" class="view">
+        <header class="view-head"><div><span>RUNTIME BALANCE</span><h2>游戏参数</h2></div><output id="parameter-count" class="view-count"></output></header>
+        <div id="parameter-groups" class="parameter-groups"></div>
+      </section>
+
+      <section id="modules-view" class="view" hidden>
+        <header class="view-head"><div><span>MODULE ARCHIVE</span><h2>机体状态图鉴</h2></div><output id="module-count" class="view-count"></output></header>
+        <div class="module-toolbar">
+          <input id="module-search" class="filter-input" type="search" placeholder="搜索名称或 ID" aria-label="搜索机体">
+          <select id="category-filter" aria-label="筛选分类"><option value="all">全部分类</option><option>攻击</option><option>生存</option><option>辅助</option><option>发育</option></select>
+          <select id="status-filter" aria-label="筛选状态"><option value="all">全部状态</option><option value="normal">正常</option><option value="tune">需调数值</option><option value="rework">需大改</option><option value="disabled">禁用</option></select>
+        </div>
+        <div class="module-bulk-actions" aria-label="批量设置机体状态">
+          <div class="module-bulk-copy"><strong>批量设置当前筛选</strong><span id="module-bulk-count">当前筛选 0 个机体</span></div>
+          <div id="module-bulk-buttons" class="module-bulk-buttons" role="group" aria-label="批量状态操作">
+            <button type="button" data-state="normal">全部设为正常</button>
+            <button type="button" data-state="tune">全部设为需调数值</button>
+            <button type="button" data-state="rework">全部设为需大改</button>
+            <button type="button" data-state="disabled">全部设为禁用</button>
+          </div>
+        </div>
+        <div id="module-list" class="module-list"></div>
+      </section>
+
+      <section id="enemies-view" class="view" hidden>
+        <header class="view-head"><div><span>HOSTILE ARCHIVE</span><h2>敌人图鉴与参数</h2></div><output id="enemy-count" class="view-count"></output></header>
+        <div id="enemy-config-list" class="enemy-config-list"></div>
+      </section>
+
+      <section id="waves-view" class="view" hidden>
+        <header class="view-head"><div><span>DIFFICULTY DESIGN</span><h2>敌人全局与波次设计</h2></div><output id="wave-summary" class="view-count"></output></header>
+        <div class="wave-overview">
+          <section class="wave-panel" aria-labelledby="wave-schedule-title">
+            <header><span>ENEMY COUNT SCHEDULE</span><h3 id="wave-schedule-title">基础敌人数计划</h3></header>
+            <div id="wave-schedule-list" class="wave-schedule-list"></div>
+          </section>
+          <section class="wave-panel is-cyan" aria-labelledby="wave-metrics-title">
+            <header><span>100 WAVE CHECKPOINT</span><h3 id="wave-metrics-title">十分钟曲线摘要</h3></header>
+            <div id="wave-metrics" class="wave-metrics"></div>
+          </section>
+        </div>
+        <div class="difficulty-parameter-groups">
+          <section id="enemy-global-parameter-list" class="parameter-group" aria-label="敌人全局参数"></section>
+          <section id="wave-parameter-list" class="parameter-group" aria-label="波次与投放参数"></section>
+        </div>
+        <section class="wave-preview" aria-labelledby="wave-preview-title">
+          <header><div><span>CURVE VERIFICATION</span><h3 id="wave-preview-title">关键波次预览</h3></div><output id="wave-preview-note" class="view-count"></output></header>
+          <div class="wave-table-wrap">
+            <table class="wave-table">
+              <thead><tr><th>波次</th><th>类型</th><th>基础敌人数</th><th>实际敌人数</th><th>前置经验</th><th>预期等级</th><th>预期 DPS</th><th>威胁倍率</th><th>速度倍率</th><th>总威胁</th></tr></thead>
+              <tbody id="wave-preview-body"></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+    </div>
+  </main>
+
+  <script src="enemy-codex.js?v=135"></script>
+  <script src="wave-director.js?v=135"></script>
+  <script src="designer-config.js?v=135"></script>
+  <script src="status-catalog.js?v=135"></script>
+  <script src="module-catalog.js?v=135"></script>
+  <script src="module-progression.js?v=135"></script>
+  <script>
+    (() => {
+      "use strict";
+
+      const enemyCodex = globalThis.GSS0EnemyCodex;
+      const waveDirectorApi = globalThis.GSS0WaveDirector;
+      const moduleCatalog = globalThis.GSS0ModuleCatalog;
+      const moduleProgression = globalThis.GSS0ModuleProgression;
+      const describeModule = globalThis.GSS0DescribeModule;
+      const describeModuleNote = globalThis.GSS0DescribeModuleNote;
+      const defaultModuleNames = globalThis.GSS0DefaultModuleNames;
+      if (!enemyCodex || !waveDirectorApi || !moduleProgression || typeof describeModule !== "function" || typeof describeModuleNote !== "function" || !defaultModuleNames || !Array.isArray(moduleCatalog) || moduleCatalog.length === 0) {
+        const fileState = document.querySelector("#file-state");
+        fileState.textContent = "设计控制台依赖加载失败 · 请关闭并重启本地启动器";
+        fileState.className = "file-state is-dirty";
+        throw new Error("PROJECT GSS0 设计控制台依赖加载失败，请重启本地启动器");
+      }
+
+      const ALL_PARAMETER_DEFINITIONS = [
+        { key: "playerBaseSpeed", group: "玩家", label: "玩家基础速度", hint: "升级与机体加速前的每秒移动格数", min: 1, max: 12, step: 0.1, unit: "格/秒" },
+        { key: "snakeBodySizeScale", group: "表现", label: "蛇体大小", hint: "统一缩放玩家与敌蛇的蛇头、身体节及对应碰撞体积", min: 0.25, max: 2, step: 0.025, unit: "倍" },
+        { key: "snakeSegmentSpacing", group: "表现", label: "连接线距离", hint: "玩家与敌蛇相邻身体节中心之间保持的距离；单机与多人共用", min: 0.1, max: 1.5, step: 0.01, unit: "格" },
+        { key: "playerMaxHealth", group: "玩家", label: "玩家生命上限", hint: "每次出生时拥有的生命值与生命上限", min: 0, max: 100, step: 1, unit: "点" },
+        { key: "playerHealthRegenPerSecond", group: "玩家", label: "玩家生命恢复", hint: "存活并正常行动时每秒恢复的生命值", min: 0, max: 1, step: 0.1, unit: "点/秒" },
+        { key: "playerEnemyBodyCollisionDamage", group: "玩家", label: "撞敌蛇身体受伤", hint: "玩家蛇头撞上敌蛇身体时受到的伤害", min: 0, max: 10000, step: 1, unit: "点" },
+        { key: "playerWallCollisionDamage", group: "玩家", label: "撞墙/自身受伤", hint: "玩家蛇头撞上场地边界或自己的身体时受到的伤害", min: 0, max: 10000, step: 1, unit: "点" },
+        { key: "playerOtherBodyCollisionDamage", group: "玩家", label: "撞其他玩家身体受伤", hint: "多人模式中玩家蛇头撞上其他玩家身体时受到的伤害", min: 0, max: 10000, step: 1, unit: "点" },
+        { key: "playerKnockbackRearBlockedAngleDegrees", group: "玩家", label: "后方击退屏蔽角", hint: "以蛇头朝向为0度，正后方进入角度修正的扇区总宽度；0表示关闭修正", min: 0, max: 180, step: 1, unit: "度" },
+        { key: "playerKnockbackRearCorrectionAngleDegrees", group: "玩家", label: "后方击退修正角", hint: "击退方向进入正后方屏蔽区时，按原方向所在左右侧修正到的相对角度", min: 90, max: 180, step: 1, unit: "度" },
+        { key: "xpRequirementBase", group: "玩家", label: "升级基础经验需求", hint: "0 级升到 1 级所需的经验球数量", min: 1, max: 100, step: 1, unit: "球" },
+        { key: "xpRequirementPerLevel", group: "玩家", label: "升级每级经验增长", hint: "需求公式为：基础需求 + 当前等级 × 此数值", min: 0, max: 20, step: 1, unit: "球/级" },
+        { key: "experienceCompressionBase", group: "成长系统", label: "经验压缩进位数", hint: "达到该数量的同级经验机体后，自动压缩成一节高一级经验机体", min: 2, max: 10, step: 1, unit: "节" },
+        { key: "maxModuleLevel", group: "成长系统", label: "机体最高等级", hint: "所有主动与被动机体共用的等级上限", min: 1, max: 20, step: 1, unit: "级" },
+        { key: "initialModuleSlots", group: "成长系统", label: "初始机体槽位", hint: "不含蛇头与经验机体的初始功能机体容量", min: 1, max: 20, step: 1, unit: "槽" },
+        { key: "moduleSlotUnlockLevel1", group: "成长系统", label: "第 1 次扩容等级", hint: "到达该等级后增加 1 个机体槽位，并在扩容后生成升级选项", min: 1, max: 100, step: 1, unit: "级" },
+        { key: "moduleSlotUnlockLevel2", group: "成长系统", label: "第 2 次扩容等级", hint: "到达该等级后增加 1 个机体槽位", min: 1, max: 100, step: 1, unit: "级" },
+        { key: "moduleSlotUnlockLevel3", group: "成长系统", label: "第 3 次扩容等级", hint: "到达该等级后增加 1 个机体槽位", min: 1, max: 100, step: 1, unit: "级" },
+        { key: "moduleSlotUnlockLevel4", group: "成长系统", label: "第 4 次扩容等级", hint: "到达该等级后增加最后 1 个机体槽位", min: 1, max: 100, step: 1, unit: "级" },
+        { key: "moduleSlotGrowthIntervalAfterFullUnlock", group: "成长系统", label: "满槽后扩容间隔", hint: "完成最后一次固定扩容后，每达到该等级间隔继续增加 1 个机体槽位，不设上限", min: 1, max: 100, step: 1, unit: "级" },
+        { key: "playerTurnRate", group: "玩家", label: "玩家基础转向", hint: "不含涡轮节加成的基础转向速度", min: 0.5, max: 12, step: 0.05, unit: "弧度/秒" },
+        { key: "automaticHeadHuntRange", group: "自动战斗", label: "撞头追击范围", hint: "自动移动优先直冲头部路径无遮挡敌蛇的最大距离；设为 0 可关闭主动撞头", min: 0, max: 30, step: 0.5, unit: "格" },
+        { key: "automaticHeadApproachHalfAngleDegrees", group: "自动战斗", label: "撞头有效半角", hint: "以敌蛇行进方向为 0 度，玩家只有位于正负此角度范围内时才会主动撞头；180 度表示不设后方死区", min: 0, max: 180, step: 1, unit: "度" },
+        { key: "automaticHeadLeadDistanceSegments", group: "自动战斗", label: "撞头前置距离", hint: "自动撞头瞄准点位于敌头行进方向前方的身位数；1 身位等于 1 节身体长度", min: 0, max: 10, step: 0.1, unit: "身位" },
+        { key: "automaticSharpTurnThresholdDegrees", group: "自动战斗", label: "急转弯判定角", hint: "自动移动目标方向与当前朝向相差达到该角度时，加强自身身体规避", min: 0, max: 180, step: 1, unit: "度" },
+        { key: "automaticSelfAvoidanceStrength", group: "自动战斗", label: "急转自体规避强度", hint: "自动移动急转弯时，远离自身后段机体的转向权重", min: 0, max: 20, step: 0.1, unit: "强度" },
+        { key: "automaticSelfAvoidanceRange", group: "自动战斗", label: "急转自体规避范围", hint: "自动移动急转弯时，开始规避自身后段机体的距离", min: 0, max: 10, step: 0.1, unit: "格" },
+        { key: "automaticTeammateAvoidanceStrength", group: "自动战斗", label: "队友规避强度", hint: "自动移动远离队友蛇头和身体的转向权重", min: 0, max: 20, step: 0.1, unit: "强度" },
+        { key: "automaticTeammateAvoidanceRange", group: "自动战斗", label: "队友规避范围", hint: "自动移动开始规避队友蛇头和身体的距离", min: 0, max: 10, step: 0.1, unit: "格" },
+        { key: "upgradeInvulnerabilityDuration", group: "玩家", label: "升级后无敌时间", hint: "选择机体并恢复移动后的全身保护时间", min: 0, max: 10, step: 0.05, unit: "秒" },
+        { key: "respawnLocatorConvergeDuration", group: "表现", label: "复活定位收束时长", hint: "双层外框从屏幕外缩小到玩家蛇头所需的时间", min: 0.1, max: 10, step: 0.1, unit: "秒" },
+        { key: "respawnLocatorFadeDuration", group: "表现", label: "复活定位淡出时长", hint: "外框到达玩家蛇头后逐渐变淡消失的时间", min: 0.1, max: 20, step: 0.1, unit: "秒" },
+        { key: "multiplayerGhostSpeed", group: "多人幽灵", label: "幽灵移动速度", hint: "多人模式生命归零后，幽灵状态每秒固定移动的格数", min: 0.05, max: 3, step: 0.05, unit: "格/秒" },
+        { key: "multiplayerGhostPleaInterval", group: "多人幽灵", label: "呼救浮字间隔", hint: "幽灵玩家连续弹出“救救我”浮动信息的间隔", min: 0.1, max: 5, step: 0.05, unit: "秒" },
+        { key: "multiplayerGhostPleaDuration", group: "多人幽灵", label: "呼救浮字时长", hint: "单条“救救我”浮动信息持续显示的时间", min: 0.1, max: 3, step: 0.05, unit: "秒" },
+        { key: "multiplayerGhostOpacity", group: "多人幽灵", label: "幽灵基础透明度", hint: "幽灵整条机体虚化后的基础可见强度", min: 0.05, max: 0.9, step: 0.01, unit: "比例" },
+        { key: "multiplayerGhostPulseStrength", group: "多人幽灵", label: "幽灵呼吸强度", hint: "幽灵透明度围绕基础值缓慢呼吸变化的幅度", min: 0, max: 0.4, step: 0.01, unit: "比例" },
+        { key: "multiplayerGhostPulseRate", group: "多人幽灵", label: "幽灵呼吸频率", hint: "幽灵虚化与头部求救信标每秒完成的动画循环数", min: 0.1, max: 5, step: 0.05, unit: "次/秒" },
+        { key: "multiplayerReviveContactRange", group: "多人幽灵", label: "复活接触距离", hint: "队友与幽灵任意两个部位之间触发复活的中心距离", min: 0.1, max: 1.5, step: 0.01, unit: "格" },
+        { key: "multiplayerReviveHealth", group: "多人幽灵", label: "复活生命值", hint: "幽灵被队友接触复活后立即保留的生命值", min: 0.1, max: 100, step: 0.1, unit: "点" },
+        { key: "multiplayerReviveInvulnerabilityDuration", group: "多人幽灵", label: "复活无敌时间", hint: "幽灵被队友接触复活后获得的全身无敌时间", min: 0, max: 10, step: 0.05, unit: "秒" },
+        { key: "playerDamageEffectDuration", group: "表现", label: "玩家受伤演出时长", hint: "受伤闪烁、红色浮字与冲击环的持续时间", min: 0.1, max: 5, step: 0.05, unit: "秒" },
+        { key: "playerDamageFlashStrength", group: "表现", label: "玩家受伤闪屏强度", hint: "本地玩家受伤时红色全屏闪光的强度", min: 0, max: 2, step: 0.05, unit: "强度" },
+        { key: "playerDamageShakeStrength", group: "表现", label: "玩家受伤震屏强度", hint: "本地玩家受伤时镜头震动的强度", min: 0, max: 30, step: 0.5, unit: "强度" },
+        { key: "playerDamageParticleCount", group: "表现", label: "玩家受伤粒子数", hint: "每次受伤在玩家位置爆出的红色粒子数量", min: 0, max: 200, step: 1, unit: "个" },
+        { key: "playerDamageParticleSpeed", group: "表现", label: "玩家受伤粒子速度", hint: "每次受伤爆出粒子的基础飞行速度", min: 0, max: 1000, step: 5, unit: "速度" },
+        { key: "enemyDamageNumberDuration", group: "表现", label: "敌人伤害数字时长", hint: "玩家对敌蛇造成伤害时，强调伤害数字在画面中停留的时间", min: 0.1, max: 3, step: 0.05, unit: "秒" },
+        { key: "combatTextFontSize", group: "表现", label: "浮动战斗文字字号", hint: "伤害、治疗、经验、击破、升级、复活与呼救等全部浮动战斗信息共用的字号", min: 8, max: 96, step: 1, unit: "px" },
+        { key: "foodBirthDuration", group: "表现", label: "球生成动画时长", hint: "新球从光点展开到完整尺寸所需的时间", min: 0.05, max: 2, step: 0.01, unit: "秒" },
+        { key: "enemySpawnActivationDuration", group: "表现", label: "敌蛇显现时长", hint: "敌蛇结束预生成状态时，每节扩散环持续的时间", min: 0.05, max: 3, step: 0.01, unit: "秒" },
+        { key: "enemySpawnActivationParticleCount", group: "表现", label: "每节显现粒子数", hint: "敌蛇激活时蛇头和每节机体各自释放的粒子数量", min: 0, max: 30, step: 1, unit: "枚" },
+        { key: "enemySpawnActivationParticleSpeed", group: "表现", label: "显现粒子速度", hint: "敌蛇激活时逐节显现粒子的扩散速度", min: 0, max: 500, step: 5, unit: "像素/秒" },
+        { key: "enemySpawnActivationRadiusCells", group: "表现", label: "逐节显现半径", hint: "敌蛇激活时蛇头和每节机体扩散环的最终半径", min: 0, max: 3, step: 0.01, unit: "格" },
+        { key: "enemyBaseSpeed", group: "敌人全局", label: "敌人基础速度", hint: "各类型速度倍率和波次成长生效前的每秒移动格数", min: 0.5, max: 12, step: 0.1, unit: "格/秒" },
+        { key: "enemySpeedPerWave", group: "敌人全局", label: "每波次速度成长", hint: "第 1 波保持基础速度，之后每波同步提高移动与转向倍率；0.01 表示每波提高 1%", min: 0, max: 0.1, step: 0.005, unit: "倍率/波" },
+        { key: "enemySpeedMaxMultiplier", group: "敌人全局", label: "波次速度倍率上限", hint: "波次成长可将敌人的移动与转向速度提高到的最高倍率", min: 1, max: 3, step: 0.01, unit: "倍" },
+        { key: "enemyTurnRate", group: "敌人全局", label: "敌人基础转向", hint: "各类型转向倍率和波次成长生效前的基础转向速度", min: 0.1, max: 12, step: 0.05, unit: "弧度/秒" },
+        { key: "enemyThinkIntervalMin", group: "敌人全局", label: "AI 思考间隔下界", hint: "敌人重新选择目标和路线的最短间隔", min: 0.05, max: 5, step: 0.01, unit: "秒" },
+        { key: "enemyThinkIntervalMax", group: "敌人全局", label: "AI 思考间隔上界", hint: "敌人重新选择目标和路线的最长间隔", min: 0.05, max: 5, step: 0.01, unit: "秒" },
+        { key: "enemyFoodSearchLimit", group: "敌人全局", label: "AI 候选球数量", hint: "敌人每次决策最多评估的附近球数量", min: 1, max: 32, step: 1, unit: "枚" },
+        { key: "enemyWallAvoidanceDistance", group: "敌人全局", label: "墙壁规避距离", hint: "所有敌人开始主动转离墙壁的最低距离，并按速度自动增加前瞻", min: 0.5, max: 6, step: 0.05, unit: "格" },
+        { key: "enemyBodyAvoidanceRange", group: "敌人全局", label: "敌蛇身体避障范围", hint: "所有敌人躲避其他敌蛇的检测距离；具备玩家避障特性的敌人也使用此范围", min: 0.5, max: 10, step: 0.05, unit: "格" },
+        { key: "enemySpawnSafetyDistance", group: "敌人全局", label: "出生安全距离", hint: "敌蛇头部刷新时与最近玩家保持的最低距离；不受玩家移动速度影响", min: 0, max: 30, step: 0.25, unit: "格" },
+        { key: "enemySpawnForwardPathHalfWidth", group: "敌人全局", label: "前进通道半宽", hint: "玩家朝向前方禁止刷新敌蛇预警轮廓的通道半宽；0 表示关闭路径规避", min: 0, max: 10, step: 0.25, unit: "格" },
+        { key: "enemyCollisionDamage", group: "敌人全局", label: "敌人碰撞伤害", hint: "敌蛇撞墙或撞上其他敌蛇时受到的伤害", min: 0, max: 1000, step: 1, unit: "点" },
+        { key: "waveInterval", group: "波次与投放", label: "基础波次间隔", hint: "不含增压信标时，相邻两波之间的固定倒计时", min: 0.5, max: 120, step: 0.1, unit: "秒" },
+        { key: "enemyPressureWaveInterval", group: "波次与投放", label: "高压波周期", hint: "每隔多少波触发高压波；0 表示关闭", min: 0, max: 50, step: 1, unit: "波" },
+        { key: "enemyPressureEnemyCountMultiplier", group: "波次与投放", label: "高压波敌人数倍率", hint: "高压波相对当前区间基础敌人数的整数倍率", min: 1, max: 10, step: 1, unit: "倍" },
+        { key: "enemyPressureThreatMultiplier", group: "波次与投放", label: "高压波总威胁倍率", hint: "高压波在常规总威胁基础上额外乘算的倍率", min: 1, max: 10, step: 0.05, unit: "倍" },
+        { key: "enemyExpectedDpsInterval", group: "波次与投放", label: "预期 DPS 间隔", hint: "预期 DPS 公式中攻击档位的除数，缺省为 6 秒", min: 0.1, max: 60, step: 0.1, unit: "秒" },
+        { key: "enemyThreatTimeCoefficient", group: "波次与投放", label: "威胁时间系数", hint: "将预期 DPS 换算为每波基础总生命预算的时间系数", min: 0, max: 120, step: 0.1, unit: "秒" },
+        { key: "enemyThreatGrowthPerWave", group: "波次与投放", label: "每波威胁线性成长", hint: "每波增加的倍率百分点；0.02 表示每波增加 2 个百分点", min: 0, max: 1, step: 0.005, unit: "倍率/波" },
+        { key: "enemyHealthWeightVariation", group: "波次与投放", label: "生命权重浮动", hint: "每只敌人独立抽取的生命权重上下浮动比例", min: 0, max: 1, step: 0.01, unit: "比例" },
+        { key: "foodsPerPlayerPerWave", group: "波次与投放", label: "每人每波球数", hint: "固定经验投放模型中，每名玩家每波贡献的普通球数量", min: 0, max: 20, step: 1, unit: "枚" },
+        { key: "enemySpawnWarning", group: "波次与投放", label: "敌人出生预警", hint: "预警轮廓出现到敌人实体生成的时间", min: 0, max: 10, step: 0.05, unit: "秒" },
+        { key: "enemyScoutUnlockSeconds", group: "浮游体", label: "解锁时间", hint: "浮游体加入刷新池的游戏时间", min: 0, max: 3600, step: 5, unit: "秒" },
+        { key: "enemyScoutSpawnWeight", group: "浮游体", label: "刷新权重", hint: "浮游体在可用敌人中的相对抽取权重", min: 0, max: 20, step: 0.05, unit: "权重" },
+        { key: "enemyScoutHealthWeight", group: "浮游体", label: "生命权重", hint: "浮游体在同波总威胁分配中的相对生命份额", min: 0.01, max: 20, step: 0.05, unit: "权重" },
+        { key: "enemyScoutSpeedMultiplier", group: "浮游体", label: "速度倍率", hint: "浮游体相对全局敌人速度的倍率", min: 0.1, max: 3, step: 0.01, unit: "倍" },
+        { key: "enemyScoutTurnMultiplier", group: "浮游体", label: "转向倍率", hint: "浮游体相对全局敌人转向速度的倍率", min: 0.1, max: 3, step: 0.01, unit: "倍" },
+        { key: "enemyScoutFoodRange", group: "浮游体", label: "抢球范围", hint: "任意球进入该距离后，浮游体才会停止游荡并追逐最近的球", min: 0, max: 30, step: 0.1, unit: "格" },
+        { key: "enemyForagerUnlockSeconds", group: "觅食者", label: "解锁时间", hint: "觅食者加入刷新池的游戏时间", min: 0, max: 3600, step: 5, unit: "秒" },
+        { key: "enemyForagerSpawnWeight", group: "觅食者", label: "刷新权重", hint: "觅食者在可用敌人中的相对抽取权重", min: 0, max: 20, step: 0.05, unit: "权重" },
+        { key: "enemyForagerHealthWeight", group: "觅食者", label: "生命权重", hint: "觅食者在同波总威胁分配中的相对生命份额", min: 0.01, max: 20, step: 0.05, unit: "权重" },
+        { key: "enemyForagerSpeedMultiplier", group: "觅食者", label: "速度倍率", hint: "觅食者相对全局敌人速度的倍率", min: 0.1, max: 3, step: 0.01, unit: "倍" },
+        { key: "enemyForagerTurnMultiplier", group: "觅食者", label: "转向倍率", hint: "觅食者相对全局敌人转向速度的倍率", min: 0.1, max: 3, step: 0.01, unit: "倍" },
+        { key: "enemyCourierUnlockSeconds", group: "搬运者", label: "解锁时间", hint: "搬运者加入刷新池的游戏时间", min: 0, max: 3600, step: 5, unit: "秒" },
+        { key: "enemyCourierSpawnWeight", group: "搬运者", label: "刷新权重", hint: "搬运者在可用敌人中的相对抽取权重", min: 0, max: 20, step: 0.05, unit: "权重" },
+        { key: "enemyCourierHealthWeight", group: "搬运者", label: "生命权重", hint: "搬运者在同波总威胁分配中的相对生命份额", min: 0.01, max: 20, step: 0.05, unit: "权重" },
+        { key: "enemyCourierSpeedMultiplier", group: "搬运者", label: "速度倍率", hint: "搬运者相对全局敌人速度的倍率", min: 0.1, max: 3, step: 0.01, unit: "倍" },
+        { key: "enemyCourierTurnMultiplier", group: "搬运者", label: "转向倍率", hint: "搬运者相对全局敌人转向速度的倍率", min: 0.1, max: 3, step: 0.01, unit: "倍" },
+        { key: "enemyCourierFoodClusterRadius", group: "搬运者", label: "球团识别半径", hint: "评估球密集程度时使用的半径", min: 0.5, max: 10, step: 0.1, unit: "格" },
+        { key: "enemyChargerUnlockSeconds", group: "冲角者", label: "解锁时间", hint: "冲角者加入刷新池的游戏时间", min: 0, max: 3600, step: 5, unit: "秒" },
+        { key: "enemyChargerSpawnWeight", group: "冲角者", label: "刷新权重", hint: "冲角者在可用敌人中的相对抽取权重", min: 0, max: 20, step: 0.05, unit: "权重" },
+        { key: "enemyChargerHealthWeight", group: "冲角者", label: "生命权重", hint: "冲角者在同波总威胁分配中的相对生命份额", min: 0.01, max: 20, step: 0.05, unit: "权重" },
+        { key: "enemyChargerSpeedMultiplier", group: "冲角者", label: "速度倍率", hint: "冲角者持续追踪玩家蛇头时相对全局敌人速度的倍率", min: 0.1, max: 3, step: 0.01, unit: "倍" },
+        { key: "enemyChargerTurnMultiplier", group: "冲角者", label: "转向倍率", hint: "冲角者相对全局敌人转向速度的倍率", min: 0.1, max: 3, step: 0.01, unit: "倍" },
+        { key: "enemyChargerTrackingWobble", group: "冲角者", label: "追头摆动幅度", hint: "追踪玩家蛇头时保留的左右游动偏角；0 表示完全直指目标", min: 0, max: 0.6, step: 0.01, unit: "弧度" },
+        { key: "enemyCutterUnlockSeconds", group: "截断者", label: "解锁时间", hint: "截断者加入刷新池的游戏时间", min: 0, max: 3600, step: 5, unit: "秒" },
+        { key: "enemyCutterSpawnWeight", group: "截断者", label: "刷新权重", hint: "截断者在可用敌人中的相对抽取权重", min: 0, max: 20, step: 0.05, unit: "权重" },
+        { key: "enemyCutterHealthWeight", group: "截断者", label: "生命权重", hint: "截断者在同波总威胁分配中的相对生命份额", min: 0.01, max: 20, step: 0.05, unit: "权重" },
+        { key: "enemyCutterSpeedMultiplier", group: "截断者", label: "速度倍率", hint: "截断者相对全局敌人速度的倍率", min: 0.1, max: 3, step: 0.01, unit: "倍" },
+        { key: "enemyCutterTurnMultiplier", group: "截断者", label: "转向倍率", hint: "截断者相对全局敌人转向速度的倍率", min: 0.1, max: 3, step: 0.01, unit: "倍" },
+        { key: "enemyCutterLeadDistance", group: "截断者", label: "前方预测距离", hint: "截断者瞄准玩家移动方向前方的距离", min: 0.5, max: 12, step: 0.1, unit: "格" },
+        { key: "enemyCutterLateralDistance", group: "截断者", label: "横切偏移距离", hint: "在预测点侧方追加的横向封路距离", min: 0.5, max: 12, step: 0.1, unit: "格" },
+        { key: "enemyCoilerUnlockSeconds", group: "巡猎者", label: "解锁时间", hint: "巡猎者加入刷新池的游戏时间", min: 0, max: 3600, step: 5, unit: "秒" },
+        { key: "enemyCoilerSpawnWeight", group: "巡猎者", label: "刷新权重", hint: "巡猎者在可用敌人中的相对抽取权重", min: 0, max: 20, step: 0.05, unit: "权重" },
+        { key: "enemyCoilerHealthWeight", group: "巡猎者", label: "生命权重", hint: "巡猎者在同波总威胁分配中的相对生命份额", min: 0.01, max: 20, step: 0.05, unit: "权重" },
+        { key: "enemyCoilerSpeedMultiplier", group: "巡猎者", label: "速度倍率", hint: "巡猎者相对全局敌人速度的倍率", min: 0.1, max: 3, step: 0.01, unit: "倍" },
+        { key: "enemyCoilerTurnMultiplier", group: "巡猎者", label: "转向倍率", hint: "巡猎者相对全局敌人转向速度的倍率", min: 0.1, max: 3, step: 0.01, unit: "倍" },
+        { key: "enemyCoilerFoodRange", group: "巡猎者", label: "抢球范围", hint: "巡猎者持续搜索并追逐球的最大距离", min: 0, max: 30, step: 0.1, unit: "格" },
+        { key: "enemyWardenUnlockSeconds", group: "守卫者", label: "解锁时间", hint: "守卫者加入刷新池的游戏时间", min: 0, max: 3600, step: 5, unit: "秒" },
+        { key: "enemyWardenSpawnWeight", group: "守卫者", label: "刷新权重", hint: "守卫者在可用敌人中的相对抽取权重", min: 0, max: 20, step: 0.05, unit: "权重" },
+        { key: "enemyWardenHealthWeight", group: "守卫者", label: "生命权重", hint: "守卫者在同波总威胁分配中的相对生命份额", min: 0.01, max: 20, step: 0.05, unit: "权重" },
+        { key: "enemyWardenSpeedMultiplier", group: "守卫者", label: "速度倍率", hint: "守卫者相对全局敌人速度的倍率", min: 0.1, max: 3, step: 0.01, unit: "倍" },
+        { key: "enemyWardenTurnMultiplier", group: "守卫者", label: "转向倍率", hint: "守卫者相对全局敌人转向速度的倍率", min: 0.1, max: 3, step: 0.01, unit: "倍" },
+        { key: "enemyWardenFoodRange", group: "守卫者", label: "抢球范围", hint: "球进入该距离后，守卫者才会停止游荡并顺手追逐", min: 0, max: 30, step: 0.1, unit: "格" },
+        { key: "enemyWardenKnockbackMultiplier", group: "守卫者", label: "头撞击退倍率", hint: "玩家与守卫者蛇头碰撞时受到的额外击退倍率", min: 1, max: 4, step: 0.05, unit: "倍" },
+        { key: "projectileSpeedScale", group: "战斗", label: "全局子弹速度倍率", hint: "作用于所有以速度参数发射的投射物", min: 0.1, max: 10, step: 0.05, unit: "倍" },
+        { key: "projectileSizeScale", group: "战斗", label: "全局子弹体积倍率", hint: "同时放大所有子弹的绘制尺寸与命中体积；2 表示基础尺寸的两倍", min: 0.1, max: 10, step: 0.05, unit: "倍" },
+        { key: "playerCollisionDamage", group: "战斗", label: "玩家撞击伤害", hint: "玩家蛇头撞上敌蛇头部或身体时对敌蛇造成的基础伤害", min: 0, max: 1000, step: 1, unit: "点" },
+        { key: "frostSlowPerStack", group: "异常状态 · 冰冻", label: "每层减速幅度", hint: "每一层冰冻降低的敌蛇移动速度；减速幅度按层数加算", min: 0, max: 1, step: 0.01, unit: "比例/层" },
+        { key: "frostMinimumSpeedRatio", group: "异常状态 · 冰冻", label: "最低移动速度", hint: "冰冻减速后敌蛇至少保留的移动速度比例", min: 0, max: 1, step: 0.01, unit: "比例" },
+        { key: "burnTickInterval", group: "异常状态 · 燃烧", label: "生效间隔", hint: "燃烧每次随机摧毁敌蛇身体节的间隔", min: 0.05, max: 10, step: 0.05, unit: "秒" },
+        { key: "burnDamagePerTick", group: "异常状态 · 燃烧", label: "每次伤害", hint: "燃烧每次生效对随机身体节造成的伤害", min: 0, max: 1000, step: 1, unit: "点" },
+        { key: "corrosionTickInterval", group: "异常状态 · 腐蚀", label: "生效间隔", hint: "1层腐蚀每次随机摧毁敌蛇身体节的基础间隔；层数越高间隔越短", min: 0.05, max: 30, step: 0.05, unit: "秒" },
+        { key: "corrosionDamagePerTick", group: "异常状态 · 腐蚀", label: "每次伤害", hint: "腐蚀每次生效对随机身体节造成的伤害", min: 0, max: 1000, step: 1, unit: "点" },
+        { key: "burnHealthFraction", moduleId: "incendiary", group: "焚身导弹节", label: "燃烧生命比例", hint: "命中伤害后，按敌蛇当前生命值生成燃烧摧毁次数的比例，并向上取整", min: 0, max: 1, step: 0.01, unit: "比例" },
+        { key: "enemyStatusParticleDensity", group: "表现", label: "状态粒子密度", hint: "冰冻、腐蚀与燃烧在敌蛇每节机体周围绘制的粒子数量", min: 1, max: 8, step: 1, unit: "枚/节" },
+        { key: "enemyStatusParticleSizeScale", group: "表现", label: "状态粒子尺寸", hint: "冰冻、腐蚀与燃烧粒子的统一尺寸倍率", min: 0.5, max: 4, step: 0.1, unit: "倍" },
+        { key: "enemyStatusParticleGlowScale", group: "表现", label: "状态粒子辉光", hint: "冰冻、腐蚀与燃烧粒子的统一辉光倍率", min: 0.5, max: 4, step: 0.1, unit: "倍" },
+        { key: "activeSkillBaseCooldown", group: "战斗", label: "主动技能基础冷却", hint: "第二页各机体的冷却百分比均以此时间为 100%", min: 0.05, max: 30, step: 0.05, unit: "秒" },
+        { key: "moduleAttackSizePerLevel", moduleId: "arsenal", group: "武装扩容节", label: "每级攻击尺寸", hint: "每一级增加的子弹、旋刃、爆炸范围与激光半径", min: 0, max: 1, step: 0.01, unit: "倍率/级" },
+        { key: "moduleCorrosionFieldDurationPerLevel", moduleId: "corrosionfield", group: "腐蚀地痕节", label: "每级地形时长", hint: "每一级增加的腐蚀地形存在时间", min: 0.1, max: 10, step: 0.1, unit: "秒/级" },
+        { key: "moduleCorrosionFieldMaxDuration", moduleId: "corrosionfield", group: "腐蚀地痕节", label: "地形时长上限", hint: "腐蚀地形存在时间的最高值", min: 0.1, max: 10, step: 0.1, unit: "秒" },
+        { key: "moduleStatusStrikeStacksPerLevel", moduleId: "statusstrike", group: "异态撞针", label: "每级随机异常层数", hint: "每次撞击敌人时，每一级独立随机附加的异常状态层数", min: 0, max: 10, step: 1, unit: "层/级" },
+        { key: "moduleStatusEffectBonusPerLevel", moduleId: "statusamp", group: "异态增幅节", label: "每级异常效果", hint: "每一级提高冰冻减速幅度、燃烧层数与腐蚀生效频率的比例", min: 0, max: 2, step: 0.01, unit: "倍率/级" },
+        { key: "moduleMineBlastRadiusCells", moduleId: "mine", group: "磁暴雷节", label: "地雷爆炸半径", hint: "武装扩容倍率生效前，磁暴雷的基础触发与爆炸范围", min: 0.1, max: 30, step: 0.1, unit: "格" },
+        { key: "moduleMineKickDistanceCells", moduleId: "mine", group: "磁暴雷节", label: "地雷弹开距离", hint: "玩家蛇头触碰时，磁雷沿远离玩家方向弹开的距离", min: 0.1, max: 10, step: 0.05, unit: "格" },
+        { key: "moduleMineVisualRadiusPixels", moduleId: "mine", group: "磁暴雷节", label: "地雷标记半径", hint: "武装扩容倍率生效前，圆形地雷标记的基础视觉与触碰半径", min: 1, max: 60, step: 1, unit: "px" },
+        { key: "moduleCollisionDoubleChancePerLevel", moduleId: "doublehit", group: "倍击撞针", label: "每级撞击翻倍概率", hint: "每次造成撞击伤害时，使该次伤害翻倍的概率", min: 0, max: 1, step: 0.01, unit: "概率/级" },
+        { key: "moduleProjectileDoubleChancePerLevel", moduleId: "multishot", group: "齐射增殖节", label: "每级倍弹概率", hint: "每次发射子弹时，使该枚子弹复制为两枚的概率", min: 0, max: 1, step: 0.01, unit: "概率/级" },
+        { key: "moduleProjectileBouncesPerLevel", moduleId: "rebound", group: "跳弹增幅节", label: "每级反弹次数", hint: "每一级为所有有限反弹子弹增加的墙壁反弹次数", min: 0, max: 20, step: 1, unit: "次/级" },
+        { key: "moduleIncendiaryProjectileSpeed", moduleId: "incendiary", group: "焚身导弹节", label: "燃烧弹速度", hint: "全局子弹速度倍率生效前的燃烧弹基础速度", min: 1, max: 1000, step: 5, unit: "速度" },
+        { key: "moduleIncendiaryProjectileSize", moduleId: "incendiary", group: "焚身导弹节", label: "燃烧弹尺寸", hint: "全局子弹尺寸与攻击尺寸倍率生效前的燃烧弹基础尺寸", min: 1, max: 30, step: 0.5, unit: "px" },
+        { key: "moduleIncendiaryHoming", moduleId: "incendiary", group: "焚身导弹节", label: "燃烧弹追踪", hint: "燃烧弹每秒追向目标的最大转向弧度", min: 0, max: 20, step: 0.1, unit: "弧度/秒" },
+        { key: "moduleEchoProjectilesPerLevel", moduleId: "echo", group: "回声弹匣", label: "每级撞击弹数", hint: "蛇头撞击敌蛇或墙壁时，每一级向随机方向发射的子弹数量", min: 0, max: 100, step: 1, unit: "枚/级" },
+        { key: "moduleBarrageProjectileCount", moduleId: "barrage", group: "镜反弹幕节", label: "环形弹幕数量", hint: "每次触发时向四周均匀发射的无限反弹子弹数量", min: 1, max: 100, step: 1, unit: "枚" },
+        { key: "moduleBladeBaseSizePixels", moduleId: "blade", group: "旋刃节", label: "旋刃基础体积", hint: "应用全局子弹体积倍率前的旋刃绘制与命中半径", min: 1, max: 100, step: 1, unit: "px" },
+        { key: "moduleBladeOrbitRadiusCells", moduleId: "blade", group: "旋刃节", label: "旋刃环绕半径", hint: "旋刃弹中心到玩家蛇头的标准环绕距离", min: 0.5, max: 10, step: 0.1, unit: "格" },
+        { key: "moduleBladeOrbitSpeed", moduleId: "blade", group: "旋刃节", label: "旋刃旋转速度", hint: "旋刃弹围绕玩家蛇头旋转的角速度", min: 0, max: 20, step: 0.01, unit: "弧度/秒" },
+        { key: "moduleBladeOrbitConvergeSpeedCellsPerSecond", moduleId: "blade", group: "旋刃节", label: "旋刃收束速度", hint: "旋刃弹从发射机体位置收束到标准蛇头轨道的速度", min: 0, max: 30, step: 0.1, unit: "格/秒" },
+        { key: "modulePulseRadiusCells", moduleId: "pulse", group: "脉冲核心", label: "冲击波半径", hint: "冲击波对范围内每个敌方部位分别结算命中的半径", min: 0.1, max: 30, step: 0.1, unit: "格" },
+        { key: "moduleClusterBlastRadiusCells", moduleId: "cluster", group: "裂变弹舱", label: "爆炸半径", hint: "裂变爆弹对范围内每个敌方部位分别结算命中的半径", min: 0.1, max: 30, step: 0.1, unit: "格" },
+        { key: "moduleShieldMaxCharges", moduleId: "shield", group: "碧玉护盾", label: "护盾储存上限", hint: "可同时储存并显示在生命条上的护盾层数", min: 1, max: 20, step: 1, unit: "层" },
+        { key: "moduleRepulseRangePerLevelPixels", moduleId: "repulse", group: "斥力环节", label: "每级作用半径", hint: "每一级提供的蛇头斥力作用半径", min: 1, max: 1000, step: 5, unit: "px/级" },
+        { key: "moduleArmorCooldownRatePerLevel", moduleId: "armor", group: "黑曜装甲", label: "每级冷却速度", hint: "每一级为护盾与相位提供的额外冷却速度", min: 0, max: 5, step: 0.01, unit: "倍率/级" },
+        { key: "moduleStabilizerSlowReductionPerLevel", moduleId: "stabilizer", group: "平衡陀螺", label: "每级减速时间减免", hint: "每一级减少的反弹减速持续时间", min: 0, max: 1, step: 0.01, unit: "比例/级" },
+        { key: "moduleStabilizerLockReductionPerLevel", moduleId: "stabilizer", group: "平衡陀螺", label: "每级转向锁定减免", hint: "每一级减少的反弹转向锁定时间", min: 0, max: 1, step: 0.01, unit: "比例/级" },
+        { key: "moduleMagnetPickupRangePerLevel", moduleId: "magnet", group: "磁吸环节", label: "每级吃球范围", hint: "每一级增加的蛇头吃球半径", min: 0, max: 20, step: 0.05, unit: "格/级" },
+        { key: "moduleHasteTurnRatePerLevel", moduleId: "haste", group: "涡轮节", label: "每级转向速度", hint: "每一级增加的转向速度", min: 0, max: 10, step: 0.01, unit: "弧度/秒/级" },
+        { key: "moduleChronosSlowPerLevel", moduleId: "chronos", group: "时缓晶节", label: "每级敌人减速", hint: "每一级减少的全场敌蛇移动速度", min: 0, max: 1, step: 0.01, unit: "比例/级" },
+        { key: "moduleTractorRangePerLevel", moduleId: "tractor", group: "引力环节", label: "每级牵引范围", hint: "每一级提供的球牵引范围", min: 0, max: 30, step: 0.1, unit: "格/级" },
+        { key: "moduleTractorPullSpeedPerLevel", moduleId: "tractor", group: "引力环节", label: "每级牵引速度", hint: "每一级提供的球牵引速度", min: 0, max: 30, step: 0.1, unit: "格/秒/级" },
+        { key: "moduleFortuneExpectedDropsPerLevel", moduleId: "fortune", group: "幸运星节", label: "每级额外掉落期望", hint: "每次击破时，每一级增加的额外掉落球期望", min: 0, max: 10, step: 0.01, unit: "球/级" },
+        { key: "moduleGuidanceProjectileSpeedPerLevel", moduleId: "guidance", group: "弹道校准节", label: "每级子弹速度", hint: "每一级增加的所有子弹飞行速度倍率", min: 0, max: 5, step: 0.01, unit: "倍率/级" },
+        { key: "moduleGuidanceHomingPerLevel", moduleId: "guidance", group: "弹道校准节", label: "每级追踪转向", hint: "每一级增加的追踪子弹转向速度", min: 0, max: 20, step: 0.05, unit: "弧度/秒/级" },
+        { key: "moduleFeastDuration", moduleId: "feast", group: "吞噬涡轮", label: "吃球增益时长", hint: "吃球后移动速度增益的持续时间，再次吃球会刷新", min: 0.05, max: 30, step: 0.05, unit: "秒" },
+        { key: "moduleFeastSpeedPerLevel", moduleId: "feast", group: "吞噬涡轮", label: "每级增益速度", hint: "增益期间每一级增加的移动速度倍率", min: 0, max: 5, step: 0.01, unit: "倍率/级" },
+        { key: "moduleSalvageExpectedDropsPerLevel", moduleId: "salvage", group: "回收炉节", label: "每级回收期望", hint: "每节敌蛇身体受损时，每一级增加的回收球期望", min: 0, max: 10, step: 0.01, unit: "球/级" },
+        { key: "moduleAmplifierCooldownRatePerLevel", moduleId: "amplifier", group: "超频增幅节", label: "每级冷却速度", hint: "每一级为所有主动技能增加的冷却速度", min: 0, max: 5, step: 0.01, unit: "倍率/级" },
+        { key: "moduleBufferCollisionReductionPerLevel", moduleId: "buffer", group: "动能缓冲节", label: "每级碰撞缓冲", hint: "撞击敌人时，每一级减少自身受到的击退力与减速时间", min: 0, max: 1, step: 0.01, unit: "比例/级" },
+        { key: "moduleDecoyAvoidanceReductionPerLevel", moduleId: "decoy", group: "诱导涂层", label: "每级避让削弱", hint: "每一级减少的敌蛇身体避让强度", min: 0, max: 1, step: 0.01, unit: "比例/级" },
+        { key: "moduleDecoyMaxAvoidanceReduction", moduleId: "decoy", group: "诱导涂层", label: "避让削弱上限", hint: "诱导涂层最多能够削弱的敌蛇避让强度", min: 0, max: 1, step: 0.01, unit: "比例" },
+        { key: "moduleEmergencyDurationPerLevel", moduleId: "emergency", group: "应急屏障节", label: "每级无敌时间", hint: "身体吃球后，每一级提供的无敌时间", min: 0, max: 30, step: 0.01, unit: "秒/级" },
+        { key: "moduleEmergencyMaxDuration", moduleId: "emergency", group: "应急屏障节", label: "无敌时间上限", hint: "身体吃球触发的无敌持续时间上限", min: 0, max: 30, step: 0.05, unit: "秒" },
+        { key: "moduleCollectorPickupRadiusPerLevel", moduleId: "collector", group: "全身采集节", label: "每级身体吃球半径", hint: "每一级为所有身体节增加的吃球半径", min: 0, max: 10, step: 0.01, unit: "格/级" },
+        { key: "moduleBeaconEnemyCountPerLevel", moduleId: "beacon", group: "增压信标", label: "每级敌蛇数量", hint: "每一级增加的敌蛇生成数量倍率；与其它数量来源乘算", min: 0, max: 5, step: 0.01, unit: "倍率/级" },
+        { key: "moduleMomentumKnockbackPerLevel", moduleId: "momentum", group: "冲量增幅器", label: "每级敌人击退", hint: "每一级增加的敌蛇物理击退力度", min: 0, max: 5, step: 0.01, unit: "倍率/级" },
+        { key: "moduleProgressorSpeedPerLevel", moduleId: "progressor", group: "临界推进节", label: "每级移动速度", hint: "每一级提供的固定移动速度加成，不再受经验进度影响", min: 0, max: 5, step: 0.01, unit: "倍率/级" },
+        { key: "moduleLinkageSpacingPerLevel", moduleId: "linkage", group: "延展耦合节", label: "每级连接距离", hint: "每一级在自身机体跟随计算前增加的连接线距离倍率", min: 0, max: 5, step: 0.01, unit: "倍率/级" },
+        { key: "moduleCacheKillsPerTrigger", moduleId: "cache", group: "战果缓存节", label: "触发所需击破数", hint: "累计击破达到该数量后，按机体等级生成等量球", min: 1, max: 100, step: 1, unit: "次" },
+        { key: "moduleThornsProjectileCount", moduleId: "thorns", group: "截击反应节", label: "截击弹数量", hint: "截击反应触发时固定发射的环形子弹数量", min: 1, max: 100, step: 1, unit: "枚" },
+        { key: "moduleBonusXpChancePerLevel", moduleId: "insight", group: "经验增幅节", label: "每级额外经验概率", hint: "吃球时额外获得1点经验的概率", min: 0, max: 1, step: 0.01, unit: "概率/级" },
+        { key: "moduleHeadCollisionDamagePerLevel", moduleId: "headstrike", group: "裂首冲锥", label: "每级额外头撞伤害", hint: "玩家蛇头撞击敌蛇蛇头时增加的伤害", min: 0, max: 100, step: 1, unit: "点/级" },
+        { key: "moduleMaxHealthPerLevel", moduleId: "vitality", group: "生命扩容节", label: "每级生命上限", hint: "每级增加的最大生命值；获得或升级时同步增加当前生命", min: 0, max: 100, step: 1, unit: "点/级" },
+        { key: "moduleHealthRegenPerLevel", moduleId: "renewal", group: "恒愈芯节", label: "每级每秒恢复", hint: "叠加到玩家基础自然恢复中的每秒生命恢复", min: 0, max: 20, step: 0.1, unit: "点/秒/级" },
+        { key: "moduleDamageReductionPerLevel", moduleId: "plating", group: "层叠装甲", label: "每级伤害减免", hint: "每一级降低所有来源伤害的比例", min: 0, max: 1, step: 0.01, unit: "比例/级" },
+        { key: "moduleFoodReplicationChancePerLevel", moduleId: "replicator", group: "孢子复制节", label: "每级复制概率", hint: "每节吃球成长动画完成后在尾部生成1个球的概率", min: 0, max: 1, step: 0.01, unit: "概率/级" },
+        { key: "moduleFoodHealPerLevel", moduleId: "medkit", group: "摄生转化节", label: "每级吃球恢复", hint: "玩家吃球时立即恢复的生命值", min: 0, max: 100, step: 1, unit: "点/级" },
+        { key: "moduleLevelUpHealFractionPerLevel", moduleId: "levelheal", group: "晋升修复节", label: "每级升级恢复", hint: "玩家等级提升时，每一级机体恢复的最大生命值比例；首次装载始终恢复全部生命", min: 0, max: 1, step: 0.01, unit: "比例/级" },
+        { key: "moduleMissingHealthSpeedStep", moduleId: "adrenaline", group: "失压推进节", label: "失血判定步长", hint: "每损失该比例的最大生命值结算一次移动速度加成", min: 0.01, max: 1, step: 0.01, unit: "比例" },
+        { key: "moduleMissingHealthSpeedPerStepPerLevel", moduleId: "adrenaline", group: "失压推进节", label: "每级每档速度", hint: "每个失血档位、每一级提供的移动速度加成", min: 0, max: 1, step: 0.01, unit: "倍率/档/级" },
+        { key: "moduleMissingHealthHeadDamageStep", moduleId: "berserk", group: "逆境撞针", label: "失血判定步长", hint: "每损失该比例的最大生命值结算一次蛇头伤害加成", min: 0.01, max: 1, step: 0.01, unit: "比例" },
+        { key: "moduleMissingHealthHeadDamagePerStepPerLevel", moduleId: "berserk", group: "逆境撞针", label: "每级每档伤害", hint: "每个失血档位、每一级提供的蛇头伤害", min: 0, max: 100, step: 1, unit: "点/档/级" },
+        { key: "moduleHealingReceivedPerLevel", moduleId: "recovery", group: "愈合增幅节", label: "每级恢复增幅", hint: "提高除生命上限同步增加外所有生命恢复的比例", min: 0, max: 5, step: 0.01, unit: "倍率/级" },
+        { key: "moduleEnemyWallDamagePerLevel", moduleId: "wallbreaker", group: "壁垒共振节", label: "每级撞墙与互撞伤害", hint: "同时增强敌蛇撞墙和敌蛇互撞伤害；多人模式取所有玩家中的最高等级", min: 0, max: 10, step: 0.05, unit: "倍率/级" },
+        { key: "moduleEnemyWallKnockbackPerLevel", moduleId: "wallbreaker", group: "壁垒共振节", label: "每级撞墙与互撞击退", hint: "同时增强敌蛇撞墙和敌蛇互撞击退；多人模式取所有玩家中的最高等级", min: 0, max: 10, step: 0.05, unit: "倍率/级" },
+        { key: "moduleTailGuardSegmentsPerLevel", moduleId: "tailguard", group: "尾部隔离舱", label: "每级白色机体节", hint: "在玩家尾部追加、可拦截敌人的无特殊效果白色机体数量", min: 0, max: 20, step: 1, unit: "节/级" },
+        { key: "moduleDeathBurstProjectilesPerLevel", moduleId: "deathburst", group: "猎杀齐射节", label: "每级死亡齐射弹数", hint: "任意敌蛇死亡时向随机方向发射的子弹数量", min: 0, max: 20, step: 1, unit: "枚/级" },
+        { key: "moduleCrisisHealthThreshold", moduleId: "crisis", group: "危态代偿节", label: "生命阈值", hint: "低于该最大生命比例时获得正恢复，否则产生等量负恢复", min: 0, max: 1, step: 0.01, unit: "比例" },
+        { key: "moduleCrisisRegenPerLevel", moduleId: "crisis", group: "危态代偿节", label: "每级代偿恢复", hint: "阈值两侧分别增加或减少的每秒生命恢复", min: 0, max: 20, step: 0.1, unit: "点/秒/级" },
+        { key: "arenaBaseArea", group: "场地", label: "基础场地面积", hint: "0级时场地的实际面积；运行时按平方根换算场地边长", min: 64, max: 4096, step: 0.1, unit: "格²" },
+        { key: "arenaAreaPerLevel", group: "场地", label: "每级场地面积成长", hint: "单人按当前等级、多人按所有在场玩家总等级增加的场地面积倍率", min: 0, max: 0.5, step: 0.005, unit: "倍率/级" },
+        { key: "arenaResizeRate", group: "场地", label: "场地缩放速度", hint: "场地面积目标变化后的平滑追随速度", min: 0.1, max: 10, step: 0.1, unit: "速率" },
+        { key: "cameraFollowZoomMin", group: "摄像机", label: "跟随视角最小缩放", hint: "跟随蛇头模式使用滚轮缩小时允许达到的最低倍率", min: 0.25, max: 5, step: 0.05, unit: "倍" },
+        { key: "cameraFollowZoomDefault", group: "摄像机", label: "跟随视角默认缩放", hint: "首次启用跟随蛇头模式时使用的缩放倍率，并受最小与最大值约束", min: 0.25, max: 5, step: 0.05, unit: "倍" },
+        { key: "cameraFollowZoomMax", group: "摄像机", label: "跟随视角最大缩放", hint: "跟随蛇头模式使用滚轮放大时允许达到的最高倍率", min: 0.25, max: 5, step: 0.05, unit: "倍" },
+        { key: "cameraFollowRenderOverscanPixels", group: "性能", label: "跟随视角渲染缓冲", hint: "跟随蛇头模式在屏幕边缘外继续绘制的缓冲宽度，增大可减少高速移动时的边缘跳入", min: 0, max: 600, step: 10, unit: "px" },
+        { key: "cameraFollowFoodIndicatorLimit", group: "性能", label: "跟随视角球提示上限", hint: "跟随蛇头模式最多显示的最近离屏球提示数量", min: 0, max: 100, step: 1, unit: "个" },
+        { key: "cameraFollowEnemyIndicatorLimit", group: "性能", label: "跟随视角敌人提示上限", hint: "跟随蛇头模式最多显示的最近离屏敌人提示数量；预生成警告不受此限制", min: 0, max: 100, step: 1, unit: "个" },
+        { key: "maxRenderFps", group: "性能", label: "最高绘制帧率", hint: "Canvas 与界面动效的绘制上限；默认覆盖常见高刷新率屏幕，避免非整除节流造成帧间隔抖动", min: 30, max: 240, step: 1, unit: "FPS" },
+        { key: "maxRenderDpr", group: "性能", label: "最高渲染像素倍率", hint: "Canvas 按设备像素密度清晰绘制时使用的倍率上限；运行中不会再自动降低", min: 1, max: 2, step: 0.05, unit: "DPR" },
+        { key: "hudUpdateHz", group: "性能", label: "本地 HUD 更新频率", hint: "单人游戏中时间、分数、波次等文字的每秒刷新次数；关键状态变化仍会立即刷新", min: 1, max: 60, step: 1, unit: "Hz" },
+        { key: "networkPlayerStateHz", group: "性能", label: "玩家状态同步频率", hint: "手动玩家每秒向服务器发送完整蛇身状态的次数", min: 5, max: 60, step: 1, unit: "Hz" },
+        { key: "networkManualPredictionMs", group: "性能", label: "手动玩家远端预测时限", hint: "服务器收到最后一次手动玩家状态后继续外推的最长时间；超时后远端位置冻结等待新状态", min: 50, max: 1000, step: 10, unit: "ms" },
+        { key: "networkRemoteCorrectionThresholdCells", group: "表现", label: "远端修正触发距离", hint: "新快照与远端玩家当前显示位置相差达到该距离时启用整蛇平滑追位", min: 0.1, max: 10, step: 0.05, unit: "格" },
+        { key: "networkRemoteCorrectionSpeedCellsPerSecond", group: "表现", label: "远端修正追位速度", hint: "远端玩家发生大幅状态修正时追向权威位置的基础速度", min: 1, max: 100, step: 1, unit: "格/秒" },
+        { key: "networkRemoteCorrectionMinMs", group: "表现", label: "远端修正最短时长", hint: "远端玩家整蛇位置修正动画允许的最短持续时间", min: 0, max: 1000, step: 10, unit: "ms" },
+        { key: "networkRemoteCorrectionMaxMs", group: "表现", label: "远端修正最长时长", hint: "远端玩家整蛇位置修正动画允许的最长持续时间", min: 50, max: 2000, step: 10, unit: "ms" },
+        { key: "networkCollisionClaimCooldownMs", group: "性能", label: "碰撞事件防重复间隔", hint: "同一目标的可靠碰撞事件再次发送前等待的时间", min: 100, max: 2000, step: 50, unit: "ms" },
+        { key: "networkInterpolationMinMs", group: "性能", label: "联机插值最短延迟", hint: "远端实体平滑播放时保留的最短快照缓冲", min: 40, max: 300, step: 5, unit: "ms" },
+        { key: "networkInterpolationMaxMs", group: "性能", label: "联机插值最长延迟", hint: "网络抖动时远端实体允许增加到的最大快照缓冲", min: 40, max: 400, step: 5, unit: "ms" },
+        { key: "networkCollisionHistoryMs", group: "性能", label: "头撞回溯历史", hint: "服务器为玩家头撞裁决保留位置历史的时长", min: 200, max: 3000, step: 50, unit: "ms" },
+        { key: "networkHeadCollisionValidationTolerance", group: "性能", label: "头撞回溯容差", hint: "校验客户端所见位置与服务器历史位置时允许的最大格数误差", min: 0.1, max: 3, step: 0.05, unit: "格" },
+        { key: "networkHeadCollisionContactAllowance", group: "性能", label: "头撞接触余量", hint: "在双方蛇头视觉半径之外允许的网络接触补偿距离", min: 0, max: 1, step: 0.01, unit: "格" },
+        { key: "networkHeadCollisionEventGraceMs", group: "表现", label: "头撞事件对齐等待", hint: "可靠头撞事件到达后等待远端画面追上接触位置的最长时间", min: 0, max: 500, step: 10, unit: "ms" },
+        { key: "networkHeadCollisionSeparationRate", group: "表现", label: "头撞持续分离速度", hint: "弹开期间双方仍重叠时，本地蛇头平滑退出重叠区域的速度", min: 0.1, max: 20, step: 0.1, unit: "格/秒" },
+        { key: "networkHeadCollisionRemoteImpulse", group: "表现", label: "远端弹开视觉位移", hint: "头撞事件发生后为远端蛇补充的平滑弹开位移峰值", min: 0, max: 1, step: 0.01, unit: "格" },
+        { key: "networkHeadCollisionRemoteImpulseDuration", group: "表现", label: "远端弹开视觉时长", hint: "远端弹开补间从出现到自然归零的持续时间", min: 0.05, max: 1, step: 0.01, unit: "秒" },
+        { key: "enemyDeathHeadParticles", group: "表现", label: "敌蛇死亡头部粒子数", hint: "敌蛇整体被摧毁时，头部位置生成的粒子数量", min: 1, max: 100, step: 1, unit: "个" },
+        { key: "enemyDeathBodyParticles", group: "表现", label: "敌蛇死亡身体粒子数", hint: "敌蛇整体被摧毁时，每节身体位置生成的粒子数量", min: 1, max: 40, step: 1, unit: "个/节" },
+        { key: "enemyDeathHeadParticleSpeed", group: "表现", label: "敌蛇死亡头部粒子速度", hint: "头部爆散粒子的基础速度", min: 10, max: 500, step: 5, unit: "速度" },
+        { key: "enemyDeathBodyParticleSpeed", group: "表现", label: "敌蛇死亡身体粒子速度", hint: "身体爆散粒子的基础速度", min: 10, max: 400, step: 5, unit: "速度" },
+        { key: "enemyBodyReconnectDuration", group: "表现", label: "敌蛇断体衔接时间", hint: "中段机体被摧毁后，后段身体追上前段并重新衔接所需的时间", min: 0.05, max: 2, step: 0.01, unit: "秒" },
+        { key: "enemyHeadReformDuration", group: "表现", label: "敌蛇新头重构时间", hint: "旧头碎裂后，颈部身体节变形并接替为新头的动画时间", min: 0.05, max: 2, step: 0.01, unit: "秒" },
+        { key: "experienceCompressionDuration", group: "表现", label: "经验压缩动画时长", hint: "同级经验机体吸附并压缩成高阶机体的动画时间", min: 0.05, max: 3, step: 0.01, unit: "秒" },
+        { key: "experienceCompressionCascadeDelay", group: "表现", label: "连续压缩间隔", hint: "一次大量吃球触发多次进位时，相邻压缩反馈的错峰时间", min: 0, max: 2, step: 0.01, unit: "秒" },
+        { key: "experienceCompressionGrayParticles", group: "表现", label: "灰转蓝粒子数", hint: "灰色经验机体压缩为蓝色时的粒子数量", min: 1, max: 100, step: 1, unit: "个" },
+        { key: "experienceCompressionGoldParticles", group: "表现", label: "蓝转金粒子数", hint: "蓝色经验机体压缩为金色时的粒子数量", min: 1, max: 160, step: 1, unit: "个" },
+        { key: "experienceCompressionGrayShake", group: "表现", label: "灰转蓝震屏强度", hint: "仅本地所属玩家触发的轻度镜头震动", min: 0, max: 12, step: 0.1, unit: "强度" },
+        { key: "experienceCompressionGoldShake", group: "表现", label: "蓝转金震屏强度", hint: "仅本地所属玩家触发的重度镜头震动", min: 0, max: 16, step: 0.1, unit: "强度" },
+        { key: "profileSaveDelaySeconds", group: "性能", label: "联机战绩批量保存间隔", hint: "玩家结算后合并等待写盘的时间，减少频繁存档尖峰", min: 1, max: 300, step: 1, unit: "秒" }
+      ];
+
+      const ENEMY_PARAMETER_GROUPS = new Set(enemyCodex.entries.map((entry) => entry.name));
+      const ENEMY_GLOBAL_PARAMETER_GROUP = "敌人全局";
+      const WAVE_PARAMETER_GROUP = "波次与投放";
+      const DIFFICULTY_PARAMETER_GROUPS = new Set([ENEMY_GLOBAL_PARAMETER_GROUP, WAVE_PARAMETER_GROUP]);
+      const ENEMY_PARAMETER_DEFINITIONS = ALL_PARAMETER_DEFINITIONS.filter((definition) => ENEMY_PARAMETER_GROUPS.has(definition.group));
+      const ENEMY_GLOBAL_PARAMETER_DEFINITIONS = ALL_PARAMETER_DEFINITIONS.filter((definition) => definition.group === ENEMY_GLOBAL_PARAMETER_GROUP);
+      const WAVE_PARAMETER_DEFINITIONS = ALL_PARAMETER_DEFINITIONS.filter((definition) => definition.group === WAVE_PARAMETER_GROUP);
+      const MODULE_PARAMETER_DEFINITIONS = ALL_PARAMETER_DEFINITIONS.filter((definition) => definition.moduleId);
+      const PARAMETER_DEFINITIONS = ALL_PARAMETER_DEFINITIONS.filter((definition) => !definition.moduleId && !ENEMY_PARAMETER_GROUPS.has(definition.group) && !DIFFICULTY_PARAMETER_GROUPS.has(definition.group));
+      const WAVE_PREVIEW_PARAMETER_KEYS = new Set([
+        ...ENEMY_GLOBAL_PARAMETER_DEFINITIONS.map((definition) => definition.key),
+        ...WAVE_PARAMETER_DEFINITIONS.map((definition) => definition.key),
+        "xpRequirementBase",
+        "xpRequirementPerLevel"
+      ]);
+      const WAVE_PREVIEW_WAVES = Object.freeze([1, 5, 10, 11, 30, 31, 90, 91, 95, 100]);
+
+      const MODULES = moduleCatalog;
+      const DEFAULT_MODULE_NAMES = Object.freeze({ ...defaultModuleNames });
+
+      const DEFAULT_MODULE_COOLDOWN_PERCENTAGES = Object.freeze({
+        ...(globalThis.GSS0_DESIGNER_CONFIG?.moduleCooldownPercentages || {})
+      });
+      const DEFAULT_WAVE_ENEMY_COUNT_SCHEDULE = Object.freeze(
+        (globalThis.GSS0_DESIGNER_CONFIG?.waveEnemyCountSchedule || []).map((tier) => Object.freeze({ ...tier }))
+      );
+      const STATUS_LABELS = { normal: "正常", tune: "需调数值", rework: "需大改", disabled: "禁用" };
+      const CONFIG_FILE_NAME = "designer-config.js";
+      const HANDLE_DATABASE = "gss0-balance-editor";
+      const HANDLE_STORE = "handles";
+      const HANDLE_KEY = "designer-config";
+      const AUTO_SAVE_DELAY_MS = 180;
+      const hashToken = new URLSearchParams(location.hash.slice(1)).get("editor-token") || "";
+      if (/^[a-f0-9]{64}$/.test(hashToken)) {
+        sessionStorage.setItem("gss0-editor-helper-token", hashToken);
+        history.replaceState(null, "", `${location.pathname}${location.search}`);
+      }
+      const helperToken = hashToken || sessionStorage.getItem("gss0-editor-helper-token") || "";
+      const helperMode = location.protocol === "http:" && location.hostname === "127.0.0.1" && /^[a-f0-9]{64}$/.test(helperToken);
+      const ui = {
+        fileState: document.querySelector("#file-state"), save: document.querySelector("#save-config"), open: document.querySelector("#open-config"), reload: document.querySelector("#reload-config"),
+        tabs: [...document.querySelectorAll(".tab")], balanceView: document.querySelector("#balance-view"), modulesView: document.querySelector("#modules-view"), enemiesView: document.querySelector("#enemies-view"), wavesView: document.querySelector("#waves-view"),
+        parameterGroups: document.querySelector("#parameter-groups"), parameterCount: document.querySelector("#parameter-count"), moduleList: document.querySelector("#module-list"), moduleCount: document.querySelector("#module-count"),
+        enemyConfigList: document.querySelector("#enemy-config-list"), enemyCount: document.querySelector("#enemy-count"),
+        waveSummary: document.querySelector("#wave-summary"), waveScheduleList: document.querySelector("#wave-schedule-list"), waveMetrics: document.querySelector("#wave-metrics"), enemyGlobalParameterList: document.querySelector("#enemy-global-parameter-list"), waveParameterList: document.querySelector("#wave-parameter-list"), wavePreviewBody: document.querySelector("#wave-preview-body"), wavePreviewNote: document.querySelector("#wave-preview-note"),
+        search: document.querySelector("#module-search"), category: document.querySelector("#category-filter"), status: document.querySelector("#status-filter"), bulkCount: document.querySelector("#module-bulk-count"), bulkButtons: [...document.querySelectorAll("#module-bulk-buttons button")],
+        interfaceScale: document.querySelector("#interface-scale"), interfaceScaleOutput: document.querySelector("#interface-scale-output")
+      };
+
+      let fileHandle = null;
+      let savedConfig = normalizeConfig(globalThis.GSS0_DESIGNER_CONFIG);
+      let draft = structuredClone(savedConfig);
+      let savedSnapshot = JSON.stringify(draft);
+      let autoSaveTimer = 0;
+      let saveInFlight = false;
+      let manualSaveActive = false;
+      let saveQueued = false;
+      let writePermissionReady = false;
+      let helperReady = false;
+      const filePickerSupported = typeof window.showOpenFilePicker === "function";
+
+      function normalizeConfig(value) {
+        const config = { schemaVersion: 47, balance: {}, waveEnemyCountSchedule: [], moduleCooldownPercentages: {}, moduleNames: {}, moduleStates: {} };
+        for (const definition of ALL_PARAMETER_DEFINITIONS) {
+          const candidate = Number(value?.balance?.[definition.key]);
+          config.balance[definition.key] = Number.isFinite(candidate) ? Math.max(definition.min, Math.min(definition.max, candidate)) : definition.min;
+        }
+        let previousStartWave = 0;
+        for (let index = 0; index < DEFAULT_WAVE_ENEMY_COUNT_SCHEDULE.length; index += 1) {
+          const fallback = DEFAULT_WAVE_ENEMY_COUNT_SCHEDULE[index];
+          const candidate = value?.waveEnemyCountSchedule?.[index];
+          const proposedStart = index === 0 ? 1 : Math.round(Number(candidate?.startWave));
+          const startWave = index === 0 ? 1 : Math.max(previousStartWave + 1, Math.min(100000, Number.isFinite(proposedStart) ? proposedStart : fallback.startWave));
+          const proposedCount = Math.round(Number(candidate?.enemyCount));
+          const enemyCount = Math.max(1, Number.isFinite(proposedCount) ? proposedCount : fallback.enemyCount);
+          config.waveEnemyCountSchedule.push({ startWave, enemyCount });
+          previousStartWave = startWave;
+        }
+        for (const moduleId of Object.keys(DEFAULT_MODULE_COOLDOWN_PERCENTAGES)) {
+          const candidate = Number(value?.moduleCooldownPercentages?.[moduleId]);
+          const fallback = Number(DEFAULT_MODULE_COOLDOWN_PERCENTAGES[moduleId]);
+          config.moduleCooldownPercentages[moduleId] = Math.max(0, Math.min(2000, Number.isFinite(candidate) ? candidate : fallback));
+        }
+        for (const module of MODULES) {
+          const fallbackName = String(DEFAULT_MODULE_NAMES[module.id] || module.name).trim().slice(0, 24);
+          const configuredName = typeof value?.moduleNames?.[module.id] === "string" ? value.moduleNames[module.id].trim().slice(0, 24) : "";
+          if (configuredName && configuredName !== fallbackName) config.moduleNames[module.id] = configuredName;
+          const state = value?.moduleStates?.[module.id];
+          config.moduleStates[module.id] = Object.hasOwn(STATUS_LABELS, state) ? state : "normal";
+        }
+        return config;
+      }
+
+      function parseConfig(text) {
+        const marker = "globalThis.GSS0_DESIGNER_CONFIG =";
+        const markerIndex = text.indexOf(marker);
+        if (markerIndex < 0) throw new Error("不是 PROJECT GSS0 设计配置文件");
+        const start = text.indexOf("{", markerIndex + marker.length);
+        const end = text.lastIndexOf("}");
+        if (start < 0 || end <= start) throw new Error("配置内容不完整");
+        const parsed = JSON.parse(text.slice(start, end + 1));
+        if (parsed?.schemaVersion !== 47) throw new Error("配置版本无效，需要 schemaVersion 47");
+        return normalizeConfig(parsed);
+      }
+
+      function serializeConfig(config = draft) {
+        return `globalThis.GSS0_DESIGNER_CONFIG = ${JSON.stringify(config, null, 2)};\n`;
+      }
+
+      function isDirty() { return JSON.stringify(draft) !== savedSnapshot; }
+      function setFileState(message, state = "") {
+        ui.fileState.textContent = message;
+        ui.fileState.className = `file-state${state ? ` is-${state}` : ""}`;
+      }
+      function refreshSaveButtonState() {
+        ui.save.disabled = saveInFlight || (!helperMode && !filePickerSupported);
+        ui.save.textContent = saveInFlight && manualSaveActive ? "正在保存" : "立即保存";
+      }
+      function refreshDirtyState() {
+        refreshSaveButtonState();
+        if (helperMode) {
+          ui.open.hidden = true;
+          if (saveInFlight) setFileState(`${CONFIG_FILE_NAME} · ${manualSaveActive ? "正在手动保存" : "正在自动保存"}`, "dirty");
+          else if (!helperReady) setFileState(`${CONFIG_FILE_NAME} · 正在连接本地启动器`, "dirty");
+          else if (isDirty()) setFileState(`${CONFIG_FILE_NAME} · 等待自动保存`, "dirty");
+          else setFileState(`${CONFIG_FILE_NAME} · 已自动同步`, "saved");
+          return;
+        }
+        ui.open.hidden = false;
+        if (!filePickerSupported) setFileState(`${CONFIG_FILE_NAME} · 已自动加载 · 当前浏览器不支持写回文件`, "dirty");
+        else if (fileHandle && !writePermissionReady) setFileState(`${CONFIG_FILE_NAME} · 已自动加载 · 点击恢复自动保存`, "dirty");
+        else if (saveInFlight) setFileState(`${CONFIG_FILE_NAME} · ${manualSaveActive ? "正在手动保存" : "正在自动保存"}`, "dirty");
+        else if (isDirty()) setFileState(fileHandle ? `${CONFIG_FILE_NAME} · 等待自动保存` : `${CONFIG_FILE_NAME} · 修改尚未写入`, "dirty");
+        else setFileState(fileHandle ? `${CONFIG_FILE_NAME} · 已自动同步` : `${CONFIG_FILE_NAME} · 已自动加载 · 授权后可自动保存`, fileHandle ? "saved" : "");
+        ui.open.textContent = fileHandle ? (writePermissionReady ? "更换绑定" : "恢复自动保存") : "授权自动保存";
+      }
+
+      function openHandleDatabase() {
+        return new Promise((resolve, reject) => {
+          const request = indexedDB.open(HANDLE_DATABASE, 1);
+          request.onupgradeneeded = () => request.result.createObjectStore(HANDLE_STORE);
+          request.onsuccess = () => resolve(request.result);
+          request.onerror = () => reject(request.error || new Error("无法保存配置文件授权"));
+        });
+      }
+
+      async function storedFileHandle() {
+        const database = await openHandleDatabase();
+        return new Promise((resolve, reject) => {
+          const request = database.transaction(HANDLE_STORE).objectStore(HANDLE_STORE).get(HANDLE_KEY);
+          request.onsuccess = () => resolve(request.result || null);
+          request.onerror = () => reject(request.error || new Error("无法读取配置文件授权"));
+          request.transaction.oncomplete = () => database.close();
+        });
+      }
+
+      async function rememberFileHandle(handle) {
+        const database = await openHandleDatabase();
+        await new Promise((resolve, reject) => {
+          const transaction = database.transaction(HANDLE_STORE, "readwrite");
+          transaction.objectStore(HANDLE_STORE).put(handle, HANDLE_KEY);
+          transaction.oncomplete = resolve;
+          transaction.onerror = () => reject(transaction.error || new Error("无法保存配置文件授权"));
+        });
+        database.close();
+      }
+
+      async function hasWritePermission(handle, allowPrompt) {
+        if (await handle.queryPermission({ mode: "readwrite" }) === "granted") return true;
+        return allowPrompt && await handle.requestPermission({ mode: "readwrite" }) === "granted";
+      }
+
+      async function readBoundConfig(handle) {
+        const file = await handle.getFile();
+        const next = parseConfig(await file.text());
+        fileHandle = handle;
+        writePermissionReady = true;
+        draft = next;
+        savedConfig = structuredClone(next);
+        savedSnapshot = JSON.stringify(next);
+        renderParameters();
+        renderModules();
+        renderEnemies();
+        renderWaves();
+        refreshDirtyState();
+      }
+
+      async function requestHelper(options = {}) {
+        const response = await fetch("/api/config", {
+          ...options,
+          cache: "no-store",
+          headers: { ...(options.headers || {}), "X-GSS0-Editor-Token": helperToken }
+        });
+        if (!response.ok) throw new Error((await response.text()) || `本地启动器请求失败 (${response.status})`);
+        return response;
+      }
+
+      async function readHelperConfig() {
+        const response = await requestHelper();
+        const next = parseConfig(await response.text());
+        helperReady = true;
+        draft = next;
+        savedConfig = structuredClone(next);
+        savedSnapshot = JSON.stringify(next);
+        renderParameters();
+        renderModules();
+        renderEnemies();
+        renderWaves();
+        refreshDirtyState();
+      }
+
+      function autoSaveReady() {
+        return helperMode ? helperReady : Boolean(fileHandle && writePermissionReady);
+      }
+
+      function scheduleAutoSave() {
+        refreshDirtyState();
+        window.clearTimeout(autoSaveTimer);
+        if (!autoSaveReady() || !isDirty()) return;
+        autoSaveTimer = window.setTimeout(() => void flushAutoSave(), AUTO_SAVE_DELAY_MS);
+      }
+
+      async function flushAutoSave(force = false, manual = false) {
+        window.clearTimeout(autoSaveTimer);
+        autoSaveTimer = 0;
+        const saveReady = helperMode ? (helperReady || manual) : autoSaveReady();
+        if (!saveReady || (!force && !isDirty())) return false;
+        if (saveInFlight) {
+          saveQueued = true;
+          return false;
+        }
+        const enabledCount = MODULES.reduce((count, module) => count + Number(draft.moduleStates[module.id] !== "disabled"), 0);
+        if (enabledCount === 0) {
+          setFileState("至少保留一个未禁用机体", "dirty");
+          return;
+        }
+        saveInFlight = true;
+        manualSaveActive = manual;
+        refreshDirtyState();
+        const persistedSnapshot = JSON.stringify(draft);
+        let savedSuccessfully = false;
+        try {
+          if (helperMode) {
+            await requestHelper({
+              method: "PUT",
+              headers: { "Content-Type": "text/javascript; charset=utf-8" },
+              body: serializeConfig(JSON.parse(persistedSnapshot))
+            });
+          } else {
+            if (!await hasWritePermission(fileHandle, false)) throw new Error("写入权限已失效，请重新授权");
+            const writable = await fileHandle.createWritable();
+            await writable.write(serializeConfig(JSON.parse(persistedSnapshot)));
+            await writable.close();
+          }
+          if (helperMode) helperReady = true;
+          savedConfig = JSON.parse(persistedSnapshot);
+          savedSnapshot = persistedSnapshot;
+          savedSuccessfully = true;
+        } catch (error) {
+          if (!helperMode) writePermissionReady = false;
+          setFileState(error instanceof Error ? error.message : "自动保存失败", "dirty");
+        } finally {
+          saveInFlight = false;
+          manualSaveActive = false;
+          refreshSaveButtonState();
+          const shouldSaveAgain = saveQueued || (savedSuccessfully && isDirty());
+          saveQueued = false;
+          if (savedSuccessfully || !helperMode) refreshDirtyState();
+          if (manual && savedSuccessfully && !isDirty()) setFileState(`${CONFIG_FILE_NAME} · 已手动保存`, "saved");
+          if (shouldSaveAgain && autoSaveReady()) scheduleAutoSave();
+        }
+        return savedSuccessfully;
+      }
+
+      function formatCooldownSeconds(seconds) {
+        return `${Number(seconds.toFixed(2))}秒`;
+      }
+
+      function moduleCooldownSeconds(moduleId) {
+        return draft.balance.activeSkillBaseCooldown * draft.moduleCooldownPercentages[moduleId] / 100;
+      }
+
+      function moduleCooldownLabel(module) {
+        if (!Object.hasOwn(draft.moduleCooldownPercentages, module.id)) return module.cooldown;
+        const suffix = module.id === "saw" ? "/目标" : "";
+        return `${formatCooldownSeconds(moduleCooldownSeconds(module.id))}${suffix}`;
+      }
+
+      function moduleUsageLabel(module) {
+        return Object.hasOwn(draft.moduleCooldownPercentages, module.id)
+          ? `冷却 · ${moduleCooldownLabel(module)}`
+          : module.cooldown;
+      }
+
+      function moduleDisplayName(module) {
+        return draft.moduleNames[module.id] || DEFAULT_MODULE_NAMES[module.id] || module.name;
+      }
+
+      function refreshModuleDescription(moduleId) {
+        const description = ui.moduleList.querySelector(`[data-module-id="${moduleId}"] .module-description-text`);
+        const note = ui.moduleList.querySelector(`[data-module-id="${moduleId}"] .module-description-note`);
+        if (description) description.textContent = describeModule(moduleId, draft.balance);
+        if (note) note.textContent = describeModuleNote(moduleId, draft.balance);
+      }
+
+      function createParameterRow(definition) {
+        const row = document.createElement("div");
+        row.className = "parameter-row";
+        const copy = document.createElement("div");
+        copy.className = "parameter-copy";
+        const label = document.createElement("strong");
+        label.textContent = definition.label;
+        const hint = document.createElement("span");
+        hint.textContent = definition.hint;
+        copy.append(label, hint);
+        const range = document.createElement("input");
+        range.type = "range";
+        range.min = definition.min;
+        range.max = definition.max;
+        range.step = definition.step;
+        range.value = draft.balance[definition.key];
+        range.setAttribute("aria-label", definition.label);
+        const number = document.createElement("input");
+        number.type = "number";
+        number.className = "number-input";
+        number.min = definition.min;
+        number.max = definition.max;
+        number.step = definition.step;
+        number.value = draft.balance[definition.key];
+        number.setAttribute("aria-label", `${definition.label}数值`);
+        const update = (value) => {
+          const parsed = Number(value);
+          if (!Number.isFinite(parsed)) return;
+          const next = Math.max(definition.min, Math.min(definition.max, parsed));
+          draft.balance[definition.key] = next;
+          range.value = next;
+          number.value = next;
+          if (definition.key === "activeSkillBaseCooldown") renderModules();
+          if (definition.moduleId) refreshModuleDescription(definition.moduleId);
+          if (WAVE_PREVIEW_PARAMETER_KEYS.has(definition.key)) renderWavePreview();
+          scheduleAutoSave();
+        };
+        range.addEventListener("input", () => update(range.value));
+        number.addEventListener("change", () => update(number.value));
+        const unit = document.createElement("span");
+        unit.className = "unit";
+        unit.textContent = definition.unit;
+        row.append(copy, range, number, unit);
+        return row;
+      }
+
+      function currentWaveDirector() {
+        return waveDirectorApi.create({
+          schedule: draft.waveEnemyCountSchedule,
+          pressureWaveInterval: draft.balance.enemyPressureWaveInterval,
+          pressureEnemyCountMultiplier: draft.balance.enemyPressureEnemyCountMultiplier,
+          pressureThreatMultiplier: draft.balance.enemyPressureThreatMultiplier,
+          expectedDpsInterval: draft.balance.enemyExpectedDpsInterval,
+          threatTimeCoefficient: draft.balance.enemyThreatTimeCoefficient,
+          threatGrowthPerWave: draft.balance.enemyThreatGrowthPerWave,
+          speedGrowthPerWave: draft.balance.enemySpeedPerWave,
+          speedMaxMultiplier: draft.balance.enemySpeedMaxMultiplier,
+          foodExperiencePerWave: draft.balance.foodsPerPlayerPerWave,
+          xpRequirementBase: draft.balance.xpRequirementBase,
+          xpRequirementPerLevel: draft.balance.xpRequirementPerLevel,
+          healthWeightVariation: draft.balance.enemyHealthWeightVariation
+        });
+      }
+
+      function formatWaveNumber(value, digits = 2) {
+        return Number(value.toFixed(digits)).toLocaleString("zh-CN", { maximumFractionDigits: digits });
+      }
+
+      function formatWaveDuration(seconds) {
+        const rounded = Math.max(0, Math.round(seconds));
+        return `${String(Math.floor(rounded / 60)).padStart(2, "0")}:${String(rounded % 60).padStart(2, "0")}`;
+      }
+
+      function renderWaveSchedule() {
+        ui.waveScheduleList.replaceChildren(...draft.waveEnemyCountSchedule.map((tier, index, schedule) => {
+          const row = document.createElement("div");
+          row.className = "wave-schedule-row";
+          const badge = document.createElement("span");
+          badge.className = "wave-tier-index";
+          badge.textContent = String(index + 1).padStart(2, "0");
+
+          const startField = document.createElement("label");
+          startField.className = "wave-schedule-field";
+          const startLabel = document.createElement("span");
+          startLabel.textContent = "起始波次";
+          const startInput = document.createElement("input");
+          startInput.type = "number";
+          startInput.min = String(index === 0 ? 1 : schedule[index - 1].startWave + 1);
+          startInput.max = String(index + 1 < schedule.length ? schedule[index + 1].startWave - 1 : 100000);
+          startInput.step = "1";
+          startInput.value = String(tier.startWave);
+          startInput.disabled = index === 0;
+          startInput.setAttribute("aria-label", `第 ${index + 1} 段起始波次`);
+          startInput.addEventListener("change", () => {
+            const minimum = schedule[index - 1].startWave + 1;
+            const maximum = index + 1 < schedule.length ? schedule[index + 1].startWave - 1 : 100000;
+            tier.startWave = Math.max(minimum, Math.min(maximum, Math.round(Number(startInput.value)) || minimum));
+            renderWaveSchedule();
+            renderWavePreview();
+            scheduleAutoSave();
+          });
+          startField.append(startLabel, startInput);
+
+          const countField = document.createElement("label");
+          countField.className = "wave-schedule-field";
+          const countLabel = document.createElement("span");
+          countLabel.textContent = "每人基础敌人数";
+          const countInput = document.createElement("input");
+          countInput.type = "number";
+          countInput.min = "1";
+          countInput.step = "1";
+          countInput.value = String(tier.enemyCount);
+          countInput.setAttribute("aria-label", `第 ${index + 1} 段基础敌人数`);
+          countInput.addEventListener("change", () => {
+            tier.enemyCount = Math.max(1, Math.round(Number(countInput.value)) || 1);
+            countInput.value = String(tier.enemyCount);
+            renderWavePreview();
+            scheduleAutoSave();
+          });
+          countField.append(countLabel, countInput);
+          row.append(badge, startField, countField);
+          return row;
+        }));
+      }
+
+      function renderWavePreview() {
+        const director = currentWaveDirector();
+        const wave100 = director.plan(100);
+        const completionExperience = director.experienceBeforeWave(101);
+        const metrics = [
+          ["100 波总投放经验", completionExperience, "包含敌人击破球与每波固定球"],
+          ["第 100 波前置等级", `LV.${wave100.expectedLevel}`, `${wave100.expectedExperience} 经验对应内部等级`],
+          ["第 100 波总威胁", formatWaveNumber(wave100.totalThreat), `${wave100.enemyCount} 条敌人共享生命预算`],
+          ["100 波理论周期", formatWaveDuration(draft.balance.waveInterval * 100), `基础间隔 ${formatWaveNumber(draft.balance.waveInterval, 1)} 秒`]
+        ];
+        ui.waveMetrics.replaceChildren(...metrics.map(([labelText, valueText, detailText]) => {
+          const metric = document.createElement("div");
+          metric.className = "wave-metric";
+          const label = document.createElement("span");
+          label.textContent = labelText;
+          const value = document.createElement("strong");
+          value.textContent = valueText;
+          const detail = document.createElement("small");
+          detail.textContent = detailText;
+          metric.append(label, value, detail);
+          return metric;
+        }));
+
+        ui.wavePreviewBody.replaceChildren(...WAVE_PREVIEW_WAVES.map((wave) => {
+          const plan = director.plan(wave);
+          const row = document.createElement("tr");
+          row.classList.toggle("is-pressure", plan.pressure);
+          const values = [
+            wave,
+            plan.pressure ? "高压波" : "常规波",
+            plan.baseEnemyCount,
+            plan.enemyCount,
+            plan.expectedExperience,
+            plan.expectedLevel,
+            formatWaveNumber(plan.expectedDps, 3),
+            `${formatWaveNumber(plan.growthMultiplier * 100, 1)}%`,
+            `${formatWaveNumber(plan.speedMultiplier * 100, 1)}%`,
+            formatWaveNumber(plan.totalThreat)
+          ];
+          row.append(...values.map((value) => {
+            const cell = document.createElement("td");
+            cell.textContent = value;
+            return cell;
+          }));
+          return row;
+        }));
+        const pressureInterval = Math.round(draft.balance.enemyPressureWaveInterval);
+        ui.waveSummary.textContent = `${ENEMY_GLOBAL_PARAMETER_DEFINITIONS.length} 项敌人全局 · ${draft.waveEnemyCountSchedule.length} 段计划 · ${pressureInterval > 0 ? `每 ${pressureInterval} 波高压` : "高压波关闭"}`;
+        ui.wavePreviewNote.textContent = `前置经验只按固定投放计划计算 · 权重浮动 ±${formatWaveNumber(draft.balance.enemyHealthWeightVariation * 100, 0)}%`;
+      }
+
+      function renderWaves() {
+        renderWaveSchedule();
+        const enemyGlobalTitle = document.createElement("h3");
+        enemyGlobalTitle.textContent = ENEMY_GLOBAL_PARAMETER_GROUP;
+        ui.enemyGlobalParameterList.replaceChildren(enemyGlobalTitle, ...ENEMY_GLOBAL_PARAMETER_DEFINITIONS.map(createParameterRow));
+        const waveTitle = document.createElement("h3");
+        waveTitle.textContent = WAVE_PARAMETER_GROUP;
+        ui.waveParameterList.replaceChildren(waveTitle, ...WAVE_PARAMETER_DEFINITIONS.map(createParameterRow));
+        renderWavePreview();
+      }
+
+      function renderParameters() {
+        const groups = [...new Set(PARAMETER_DEFINITIONS.map((item) => item.group))];
+        ui.parameterGroups.replaceChildren(...groups.map((groupName) => {
+          const group = document.createElement("section");
+          group.className = "parameter-group";
+          const title = document.createElement("h3");
+          title.textContent = groupName;
+          group.append(title, ...PARAMETER_DEFINITIONS.filter((item) => item.group === groupName).map(createParameterRow));
+          return group;
+        }));
+        ui.parameterCount.textContent = `${PARAMETER_DEFINITIONS.length} 项参数`;
+      }
+
+      function renderEnemies() {
+        ui.enemyConfigList.replaceChildren(...enemyCodex.entries.map((entry) => {
+          const card = document.createElement("article");
+          card.className = "enemy-config-card";
+          card.dataset.enemyId = entry.id;
+          card.style.setProperty("--enemy-color", entry.color);
+          card.setAttribute("aria-labelledby", `enemy-config-${entry.id}`);
+
+          const overview = document.createElement("div");
+          overview.className = "enemy-config-overview";
+          const visual = document.createElement("div");
+          visual.className = "enemy-config-visual";
+          const canvas = document.createElement("canvas");
+          canvas.width = 520;
+          canvas.height = 250;
+          canvas.setAttribute("role", "img");
+          canvas.setAttribute("aria-label", `${entry.name}蛇头与完整身体示意`);
+          visual.append(canvas);
+
+          const copy = document.createElement("div");
+          copy.className = "enemy-config-copy";
+          const role = document.createElement("span");
+          role.textContent = `${entry.code} / ${entry.role} / ${entry.id}`;
+          const title = document.createElement("h3");
+          title.id = `enemy-config-${entry.id}`;
+          title.textContent = entry.name;
+          const description = document.createElement("p");
+          description.textContent = entry.description;
+          const traits = document.createElement("ul");
+          for (const trait of entry.traits) {
+            const item = document.createElement("li");
+            item.textContent = trait;
+            traits.append(item);
+          }
+          copy.append(role, title, description, traits);
+          overview.append(visual, copy);
+
+          const parameters = document.createElement("section");
+          parameters.className = "enemy-parameter-list";
+          parameters.setAttribute("aria-label", `${entry.name}配置参数`);
+          parameters.append(...ENEMY_PARAMETER_DEFINITIONS.filter((definition) => definition.group === entry.name).map(createParameterRow));
+          card.append(overview, parameters);
+          enemyCodex.drawPreview(canvas, entry.id);
+          return card;
+        }));
+        ui.enemyCount.textContent = `${enemyCodex.entries.length} 类敌人 · ${ENEMY_PARAMETER_DEFINITIONS.length} 项参数`;
+      }
+
+      function filteredModules() {
+        const query = ui.search.value.trim().toLocaleLowerCase("zh-CN");
+        return MODULES.filter((module) => {
+          const state = draft.moduleStates[module.id];
+          const displayName = moduleDisplayName(module);
+          return (ui.category.value === "all" || module.category === ui.category.value)
+            && (ui.status.value === "all" || state === ui.status.value)
+            && (!query || `${displayName} ${module.id} ${module.desc} ${module.note || ""}`.toLocaleLowerCase("zh-CN").includes(query));
+        });
+      }
+
+      function updateModuleListSummary(modules = filteredModules()) {
+        ui.bulkCount.textContent = `当前筛选 ${modules.length} 个机体`;
+        for (const button of ui.bulkButtons) button.disabled = modules.length === 0;
+        const disabledCount = MODULES.filter((module) => draft.moduleStates[module.id] === "disabled").length;
+        ui.moduleCount.textContent = `${modules.length}/${MODULES.length} · 禁用 ${disabledCount}`;
+      }
+
+      function renderModules(preserveScroll = false) {
+        const scrollPosition = preserveScroll ? { x: window.scrollX, y: window.scrollY } : null;
+        const modules = filteredModules();
+        updateModuleListSummary(modules);
+        if (modules.length === 0) {
+          const empty = document.createElement("div");
+          empty.className = "empty";
+          empty.textContent = "没有符合筛选条件的机体";
+          ui.moduleList.replaceChildren(empty);
+        } else {
+          ui.moduleList.replaceChildren(...modules.map((module) => {
+            const displayName = moduleDisplayName(module);
+            const row = document.createElement("article");
+            row.className = "module-row";
+            row.dataset.moduleId = module.id;
+            row.style.setProperty("--module-color", module.color);
+            const swatch = document.createElement("span");
+            swatch.className = "swatch";
+            swatch.setAttribute("aria-hidden", "true");
+            const name = document.createElement("div");
+            name.className = "module-name";
+            const nameInput = document.createElement("input");
+            nameInput.type = "text";
+            nameInput.className = "module-name-input";
+            nameInput.maxLength = 24;
+            nameInput.value = displayName;
+            nameInput.placeholder = DEFAULT_MODULE_NAMES[module.id] || module.name;
+            nameInput.title = "留空可恢复默认名称";
+            nameInput.setAttribute("aria-label", `${displayName}名称`);
+            const category = document.createElement("span");
+            category.textContent = module.category;
+            const moduleId = document.createElement("code");
+            moduleId.textContent = `ID: ${module.id}`;
+            name.append(nameInput, category, moduleId);
+            nameInput.addEventListener("input", () => {
+              const fallbackName = DEFAULT_MODULE_NAMES[module.id] || module.name;
+              const configuredName = nameInput.value.trim().slice(0, 24);
+              if (!configuredName || configuredName === fallbackName) delete draft.moduleNames[module.id];
+              else draft.moduleNames[module.id] = configuredName;
+              nameInput.setAttribute("aria-label", `${configuredName || fallbackName}名称`);
+              scheduleAutoSave();
+            });
+            nameInput.addEventListener("blur", () => {
+              nameInput.value = moduleDisplayName(module);
+            });
+            const description = document.createElement("div");
+            description.className = "module-desc";
+            const descriptionText = document.createElement("span");
+            descriptionText.className = "module-description-text";
+            descriptionText.textContent = describeModule(module.id, draft.balance);
+            const descriptionNote = document.createElement("span");
+            descriptionNote.className = "module-description-note";
+            descriptionNote.textContent = describeModuleNote(module.id, draft.balance);
+            descriptionNote.hidden = !descriptionNote.textContent;
+            const cooldownSummary = document.createElement("small");
+            cooldownSummary.textContent = moduleUsageLabel(module);
+            description.append(descriptionText, descriptionNote, cooldownSummary);
+            const control = document.createElement("div");
+            control.className = "status-control";
+            control.setAttribute("role", "group");
+            control.setAttribute("aria-label", `${displayName}状态`);
+            for (const [state, label] of Object.entries(STATUS_LABELS)) {
+              const button = document.createElement("button");
+              button.type = "button";
+              button.dataset.state = state;
+              button.classList.toggle("is-active", draft.moduleStates[module.id] === state);
+              button.textContent = label;
+              button.addEventListener("click", () => {
+                if (draft.moduleStates[module.id] === state) return;
+                draft.moduleStates[module.id] = state;
+                if (ui.status.value !== "all" && ui.status.value !== state) {
+                  renderModules(true);
+                } else {
+                  for (const statusButton of control.querySelectorAll("button")) {
+                    statusButton.classList.toggle("is-active", statusButton.dataset.state === state);
+                  }
+                  updateModuleListSummary();
+                }
+                scheduleAutoSave();
+              });
+              control.append(button);
+            }
+            row.append(swatch, name, description, control);
+            if (Object.hasOwn(draft.moduleCooldownPercentages, module.id)) {
+              const cooldownControl = document.createElement("label");
+              cooldownControl.className = "cooldown-control";
+              const copy = document.createElement("div");
+              const title = document.createElement("strong");
+              title.textContent = `冷却时间 · ${draft.moduleCooldownPercentages[module.id]}%`;
+              const hint = document.createElement("span");
+              hint.textContent = "相对于公共基础冷却，范围 0%–2000%";
+              copy.append(title, hint);
+              const range = document.createElement("input");
+              range.type = "range";
+              range.min = "0";
+              range.max = "2000";
+              range.step = "1";
+              range.value = String(draft.moduleCooldownPercentages[module.id]);
+              range.setAttribute("aria-label", `${displayName}冷却时间百分比`);
+              const number = document.createElement("input");
+              number.type = "number";
+              number.className = "number-input cooldown-number-input";
+              number.min = "0";
+              number.max = "2000";
+              number.step = "1";
+              number.value = String(draft.moduleCooldownPercentages[module.id]);
+              number.setAttribute("aria-label", `${displayName}冷却时间百分比数值`);
+              const actual = document.createElement("output");
+              actual.textContent = `实际 ${moduleCooldownLabel(module)}`;
+              const updateCooldown = (value) => {
+                const next = Math.max(0, Math.min(2000, Math.round(Number(value) || 0)));
+                draft.moduleCooldownPercentages[module.id] = next;
+                range.value = String(next);
+                number.value = String(next);
+                title.textContent = `冷却时间 · ${next}%`;
+                actual.textContent = `实际 ${moduleCooldownLabel(module)}`;
+                if (cooldownSummary) cooldownSummary.textContent = moduleUsageLabel(module);
+                scheduleAutoSave();
+              };
+              range.addEventListener("input", () => updateCooldown(range.value));
+              number.addEventListener("input", () => updateCooldown(number.value));
+              cooldownControl.append(copy, range, number, actual);
+              row.append(cooldownControl);
+            }
+            const moduleParameters = MODULE_PARAMETER_DEFINITIONS.filter((definition) => definition.moduleId === module.id);
+            if (moduleParameters.length > 0) {
+              const parameterList = document.createElement("section");
+              parameterList.className = "module-parameter-list";
+              parameterList.setAttribute("aria-label", `${displayName}配置参数`);
+              parameterList.append(...moduleParameters.map(createParameterRow));
+              row.append(parameterList);
+            }
+            return row;
+          }));
+        }
+        if (scrollPosition) {
+          const restoreScroll = () => window.scrollTo(scrollPosition.x, scrollPosition.y);
+          restoreScroll();
+          requestAnimationFrame(restoreScroll);
+        }
+      }
+
+      function bulkSetModuleStatus(state) {
+        const modules = filteredModules();
+        if (modules.length === 0 || !Object.hasOwn(STATUS_LABELS, state)) return;
+        const label = STATUS_LABELS[state];
+        if (!window.confirm(`确认将当前筛选条件下的 ${modules.length} 个机体全部设置为“${label}”吗？`)) return;
+        for (const module of modules) draft.moduleStates[module.id] = state;
+        renderModules();
+        scheduleAutoSave();
+      }
+
+      async function openConfig() {
+        try {
+          const pendingDraft = isDirty() ? structuredClone(draft) : null;
+          if (fileHandle && !writePermissionReady) {
+            if (!await hasWritePermission(fileHandle, true)) throw new Error("没有文件写入权限");
+            await readBoundConfig(fileHandle);
+            if (pendingDraft) {
+              draft = pendingDraft;
+              renderParameters();
+              renderModules();
+              renderEnemies();
+              renderWaves();
+              scheduleAutoSave();
+            }
+            return true;
+          }
+          const [handle] = await window.showOpenFilePicker({ id: "gss0-designer-config", multiple: false, types: [{ description: "GSS0 设计配置", accept: { "text/javascript": [".js"] } }] });
+          if (handle.name !== CONFIG_FILE_NAME) throw new Error(`请选择 ${CONFIG_FILE_NAME}`);
+          if (!await hasWritePermission(handle, true)) throw new Error("没有文件写入权限");
+          await rememberFileHandle(handle);
+          await readBoundConfig(handle);
+          if (pendingDraft) {
+            draft = pendingDraft;
+            renderParameters();
+            renderModules();
+            renderEnemies();
+            renderWaves();
+            scheduleAutoSave();
+          }
+          return true;
+        } catch (error) {
+          if (error?.name !== "AbortError") setFileState(error instanceof Error ? error.message : "读取配置失败", "dirty");
+          return false;
+        }
+      }
+
+      async function saveConfigNow() {
+        if (saveInFlight) {
+          saveQueued = true;
+          return;
+        }
+        if (!helperMode && (!fileHandle || !writePermissionReady)) {
+          if (!filePickerSupported) {
+            setFileState("当前浏览器不支持直接写回配置文件", "dirty");
+            return;
+          }
+          if (!await openConfig()) return;
+        }
+        await flushAutoSave(true, true);
+      }
+
+      async function reloadConfig() {
+        try {
+          window.clearTimeout(autoSaveTimer);
+          if (helperMode) await readHelperConfig();
+          else if (fileHandle) await readBoundConfig(fileHandle);
+          else {
+            draft = normalizeConfig(globalThis.GSS0_DESIGNER_CONFIG);
+            savedConfig = structuredClone(draft);
+            savedSnapshot = JSON.stringify(draft);
+            renderParameters();
+            renderModules();
+            renderEnemies();
+            renderWaves();
+          }
+          refreshDirtyState();
+        } catch (error) {
+          setFileState(error instanceof Error ? error.message : "重新读取配置失败", "dirty");
+        }
+      }
+
+      async function restoreConfigBinding() {
+        try {
+          const handle = await storedFileHandle();
+          if (!handle || handle.kind !== "file" || handle.name !== CONFIG_FILE_NAME) return;
+          fileHandle = handle;
+          if (!await hasWritePermission(handle, false)) {
+            writePermissionReady = false;
+            refreshDirtyState();
+            return;
+          }
+          await readBoundConfig(handle);
+        } catch {
+          setFileState(`${CONFIG_FILE_NAME} · 已自动加载 · 授权后可自动保存`, "");
+        }
+      }
+
+      ui.tabs.forEach((tab) => tab.addEventListener("click", () => {
+        ui.tabs.forEach((item) => item.classList.toggle("is-active", item === tab));
+        ui.balanceView.hidden = tab.dataset.view !== "balance";
+        ui.modulesView.hidden = tab.dataset.view !== "modules";
+        ui.enemiesView.hidden = tab.dataset.view !== "enemies";
+        ui.wavesView.hidden = tab.dataset.view !== "waves";
+      }));
+      ui.search.addEventListener("input", renderModules);
+      ui.category.addEventListener("change", renderModules);
+      ui.status.addEventListener("change", renderModules);
+      ui.bulkButtons.forEach((button) => button.addEventListener("click", () => bulkSetModuleStatus(button.dataset.state)));
+      ui.interfaceScale.addEventListener("input", () => {
+        const value = Math.max(80, Math.min(160, Number(ui.interfaceScale.value) || 100));
+        document.documentElement.style.zoom = String(value / 100);
+        ui.interfaceScaleOutput.value = `${value}%`;
+        try { localStorage.setItem("gss0-editor-interface-scale", String(value)); } catch {}
+      });
+      ui.open.addEventListener("click", openConfig);
+      ui.save.addEventListener("click", () => void saveConfigNow());
+      ui.reload.addEventListener("click", () => void reloadConfig());
+      window.addEventListener("keydown", (event) => {
+        if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
+          event.preventDefault();
+          void saveConfigNow();
+        }
+      });
+      window.addEventListener("beforeunload", (event) => {
+        if (!isDirty()) return;
+        event.preventDefault();
+        event.returnValue = "";
+      });
+
+      if (!helperMode && !filePickerSupported) {
+        ui.open.disabled = true;
+        setFileState(`${CONFIG_FILE_NAME} · 已自动加载 · 当前浏览器不支持写回文件`, "dirty");
+      }
+      let storedInterfaceScale = 100;
+      try { storedInterfaceScale = Math.max(80, Math.min(160, Number(localStorage.getItem("gss0-editor-interface-scale")) || 100)); } catch {}
+      ui.interfaceScale.value = String(storedInterfaceScale);
+      ui.interfaceScale.dispatchEvent(new Event("input"));
+      renderParameters();
+      renderModules();
+      renderEnemies();
+      renderWaves();
+      refreshDirtyState();
+      if (helperMode) void readHelperConfig().catch((error) => setFileState(error instanceof Error ? error.message : "无法连接本地启动器", "dirty"));
+      else if (filePickerSupported) void restoreConfigBinding();
+    })();
+  </script>
+</body>
+</html>

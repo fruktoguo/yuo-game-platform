@@ -8,6 +8,7 @@
 - `/life/`：生命战争，回环端口 `3101`。
 - `/billiards/`：Breakline 台球，回环端口 `3102`。
 - `/snake/`：PROJECT GSS0，回环端口 `3103`。
+- `/snake-classic/`：代号：几何贪吃蛇 怀旧服，回环端口 `3105`。
 - `/foundry/`：远星工造，回环端口 `3104`。
 - PostgreSQL：仅绑定 `127.0.0.1:54329`。
 
@@ -20,6 +21,7 @@ PUBLIC_BASE_URL=https://game.dstopology.com
 LIFE_LAUNCH_URL=https://game.dstopology.com/life/
 BILLIARDS_LAUNCH_URL=https://game.dstopology.com/billiards/
 SNAKE_LAUNCH_URL=https://game.dstopology.com/snake/
+SNAKE_CLASSIC_LAUNCH_URL=https://game.dstopology.com/snake-classic/
 FOUNDRY_LAUNCH_URL=https://game.dstopology.com/foundry/
 ```
 
@@ -40,8 +42,9 @@ FOUNDRY_LAUNCH_URL=https://game.dstopology.com/foundry/
 | 生命战争 | 384 MiB |
 | Breakline 台球 | 384 MiB |
 | PROJECT GSS0 | 384 MiB |
+| 代号：几何贪吃蛇 怀旧服 | 128 MiB |
 | 远星工造 | 256 MiB |
-| 合计 | 1920 MiB |
+| 合计 | 2048 MiB |
 
 每个容器使用 Docker `mem_limit`，因此整套运行服务的理论总上限为 2.00 GiB。修改 Compose 或增加游戏后必须运行 `npm run check:limits`，总额不得超过 2 GiB。
 
@@ -56,16 +59,16 @@ FOUNDRY_LAUNCH_URL=https://game.dstopology.com/foundry/
 3. 在服务器部署目录设置权限为 `0600` 的 `.env`，替换全部密码、服务令牌和会话密钥。
 4. 使用 `docker compose up -d --no-build --wait` 启动并等待全部健康检查。
 5. 验证回环健康接口后执行 `nginx -t`，安装站点并平滑执行 `systemctl reload nginx`。
-6. 从公网完成注册、四个游戏启动和多人联机验收后，才能清理旧运行容器。
+6. 从公网完成注册、五个游戏启动和两套 GSS0 多人联机验收后，才能清理旧运行容器。
 
-生产服务使用只读根文件系统、非 root 用户、进程数限制、日志轮转和优雅停机。生命世界、PROJECT GSS0 战绩、远星工造房间与 PostgreSQL 分别保存在命名卷中。
+生产服务使用只读根文件系统、非 root 用户、进程数限制、日志轮转和优雅停机。生命世界、PROJECT GSS0 战绩、PROJECT GSS0 怀旧服战绩、远星工造房间与 PostgreSQL 分别保存在独立命名卷中。
 
 ## 回滚
 
-部署前必须备份 Nginx 站点、平台数据库、生命世界、PROJECT GSS0 战绩和远星工造房间。若新版本失败：
+部署前必须备份 Nginx 站点、平台数据库、生命世界、PROJECT GSS0 战绩、PROJECT GSS0 怀旧服战绩和远星工造房间。若新版本失败：
 
 1. 恢复上一份 Nginx 站点并先执行 `nginx -t`。
 2. 将 `GAME_PLATFORM_IMAGE` 改回上一不可变镜像标签并执行 `docker compose up -d --no-build --wait`。
 3. 只有数据库或世界格式已发生不兼容写入时，才停止服务并恢复对应备份。
 
-禁止使用 `docker compose down -v`，该命令会删除平台数据库、生命世界、PROJECT GSS0 战绩和远星工造房间。
+禁止使用 `docker compose down -v`，该命令会删除平台数据库、生命世界、PROJECT GSS0 战绩、PROJECT GSS0 怀旧服战绩和远星工造房间。

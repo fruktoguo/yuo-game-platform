@@ -130,6 +130,10 @@ backup_gzip_file \
   /app/data/snake/profiles.json.gz \
   "${backup_directory}/snake-profiles.json.gz"
 backup_gzip_file \
+  game-platform-neon-snake-arena-classic-1 \
+  /app/data/snake-classic/profiles.json.gz \
+  "${backup_directory}/snake-classic-profiles.json.gz"
+backup_gzip_file \
   game-platform-farstar-foundry-1 \
   /app/data/foundry/rooms.json.gz \
   "${backup_directory}/foundry-rooms.json.gz"
@@ -220,6 +224,7 @@ for health_url in \
   http://127.0.0.1:3101/health \
   http://127.0.0.1:3102/api/health \
   http://127.0.0.1:3103/health \
+  http://127.0.0.1:3105/health \
   http://127.0.0.1:3104/health
 do
   curl --fail --silent --show-error --max-time 10 "${health_url}" > /dev/null

@@ -109,6 +109,7 @@ jobs:
             https://game.dstopology.com/life/health \
             https://game.dstopology.com/billiards/api/health \
             https://game.dstopology.com/snake/health \
+            https://game.dstopology.com/snake-classic/health \
             https://game.dstopology.com/foundry/health
           do
             curl --fail --silent --show-error \

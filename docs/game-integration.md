@@ -19,6 +19,8 @@
 
 在 `games/PROJECT GSS0` 运行 `npm run dev:local`，会同时启动仅供开发使用的平台会话替身、游戏服务端和 Vite。分别打开终端输出的 `127.0.0.1` 客户端 A 地址与 `localhost` 客户端 B 地址；两个主机名会隔离 Cookie，因此同一台电脑可以用两个身份完成建房、加入和 WebRTC 联机烟测。该替身只实现启动码兑换接口，不属于生产构建，也不能替代正式平台认证测试。
 
+怀旧服在 `games/PROJECT GSS0 CLASSIC` 使用同一套烟测流程，默认客户端端口为 `5179`、服务端端口为 `3105`。它使用独立的 `neon-snake-arena-classic` 游戏身份、会话 Cookie、服务令牌和战绩文件；不得与 `PROJECT GSS0` 共用这些值，否则平台启动票据、Socket.IO 房间或持久化战绩会串服。
+
 ## 存档
 
 世界型游戏使用 `AtomicGzipJsonStore<T>` 保存低频完整快照，并在存档结构中记录 `accountId`。高频或需要跨实例查询的数据使用 PostgreSQL；房间内临时物理状态保留在内存。

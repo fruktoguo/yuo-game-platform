@@ -31,4 +31,4 @@
 - `/usr/local/sbin/deploy-yuo-game-platform`：接收、校验、备份、部署、健康检查与回滚。
 - `/etc/sudoers.d/game-deploy`：仅允许部署用户以 root 调用固定部署脚本。
 
-部署前会备份 `.env`、Compose、PostgreSQL、生命世界，以及当前存在的 PROJECT GSS0 战绩或远星工造房间存档到 `backups/github-*`。镜像加载后会根据服务器已安装的 Compose 校验所有 Node.js 服务入口文件；入口路径不一致时会在修改 `.env` 和重建容器之前终止。容器更新失败时自动恢复上一镜像配置，但不会自动覆盖数据库或游戏存档，避免回滚过程丢失部署期间的新写入。每次保留最近五个 `sha-*` 镜像标签用于快速回滚。
+部署前会备份 `.env`、Compose、PostgreSQL、生命世界，以及当前存在的 PROJECT GSS0、PROJECT GSS0 怀旧服战绩或远星工造房间存档到 `backups/github-*`。镜像加载后会根据服务器已安装的 Compose 校验所有 Node.js 服务入口文件；入口路径不一致时会在修改 `.env` 和重建容器之前终止。容器更新失败时自动恢复上一镜像配置，但不会自动覆盖数据库或游戏存档，避免回滚过程丢失部署期间的新写入。每次保留最近五个 `sha-*` 镜像标签用于快速回滚。

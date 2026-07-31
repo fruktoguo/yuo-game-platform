@@ -103,6 +103,23 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): Platfo
       },
       {
         manifest: {
+          id: 'neon-snake-arena-classic',
+          slug: 'neon-snake-arena-classic',
+          name: '代号：几何贪吃蛇 怀旧服',
+          shortDescription: '20260731大改前备份',
+          coverUrl: '/neon-snake-cover.png',
+          launchMode: 'navigate',
+          access: 'account',
+          status: 'online',
+          capabilities: { realtime: true, persistentState: true, wallet: 'none' },
+          tags: ['combat', 'casual'],
+          sortOrder: 35,
+        },
+        launchUrl: environment.SNAKE_CLASSIC_LAUNCH_URL ?? 'http://127.0.0.1:3105',
+        serviceToken: environment.SNAKE_CLASSIC_SERVICE_TOKEN ?? 'dev-snake-classic-service-token-change-before-production-2026',
+      },
+      {
+        manifest: {
           id: 'farstar-foundry',
           slug: 'farstar-foundry',
           name: '远星工造',

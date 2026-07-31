@@ -9,6 +9,7 @@ const PLATFORM_URL = process.env.PLATFORM_URL ?? 'http://127.0.0.1:3100';
 const LIFE_URL = process.env.LIFE_URL ?? 'http://127.0.0.1:3101';
 const BILLIARDS_URL = process.env.BILLIARDS_URL ?? 'http://127.0.0.1:3102';
 const SNAKE_URL = process.env.SNAKE_URL ?? 'http://127.0.0.1:3103';
+const SNAKE_CLASSIC_URL = process.env.SNAKE_CLASSIC_URL ?? 'http://127.0.0.1:3105';
 const FOUNDRY_URL = process.env.FOUNDRY_URL ?? 'http://127.0.0.1:3104';
 const LIFE_SERVICE_TOKEN = process.env.LIFE_SERVICE_TOKEN ?? 'dev-life-service-token-change-before-production-2026';
 const TEST_INTERNAL_WALLET = process.env.E2E_TEST_INTERNAL_WALLET !== 'false';
@@ -373,11 +374,13 @@ async function register(page, username, displayName) {
 
 async function assertLobby(page, expectedBalance) {
   await page.getByRole('heading', { name: '全部游戏' }).waitFor();
-  assert.equal(await page.locator('.game-card').count(), 4);
+  assert.equal(await page.locator('.game-card').count(), 6);
   await page.getByRole('heading', { name: '生命战争' }).waitFor();
   await page.getByRole('heading', { name: 'Breakline 台球' }).waitFor();
-  await page.getByRole('heading', { name: 'PROJECT GSS0' }).waitFor();
+  await page.getByRole('heading', { name: '代号：几何贪吃蛇', exact: true }).waitFor();
+  await page.getByRole('heading', { name: '代号：几何贪吃蛇 怀旧服', exact: true }).waitFor();
   await page.getByRole('heading', { name: '远星工造' }).waitFor();
+  await page.getByRole('heading', { name: '异星工厂' }).waitFor();
   assert.equal(Number(await page.locator('.points-pill strong').textContent()), expectedBalance);
   await assertNoHorizontalOverflow(page);
 }
@@ -523,14 +526,14 @@ async function assertOriginalSnakeTouchControl(page) {
 function monitorPage(page, name) {
   page.on('pageerror', (error) => browserErrors.push(`${name} 页面异常：${error.message}`));
   page.on('response', (response) => {
-    if (response.status() >= 500 && [PLATFORM_URL, LIFE_URL, BILLIARDS_URL, SNAKE_URL, FOUNDRY_URL].some((base) => response.url().startsWith(base))) {
+    if (response.status() >= 500 && [PLATFORM_URL, LIFE_URL, BILLIARDS_URL, SNAKE_URL, SNAKE_CLASSIC_URL, FOUNDRY_URL].some((base) => response.url().startsWith(base))) {
       browserErrors.push(`${name} 服务异常：${response.status()} ${response.url()}`);
     }
   });
 }
 
 async function checkHealth() {
-  const endpoints = [`${PLATFORM_URL}/health`, `${LIFE_URL}/health`, `${BILLIARDS_URL}/api/health`, `${SNAKE_URL}/health`, `${FOUNDRY_URL}/health`];
+  const endpoints = [`${PLATFORM_URL}/health`, `${LIFE_URL}/health`, `${BILLIARDS_URL}/api/health`, `${SNAKE_URL}/health`, `${SNAKE_CLASSIC_URL}/health`, `${FOUNDRY_URL}/health`];
   for (const endpoint of endpoints) {
     const response = await fetch(endpoint);
     assert.equal(response.status, 200, `${endpoint} 未就绪`);

@@ -59,10 +59,12 @@ services:
       LIFE_LAUNCH_URL: ${LIFE_LAUNCH_URL:-http://127.0.0.1:3101}
       BILLIARDS_LAUNCH_URL: ${BILLIARDS_LAUNCH_URL:-http://127.0.0.1:3102}
       SNAKE_LAUNCH_URL: ${SNAKE_LAUNCH_URL:-http://127.0.0.1:3103}
+      SNAKE_CLASSIC_LAUNCH_URL: ${SNAKE_CLASSIC_LAUNCH_URL:-http://127.0.0.1:3105}
       FOUNDRY_LAUNCH_URL: ${FOUNDRY_LAUNCH_URL:-http://127.0.0.1:3104}
       LIFE_SERVICE_TOKEN: ${LIFE_SERVICE_TOKEN:-dev-life-service-token-change-before-production-2026}
       BILLIARDS_SERVICE_TOKEN: ${BILLIARDS_SERVICE_TOKEN:-dev-billiards-service-token-change-before-production-2026}
       SNAKE_SERVICE_TOKEN: ${SNAKE_SERVICE_TOKEN:-dev-snake-service-token-change-before-production-2026}
+      SNAKE_CLASSIC_SERVICE_TOKEN: ${SNAKE_CLASSIC_SERVICE_TOKEN:-dev-snake-classic-service-token-change-before-production-2026}
       FOUNDRY_SERVICE_TOKEN: ${FOUNDRY_SERVICE_TOKEN:-dev-foundry-service-token-change-before-production-2026}
     ports:
       - "127.0.0.1:3100:3100"
@@ -188,6 +190,42 @@ services:
       retries: 12
       start_period: 10s
 
+  neon-snake-arena-classic:
+    build: .
+    image: ${GAME_PLATFORM_IMAGE:-yuo-game-platform:local}
+    restart: unless-stopped
+    depends_on:
+      platform:
+        condition: service_healthy
+    command: ["node", "games/PROJECT GSS0 CLASSIC/dist/server/index.js"]
+    environment:
+      PLATFORM_INTERNAL_URL: http://platform:3100
+      PLATFORM_SERVICE_TOKEN: ${SNAKE_CLASSIC_SERVICE_TOKEN:-dev-snake-classic-service-token-change-before-production-2026}
+      GAME_SESSION_SECRET: ${SNAKE_CLASSIC_GAME_SESSION_SECRET:-dev-snake-classic-game-session-secret-change-before-production-2026}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      DATA_PATH: /app/data/snake-classic/profiles.json.gz
+    ports:
+      - "127.0.0.1:3105:3105"
+    init: true
+    volumes:
+      - snake-classic-profiles:/app/data/snake-classic
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    mem_limit: 128m
+    cpus: 0.5
+    pids_limit: 128
+    stop_grace_period: 20s
+    logging: *default-logging
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3105/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+
   farstar-foundry:
     build: .
     image: ${GAME_PLATFORM_IMAGE:-yuo-game-platform:local}
@@ -228,4 +266,5 @@ volumes:
   platform-postgres:
   life-world:
   snake-profiles:
+  snake-classic-profiles:
   foundry-rooms:
