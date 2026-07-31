@@ -412,6 +412,7 @@
   let height = 1;
   let dpr = 1;
   let arenaWorldSize = ARENA_BASE_SIZE;
+  let arenaResizeElapsed = 0;
   let arena = { left: 16, top: 80, right: 241, bottom: 305, width: 225, height: 225, centerX: 128.5, centerY: 192.5, baseCellSize: 225 / ARENA_BASE_SIZE, cellSize: 225 / ARENA_BASE_SIZE, worldMin: (GRID_SIZE - ARENA_BASE_SIZE) / 2, worldMax: (GRID_SIZE + ARENA_BASE_SIZE) / 2 - 1, worldSize: ARENA_BASE_SIZE };
   let state = "menu";
   let lastFrame = performance.now();
@@ -445,6 +446,63 @@
   let nextEatToneAt = 0;
   const SOUND_DESIGN_REFERENCE_VOLUME = 0.5;
   const SOUND_MAX_VOLUME = 3;
+  const EAT_SCALE_SEMITONES = Object.freeze([0, 2, 4, 5, 7, 9, 11, 12, 14, 16, 17, 19, 21]);
+  const LEVEL_UP_FANFARE_NOTES = Object.freeze([
+    Object.freeze({ frequency: 523.25, delay: 0, duration: 0.26, gain: 0.8 }),
+    Object.freeze({ frequency: 659.25, delay: 0.11, duration: 0.28, gain: 0.88 }),
+    Object.freeze({ frequency: 783.99, delay: 0.22, duration: 0.34, gain: 0.94 }),
+    Object.freeze({ frequency: 1046.5, delay: 0.35, duration: 0.46, gain: 1 })
+  ]);
+  const SKILL_SOUND_KINDS = Object.freeze({
+    frost: "frost",
+    tesla: "electric",
+    nova: "nova",
+    laser: "laser",
+    mine: "mine",
+    pulse: "pulse",
+    regen: "regen"
+  });
+  const SOUND_COOLDOWNS = Object.freeze({
+    shoot: 45,
+    skill: 65,
+    frost: 70,
+    electric: 75,
+    hit: 48,
+    hurt: 180,
+    heal: 120,
+    foodSpawn: 70,
+    bounce: 90,
+    ui: 70
+  });
+  const SOUND_SETTINGS = Object.freeze({
+    ui: Object.freeze([620, 760, 0.055, "sine", 0.018]),
+    start: Object.freeze([220, 440, 0.12, "triangle", 0.05, 660]),
+    pause: Object.freeze([360, 210, 0.09, "sine", 0.024]),
+    resume: Object.freeze([260, 540, 0.1, "triangle", 0.026]),
+    foodSpawn: Object.freeze([310, 760, 0.1, "sine", 0.024, 980]),
+    enemyWarning: Object.freeze([620, 190, 0.24, "square", 0.026, 105]),
+    enemySpawn: Object.freeze([115, 430, 0.2, "sawtooth", 0.04, 620]),
+    bounce: Object.freeze([135, 310, 0.16, "square", 0.04, 72]),
+    shoot: Object.freeze([980, 430, 0.055, "square", 0.012]),
+    skill: Object.freeze([420, 820, 0.1, "triangle", 0.024]),
+    frost: Object.freeze([920, 1260, 0.13, "sine", 0.022, 1510]),
+    electric: Object.freeze([110, 930, 0.11, "square", 0.026]),
+    nova: Object.freeze([190, 680, 0.18, "sawtooth", 0.03, 1020]),
+    laser: Object.freeze([1380, 360, 0.12, "sawtooth", 0.021]),
+    mine: Object.freeze([170, 95, 0.14, "square", 0.026]),
+    pulse: Object.freeze([310, 90, 0.2, "sine", 0.034]),
+    regen: Object.freeze([410, 760, 0.24, "sine", 0.028, 980]),
+    hit: Object.freeze([150, 90, 0.08, "square", 0.025]),
+    hurt: Object.freeze([105, 38, 0.28, "sawtooth", 0.075, 430]),
+    heal: Object.freeze([310, 920, 0.24, "sine", 0.048, 1240]),
+    kill: Object.freeze([180, 560, 0.18, "sawtooth", 0.045, 840]),
+    level: Object.freeze([330, 880, 0.3, "triangle", 0.06, 1320]),
+    compress: Object.freeze([260, 760, 0.18, "triangle", 0.04, 1040]),
+    compressGold: Object.freeze([125, 690, 0.34, "sawtooth", 0.058, 980]),
+    select: Object.freeze([480, 760, 0.13, "sine", 0.042]),
+    shield: Object.freeze([760, 240, 0.2, "sine", 0.05, 1040]),
+    death: Object.freeze([170, 45, 0.48, "sawtooth", 0.065, 75])
+  });
   let soundVolume = loadSetting("ultra-snake-volume", 1, 0, SOUND_MAX_VOLUME);
   let fontScale = loadSetting("ultra-snake-font-scale", 1.5, 0.5, 2);
   let uiMotionStrength = loadSetting("gss0-ui-motion-strength", 1, 1, 3);
@@ -466,6 +524,7 @@
   const lastSoundAt = Object.create(null);
 
   let player = null;
+  const localModuleCountCache = new Map();
   let visiblePlayers = [];
   let foods = [];
   const locallyPulledFoods = new Set();
@@ -474,8 +533,12 @@
   let enemies = [];
   const enemySpatialBuckets = new Map();
   const enemySpatialBucketPool = [];
+  const nearestEnemyFoodCandidates = [];
+  const nearestEnemyFoodDistances = [];
+  const nearbyEnemyFoods = [];
   const enemyMovementStart = { col: 0, row: 0 };
   const enemyMovementEnd = { col: 0, row: 0 };
+  const enemyDamageSpanResult = { start: 0, count: 0 };
   let projectiles = [];
   const projectileContactBuffer = [];
   let hazards = [];
@@ -502,6 +565,20 @@
     viewportRight: Infinity,
     viewportBottom: Infinity
   };
+  const cameraPoint = { x: 0, y: 0 };
+  const cameraViewport = { left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0, centerX: 0, centerY: 0 };
+  const perspectiveMatrix = { a: 1, b: 0, c: 0, d: 1 };
+  const projectedArenaPoint = { x: 0, y: 0 };
+  const unprojectedArenaPoint = { x: 0, y: 0 };
+  const screenWorldPoint = { x: 0, y: 0 };
+  const worldScreenPoint = { x: 0, y: 0 };
+  const renderWorldCorners = [
+    { x: 0, y: 0 },
+    { x: 0, y: 0 },
+    { x: 0, y: 0 },
+    { x: 0, y: 0 }
+  ];
+  const automaticPathEnd = { col: 0, row: 0 };
   const foodIndicatorCandidates = [];
   const foodIndicatorDistances = [];
   const enemyIndicatorCandidates = [];
@@ -1215,11 +1292,12 @@
   function setArenaWorldSize(nextSize, constrainContents = false) {
     const safeSize = Math.max(ARENA_BASE_SIZE, Number(nextSize) || ARENA_BASE_SIZE);
     if (Math.abs(safeSize - arenaWorldSize) < 0.00001) return;
+    const shrinking = safeSize < arenaWorldSize;
     const previousArena = arena;
     arenaWorldSize = safeSize;
     updateArenaBounds();
     transformArenaVisuals(previousArena);
-    if (constrainContents) {
+    if (constrainContents && shrinking) {
       for (const food of foods) {
         const previousCol = food.col;
         const previousRow = food.row;
@@ -1228,18 +1306,23 @@
         if (!network.enabled && (food.col !== previousCol || food.row !== previousRow)) localFoodSpatialRuntime.trackFood(food);
       }
     }
-    if (constrainContents || network.enabled) {
+    if ((constrainContents && shrinking) || network.enabled) {
       for (const hazard of hazards) {
         if (!Number.isFinite(hazard.col) || !Number.isFinite(hazard.row)) continue;
         hazard.col = clamp(hazard.col, arena.worldMin, arena.worldMax);
         hazard.row = clamp(hazard.row, arena.worldMin, arena.worldMax);
       }
     }
-    const playersToSync = network.enabled ? visiblePlayers : player ? [player] : [];
-    for (const arenaPlayer of playersToSync) {
-      syncNodePosition(arenaPlayer);
-      arenaPlayer.radius = playerHeadRadiusPixels();
-      for (const segment of arenaPlayer.segments || []) syncNodePosition(segment);
+    if (network.enabled) {
+      for (const arenaPlayer of visiblePlayers) {
+        syncNodePosition(arenaPlayer);
+        arenaPlayer.radius = playerHeadRadiusPixels();
+        for (const segment of arenaPlayer.segments || []) syncNodePosition(segment);
+      }
+    } else if (player) {
+      syncNodePosition(player);
+      player.radius = playerHeadRadiusPixels();
+      for (const segment of player.segments) syncNodePosition(segment);
     }
     for (const enemy of enemies) {
       syncNodePosition(enemy);
@@ -1255,14 +1338,25 @@
 
   function updateArenaWorldSize(dt, highestLevel) {
     const target = ARENA_BASE_SIZE * Math.sqrt(1 + Math.max(0, highestLevel) * ARENA_AREA_PER_LEVEL);
-    const amount = 1 - Math.exp(-ARENA_RESIZE_RATE * dt);
+    const difference = target - arenaWorldSize;
+    if (Math.abs(difference) < 0.0001) {
+      arenaResizeElapsed = 0;
+      setArenaWorldSize(target, true);
+      return;
+    }
+    arenaResizeElapsed += dt;
+    if (arenaResizeElapsed < AMBIENT_RENDER_INTERVAL) return;
+    const resizeDt = arenaResizeElapsed;
+    arenaResizeElapsed = 0;
+    const amount = 1 - Math.exp(-ARENA_RESIZE_RATE * resizeDt);
     const nextSize = arenaWorldSize + (target - arenaWorldSize) * amount;
     setArenaWorldSize(Math.abs(target - nextSize) < 0.0001 ? target : nextSize, true);
   }
 
-  function cameraPosition() {
-    if (cameraMode === "follow" && player) return { x: player.x, y: player.y };
-    return { x: arena.centerX, y: arena.centerY };
+  function cameraPosition(target = cameraPoint) {
+    target.x = cameraMode === "follow" && player ? player.x : arena.centerX;
+    target.y = cameraMode === "follow" && player ? player.y : arena.centerY;
+    return target;
   }
 
   function cameraZoom() {
@@ -1271,7 +1365,15 @@
 
   function cameraViewportBounds() {
     if (cameraMode === "follow") {
-      return { left: 0, top: 0, right: width, bottom: height, width, height, centerX: width / 2, centerY: height / 2 };
+      cameraViewport.left = 0;
+      cameraViewport.top = 0;
+      cameraViewport.right = width;
+      cameraViewport.bottom = height;
+      cameraViewport.width = width;
+      cameraViewport.height = height;
+      cameraViewport.centerX = width / 2;
+      cameraViewport.centerY = height / 2;
+      return cameraViewport;
     }
     return arena;
   }
@@ -1295,12 +1397,11 @@
     const strength = uiMotionMedia.matches ? uiMotionStrength : 0;
     const motionX = uiMotion.x * strength;
     const motionY = uiMotion.y * strength;
-    return {
-      a: 1 - Math.abs(motionX) * 0.003,
-      b: motionY * 0.0024,
-      c: motionX * 0.0042,
-      d: 1 - Math.abs(motionY) * 0.003
-    };
+    perspectiveMatrix.a = 1 - Math.abs(motionX) * 0.003;
+    perspectiveMatrix.b = motionY * 0.0024;
+    perspectiveMatrix.c = motionX * 0.0042;
+    perspectiveMatrix.d = 1 - Math.abs(motionY) * 0.003;
+    return perspectiveMatrix;
   }
 
   function applyArenaPerspectiveTransform() {
@@ -1310,43 +1411,41 @@
     ctx.translate(-arena.centerX, -arena.centerY);
   }
 
-  function projectArenaPoint(x, y) {
+  function projectArenaPoint(x, y, target = projectedArenaPoint) {
     const matrix = arenaPerspectiveMatrix();
     const dx = x - arena.centerX;
     const dy = y - arena.centerY;
-    return {
-      x: arena.centerX + matrix.a * dx + matrix.c * dy,
-      y: arena.centerY + matrix.b * dx + matrix.d * dy
-    };
+    target.x = arena.centerX + matrix.a * dx + matrix.c * dy;
+    target.y = arena.centerY + matrix.b * dx + matrix.d * dy;
+    return target;
   }
 
-  function unprojectArenaPoint(x, y) {
+  function unprojectArenaPoint(x, y, target = unprojectedArenaPoint) {
     const matrix = arenaPerspectiveMatrix();
     const determinant = matrix.a * matrix.d - matrix.b * matrix.c || 1;
     const dx = x - arena.centerX;
     const dy = y - arena.centerY;
-    return {
-      x: arena.centerX + (matrix.d * dx - matrix.c * dy) / determinant,
-      y: arena.centerY + (-matrix.b * dx + matrix.a * dy) / determinant
-    };
+    target.x = arena.centerX + (matrix.d * dx - matrix.c * dy) / determinant;
+    target.y = arena.centerY + (-matrix.b * dx + matrix.a * dy) / determinant;
+    return target;
   }
 
-  function screenToWorld(x, y) {
+  function screenToWorld(x, y, target = screenWorldPoint) {
     const camera = cameraPosition();
     const zoom = cameraZoom();
     const point = unprojectArenaPoint(x, y);
-    return {
-      x: camera.x + (point.x - arena.centerX) / zoom,
-      y: camera.y + (point.y - arena.centerY) / zoom
-    };
+    target.x = camera.x + (point.x - arena.centerX) / zoom;
+    target.y = camera.y + (point.y - arena.centerY) / zoom;
+    return target;
   }
 
-  function worldToScreen(x, y) {
+  function worldToScreen(x, y, target = worldScreenPoint) {
     const camera = cameraPosition();
     const zoom = cameraZoom();
     return projectArenaPoint(
       arena.centerX + (x - camera.x) * zoom,
-      arena.centerY + (y - camera.y) * zoom
+      arena.centerY + (y - camera.y) * zoom,
+      target
     );
   }
 
@@ -1355,10 +1454,10 @@
       renderWorldBounds.active = false;
       return;
     }
-    const topLeft = screenToWorld(0, 0);
-    const topRight = screenToWorld(width, 0);
-    const bottomLeft = screenToWorld(0, height);
-    const bottomRight = screenToWorld(width, height);
+    const topLeft = screenToWorld(0, 0, renderWorldCorners[0]);
+    const topRight = screenToWorld(width, 0, renderWorldCorners[1]);
+    const bottomLeft = screenToWorld(0, height, renderWorldCorners[2]);
+    const bottomRight = screenToWorld(width, height, renderWorldCorners[3]);
     const viewportLeft = Math.min(topLeft.x, topRight.x, bottomLeft.x, bottomRight.x);
     const viewportTop = Math.min(topLeft.y, topRight.y, bottomLeft.y, bottomRight.y);
     const viewportRight = Math.max(topLeft.x, topRight.x, bottomLeft.x, bottomRight.x);
@@ -2657,7 +2756,7 @@
         applyEnemyBodyDamageOperationsInPlace(renderedEnemy.segments, operations);
         if (item.type === "enemyHeadHit") {
           const oldHead = renderedOldHead || cellCenter(item.oldHead.col, item.oldHead.row);
-          if (promotedSegment) setEnemyHeadFromPromotion(renderedEnemy, promotedSegment, oldHead);
+          if (promotedSegment) setEnemyHeadFromPromotion(renderedEnemy, promotedSegment, oldHead.x, oldHead.y);
           playEnemyHeadReformPresentation(renderedEnemy, item.color, item.duration);
         } else {
           startEnemyReconnect(renderedEnemy, item.reconnectIndex, performance.now());
@@ -3915,6 +4014,7 @@
   }
 
   function resetGame() {
+    arenaResizeElapsed = 0;
     setArenaWorldSize(ARENA_BASE_SIZE);
     gameTime = 0;
     score = 0;
@@ -3975,6 +4075,7 @@
       cacheKills: 0,
       segments: []
     };
+    localModuleCountCache.clear();
     visiblePlayers = [];
     startRespawnLocator();
 
@@ -3982,31 +4083,8 @@
     updateHud(true);
   }
 
-  function cellKey(col, row) {
-    return `${col},${row}`;
-  }
-
   function cellCode(col, row) {
     return (Math.round(row) & 0xffff) << 16 | (Math.round(col) & 0xffff);
-  }
-
-  function occupiedCellKeys() {
-    const occupied = new Set();
-    const occupyNode = (node) => occupied.add(cellKey(Math.round(node.col), Math.round(node.row)));
-    if (player) {
-      occupyNode(player);
-      for (const segment of player.segments) occupyNode(segment);
-    }
-    for (const food of foods) occupied.add(cellKey(food.col, food.row));
-    for (const enemy of enemies) {
-      if (enemy.dead) continue;
-      occupyNode(enemy);
-      for (const segment of enemy.segments) occupyNode(segment);
-    }
-    for (const spawn of pendingEnemySpawns) {
-      for (const cell of spawn.reservedCells || [spawn.headCell, ...spawn.bodyCells]) occupied.add(cellKey(cell.col, cell.row));
-    }
-    return occupied;
   }
 
   function occupiedCellCodes() {
@@ -4023,25 +4101,17 @@
       for (const segment of enemy.segments) occupyNode(segment);
     }
     for (const spawn of pendingEnemySpawns) {
-      for (const cell of spawn.reservedCells || [spawn.headCell, ...spawn.bodyCells]) occupyNode(cell);
+      if (spawn.reservedCells) {
+        for (const cell of spawn.reservedCells) occupyNode(cell);
+      } else {
+        occupyNode(spawn.headCell);
+        for (const cell of spawn.bodyCells) occupyNode(cell);
+      }
     }
     return occupied;
   }
 
-  function freeCells(wallMargin = 0, occupied = occupiedCellKeys()) {
-    const cells = [];
-    const margin = clamp(Math.ceil(wallMargin), 0, Math.floor((arena.worldSize - 1) / 2));
-    const minimum = Math.ceil(arena.worldMin + margin);
-    const maximum = Math.floor(arena.worldMax - margin);
-    for (let row = minimum; row <= maximum; row += 1) {
-      for (let col = minimum; col <= maximum; col += 1) {
-        if (!occupied.has(cellKey(col, row))) cells.push({ col, row });
-      }
-    }
-    return cells;
-  }
-
-  function findFreeCell(preferred = null, wallMargin = 0, occupied = occupiedCellKeys()) {
+  function findFreeCell(preferred = null, wallMargin = 0, occupied = occupiedCellCodes()) {
     const margin = clamp(Math.ceil(wallMargin), 0, Math.floor((arena.worldSize - 1) / 2));
     const minimum = Math.ceil(arena.worldMin + margin);
     const maximum = Math.floor(arena.worldMax - margin);
@@ -4050,7 +4120,7 @@
     let freeCount = 0;
     for (let row = minimum; row <= maximum; row += 1) {
       for (let col = minimum; col <= maximum; col += 1) {
-        if (occupied.has(cellKey(col, row))) continue;
+        if (occupied.has(cellCode(col, row))) continue;
         freeCount += 1;
         if (!preferred) continue;
         const distance = Math.abs(col - preferred.col) + Math.abs(row - preferred.row);
@@ -4065,7 +4135,7 @@
     let targetIndex = Math.floor(Math.random() * freeCount);
     for (let row = minimum; row <= maximum; row += 1) {
       for (let col = minimum; col <= maximum; col += 1) {
-        if (occupied.has(cellKey(col, row))) continue;
+        if (occupied.has(cellCode(col, row))) continue;
         if (targetIndex === 0) return { col, row };
         targetIndex -= 1;
       }
@@ -4078,16 +4148,17 @@
     const cell = findFreeCell(preferred, FOOD_WALL_MARGIN, occupied || undefined);
     if (!cell) return false;
     materializeFood(cell, special);
-    occupied?.add(cellKey(cell.col, cell.row));
+    occupied?.add(cellCode(cell.col, cell.row));
     return true;
   }
 
   function spawnWaveFoods(count) {
-    const cells = freeCells(FOOD_WALL_MARGIN);
-    for (let index = 0; index < count && cells.length > 0; index += 1) {
-      const selectedIndex = Math.floor(Math.random() * cells.length);
-      const cell = cells.splice(selectedIndex, 1)[0];
+    const occupied = occupiedCellCodes();
+    for (let index = 0; index < count; index += 1) {
+      const cell = findFreeCell(null, FOOD_WALL_MARGIN, occupied);
+      if (!cell) break;
       materializeFood(cell, false);
+      occupied.add(cellCode(cell.col, cell.row));
     }
   }
 
@@ -4198,22 +4269,25 @@
     return true;
   }
 
+  function presentEnemySpawnNode(spawn, node) {
+    syncNodePosition(node);
+    burst(node.x, node.y, spawn.color, ENEMY_SPAWN_ACTIVATION_PARTICLE_COUNT, ENEMY_SPAWN_ACTIVATION_PARTICLE_SPEED);
+    effects.push({
+      type: "ring",
+      x: node.x,
+      y: node.y,
+      color: spawn.color,
+      life: ENEMY_SPAWN_ACTIVATION_DURATION,
+      maxLife: ENEMY_SPAWN_ACTIVATION_DURATION,
+      radius: 0,
+      endRadius: arena.cellSize * ENEMY_SPAWN_ACTIVATION_RADIUS_CELLS
+    });
+  }
+
   function materializeEnemySpawn(spawn) {
     enemies.push(spawn);
-    for (const node of [spawn, ...spawn.segments]) {
-      syncNodePosition(node);
-      burst(node.x, node.y, spawn.color, ENEMY_SPAWN_ACTIVATION_PARTICLE_COUNT, ENEMY_SPAWN_ACTIVATION_PARTICLE_SPEED);
-      effects.push({
-        type: "ring",
-        x: node.x,
-        y: node.y,
-        color: spawn.color,
-        life: ENEMY_SPAWN_ACTIVATION_DURATION,
-        maxLife: ENEMY_SPAWN_ACTIVATION_DURATION,
-        radius: 0,
-        endRadius: arena.cellSize * ENEMY_SPAWN_ACTIVATION_RADIUS_CELLS
-      });
-    }
+    presentEnemySpawnNode(spawn, spawn);
+    for (const segment of spawn.segments) presentEnemySpawnNode(spawn, segment);
     sound("enemySpawn");
     triggerScreenShake(4);
   }
@@ -4469,9 +4543,8 @@
   }
 
   function playEatScaleTone(stage) {
-    const scaleSemitones = [0, 2, 4, 5, 7, 9, 11, 12, 14, 16, 17, 19, 21];
-    const scaleIndex = clamp(Math.round(stage) - 1, 0, scaleSemitones.length - 1);
-    const frequency = 523.25 * Math.pow(2, scaleSemitones[scaleIndex] / 12);
+    const scaleIndex = clamp(Math.round(stage) - 1, 0, EAT_SCALE_SEMITONES.length - 1);
+    const frequency = 523.25 * Math.pow(2, EAT_SCALE_SEMITONES[scaleIndex] / 12);
     const now = Math.max(audioContext.currentTime, nextEatToneAt);
     const duration = 0.24;
     const volume = 0.052 * (soundVolume / SOUND_DESIGN_REFERENCE_VOLUME);
@@ -4503,14 +4576,8 @@
   function playLevelUpFanfare() {
     const now = audioContext.currentTime;
     const volume = 0.046 * (soundVolume / SOUND_DESIGN_REFERENCE_VOLUME);
-    const notes = [
-      { frequency: 523.25, delay: 0, duration: 0.26, gain: 0.8 },
-      { frequency: 659.25, delay: 0.11, duration: 0.28, gain: 0.88 },
-      { frequency: 783.99, delay: 0.22, duration: 0.34, gain: 0.94 },
-      { frequency: 1046.5, delay: 0.35, duration: 0.46, gain: 1 }
-    ];
 
-    for (const note of notes) {
+    for (const note of LEVEL_UP_FANFARE_NOTES) {
       const start = now + note.delay;
       const end = start + note.duration;
       const oscillator = audioContext.createOscillator();
@@ -4552,42 +4619,13 @@
       return;
     }
 
-    const cooldowns = { shoot: 45, skill: 65, frost: 70, electric: 75, hit: 48, hurt: 180, heal: 120, foodSpawn: 70, bounce: 90, ui: 70 };
     const wallTime = performance.now();
-    const cooldown = cooldowns[kind] || 0;
+    const cooldown = SOUND_COOLDOWNS[kind] || 0;
     const cooldownKey = sourceEntityId == null ? kind : `${kind}:${sourceEntityId}`;
     if (cooldown && wallTime - (lastSoundAt[cooldownKey] || 0) < cooldown) return;
     lastSoundAt[cooldownKey] = wallTime;
 
-    const settings = {
-      ui: [620, 760, 0.055, "sine", 0.018],
-      start: [220, 440, 0.12, "triangle", 0.05, 660],
-      pause: [360, 210, 0.09, "sine", 0.024],
-      resume: [260, 540, 0.1, "triangle", 0.026],
-      foodSpawn: [310, 760, 0.1, "sine", 0.024, 980],
-      enemyWarning: [620, 190, 0.24, "square", 0.026, 105],
-      enemySpawn: [115, 430, 0.2, "sawtooth", 0.04, 620],
-      bounce: [135, 310, 0.16, "square", 0.04, 72],
-      shoot: [980, 430, 0.055, "square", 0.012],
-      skill: [420, 820, 0.1, "triangle", 0.024],
-      frost: [920, 1260, 0.13, "sine", 0.022, 1510],
-      electric: [110, 930, 0.11, "square", 0.026],
-      nova: [190, 680, 0.18, "sawtooth", 0.03, 1020],
-      laser: [1380, 360, 0.12, "sawtooth", 0.021],
-      mine: [170, 95, 0.14, "square", 0.026],
-      pulse: [310, 90, 0.2, "sine", 0.034],
-      regen: [410, 760, 0.24, "sine", 0.028, 980],
-      hit: [150, 90, 0.08, "square", 0.025],
-      hurt: [105, 38, 0.28, "sawtooth", 0.075, 430],
-      heal: [310, 920, 0.24, "sine", 0.048, 1240],
-      kill: [180, 560, 0.18, "sawtooth", 0.045, 840],
-      level: [330, 880, 0.3, "triangle", 0.06, 1320],
-      compress: [260, 760, 0.18, "triangle", 0.04, 1040],
-      compressGold: [125, 690, 0.34, "sawtooth", 0.058, 980],
-      select: [480, 760, 0.13, "sine", 0.042],
-      shield: [760, 240, 0.2, "sine", 0.05, 1040],
-      death: [170, 45, 0.48, "sawtooth", 0.065, 75]
-    }[kind];
+    const settings = SOUND_SETTINGS[kind];
     if (!settings) return;
 
     const [from, to, duration, type, baseVolume, accent] = settings;
@@ -4622,11 +4660,14 @@
   function moduleCount(id) {
     const maximum = MODULE_PROGRESSION.maxModuleLevel;
     if (network.enabled && player?.networkModuleCounts) return Math.min(maximum, player.networkModuleCounts[id] || 0);
+    if (!network.enabled && localModuleCountCache.has(id)) return localModuleCountCache.get(id);
     let count = 0;
     for (const segment of player.segments) {
       if (segment.module === id) count += Math.max(1, segment.moduleLevel || 1);
     }
-    return Math.min(maximum, count);
+    const result = Math.min(maximum, count);
+    if (!network.enabled) localModuleCountCache.set(id, result);
+    return result;
   }
 
   function activeModuleCooldown(moduleId, moduleLevel = moduleCount(moduleId), extraCooldownRateBonus = 0) {
@@ -5030,6 +5071,7 @@
       upgradedSegment = makeSegmentAtCell(tail.col, tail.row, { module: module.id, moduleLevel: 1, timer: initialTimer });
       player.segments.push(upgradedSegment);
     }
+    localModuleCountCache.clear();
     refreshActiveModuleCooldown(module.id, upgradedSegment);
     syncPlayerMaximumHealth(previousMaximumHealth);
     syncTailGuardSegments();
@@ -5357,10 +5399,9 @@
     if (targetDistance <= headContactDistance) return true;
 
     const pathRatio = (targetDistance - headContactDistance) / targetDistance;
-    const pathEnd = {
-      col: player.col + targetX * pathRatio,
-      row: player.row + targetY * pathRatio
-    };
+    automaticPathEnd.col = player.col + targetX * pathRatio;
+    automaticPathEnd.row = player.row + targetY * pathRatio;
+    const pathEnd = automaticPathEnd;
     if (pathIntersectsBodyConnections(player, pathEnd, player, PLAYER_SELF_COLLISION_RANGE, 2)) return false;
 
     for (const enemy of enemies) {
@@ -5405,10 +5446,9 @@
 
   function automaticHeadLeadPoint(target) {
     const leadDistance = SNAKE_SEGMENT_SPACING * AUTOMATIC_HEAD_LEAD_DISTANCE_SEGMENTS;
-    return {
-      col: target.col + Math.cos(target.angle) * leadDistance,
-      row: target.row + Math.sin(target.angle) * leadDistance
-    };
+    automaticPathEnd.col = target.col + Math.cos(target.angle) * leadDistance;
+    automaticPathEnd.row = target.row + Math.sin(target.angle) * leadDistance;
+    return automaticPathEnd;
   }
 
   function testAutopilotAngle() {
@@ -5510,18 +5550,20 @@
   }
 
   function followContinuousSegments(headCol, headRow, segments, spacing) {
-    let previous = { col: headCol, row: headRow };
+    let previousCol = headCol;
+    let previousRow = headRow;
     for (const segment of segments) {
-      const dx = previous.col - segment.col;
-      const dy = previous.row - segment.row;
+      const dx = previousCol - segment.col;
+      const dy = previousRow - segment.row;
       const distance = Math.hypot(dx, dy) || 1;
       segment.angle = Math.atan2(dy, dx);
       if (distance > spacing) {
-        segment.col = previous.col - dx / distance * spacing;
-        segment.row = previous.row - dy / distance * spacing;
+        segment.col = previousCol - dx / distance * spacing;
+        segment.row = previousRow - dy / distance * spacing;
         syncNodePosition(segment);
       }
-      previous = segment;
+      previousCol = segment.col;
+      previousRow = segment.row;
     }
   }
 
@@ -5997,16 +6039,7 @@
   }
 
   function playSkillSound(moduleId) {
-    const sounds = {
-      frost: "frost",
-      tesla: "electric",
-      nova: "nova",
-      laser: "laser",
-      mine: "mine",
-      pulse: "pulse",
-      regen: "regen"
-    };
-    sound(sounds[moduleId] || "skill");
+    sound(SKILL_SOUND_KINDS[moduleId] || "skill");
   }
 
   function updateModules(dt) {
@@ -6361,29 +6394,37 @@
 
   function lineEnemyHitIndexes(origin, directionX, directionY, range, halfWidth, enemy) {
     const hits = [];
-    const nodes = [enemy, ...enemy.segments];
-    for (let index = 0; index < nodes.length; index += 1) {
-      const node = nodes[index];
+    for (let segmentIndex = -1; segmentIndex < enemy.segments.length; segmentIndex += 1) {
+      const node = segmentIndex < 0 ? enemy : enemy.segments[segmentIndex];
       const relativeX = node.x - origin.x;
       const relativeY = node.y - origin.y;
       const projection = relativeX * directionX + relativeY * directionY;
       if (projection < 0 || projection > range) continue;
       const perpendicular = Math.abs(relativeX * directionY - relativeY * directionX);
-      const nodeRadius = index === 0 ? enemy.radius : enemySegmentRadiusPixels();
-      if (perpendicular <= halfWidth + nodeRadius) hits.push(index - 1);
+      const nodeRadius = segmentIndex < 0 ? enemy.radius : enemySegmentRadiusPixels();
+      if (perpendicular <= halfWidth + nodeRadius) hits.push(segmentIndex);
     }
     return hits;
   }
 
   function damageEnemyParts(enemy, hitIndexes, x, y, color, options = {}) {
-    const bodyIndexes = [...new Set(hitIndexes.filter((index) => index >= 0))].sort((left, right) => right - left);
-    const hitsHead = hitIndexes.includes(-1);
-    for (const index of bodyIndexes) {
+    let hitsHead = false;
+    const hitOptions = { ...options, hitSegmentIndex: -1 };
+    for (let hitIndex = hitIndexes.length - 1; hitIndex >= 0; hitIndex -= 1) {
+      const index = hitIndexes[hitIndex];
+      if (index < 0) {
+        hitsHead = true;
+        continue;
+      }
       if (enemy.dead || index >= enemy.segments.length) continue;
       const node = enemy.segments[index];
-      damageEnemy(enemy, 1, node.x, node.y, color, { ...options, hitSegmentIndex: index });
+      hitOptions.hitSegmentIndex = index;
+      damageEnemy(enemy, 1, node.x, node.y, color, hitOptions);
     }
-    if (!enemy.dead && hitsHead) damageEnemy(enemy, 1, x, y, color, { ...options, hitSegmentIndex: -1 });
+    if (!enemy.dead && hitsHead) {
+      hitOptions.hitSegmentIndex = -1;
+      damageEnemy(enemy, 1, x, y, color, hitOptions);
+    }
   }
 
   function firePulse(origin) {
@@ -6688,16 +6729,23 @@
   }
 
   function nearestFoodsForEnemy(origin, limit) {
-    const candidates = [];
+    const candidates = nearestEnemyFoodCandidates;
+    const distances = nearestEnemyFoodDistances;
+    candidates.length = 0;
+    distances.length = 0;
     for (const food of foods) {
-      const candidate = { food, distance: distanceSquared(food, origin) };
+      const distance = distanceSquared(food, origin);
       let insertAt = candidates.length;
-      while (insertAt > 0 && candidate.distance < candidates[insertAt - 1].distance) insertAt -= 1;
+      while (insertAt > 0 && distance < distances[insertAt - 1]) insertAt -= 1;
       if (insertAt >= limit) continue;
-      candidates.splice(insertAt, 0, candidate);
-      if (candidates.length > limit) candidates.pop();
+      candidates.splice(insertAt, 0, food);
+      distances.splice(insertAt, 0, distance);
+      if (candidates.length > limit) {
+        candidates.pop();
+        distances.pop();
+      }
     }
-    return candidates.map((candidate) => candidate.food);
+    return candidates;
   }
 
   function densestEnemyFood(origin, candidates, radius) {
@@ -6746,9 +6794,12 @@
         break;
       case "coiler": {
         const foodRangeSquared = ENEMY_BEHAVIOR_TUNING.coilerFoodRange ** 2;
-        const nearbyFoods = candidates.filter((food) => distanceSquared(enemy, food) <= foodRangeSquared);
-        enemy.target = nearbyFoods.length
-          ? nearbyFoods[Math.floor(Math.pow(Math.random(), 1.8) * nearbyFoods.length)]
+        nearbyEnemyFoods.length = 0;
+        for (const food of candidates) {
+          if (distanceSquared(enemy, food) <= foodRangeSquared) nearbyEnemyFoods.push(food);
+        }
+        enemy.target = nearbyEnemyFoods.length
+          ? nearbyEnemyFoods[Math.floor(Math.pow(Math.random(), 1.8) * nearbyEnemyFoods.length)]
           : null;
         enemy.behaviorState = enemy.target ? "forage" : "roam";
         break;
@@ -6995,7 +7046,11 @@
       minY = Math.min(minY, segment.y);
       maxY = Math.max(maxY, segment.y);
     }
-    enemy.hitBounds = { minX, maxX, minY, maxY };
+    const bounds = enemy.hitBounds || (enemy.hitBounds = { minX, maxX, minY, maxY });
+    bounds.minX = minX;
+    bounds.maxX = maxX;
+    bounds.minY = minY;
+    bounds.maxY = maxY;
   }
 
   function pointHitsEnemy(x, y, radius, enemy) {
@@ -7318,18 +7373,20 @@
     return nearestIndex;
   }
 
-  function enemyDamageSpan(segmentCount, hitSegmentIndex, amount) {
+  function enemyDamageSpan(segmentCount, hitSegmentIndex, amount, result = enemyDamageSpanResult) {
     const count = Math.min(segmentCount, amount);
-    if (count <= 0) return { start: 0, count: 0 };
-    if (hitSegmentIndex < 0) return { start: 0, count };
+    result.count = Math.max(0, count);
+    if (count <= 0 || hitSegmentIndex < 0) {
+      result.start = 0;
+      return result;
+    }
     const hit = clamp(Math.round(hitSegmentIndex), 0, segmentCount - 1);
     const before = Math.min(hit, Math.floor((count - 1) / 2));
-    return { start: Math.min(hit - before, segmentCount - count), count };
+    result.start = Math.min(hit - before, segmentCount - count);
+    return result;
   }
 
-  function setEnemyHeadFromPromotion(enemy, promotedSegment, oldHead) {
-    const oldX = Number.isFinite(oldHead?.x) ? oldHead.x : enemy.x;
-    const oldY = Number.isFinite(oldHead?.y) ? oldHead.y : enemy.y;
+  function setEnemyHeadFromPromotion(enemy, promotedSegment, oldX, oldY) {
     enemy.col = promotedSegment.col;
     enemy.row = promotedSegment.row;
     syncNodePosition(enemy);
@@ -7346,6 +7403,15 @@
     effects.push({ type: "ring", x: enemy.x, y: enemy.y, color, life: safeDuration, maxLife: safeDuration, radius: radius * 0.45, endRadius: radius * 1.65 });
   }
 
+  function presentDestroyedEnemyNode(x, y, color, salvageExpectedDrops, occupied) {
+    burst(x, y, color, 7, 95);
+    if (salvageExpectedDrops <= 0) return;
+    const salvageDrops = MODULE_PROGRESSION.rollLinearRewards(salvageExpectedDrops, Math.random);
+    for (let index = 0; index < salvageDrops; index += 1) {
+      spawnFood(x + random(-10, 10), y + random(-10, 10), true, occupied);
+    }
+  }
+
   function damageEnemy(enemy, amount, x, y, color, options = {}) {
     if (!enemy || enemy.dead) return;
     const impactX = Number.isFinite(x) ? x : enemy.x;
@@ -7359,29 +7425,32 @@
       ? clamp(options.hitSegmentIndex, -1, Math.max(-1, beforeCount - 1))
       : nearestEnemySegmentIndex(enemy, impactX, impactY);
     const hitsHead = hitSegmentIndex < 0;
-    const oldHead = { x: enemy.x, y: enemy.y, col: enemy.col, row: enemy.row };
+    const oldHeadX = enemy.x;
+    const oldHeadY = enemy.y;
     const span = enemyDamageSpan(beforeCount, hitSegmentIndex, safeAmount);
     const removed = enemy.segments.splice(span.start, span.count);
     const destroysHead = safeAmount > beforeCount;
     const reconnectIndex = span.start < enemy.segments.length ? span.start : -1;
     const promotedHead = hitsHead && !destroysHead ? removed.at(-1) || null : null;
     if (promotedHead) {
-      setEnemyHeadFromPromotion(enemy, promotedHead, oldHead);
+      setEnemyHeadFromPromotion(enemy, promotedHead, oldHeadX, oldHeadY);
       playEnemyHeadReformPresentation(enemy, impactColor);
     } else if (!destroysHead) {
       startEnemyReconnect(enemy, reconnectIndex);
     }
-    const destroyedNodes = promotedHead ? [oldHead, ...removed.slice(0, -1)] : removed;
-    for (const segment of destroyedNodes) {
-      burst(segment.x, segment.y, impactColor, 7, 95);
-      if (causedByPlayer) {
-        const salvageDrops = MODULE_PROGRESSION.rollLinearRewards(
-          MODULE_EFFECTS.salvageExpectedDrops(moduleCount("salvage")),
-          Math.random
-        );
-        for (let index = 0; index < salvageDrops; index += 1) {
-          spawnFood(segment.x + random(-10, 10), segment.y + random(-10, 10), true);
-        }
+    const salvageExpectedDrops = causedByPlayer
+      ? MODULE_EFFECTS.salvageExpectedDrops(moduleCount("salvage"))
+      : 0;
+    const salvageOccupied = salvageExpectedDrops > 0 ? occupiedCellCodes() : null;
+    if (promotedHead) {
+      presentDestroyedEnemyNode(oldHeadX, oldHeadY, impactColor, salvageExpectedDrops, salvageOccupied);
+      for (let index = 0; index < removed.length - 1; index += 1) {
+        const segment = removed[index];
+        presentDestroyedEnemyNode(segment.x, segment.y, impactColor, salvageExpectedDrops, salvageOccupied);
+      }
+    } else {
+      for (const segment of removed) {
+        presentDestroyedEnemyNode(segment.x, segment.y, impactColor, salvageExpectedDrops, salvageOccupied);
       }
     }
     updateEnemyHitBounds(enemy);
@@ -7426,7 +7495,7 @@
       }
       if (shotCount > 0) sound("shoot");
     }
-    const dropOccupied = occupiedCellKeys();
+    const dropOccupied = occupiedCellCodes();
     if (rewardSelf) {
       kills += 1;
       score += 100 + enemy.captured * 25;
