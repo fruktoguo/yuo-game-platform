@@ -84,7 +84,14 @@ import {
 } from '../shared/constants';
 import { DESIGNER_BALANCE } from '../shared/designerConfig';
 import { ENEMY_ARCHETYPES, type EnemyArchetypeDefinition } from '../shared/enemyArchetypes';
-import { isModuleId, MODULE_BY_ID, UPGRADE_MODULES, type ModuleId } from '../shared/modules';
+import {
+  INITIAL_UPGRADE_MODULES,
+  isInitialUpgradeModuleId,
+  isModuleId,
+  MODULE_BY_ID,
+  UPGRADE_MODULES,
+  type ModuleId,
+} from '../shared/modules';
 import { MODULE_PROGRESSION } from '../shared/moduleProgression';
 import type { PlayerMovementState } from '../shared/playerStateCodec';
 import { chooseSerpentineSpawn, spaceSpawnBody } from '../shared/spawnPlanner';
@@ -142,6 +149,7 @@ interface PlayerEntity extends UltraPlayerView {
   autopilot: boolean;
   autoSelectModules: boolean;
   autoRestart: boolean;
+  initialModuleId: ModuleId;
   disconnectedAt: number | null;
   speed: number;
   slow: number;
@@ -463,9 +471,12 @@ export class UltraWorld {
     player.knockbackY = 0;
   }
 
-  spawn(accountId: string, now = Date.now()): boolean {
+  spawn(accountId: string, now = Date.now(), initialModuleId?: ModuleId): boolean {
     const player = this.playersByAccount.get(accountId);
     if (!player?.connected || player.alive || (player.respawnAt !== null && player.respawnAt > now)) return false;
+    if (initialModuleId !== undefined) {
+      player.initialModuleId = isInitialUpgradeModuleId(initialModuleId) ? initialModuleId : INITIAL_UPGRADE_MODULES[0].id;
+    }
     if (this.alivePlayers().length === 0) this.resetSharedWorld();
     const spawn = this.findPlayerSpawn();
     this.resetPlayerRun(player, spawn, now);
@@ -1189,6 +1200,7 @@ export class UltraWorld {
       autopilot: false,
       autoSelectModules: false,
       autoRestart: false,
+      initialModuleId: INITIAL_UPGRADE_MODULES[0].id,
       name: normalizeName(name),
       colorIndex: this.choosePlayerColor(),
       connected: true,
@@ -1274,12 +1286,32 @@ export class UltraWorld {
     player.xp = 0;
     player.xpNeeded = experienceRequiredForLevel(0);
     player.respawnAt = null;
-    player.segments = [makeSegment(
+    player.initialModuleId = isInitialUpgradeModuleId(player.initialModuleId)
+      ? player.initialModuleId
+      : INITIAL_UPGRADE_MODULES[0].id;
+    const initialModule = MODULE_BY_ID[player.initialModuleId];
+    const initialModuleSegment = makeSegment(
       spawn.col - SNAKE_SEGMENT_SPACING,
       spawn.row,
-      { storage: true },
+      {
+        module: initialModule.id,
+        moduleLevel: 1,
+        timer: initialModule.activeCooldown ? 0 : this.randomBetween(0.2, 0.8),
+      },
       this.randomSource,
-    )];
+    );
+    player.segments = [
+      initialModuleSegment,
+      makeSegment(
+        spawn.col - SNAKE_SEGMENT_SPACING * 2,
+        spawn.row,
+        { storage: true },
+        this.randomSource,
+      ),
+    ];
+    this.refreshActiveModuleCooldown(player, initialModule.id, initialModuleSegment);
+    this.syncPlayerMaximumHealth(player, PLAYER_MAX_HEALTH);
+    this.syncTailGuardSegments(player);
     player.recentPicks = [];
     player.growth = null;
     player.growthQueue = [];

@@ -23,8 +23,10 @@ describe('储能节经验流程', () => {
     expect(world.spawn('account-a', 0)).toBe(true);
 
     const player = (Reflect.get(world, 'playersByAccount') as Map<string, TestPlayer>).get('account-a')!;
+    const initialSegments = player.segments.slice();
     const storage = player.segments.at(-1)!;
-    expect(player.segments).toHaveLength(1);
+    expect(player.segments).toHaveLength(2);
+    expect(player.segments[0]).toMatchObject({ module: 'spark', moduleLevel: 1, storage: false });
     expect(storage.storage).toBe(true);
     player.xp = player.xpNeeded - 1;
     player.growth = { color: '#b8f53f', special: false, elapsed: 0.1, nodeCount: 2 };
@@ -40,7 +42,7 @@ describe('储能节经验流程', () => {
     expect(player.upgradeRevealTimer).toBeGreaterThan(0);
     expect(player.growth).not.toBeNull();
     expect(player.growthQueue).toHaveLength(1);
-    expect(player.segments).toEqual([storage]);
+    expect(player.segments).toEqual(initialSegments);
     expect((Reflect.get(world, 'foods') as unknown[])).toHaveLength(0);
     const pendingEffects = Reflect.get(world, 'pendingEffects') as UltraEffect[];
     expect(pendingEffects).toEqual(expect.arrayContaining([
@@ -57,8 +59,8 @@ describe('储能节经验流程', () => {
     const storage = player.segments.at(-1)!;
     player.growth = { color: '#24c7d9', special: false, elapsed: 0, nodeCount: 2 };
     player.xp = player.xpNeeded + 2;
-    const applyUpgrade = Reflect.get(world, 'applyUpgrade') as (owner: TestPlayer, moduleId: 'spark', now: number) => void;
-    applyUpgrade.call(world, player, 'spark', 0);
+    const applyUpgrade = Reflect.get(world, 'applyUpgrade') as (owner: TestPlayer, moduleId: 'ricochet', now: number) => void;
+    applyUpgrade.call(world, player, 'ricochet', 0);
     const updateGrowth = Reflect.get(world, 'updatePlayerGrowth') as (owner: TestPlayer, delta: number, realDelta: number, now: number) => void;
     updateGrowth.call(world, player, 0.01, 0.01, 0);
 
@@ -66,9 +68,21 @@ describe('储能节经验流程', () => {
     expect(player.xp).toBe(2);
     expect(player.xpNeeded).toBe(10);
     expect(player.segments.at(-1)).toBe(storage);
-    expect(player.segments).toHaveLength(2);
+    expect(player.segments).toHaveLength(3);
     expect(player.segments[0]).toMatchObject({ module: 'spark', storage: false });
+    expect(player.segments[1]).toMatchObject({ module: 'ricochet', storage: false });
     expect(storage).toMatchObject({ module: null, storage: true });
-    expect(player.growth?.nodeCount).toBe(3);
+    expect(player.growth?.nodeCount).toBe(4);
+  });
+
+  it('尾部隔离舱作为初始机体时立即生成拦截节且储能节仍保持末端', () => {
+    const world = new UltraWorld({ random: () => 0.5 });
+    world.connectPlayer('account-c', '玩家丙', 0, 'player-c');
+    expect(world.spawn('account-c', 0, 'tailguard')).toBe(true);
+
+    const player = (Reflect.get(world, 'playersByAccount') as Map<string, TestPlayer>).get('account-c')!;
+    expect(player.segments[0]).toMatchObject({ module: 'tailguard', moduleLevel: 1, storage: false });
+    expect(player.segments.filter((segment) => segment.tailGuard)).toHaveLength(2);
+    expect(player.segments.at(-1)).toMatchObject({ module: null, storage: true });
   });
 });

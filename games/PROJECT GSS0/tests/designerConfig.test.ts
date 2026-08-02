@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { DESIGNER_BALANCE, DESIGNER_WAVE_ENEMY_COUNT_SCHEDULE, moduleCooldownPercent, moduleCooldownSeconds, moduleDesignState } from '../src/shared/designerConfig';
 import { experienceRequiredForLevel } from '../src/shared/constants';
-import { ACTIVE_SKILL_MODULES, MODULES, UPGRADE_MODULES } from '../src/shared/modules';
+import { ACTIVE_SKILL_MODULES, INITIAL_UPGRADE_MODULES, MODULES, UPGRADE_MODULES } from '../src/shared/modules';
 
 const editorHtml = readFileSync(new URL('../balance-editor.html', import.meta.url), 'utf8');
 const moduleCatalogSource = readFileSync(new URL('../module-catalog.js', import.meta.url), 'utf8');
@@ -63,6 +63,7 @@ describe('设计配置', () => {
       enemyPressureEnemyCountMultiplier: 2,
       enemyPressureThreatMultiplier: 2,
       enemyExpectedDpsInterval: 6,
+      enemyThreatLevelOffset: 3,
       enemyThreatTimeCoefficient: 4.5,
       enemyThreatGrowthPerWave: 0.01,
       enemyHealthWeightVariation: 0.25,
@@ -255,14 +256,24 @@ describe('设计配置', () => {
     expect(UPGRADE_MODULES.map((module) => module.id)).toEqual(MODULES.filter((module) => moduleDesignState(module.id) !== 'disabled').map((module) => module.id));
   });
 
+  it('全部机体都有初始升级资格配置且首批开放五个机体', () => {
+    const source = (globalThis as typeof globalThis & {
+      GSS0_DESIGNER_CONFIG: { moduleInitialUpgrades: Record<string, boolean> };
+    }).GSS0_DESIGNER_CONFIG;
+
+    expect(Object.keys(source.moduleInitialUpgrades).sort()).toEqual(MODULES.map((module) => module.id).sort());
+    expect(INITIAL_UPGRADE_MODULES.map((module) => module.id)).toEqual(['spark', 'ricochet', 'tractor', 'progressor', 'tailguard']);
+    expect(MODULES.filter((module) => module.initialUpgrade).map((module) => module.id)).toEqual(INITIAL_UPGRADE_MODULES.map((module) => module.id));
+  });
+
   it('本地编辑器与运行时配置使用完全相同的参数和机体 ID', () => {
     const parameterKeys = editorDefinitionIds('const ALL_PARAMETER_DEFINITIONS = [', 'const ENEMY_PARAMETER_GROUPS =', 'key');
     const moduleIds = [...moduleCatalogSource.matchAll(/\{ id: "([^"]+)"/g)].map((match) => match[1]);
 
     expect(parameterKeys.sort()).toEqual(Object.keys(DESIGNER_BALANCE).sort());
     expect(moduleIds.sort()).toEqual(MODULES.map((module) => module.id).sort());
-    expect(moduleProgressionSource).toContain('config?.schemaVersion !== 48');
-    expect(new Set(parameterKeys).size).toBe(254);
+    expect(moduleProgressionSource).toContain('config?.schemaVersion !== 49');
+    expect(new Set(parameterKeys).size).toBe(255);
     expect(parameterKeys).not.toContain('playerSpeedPerLevel');
     expect(parameterKeys).not.toContain('moduleEffectReductionMaximum');
     expect(parameterKeys).not.toContain('newModuleOfferChance');
@@ -301,8 +312,8 @@ describe('设计配置', () => {
     expect(MODULES.some((module) => ['输出', '进攻', '防御', '恢复'].includes(module.category as string))).toBe(false);
     expect(MODULES.every((module) => ['攻击', '生存', '辅助', '发育'].includes(module.category))).toBe(true);
     expect(MODULES.filter((module) => module.category === '发育')).toHaveLength(9);
-    expect(editorHtml).toContain('src="module-catalog.js?v=142"');
-    expect(editorHtml).toContain('src="module-progression.js?v=142"');
+    expect(editorHtml).toContain('src="module-catalog.js?v=143"');
+    expect(editorHtml).toContain('src="module-progression.js?v=143"');
     expect(editorHtml).toContain('const MODULES = moduleCatalog;');
     expect(editorHtml).toContain('descriptionText.textContent = describeModule(module.id, draft.balance);');
     expect(editorHtml).toContain('descriptionNote.textContent = describeModuleNote(module.id, draft.balance);');
@@ -327,6 +338,8 @@ describe('设计配置', () => {
     expect(editorHtml).not.toContain('gss0-detailed-descriptions');
     expect(editorHtml).toContain('draft.moduleCooldownPercentages[module.id]');
     expect(editorHtml).toContain('moduleNames: {}');
+    expect(editorHtml).toContain('moduleInitialUpgrades: {}');
+    expect(editorHtml).toContain('draft.moduleInitialUpgrades[module.id] = initialUpgradeInput.checked;');
     expect(editorHtml).toContain('{ key: "playerMaxHealth", group: "玩家", label: "玩家生命上限", hint: "每次出生时拥有的生命值与生命上限", min: 0, max: 100');
     expect(editorHtml).toContain('{ key: "playerHealthRegenPerSecond", group: "玩家", label: "玩家生命恢复", hint: "存活并正常行动时每秒恢复的生命值", min: 0, max: 1');
     expect(editorHtml).toContain('range.max = "2000"');

@@ -22,6 +22,7 @@ export const ENEMY_PRESSURE_WAVE_INTERVAL = DESIGNER_BALANCE.enemyPressureWaveIn
 export const ENEMY_PRESSURE_COUNT_MULTIPLIER = DESIGNER_BALANCE.enemyPressureEnemyCountMultiplier;
 export const ENEMY_PRESSURE_THREAT_MULTIPLIER = DESIGNER_BALANCE.enemyPressureThreatMultiplier;
 export const ENEMY_EXPECTED_DPS_INTERVAL = DESIGNER_BALANCE.enemyExpectedDpsInterval;
+export const ENEMY_THREAT_LEVEL_OFFSET = DESIGNER_BALANCE.enemyThreatLevelOffset;
 export const ENEMY_THREAT_TIME_COEFFICIENT = DESIGNER_BALANCE.enemyThreatTimeCoefficient;
 export const ENEMY_THREAT_GROWTH_PER_WAVE = DESIGNER_BALANCE.enemyThreatGrowthPerWave;
 export const ENEMY_HEALTH_WEIGHT_VARIATION = DESIGNER_BALANCE.enemyHealthWeightVariation;

@@ -30,6 +30,7 @@
     const pressureEnemyCountMultiplier = positiveInteger(options.pressureEnemyCountMultiplier, 2, 100);
     const pressureThreatMultiplier = finiteNumber(options.pressureThreatMultiplier, 2, 1, 100);
     const expectedDpsInterval = finiteNumber(options.expectedDpsInterval, 6, 0.01, 1000);
+    const threatLevelOffset = finiteNumber(options.threatLevelOffset, 3, 0, 1000);
     const threatTimeCoefficient = finiteNumber(options.threatTimeCoefficient, 9, 0, 1000);
     const threatGrowthPerWave = finiteNumber(options.threatGrowthPerWave, 0.02, 0, 10);
     const speedGrowthPerWave = finiteNumber(options.speedGrowthPerWave, 0.01, 0, 0.1);
@@ -94,7 +95,7 @@
       const pressure = isPressureWave(wave);
       const expectedExperience = experienceBeforeWave(wave);
       const expectedLevel = expectedLevelForExperience(expectedExperience);
-      const expectedDps = (expectedLevel + 1) / expectedDpsInterval;
+      const expectedDps = (expectedLevel + threatLevelOffset) / expectedDpsInterval;
       const growthMultiplier = 1 + threatGrowthPerWave * (wave - 1);
       const totalThreat = expectedDps
         * threatTimeCoefficient

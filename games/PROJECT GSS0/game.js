@@ -41,6 +41,7 @@
     options: document.querySelector("#upgrade-options"),
     upgradeLevel: document.querySelector("#upgrade-level-value"),
     best: document.querySelector("#best-value"),
+    initialModuleOptions: document.querySelector("#initial-module-options"),
     finalScore: document.querySelector("#final-score"),
     finalLevel: document.querySelector("#final-level"),
     finalKills: document.querySelector("#final-kills"),
@@ -136,7 +137,7 @@
   const TAU = Math.PI * 2;
   const P2P_TOAST_DURATION_MS = 2800;
   const DESIGNER_CONFIG = globalThis.GSS0_DESIGNER_CONFIG || {};
-  if (DESIGNER_CONFIG.schemaVersion !== 48) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 48");
+  if (DESIGNER_CONFIG.schemaVersion !== 49) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 49");
   const DESIGNER_BALANCE = DESIGNER_CONFIG.balance || {};
   const MODULE_DESIGN_STATES = DESIGNER_CONFIG.moduleStates || {};
 
@@ -198,6 +199,11 @@
   const MODULE_BY_ID = Object.fromEntries(MODULES.map((module) => [module.id, module]));
   const configuredUpgradeModules = MODULES.filter((module) => MODULE_DESIGN_STATES[module.id] !== "disabled");
   const UPGRADE_MODULES = configuredUpgradeModules.length ? configuredUpgradeModules : MODULES;
+  const configuredInitialUpgradeModules = UPGRADE_MODULES.filter((module) => module.initialUpgrade);
+  const INITIAL_UPGRADE_MODULES = configuredInitialUpgradeModules.length ? configuredInitialUpgradeModules : UPGRADE_MODULES.slice(0, 1);
+  const INITIAL_UPGRADE_MODULE_IDS = new Set(INITIAL_UPGRADE_MODULES.map((module) => module.id));
+  const INITIAL_MODULE_STORAGE_KEY = "gss0-initial-module";
+  let selectedInitialModuleId = normalizeInitialModuleId(loadInitialModuleId());
   const CODEX_MODULES = MODULES.filter((module) => MODULE_DESIGN_STATES[module.id] !== "disabled");
   const CODEX_ARCHIVE_NUMBERS = new Map(CODEX_MODULES.map((module, index) => [module.id, index + 1]));
   let moduleCodexCategory = "all";
@@ -270,6 +276,7 @@
   const ENEMY_PRESSURE_COUNT_MULTIPLIER = designerNumber("enemyPressureEnemyCountMultiplier", 2, 1, 10, true);
   const ENEMY_PRESSURE_THREAT_MULTIPLIER = designerNumber("enemyPressureThreatMultiplier", 2, 1, 10);
   const ENEMY_EXPECTED_DPS_INTERVAL = designerNumber("enemyExpectedDpsInterval", 6, 0.1, 60);
+  const ENEMY_THREAT_LEVEL_OFFSET = designerNumber("enemyThreatLevelOffset", 3, 0, 100);
   const ENEMY_THREAT_TIME_COEFFICIENT = designerNumber("enemyThreatTimeCoefficient", 6, 0, 120);
   const ENEMY_THREAT_GROWTH_PER_WAVE = designerNumber("enemyThreatGrowthPerWave", 0.02, 0, 1);
   const ENEMY_HEALTH_WEIGHT_VARIATION = designerNumber("enemyHealthWeightVariation", 0.25, 0, 1);
@@ -312,6 +319,7 @@
     pressureEnemyCountMultiplier: ENEMY_PRESSURE_COUNT_MULTIPLIER,
     pressureThreatMultiplier: ENEMY_PRESSURE_THREAT_MULTIPLIER,
     expectedDpsInterval: ENEMY_EXPECTED_DPS_INTERVAL,
+    threatLevelOffset: ENEMY_THREAT_LEVEL_OFFSET,
     threatTimeCoefficient: ENEMY_THREAT_TIME_COEFFICIENT,
     threatGrowthPerWave: ENEMY_THREAT_GROWTH_PER_WAVE,
     speedGrowthPerWave: ENEMY_SPEED_GROWTH_PER_WAVE,
@@ -1001,6 +1009,73 @@
     } catch {
       // Settings remain active for the current session when storage is disabled.
     }
+  }
+
+  function loadInitialModuleId() {
+    try {
+      return localStorage.getItem(INITIAL_MODULE_STORAGE_KEY);
+    } catch {
+      return null;
+    }
+  }
+
+  function normalizeInitialModuleId(value) {
+    return INITIAL_UPGRADE_MODULE_IDS.has(value) ? value : INITIAL_UPGRADE_MODULES[0].id;
+  }
+
+  function saveInitialModuleId(value) {
+    try {
+      localStorage.setItem(INITIAL_MODULE_STORAGE_KEY, value);
+    } catch {
+      // The selected module remains active for this session when storage is disabled.
+    }
+  }
+
+  function moduleTooltipText(module, currentLevel = null) {
+    const lines = [module.name, module.desc];
+    if (module.note) lines.push(module.note);
+    if (Number.isFinite(currentLevel)) lines.push(`当前等级：${currentLevel}`);
+    return lines.join("\n");
+  }
+
+  function selectInitialModule(moduleId, persist = true) {
+    selectedInitialModuleId = normalizeInitialModuleId(moduleId);
+    for (const button of ui.initialModuleOptions.querySelectorAll("button")) {
+      const selected = button.dataset.moduleId === selectedInitialModuleId;
+      button.classList.toggle("is-selected", selected);
+      button.setAttribute("aria-checked", String(selected));
+    }
+    if (persist) saveInitialModuleId(selectedInitialModuleId);
+  }
+
+  function renderInitialModulePicker() {
+    const buttons = INITIAL_UPGRADE_MODULES.map((module) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = `initial-module-option shape-${module.shape}`;
+      button.dataset.moduleId = module.id;
+      button.dataset.tooltip = moduleTooltipText(module);
+      button.style.setProperty("--module-color", module.color);
+      button.setAttribute("role", "radio");
+      button.setAttribute("aria-label", `${module.name}。${module.desc}${module.note ? ` ${module.note}` : ""}`);
+      const swatch = document.createElement("span");
+      swatch.className = `module-swatch shape-${module.shape}`;
+      swatch.setAttribute("aria-hidden", "true");
+      swatch.append(document.createElement("i"));
+      const name = document.createElement("span");
+      name.className = "initial-module-name";
+      name.textContent = module.name;
+      button.append(swatch, name);
+      button.addEventListener("click", () => {
+        if (selectedInitialModuleId === module.id) return;
+        ensureAudio();
+        selectInitialModule(module.id);
+        sound("ui");
+      });
+      return button;
+    });
+    ui.initialModuleOptions.replaceChildren(...buttons);
+    selectInitialModule(selectedInitialModuleId);
   }
 
   function updateSettingButtonLabel(button, accessibleLabel, tooltipLabel) {
@@ -4004,7 +4079,9 @@
       setNetworkStatus("error", `ULTRA LINK / ${modeResult?.error || "无法切换行动模式"}`);
       return;
     }
-    const result = await emitNetworkAction(restart && network.lastSelfAlive ? "ultra:restart" : "ultra:spawn");
+    const result = restart && network.lastSelfAlive
+      ? await emitNetworkAction("ultra:restart")
+      : await emitNetworkAction("ultra:spawn", selectedInitialModuleId);
     if (!result?.ok) {
       setNetworkStatus("error", `ULTRA LINK / ${result?.error || "暂时无法开始"}`);
       return;
@@ -4082,6 +4159,13 @@
     const startCol = Math.floor(GRID_SIZE / 2);
     const startRow = Math.floor(GRID_SIZE / 2);
     const startPoint = cellCenter(startCol, startRow);
+    const initialModule = MODULE_BY_ID[selectedInitialModuleId] || INITIAL_UPGRADE_MODULES[0];
+    const initialModuleSegment = makeSegmentAtCell(startCol - SNAKE_SEGMENT_SPACING, startRow, {
+      module: initialModule.id,
+      moduleLevel: 1,
+      timer: initialModule.activeCooldown ? 0 : random(0.2, 0.8)
+    });
+    const storageSegment = makeSegmentAtCell(startCol - SNAKE_SEGMENT_SPACING * 2, startRow, { storage: true });
     player = {
       x: startPoint.x,
       y: startPoint.y,
@@ -4103,9 +4187,12 @@
       thornsCooldown: 0,
       bloomCooldown: 0,
       cacheKills: 0,
-      segments: [makeSegmentAtCell(startCol - SNAKE_SEGMENT_SPACING, startRow, { storage: true })]
+      segments: [initialModuleSegment, storageSegment]
     };
     localModuleCountCache.clear();
+    refreshActiveModuleCooldown(initialModule.id, initialModuleSegment);
+    syncPlayerMaximumHealth(PLAYER_MAX_HEALTH);
+    syncTailGuardSegments();
     visiblePlayers = [];
     startRespawnLocator();
 
@@ -5276,12 +5363,11 @@
     for (const [id, count] of counts) {
       const module = MODULE_BY_ID[id];
       const item = document.createElement("span");
-      const currentEffect = MODULE_PROGRESSION.moduleCurrentEffect(id, count);
       item.className = `rack-slot rack-module shape-${module.shape}`;
       item.style.setProperty("--module-color", module.color);
       item.tabIndex = 0;
-      item.dataset.tooltip = `${module.name} · ${currentEffect.levelLabel}\n${currentEffect.lines.map((line) => line.text).join("\n")}`;
-      item.setAttribute("aria-label", `${module.name}，${currentEffect.levelLabel}，${currentEffect.lines.map((line) => line.text).join("，")}`);
+      item.dataset.tooltip = moduleTooltipText(module, count);
+      item.setAttribute("aria-label", moduleTooltipText(module, count).replaceAll("\n", "，"));
       item.innerHTML = `<i aria-hidden="true"></i><b>${count}</b>`;
       ui.rack.append(item);
     }
@@ -10060,6 +10146,7 @@
   setAutomaticMode(automaticModeEnabled, false, false);
   setNetworkButtonsDisabled(false);
   ui.best.textContent = Math.floor(bestScore).toLocaleString("zh-CN");
+  renderInitialModulePicker();
   resize();
   resetGame();
   state = "menu";

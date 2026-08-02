@@ -29,9 +29,9 @@ describe('敌人波次导演', () => {
   });
 
   it('第1波与第100波威胁值匹配验收口径', () => {
-    expect(enemyWaveDirector.plan(1)).toMatchObject({ expectedLevel: 0, expectedDps: 1 / 6, totalThreat: 0.75 });
+    expect(enemyWaveDirector.plan(1)).toMatchObject({ expectedLevel: 0, expectedDps: 3 / 6, totalThreat: 2.25 });
     expect(enemyWaveDirector.plan(100)).toMatchObject({ expectedLevel: 14, expectedExperience: 550, enemyCount: 8 });
-    expect(enemyWaveDirector.plan(100).totalThreat).toBeCloseTo(44.775, 8);
+    expect(enemyWaveDirector.plan(100).totalThreat).toBeCloseTo(50.745, 8);
   });
 
   it('按波次同步提高敌人的移动速度与转向速率', () => {

@@ -10,7 +10,7 @@ describe('界面设置', () => {
   it('使用正式游戏名并在左上品牌卡显示当前版本', () => {
     expect(indexHtml).toContain('<title>代号：几何贪吃蛇</title>');
     expect(indexHtml).toContain('<h1 id="game-title"><span>代号：几何贪吃蛇</span></h1>');
-    expect(indexHtml).toContain('<span class="brand-version" aria-label="游戏版本 V142">V142</span>');
+    expect(indexHtml).toContain('<span class="brand-version" aria-label="游戏版本 V143">V143</span>');
     expect(styles).toContain('.brand-version');
     const brandTitleRule = styles.match(/\.brand-lockup strong\s*\{([^}]*)\}/)?.[1];
     const brandVersionRule = styles.match(/\.brand-version\s*\{([^}]*)\}/)?.[1];
@@ -43,7 +43,7 @@ describe('界面设置', () => {
     expect(gameSource).toContain('function updateRenderWorldBounds()');
     expect(gameSource).toContain('CAMERA_FOLLOW_FOOD_INDICATOR_LIMIT');
     expect(gameSource).toContain('CAMERA_FOLLOW_ENEMY_INDICATOR_LIMIT');
-    expect(indexHtml).toContain('src="camera-projection.js?v=142"');
+    expect(indexHtml).toContain('src="camera-projection.js?v=143"');
     expect(indexHtml).toContain('id="motion-slider" type="range" min="0" max="150" step="10" value="100"');
     expect(gameSource).toContain('loadSetting("gss0-pseudo-3d-strength", 1, 0, CAMERA_PSEUDO_3D_STRENGTH_MAX)');
     expect(gameSource).not.toContain('loadSetting("gss0-ui-motion-strength"');
@@ -102,11 +102,13 @@ describe('界面设置', () => {
   });
 
   it('升级卡展示机体等级变化且机体架显示槽位占用', () => {
-    expect(indexHtml).toContain('src="module-progression.js?v=142"');
+    expect(indexHtml).toContain('src="module-progression.js?v=143"');
     expect(gameSource).toContain('MODULE_PROGRESSION.moduleUpgradePreview');
     expect(gameSource).toContain('progression.levelLabel');
     expect(gameSource).toContain('ui.rack.dataset.capacity');
-    expect(gameSource).toContain('MODULE_PROGRESSION.moduleCurrentEffect');
+    expect(gameSource).not.toContain('MODULE_PROGRESSION.moduleCurrentEffect');
+    expect(gameSource).toContain('item.dataset.tooltip = moduleTooltipText(module, count);');
+    expect(gameSource).toContain('lines.push(`当前等级：${currentLevel}`);');
     expect(gameSource).toContain('slot.className = "rack-slot rack-slot-empty";');
     expect(gameSource).toContain('item.dataset.tooltip =');
     expect(styles).toContain('.card-progression');
@@ -184,6 +186,16 @@ describe('界面设置', () => {
     expect(gameSource).toContain('loadSetting("gss0-automatic-restart", 0, 0, 1)');
   });
 
+  it('主菜单按设计配置生成初始机体选择并持久化有效选项', () => {
+    expect(indexHtml).toContain('id="initial-module-options"');
+    expect(indexHtml).toContain('role="radiogroup"');
+    expect(gameSource).toContain('const INITIAL_MODULE_STORAGE_KEY = "gss0-initial-module";');
+    expect(gameSource).toContain('return INITIAL_UPGRADE_MODULE_IDS.has(value) ? value : INITIAL_UPGRADE_MODULES[0].id;');
+    expect(gameSource).toContain('button.dataset.tooltip = moduleTooltipText(module);');
+    expect(gameSource).toContain('module: initialModule.id');
+    expect(styles).toContain('.initial-module-option:hover::after');
+  });
+
   it('屏幕震动默认开启并统一控制全部震屏入口', () => {
     expect(indexHtml).toContain('id="screen-shake-button"');
     expect(indexHtml).toContain('id="screen-shake-toggle" type="checkbox" checked');
@@ -221,7 +233,7 @@ describe('界面设置', () => {
     expect(tooltipRule).not.toContain('transition');
     expect(indexHtml).not.toContain('id="description-button"');
     expect(indexHtml).not.toContain('id="description-toggle"');
-    expect(indexHtml).toContain('src="module-catalog.js?v=142"');
+    expect(indexHtml).toContain('src="module-catalog.js?v=143"');
     expect(gameSource).toContain('const MODULE_CATALOG = globalThis.GSS0ModuleCatalog;');
     expect(gameSource).not.toContain('SHORT_MODULE_DESCRIPTIONS');
     expect(gameSource).not.toContain('gss0-detailed-descriptions');

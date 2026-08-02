@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0b0d0f">
   <meta name="description" content="代号：几何贪吃蛇 - 单人及多人共享世界肉鸽贪吃蛇战斗游戏">
   <title>代号：几何贪吃蛇</title>
-  <link rel="stylesheet" href="styles.css?v=142">
+  <link rel="stylesheet" href="styles.css?v=143">
 </head>
 <body>
   <main id="game-shell" aria-label="代号：几何贪吃蛇 游戏区域">
@@ -19,7 +19,7 @@
           <strong>代号：几何贪吃蛇</strong>
         </div>
         <span class="signature">by 四季鸽</span>
-        <span class="brand-version" aria-label="游戏版本 V142">V142</span>
+        <span class="brand-version" aria-label="游戏版本 V143">V143</span>
       </div>
 
       <div class="run-stats">
@@ -200,12 +200,19 @@
 
     <section id="start-screen" class="modal-layer start-screen is-visible" aria-labelledby="game-title">
       <div class="start-glow" aria-hidden="true"></div>
-          <div class="start-version" aria-label="游戏版本 V142"><span>BUILD</span><strong>V142</strong></div>
+          <div class="start-version" aria-label="游戏版本 V143"><span>BUILD</span><strong>V143</strong></div>
       <div class="start-layout">
         <div class="start-content">
           <div id="network-status" class="title-kicker">TACTICAL SURVIVAL / LOCAL</div>
           <h1 id="game-title"><span>代号：几何贪吃蛇</span></h1>
           <p>吞噬 / 构筑 / 生存</p>
+          <div class="initial-module-picker" aria-labelledby="initial-module-label">
+            <div class="initial-module-picker-heading">
+              <span id="initial-module-label">初始机体</span>
+              <small>悬停查看图鉴描述</small>
+            </div>
+            <div id="initial-module-options" class="initial-module-options" role="radiogroup" aria-label="选择初始机体"></div>
+          </div>
           <div class="start-actions">
             <button id="local-mode-button" class="primary-button mode-entry-button local-mode-button" type="button">
               <span aria-hidden="true">1P</span>
@@ -382,6 +389,22 @@
           <button id="changelog-close-button" class="icon-button codex-close-button" type="button" aria-label="关闭更新日志" title="关闭更新日志">×</button>
         </header>
         <div class="changelog-list">
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V143</strong></div>
+              <time datetime="2026-08-03">2026.08.03</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">构筑扩展</span>
+              <h3>初始机体与威胁基线</h3>
+              <ul>
+                <li>主菜单新增初始机体选择，新存档与失效旧选择会自动使用首个可选机体。</li>
+                <li>高速枪节、弹射晶节、临界推进节、引力环节与尾部隔离舱首批开放为可选初始升级，设计控制台可逐项调整。</li>
+                <li>机体选择与战斗机体栏的悬浮说明统一复用图鉴原文，机体栏额外显示当前等级。</li>
+                <li>波次威胁期望改为（玩家等级 + 3）× 威胁系数，并在设计控制台开放等级偏移参数。</li>
+              </ul>
+            </div>
+          </article>
           <article class="changelog-entry">
             <header>
               <div class="changelog-version"><span>BUILD</span><strong>V142</strong></div>
@@ -2265,23 +2288,23 @@
     </section>
   </main>
 
-  <script src="designer-config.js?v=142"></script>
-  <script src="status-catalog.js?v=142"></script>
-  <script src="module-catalog.js?v=142"></script>
-  <script src="module-progression.js?v=142"></script>
-  <script src="wave-director.js?v=142"></script>
-  <script src="spawn-planner.js?v=142"></script>
-  <script src="network-codec.js?v=142"></script>
-  <script src="network-player-prediction.js?v=142"></script>
-  <script src="network-player-state-codec.js?v=142"></script>
-  <script src="network-player-collisions.js?v=142"></script>
-  <script src="network-head-collisions.js?v=142"></script>
-  <script src="network-food-claims.js?v=142"></script>
-  <script src="network-projectiles.js?v=142"></script>
-  <script src="lobby-navigation.js?v=142"></script>
-  <script src="enemy-codex.js?v=142"></script>
-  <script src="camera-projection.js?v=142"></script>
-  <script type="module" src="src/client/p2p/bootstrap.ts?v=142"></script>
-  <script src="game.js?v=142"></script>
+  <script src="designer-config.js?v=143"></script>
+  <script src="status-catalog.js?v=143"></script>
+  <script src="module-catalog.js?v=143"></script>
+  <script src="module-progression.js?v=143"></script>
+  <script src="wave-director.js?v=143"></script>
+  <script src="spawn-planner.js?v=143"></script>
+  <script src="network-codec.js?v=143"></script>
+  <script src="network-player-prediction.js?v=143"></script>
+  <script src="network-player-state-codec.js?v=143"></script>
+  <script src="network-player-collisions.js?v=143"></script>
+  <script src="network-head-collisions.js?v=143"></script>
+  <script src="network-food-claims.js?v=143"></script>
+  <script src="network-projectiles.js?v=143"></script>
+  <script src="lobby-navigation.js?v=143"></script>
+  <script src="enemy-codex.js?v=143"></script>
+  <script src="camera-projection.js?v=143"></script>
+  <script type="module" src="src/client/p2p/bootstrap.ts?v=143"></script>
+  <script src="game.js?v=143"></script>
 </body>
 </html>

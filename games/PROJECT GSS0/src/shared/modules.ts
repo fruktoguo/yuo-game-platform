@@ -16,6 +16,7 @@ export interface ModuleDefinition {
   shape: ModuleShape;
   cooldown: string;
   activeCooldown?: true;
+  initialUpgrade: boolean;
   desc: string;
   note: string;
 }
@@ -37,7 +38,16 @@ export const MODULE_BY_ID = Object.fromEntries(MODULES.map((module) => [module.i
 export const ACTIVE_SKILL_MODULES = MODULES.filter((module) => 'activeCooldown' in module);
 const configuredUpgradeModules = MODULES.filter((module) => moduleIsUpgradeEnabled(module.id));
 export const UPGRADE_MODULES = configuredUpgradeModules.length > 0 ? configuredUpgradeModules : MODULES;
+const configuredInitialUpgradeModules = UPGRADE_MODULES.filter((module) => module.initialUpgrade);
+export const INITIAL_UPGRADE_MODULES = Object.freeze(
+  configuredInitialUpgradeModules.length > 0 ? configuredInitialUpgradeModules : UPGRADE_MODULES.slice(0, 1),
+);
+const INITIAL_UPGRADE_MODULE_IDS = new Set<ModuleId>(INITIAL_UPGRADE_MODULES.map((module) => module.id));
 
 export function isModuleId(value: unknown): value is ModuleId {
   return typeof value === 'string' && Object.hasOwn(MODULE_BY_ID, value);
+}
+
+export function isInitialUpgradeModuleId(value: unknown): value is ModuleId {
+  return isModuleId(value) && INITIAL_UPGRADE_MODULE_IDS.has(value);
 }

@@ -3,6 +3,7 @@
 
   const defaultBalance = globalThis.GSS0_DESIGNER_CONFIG?.balance || {};
   const moduleNameOverrides = globalThis.GSS0_DESIGNER_CONFIG?.moduleNames || {};
+  const moduleInitialUpgrades = globalThis.GSS0_DESIGNER_CONFIG?.moduleInitialUpgrades || {};
 
   function setting(balance, key, fallback) {
     const value = Number(balance?.[key]);
@@ -242,6 +243,7 @@
     return Object.freeze({
       ...module,
       name: configuredName || module.name,
+      initialUpgrade: moduleInitialUpgrades[module.id] === true,
       desc: describeModule(module.id, defaultBalance),
       note: describeModuleNote(module.id, defaultBalance)
     });

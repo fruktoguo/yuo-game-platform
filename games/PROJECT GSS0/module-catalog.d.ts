@@ -23,6 +23,7 @@ export interface GSS0ModuleCatalogEntry {
   readonly shape: GSS0ModuleShape;
   readonly cooldown: string;
   readonly activeCooldown?: true;
+  readonly initialUpgrade: boolean;
   readonly desc: string;
   readonly note: string;
 }

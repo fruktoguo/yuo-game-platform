@@ -8,11 +8,12 @@ interface DesignerConfigSource {
   waveEnemyCountSchedule?: unknown;
   moduleCooldownPercentages?: Record<string, unknown>;
   moduleNames?: Record<string, unknown>;
+  moduleInitialUpgrades?: Record<string, unknown>;
   moduleStates?: Record<string, unknown>;
 }
 
 const source = (globalThis as typeof globalThis & { GSS0_DESIGNER_CONFIG?: DesignerConfigSource }).GSS0_DESIGNER_CONFIG;
-if (source?.schemaVersion !== 48) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 48');
+if (source?.schemaVersion !== 49) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 49');
 
 function numberSetting(key: string, fallback: number, minimum: number, maximum: number, integer = false): number {
   const candidate = source?.balance?.[key];
@@ -84,6 +85,7 @@ export const DESIGNER_BALANCE = Object.freeze({
   enemyPressureEnemyCountMultiplier: numberSetting('enemyPressureEnemyCountMultiplier', 2, 1, 10, true),
   enemyPressureThreatMultiplier: numberSetting('enemyPressureThreatMultiplier', 2, 1, 10),
   enemyExpectedDpsInterval: numberSetting('enemyExpectedDpsInterval', 6, 0.1, 60),
+  enemyThreatLevelOffset: numberSetting('enemyThreatLevelOffset', 3, 0, 100),
   enemyThreatTimeCoefficient: numberSetting('enemyThreatTimeCoefficient', 6, 0, 120),
   enemyThreatGrowthPerWave: numberSetting('enemyThreatGrowthPerWave', 0.02, 0, 1),
   enemyHealthWeightVariation: numberSetting('enemyHealthWeightVariation', 0.25, 0, 1),

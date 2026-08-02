@@ -207,6 +207,9 @@
     .module-name-input:focus { border-color: var(--module-color); }
     .module-name span { display: block; margin-top: 5px; color: var(--module-color); font-size: 10px; font-weight: 900; }
     .module-name code { display: block; margin-top: 4px; color: var(--muted); font-size: 9px; font-family: Consolas, monospace; }
+    .initial-upgrade-control { display: flex; align-items: center; gap: 7px; width: fit-content; margin-top: 8px; color: #dce6e8; font-size: 10px; font-weight: 900; cursor: pointer; }
+    .initial-upgrade-control input { width: 15px; height: 15px; margin: 0; accent-color: var(--module-color); }
+    .initial-upgrade-control i { width: 7px; height: 7px; border: 1px solid var(--module-color); background: color-mix(in srgb, var(--module-color) 38%, transparent); transform: rotate(45deg); }
     .module-desc { color: #bdc6c9; font-size: 11px; line-height: 1.58; }
     .module-desc small { display: block; margin-top: 5px; color: var(--muted); font-weight: 800; }
     .module-description-note { display: block; margin-top: 4px; color: #7e898d; font-size: 10px; white-space: pre-line; }
@@ -401,12 +404,12 @@
     </div>
   </main>
 
-  <script src="enemy-codex.js?v=142"></script>
-  <script src="wave-director.js?v=142"></script>
-  <script src="designer-config.js?v=142"></script>
-  <script src="status-catalog.js?v=142"></script>
-  <script src="module-catalog.js?v=142"></script>
-  <script src="module-progression.js?v=142"></script>
+  <script src="enemy-codex.js?v=143"></script>
+  <script src="wave-director.js?v=143"></script>
+  <script src="designer-config.js?v=143"></script>
+  <script src="status-catalog.js?v=143"></script>
+  <script src="module-catalog.js?v=143"></script>
+  <script src="module-progression.js?v=143"></script>
   <script>
     (() => {
       "use strict";
@@ -494,6 +497,7 @@
         { key: "enemyPressureEnemyCountMultiplier", group: "波次与投放", label: "高压波敌人数倍率", hint: "高压波相对当前区间基础敌人数的整数倍率", min: 1, max: 10, step: 1, unit: "倍" },
         { key: "enemyPressureThreatMultiplier", group: "波次与投放", label: "高压波总威胁倍率", hint: "高压波在常规总威胁基础上额外乘算的倍率", min: 1, max: 10, step: 0.05, unit: "倍" },
         { key: "enemyExpectedDpsInterval", group: "波次与投放", label: "预期 DPS 间隔", hint: "预期 DPS 公式中攻击档位的除数，缺省为 6 秒", min: 0.1, max: 60, step: 0.1, unit: "秒" },
+        { key: "enemyThreatLevelOffset", group: "波次与投放", label: "威胁等级偏移", hint: "威胁期望使用玩家预期等级加上此值；默认 3 表示按（等级 + 3）计算", min: 0, max: 100, step: 0.1, unit: "级" },
         { key: "enemyThreatTimeCoefficient", group: "波次与投放", label: "威胁时间系数", hint: "将预期 DPS 换算为每波基础总生命预算的时间系数", min: 0, max: 120, step: 0.1, unit: "秒" },
         { key: "enemyThreatGrowthPerWave", group: "波次与投放", label: "每波威胁线性成长", hint: "每波增加的倍率百分点；0.02 表示每波增加 2 个百分点", min: 0, max: 1, step: 0.005, unit: "倍率/波" },
         { key: "enemyHealthWeightVariation", group: "波次与投放", label: "生命权重浮动", hint: "每只敌人独立抽取的生命权重上下浮动比例", min: 0, max: 1, step: 0.01, unit: "比例" },
@@ -704,6 +708,9 @@
       const DEFAULT_MODULE_COOLDOWN_PERCENTAGES = Object.freeze({
         ...(globalThis.GSS0_DESIGNER_CONFIG?.moduleCooldownPercentages || {})
       });
+      const DEFAULT_MODULE_INITIAL_UPGRADES = Object.freeze({
+        ...(globalThis.GSS0_DESIGNER_CONFIG?.moduleInitialUpgrades || {})
+      });
       const DEFAULT_WAVE_ENEMY_COUNT_SCHEDULE = Object.freeze(
         (globalThis.GSS0_DESIGNER_CONFIG?.waveEnemyCountSchedule || []).map((tier) => Object.freeze({ ...tier }))
       );
@@ -743,7 +750,7 @@
       const filePickerSupported = typeof window.showOpenFilePicker === "function";
 
       function normalizeConfig(value) {
-        const config = { schemaVersion: 48, balance: {}, waveEnemyCountSchedule: [], moduleCooldownPercentages: {}, moduleNames: {}, moduleStates: {} };
+        const config = { schemaVersion: 49, balance: {}, waveEnemyCountSchedule: [], moduleCooldownPercentages: {}, moduleNames: {}, moduleInitialUpgrades: {}, moduleStates: {} };
         for (const definition of ALL_PARAMETER_DEFINITIONS) {
           const candidate = Number(value?.balance?.[definition.key]);
           config.balance[definition.key] = Number.isFinite(candidate) ? Math.max(definition.min, Math.min(definition.max, candidate)) : definition.min;
@@ -768,6 +775,10 @@
           const fallbackName = String(DEFAULT_MODULE_NAMES[module.id] || module.name).trim().slice(0, 24);
           const configuredName = typeof value?.moduleNames?.[module.id] === "string" ? value.moduleNames[module.id].trim().slice(0, 24) : "";
           if (configuredName && configuredName !== fallbackName) config.moduleNames[module.id] = configuredName;
+          const initialUpgrade = value?.moduleInitialUpgrades?.[module.id];
+          config.moduleInitialUpgrades[module.id] = typeof initialUpgrade === "boolean"
+            ? initialUpgrade
+            : DEFAULT_MODULE_INITIAL_UPGRADES[module.id] === true;
           const state = value?.moduleStates?.[module.id];
           config.moduleStates[module.id] = Object.hasOwn(STATUS_LABELS, state) ? state : "normal";
         }
@@ -782,7 +793,7 @@
         const end = text.lastIndexOf("}");
         if (start < 0 || end <= start) throw new Error("配置内容不完整");
         const parsed = JSON.parse(text.slice(start, end + 1));
-        if (parsed?.schemaVersion !== 48) throw new Error("配置版本无效，需要 schemaVersion 48");
+        if (parsed?.schemaVersion !== 49) throw new Error("配置版本无效，需要 schemaVersion 49");
         return normalizeConfig(parsed);
       }
 
@@ -1039,6 +1050,7 @@
           pressureEnemyCountMultiplier: draft.balance.enemyPressureEnemyCountMultiplier,
           pressureThreatMultiplier: draft.balance.enemyPressureThreatMultiplier,
           expectedDpsInterval: draft.balance.enemyExpectedDpsInterval,
+          threatLevelOffset: draft.balance.enemyThreatLevelOffset,
           threatTimeCoefficient: draft.balance.enemyThreatTimeCoefficient,
           threatGrowthPerWave: draft.balance.enemyThreatGrowthPerWave,
           speedGrowthPerWave: draft.balance.enemySpeedPerWave,
@@ -1248,7 +1260,8 @@
         ui.bulkCount.textContent = `当前筛选 ${modules.length} 个机体`;
         for (const button of ui.bulkButtons) button.disabled = modules.length === 0;
         const disabledCount = MODULES.filter((module) => draft.moduleStates[module.id] === "disabled").length;
-        ui.moduleCount.textContent = `${modules.length}/${MODULES.length} · 禁用 ${disabledCount}`;
+        const initialUpgradeCount = MODULES.filter((module) => draft.moduleInitialUpgrades[module.id] && draft.moduleStates[module.id] !== "disabled").length;
+        ui.moduleCount.textContent = `${modules.length}/${MODULES.length} · 初始 ${initialUpgradeCount} · 禁用 ${disabledCount}`;
       }
 
       function renderModules(preserveScroll = false) {
@@ -1284,7 +1297,21 @@
             category.textContent = module.category;
             const moduleId = document.createElement("code");
             moduleId.textContent = `ID: ${module.id}`;
-            name.append(nameInput, category, moduleId);
+            const initialUpgradeControl = document.createElement("label");
+            initialUpgradeControl.className = "initial-upgrade-control";
+            const initialUpgradeInput = document.createElement("input");
+            initialUpgradeInput.type = "checkbox";
+            initialUpgradeInput.checked = draft.moduleInitialUpgrades[module.id] === true;
+            initialUpgradeInput.setAttribute("aria-label", `${displayName}可选初始升级`);
+            const initialUpgradeMarker = document.createElement("i");
+            initialUpgradeMarker.setAttribute("aria-hidden", "true");
+            initialUpgradeControl.append(initialUpgradeInput, initialUpgradeMarker, document.createTextNode("可选初始升级"));
+            name.append(nameInput, category, moduleId, initialUpgradeControl);
+            initialUpgradeInput.addEventListener("change", () => {
+              draft.moduleInitialUpgrades[module.id] = initialUpgradeInput.checked;
+              updateModuleListSummary();
+              scheduleAutoSave();
+            });
             nameInput.addEventListener("input", () => {
               const fallbackName = DEFAULT_MODULE_NAMES[module.id] || module.name;
               const configuredName = nameInput.value.trim().slice(0, 24);

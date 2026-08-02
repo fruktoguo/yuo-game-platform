@@ -15,7 +15,7 @@ import type {
   UltraProfileView,
 } from '../../shared/protocol';
 import { encodeUltraSnapshot, SNAPSHOT_PROTOCOL_VERSION } from '../../shared/snapshotCodec';
-import type { ModuleId } from '../../shared/modules';
+import { isInitialUpgradeModuleId, type ModuleId } from '../../shared/modules';
 import { UltraWorld, type RunResult } from '../../server/UltraWorld';
 import type { HitClaim, SkillSpawn, WorldCommit } from '../../shared/roomProtocol';
 
@@ -182,7 +182,9 @@ async function handleRequest(message: Extract<MainToWorkerMessage, { type: 'requ
       publishSnapshot(message.peerId, true);
       return { ok: true };
     case 'ultra:spawn': {
-      const ok = world.spawn(message.peerId);
+      const initialModuleId = message.args[0];
+      if (!isInitialUpgradeModuleId(initialModuleId)) return { ok: false, error: '初始机体选择无效' };
+      const ok = world.spawn(message.peerId, Date.now(), initialModuleId);
       if (ok) broadcastRoster();
       return ok ? { ok: true } : { ok: false, error: '当前无法开始行动' };
     }
