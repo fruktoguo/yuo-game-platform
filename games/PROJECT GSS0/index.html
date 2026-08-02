@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0b0d0f">
   <meta name="description" content="代号：几何贪吃蛇 - 单人及多人共享世界肉鸽贪吃蛇战斗游戏">
   <title>代号：几何贪吃蛇</title>
-  <link rel="stylesheet" href="styles.css?v=139">
+  <link rel="stylesheet" href="styles.css?v=140">
 </head>
 <body>
   <main id="game-shell" aria-label="代号：几何贪吃蛇 游戏区域">
@@ -19,7 +19,7 @@
           <strong>代号：几何贪吃蛇</strong>
         </div>
         <span class="signature">by 四季鸽</span>
-        <span class="brand-version" aria-label="游戏版本 V139">V139</span>
+        <span class="brand-version" aria-label="游戏版本 V140">V140</span>
       </div>
 
       <div class="run-stats">
@@ -201,7 +201,7 @@
 
     <section id="start-screen" class="modal-layer start-screen is-visible" aria-labelledby="game-title">
       <div class="start-glow" aria-hidden="true"></div>
-          <div class="start-version" aria-label="游戏版本 V139"><span>BUILD</span><strong>V139</strong></div>
+          <div class="start-version" aria-label="游戏版本 V140"><span>BUILD</span><strong>V140</strong></div>
       <div class="start-layout">
         <div class="start-content">
           <div id="network-status" class="title-kicker">TACTICAL SURVIVAL / LOCAL</div>
@@ -383,6 +383,21 @@
           <button id="changelog-close-button" class="icon-button codex-close-button" type="button" aria-label="关闭更新日志" title="关闭更新日志">×</button>
         </header>
         <div class="changelog-list">
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V140</strong></div>
+              <time datetime="2026-08-02">2026.08.02</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">视觉修复</span>
+              <h3>轮廓匹配实体阴影重做</h3>
+              <ul>
+                <li>移除将所有实体压成横向椭圆贴图的旧阴影，玩家与敌蛇的头部、每节身体现在按各自真实轮廓投影，不再出现一排细棍。</li>
+                <li>球、地雷与投射物同步使用对应方块、圆形和弹体轮廓，右下偏移影与贴地接触影均保持原始长宽比例。</li>
+                <li>阴影在摄像机投影后执行反向补偿，固定与跟随视角下都不会被场地压缩，浅伪3D摄像机安全范围保持不变。</li>
+              </ul>
+            </div>
+          </article>
           <article class="changelog-entry">
             <header>
               <div class="changelog-version"><span>BUILD</span><strong>V139</strong></div>
@@ -2220,23 +2235,23 @@
     </section>
   </main>
 
-  <script src="designer-config.js?v=139"></script>
-  <script src="status-catalog.js?v=139"></script>
-  <script src="module-catalog.js?v=139"></script>
-  <script src="module-progression.js?v=139"></script>
-  <script src="wave-director.js?v=139"></script>
-  <script src="spawn-planner.js?v=139"></script>
-  <script src="network-codec.js?v=139"></script>
-  <script src="network-player-prediction.js?v=139"></script>
-  <script src="network-player-state-codec.js?v=139"></script>
-  <script src="network-player-collisions.js?v=139"></script>
-  <script src="network-head-collisions.js?v=139"></script>
-  <script src="network-food-claims.js?v=139"></script>
-  <script src="network-projectiles.js?v=139"></script>
-  <script src="lobby-navigation.js?v=139"></script>
-  <script src="enemy-codex.js?v=139"></script>
-  <script src="camera-projection.js?v=139"></script>
-  <script type="module" src="src/client/p2p/bootstrap.ts?v=139"></script>
-  <script src="game.js?v=139"></script>
+  <script src="designer-config.js?v=140"></script>
+  <script src="status-catalog.js?v=140"></script>
+  <script src="module-catalog.js?v=140"></script>
+  <script src="module-progression.js?v=140"></script>
+  <script src="wave-director.js?v=140"></script>
+  <script src="spawn-planner.js?v=140"></script>
+  <script src="network-codec.js?v=140"></script>
+  <script src="network-player-prediction.js?v=140"></script>
+  <script src="network-player-state-codec.js?v=140"></script>
+  <script src="network-player-collisions.js?v=140"></script>
+  <script src="network-head-collisions.js?v=140"></script>
+  <script src="network-food-claims.js?v=140"></script>
+  <script src="network-projectiles.js?v=140"></script>
+  <script src="lobby-navigation.js?v=140"></script>
+  <script src="enemy-codex.js?v=140"></script>
+  <script src="camera-projection.js?v=140"></script>
+  <script type="module" src="src/client/p2p/bootstrap.ts?v=140"></script>
+  <script src="game.js?v=140"></script>
 </body>
 </html>
