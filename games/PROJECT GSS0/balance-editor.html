@@ -401,12 +401,12 @@
     </div>
   </main>
 
-  <script src="enemy-codex.js?v=137"></script>
-  <script src="wave-director.js?v=137"></script>
-  <script src="designer-config.js?v=137"></script>
-  <script src="status-catalog.js?v=137"></script>
-  <script src="module-catalog.js?v=137"></script>
-  <script src="module-progression.js?v=137"></script>
+  <script src="enemy-codex.js?v=138"></script>
+  <script src="wave-director.js?v=138"></script>
+  <script src="designer-config.js?v=138"></script>
+  <script src="status-catalog.js?v=138"></script>
+  <script src="module-catalog.js?v=138"></script>
+  <script src="module-progression.js?v=138"></script>
   <script>
     (() => {
       "use strict";
@@ -634,11 +634,15 @@
         { key: "cameraFollowZoomMin", group: "摄像机", label: "跟随视角最小缩放", hint: "跟随蛇头模式使用滚轮缩小时允许达到的最低倍率", min: 0.25, max: 5, step: 0.05, unit: "倍" },
         { key: "cameraFollowZoomDefault", group: "摄像机", label: "跟随视角默认缩放", hint: "首次启用跟随蛇头模式时使用的缩放倍率，并受最小与最大值约束", min: 0.25, max: 5, step: 0.05, unit: "倍" },
         { key: "cameraFollowZoomMax", group: "摄像机", label: "跟随视角最大缩放", hint: "跟随蛇头模式使用滚轮放大时允许达到的最高倍率", min: 0.25, max: 5, step: 0.05, unit: "倍" },
-        { key: "cameraPseudo3DPerspective", group: "摄像机", label: "伪3D远近透视", hint: "瞄准方向远端收窄、近端放大的投影强度；界面伪3D强度会继续乘算", min: 0, max: 0.4, step: 0.005, unit: "强度" },
-        { key: "cameraPseudo3DForeshortening", group: "摄像机", label: "伪3D纵深压缩", hint: "沿瞄准方向压缩战场平面的比例，增强倾斜舞台的纵深感", min: 0, max: 0.4, step: 0.005, unit: "比例" },
-        { key: "cameraPseudo3DOverscan", group: "摄像机", label: "伪3D画布超扫", hint: "放大投影画布以覆盖强倾斜产生的屏幕角落；运行时会补偿中心缩放", min: 0, max: 1, step: 0.01, unit: "比例" },
-        { key: "cameraPseudo3DResponse", group: "摄像机", label: "瞄准倾斜响应", hint: "摄像机倾斜方向和平移前视追随玩家瞄准方向的平滑速率", min: 0.1, max: 30, step: 0.1, unit: "速率" },
+        { key: "cameraPseudo3DStrengthMax", group: "摄像机", label: "伪3D强度上限", hint: "界面滑杆允许的最大伪3D强度；运行时同时具有不可突破的可玩性安全上限", min: 0.25, max: 1.5, step: 0.05, unit: "倍" },
+        { key: "cameraPseudo3DPitchForeshortening", group: "摄像机", label: "伪3D固定俯视压缩", hint: "稳定压缩场地纵向形成浅俯视舞台，不再随瞄准方向把战场扭成梯形", min: 0, max: 0.24, step: 0.005, unit: "比例" },
+        { key: "cameraPseudo3DYawShear", group: "摄像机", label: "伪3D瞄准偏航", hint: "瞄准左右方向只允许增加的轻微场地横向剪切量", min: 0, max: 0.08, step: 0.001, unit: "比例" },
+        { key: "cameraPseudo3DRollDegrees", group: "摄像机", label: "伪3D瞄准侧倾", hint: "瞄准左右方向只允许增加的轻微舞台侧倾角度", min: 0, max: 2, step: 0.05, unit: "°" },
+        { key: "cameraPseudo3DVerticalAimInfluence", group: "摄像机", label: "纵向瞄准俯视变化", hint: "向上或向下瞄准时对固定俯视压缩量的有限调整比例", min: 0, max: 0.5, step: 0.01, unit: "比例" },
+        { key: "cameraPseudo3DResponse", group: "摄像机", label: "瞄准倾斜响应", hint: "轻微偏航、侧倾和平移前视追随玩家瞄准方向的平滑速率", min: 0.1, max: 30, step: 0.1, unit: "速率" },
         { key: "cameraAimLookAheadCells", group: "摄像机", label: "瞄准前视距离", hint: "跟随蛇头模式沿当前瞄准方向额外展示的前方场地距离", min: 0, max: 8, step: 0.05, unit: "格" },
+        { key: "arenaPlatformDepthPixels", group: "摄像机", label: "场地平台侧壁厚度", hint: "固定视角看到场地边缘时绘制的暗色悬浮平台侧壁厚度", min: 0, max: 40, step: 1, unit: "px" },
+        { key: "arenaPlatformSideOpacity", group: "摄像机", label: "场地平台侧壁不透明度", hint: "暗色侧壁与底沿高光的整体可见度", min: 0, max: 1, step: 0.01, unit: "比例" },
         { key: "cameraFollowRenderOverscanPixels", group: "性能", label: "跟随视角渲染缓冲", hint: "跟随蛇头模式在屏幕边缘外继续绘制的缓冲宽度，增大可减少高速移动时的边缘跳入", min: 0, max: 600, step: 10, unit: "px" },
         { key: "cameraFollowFoodIndicatorLimit", group: "性能", label: "跟随视角球提示上限", hint: "跟随蛇头模式最多显示的最近离屏球提示数量", min: 0, max: 100, step: 1, unit: "个" },
         { key: "cameraFollowEnemyIndicatorLimit", group: "性能", label: "跟随视角敌人提示上限", hint: "跟随蛇头模式最多显示的最近离屏敌人提示数量；预生成警告不受此限制", min: 0, max: 100, step: 1, unit: "个" },

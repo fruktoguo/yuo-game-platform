@@ -233,21 +233,25 @@
     CAMERA_FOLLOW_ZOOM_MIN,
     CAMERA_FOLLOW_ZOOM_MAX
   );
-  const CAMERA_PSEUDO_3D_PERSPECTIVE = designerNumber("cameraPseudo3DPerspective", 0.11, 0, 0.4);
-  const CAMERA_PSEUDO_3D_FORESHORTENING = designerNumber("cameraPseudo3DForeshortening", 0.12, 0, 0.4);
-  const CAMERA_PSEUDO_3D_OVERSCAN = designerNumber("cameraPseudo3DOverscan", 0.36, 0, 1);
-  const CAMERA_PSEUDO_3D_RESPONSE = designerNumber("cameraPseudo3DResponse", 5.5, 0.1, 30);
-  const CAMERA_AIM_LOOK_AHEAD_CELLS = designerNumber("cameraAimLookAheadCells", 1.25, 0, 8);
+  const CAMERA_PSEUDO_3D_STRENGTH_MAX = designerNumber("cameraPseudo3DStrengthMax", 1.5, 0.25, 1.5);
+  const CAMERA_PSEUDO_3D_PITCH_FORESHORTENING = designerNumber("cameraPseudo3DPitchForeshortening", 0.075, 0, 0.24);
+  const CAMERA_PSEUDO_3D_YAW_SHEAR = designerNumber("cameraPseudo3DYawShear", 0.018, 0, 0.08);
+  const CAMERA_PSEUDO_3D_ROLL_DEGREES = designerNumber("cameraPseudo3DRollDegrees", 0.65, 0, 2);
+  const CAMERA_PSEUDO_3D_VERTICAL_AIM_INFLUENCE = designerNumber("cameraPseudo3DVerticalAimInfluence", 0.16, 0, 0.5);
+  const CAMERA_PSEUDO_3D_RESPONSE = designerNumber("cameraPseudo3DResponse", 4.5, 0.1, 30);
+  const CAMERA_AIM_LOOK_AHEAD_CELLS = designerNumber("cameraAimLookAheadCells", 1.1, 0, 8);
+  const ARENA_PLATFORM_DEPTH_PIXELS = designerNumber("arenaPlatformDepthPixels", 16, 0, 40);
+  const ARENA_PLATFORM_SIDE_OPACITY = designerNumber("arenaPlatformSideOpacity", 0.9, 0, 1);
   const CAMERA_FOLLOW_RENDER_OVERSCAN_PIXELS = designerNumber("cameraFollowRenderOverscanPixels", 120, 0, 600, true);
   const CAMERA_FOLLOW_FOOD_INDICATOR_LIMIT = designerNumber("cameraFollowFoodIndicatorLimit", 6, 0, 100, true);
   const CAMERA_FOLLOW_ENEMY_INDICATOR_LIMIT = designerNumber("cameraFollowEnemyIndicatorLimit", 8, 0, 100, true);
-  const ENTITY_SHADOW_OPACITY = designerNumber("entityShadowOpacity", 0.42, 0, 1);
-  const ENTITY_SHADOW_OFFSET_PIXELS = designerNumber("entityShadowOffsetPixels", 10, 0, 40);
+  const ENTITY_SHADOW_OPACITY = designerNumber("entityShadowOpacity", 0.54, 0, 1);
+  const ENTITY_SHADOW_OFFSET_PIXELS = designerNumber("entityShadowOffsetPixels", 14, 0, 40);
   const ENTITY_SHADOW_DIRECTION = designerNumber("entityShadowDirectionDegrees", 56, -180, 180) * Math.PI / 180;
-  const ENTITY_SHADOW_WIDTH_SCALE = designerNumber("entityShadowWidthScale", 1.45, 0.25, 4);
-  const ENTITY_SHADOW_HEIGHT_SCALE = designerNumber("entityShadowHeightScale", 0.52, 0.1, 2);
-  const ENTITY_SHADOW_HEIGHT_STRETCH = designerNumber("entityShadowHeightStretch", 0.28, 0, 1.5);
-  const ENTITY_SHADOW_BLUR_PIXELS = designerNumber("entityShadowBlurPixels", 8, 0, 24);
+  const ENTITY_SHADOW_WIDTH_SCALE = designerNumber("entityShadowWidthScale", 1.3, 0.25, 4);
+  const ENTITY_SHADOW_HEIGHT_SCALE = designerNumber("entityShadowHeightScale", 0.48, 0.1, 2);
+  const ENTITY_SHADOW_HEIGHT_STRETCH = designerNumber("entityShadowHeightStretch", 0.24, 0, 1.5);
+  const ENTITY_SHADOW_BLUR_PIXELS = designerNumber("entityShadowBlurPixels", 6, 0, 24);
   const FOOD_SHADOW_HEIGHT = designerNumber("foodShadowHeight", 1.2, 0, 4);
   const PROJECTILE_SHADOW_HEIGHT = designerNumber("projectileShadowHeight", 1.9, 0, 6);
   const FOOD_WALL_MARGIN = 2;
@@ -524,7 +528,7 @@
   });
   let soundVolume = loadSetting("ultra-snake-volume", 1, 0, SOUND_MAX_VOLUME);
   let fontScale = loadSetting("ultra-snake-font-scale", 1.5, 0.5, 2);
-  let uiMotionStrength = loadSetting("gss0-ui-motion-strength", 1, 0, 3);
+  let pseudo3DStrength = loadSetting("gss0-pseudo-3d-strength", 1, 0, CAMERA_PSEUDO_3D_STRENGTH_MAX);
   let cameraMode = loadSetting("gss0-camera-mode", 1, 0, 1) >= 0.5 ? "follow" : "fixed";
   let followCameraZoom = loadSetting(
     "gss0-follow-camera-zoom",
@@ -591,13 +595,18 @@
   const worldScreenPoint = { x: 0, y: 0 };
   const worldViewportPoint = { x: 0, y: 0 };
   const viewportCanvasPoint = { x: 0, y: 0 };
+  const arenaPlatformCorners = [
+    { x: 0, y: 0 },
+    { x: 0, y: 0 },
+    { x: 0, y: 0 },
+    { x: 0, y: 0 }
+  ];
   const worldCamera = {
     axisX: 0,
     axisY: 0,
     lookAheadX: 0,
     lookAheadY: 0,
-    projectionStrength: 0,
-    appliedTransform: ""
+    projectionStrength: 0
   };
   const renderWorldCorners = [
     { x: 0, y: 0 },
@@ -773,17 +782,18 @@
     if (
       Math.abs(uiMotion.x - uiMotion.appliedX) < 0.00035
       && Math.abs(uiMotion.y - uiMotion.appliedY) < 0.00035
-      && uiMotion.appliedStrength === uiMotionStrength
+      && uiMotion.appliedStrength === pseudo3DStrength
     ) return;
 
-    const tiltX = -uiMotion.y * 1.3 * uiMotionStrength;
-    const tiltY = uiMotion.x * 1.8 * uiMotionStrength;
-    const shiftX = uiMotion.x * 4.5 * uiMotionStrength;
-    const shiftY = uiMotion.y * 3 * uiMotionStrength;
-    const leftShiftX = Math.max(0, uiMotion.x) * 3.2 * uiMotionStrength;
-    const rightShiftX = Math.min(0, uiMotion.x) * 3.2 * uiMotionStrength;
-    const topShiftY = Math.max(0, uiMotion.y) * 1.7 * uiMotionStrength;
-    const bottomShiftY = Math.min(0, uiMotion.y) * 2.8 * uiMotionStrength;
+    const interfaceStrength = Math.min(1, pseudo3DStrength) * 0.42;
+    const tiltX = -uiMotion.y * 1.3 * interfaceStrength;
+    const tiltY = uiMotion.x * 1.8 * interfaceStrength;
+    const shiftX = uiMotion.x * 4.5 * interfaceStrength;
+    const shiftY = uiMotion.y * 3 * interfaceStrength;
+    const leftShiftX = Math.max(0, uiMotion.x) * 3.2 * interfaceStrength;
+    const rightShiftX = Math.min(0, uiMotion.x) * 3.2 * interfaceStrength;
+    const topShiftY = Math.max(0, uiMotion.y) * 1.7 * interfaceStrength;
+    const bottomShiftY = Math.min(0, uiMotion.y) * 2.8 * interfaceStrength;
     const shellStyle = document.documentElement.style;
     shellStyle.setProperty("--ui-tilt-x", `${tiltX.toFixed(3)}deg`);
     shellStyle.setProperty("--ui-tilt-y", `${tiltY.toFixed(3)}deg`);
@@ -802,34 +812,30 @@
     shellStyle.setProperty("--ui-tilt-y-reverse", `${(tiltY * 0.78).toFixed(3)}deg`);
     uiMotion.appliedX = uiMotion.x;
     uiMotion.appliedY = uiMotion.y;
-    uiMotion.appliedStrength = uiMotionStrength;
+    uiMotion.appliedStrength = pseudo3DStrength;
   }
 
   function refreshWorldCameraProjection() {
-    const magnitude = Math.min(1, Math.hypot(worldCamera.axisX, worldCamera.axisY));
-    const strength = magnitude * Math.sqrt(Math.max(0, uiMotionStrength));
+    const strength = player && state !== "menu" ? pseudo3DStrength : 0;
     worldCamera.projectionStrength = strength;
-    const transform = cameraProjection.update(
+    cameraProjection.update(
       width,
       height,
       worldCamera.axisX,
       worldCamera.axisY,
       strength,
-      CAMERA_PSEUDO_3D_PERSPECTIVE,
-      CAMERA_PSEUDO_3D_FORESHORTENING,
-      CAMERA_PSEUDO_3D_OVERSCAN
+      CAMERA_PSEUDO_3D_PITCH_FORESHORTENING,
+      CAMERA_PSEUDO_3D_YAW_SHEAR,
+      CAMERA_PSEUDO_3D_ROLL_DEGREES,
+      CAMERA_PSEUDO_3D_VERTICAL_AIM_INFLUENCE
     );
-    if (transform !== worldCamera.appliedTransform) {
-      canvas.style.transform = transform;
-      worldCamera.appliedTransform = transform;
-    }
     ui.shell.classList.toggle("is-pseudo-3d", strength > 0.001);
     ui.shell.style.setProperty("--camera-pseudo-3d-strength", strength.toFixed(3));
   }
 
   function updateWorldCamera(dt) {
     const hasWorld = Boolean(player && state !== "menu");
-    const motionAllowed = !reducedMotionMedia.matches && uiMotionStrength > 0;
+    const motionAllowed = !reducedMotionMedia.matches && pseudo3DStrength > 0;
     const targetX = hasWorld && motionAllowed ? Math.cos(player.desiredAngle ?? player.angle ?? 0) : 0;
     const targetY = hasWorld && motionAllowed ? Math.sin(player.desiredAngle ?? player.angle ?? 0) : 0;
     if (reducedMotionMedia.matches) {
@@ -1040,14 +1046,16 @@
     if (persist) saveSetting("ultra-snake-volume", soundVolume);
   }
 
-  function applyUIMotionStrength(value, persist = true) {
-    uiMotionStrength = clamp(value, 0, 3);
+  function applyPseudo3DStrength(value, persist = true) {
+    pseudo3DStrength = clamp(value, 0, CAMERA_PSEUDO_3D_STRENGTH_MAX);
     uiMotion.appliedStrength = NaN;
-    const percent = Math.round(uiMotionStrength * 100);
+    const percent = Math.round(pseudo3DStrength * 100);
+    ui.motionSlider.max = String(Math.round(CAMERA_PSEUDO_3D_STRENGTH_MAX * 100));
     ui.motionSlider.value = String(percent);
     ui.motionOutput.textContent = `${percent}%`;
     updateSettingButtonLabel(ui.motionButton, `调节伪3D强度，当前 ${percent}%`, `伪3D强度 ${percent}%`);
-    if (persist) saveSetting("gss0-ui-motion-strength", uiMotionStrength);
+    refreshWorldCameraProjection();
+    if (persist) saveSetting("gss0-pseudo-3d-strength", pseudo3DStrength);
   }
 
   function applyFollowCameraZoom(value, persist = true) {
@@ -1448,8 +1456,7 @@
   }
 
   function cameraZoom() {
-    const baseZoom = cameraMode === "follow" ? followCameraZoom : 1;
-    return baseZoom / Math.max(1, cameraProjection.scale());
+    return cameraMode === "follow" ? followCameraZoom : 1;
   }
 
   function cameraViewportBounds() {
@@ -1477,9 +1484,20 @@
   function applyCameraTransform() {
     const camera = cameraPosition();
     const zoom = cameraZoom();
+    const projection = cameraProjection.matrix();
+    ctx.transform(projection[0], projection[1], projection[2], projection[3], projection[4], projection[5]);
     ctx.translate(arena.centerX, arena.centerY);
     ctx.scale(zoom, zoom);
     ctx.translate(-camera.x, -camera.y);
+  }
+
+  function applyBillboardCompensation() {
+    const billboard = cameraProjection.billboardMatrix();
+    ctx.transform(billboard[0], billboard[1], billboard[2], billboard[3], 0, 0);
+  }
+
+  function projectedWorldAngle(angle) {
+    return cameraProjection.projectAngle(angle);
   }
 
   function screenToWorld(x, y, target = screenWorldPoint) {
@@ -1505,7 +1523,9 @@
   }
 
   function viewportToCanvas(x, y, target = viewportCanvasPoint) {
-    return cameraProjection.unproject(x, y, target);
+    target.x = x;
+    target.y = y;
+    return target;
   }
 
   function updateRenderWorldBounds() {
@@ -4835,12 +4855,13 @@
     const magnitude = Math.min(1, length);
     const eased = magnitude * magnitude * (3 - 2 * magnitude);
     const scale = magnitude > 0.0001 ? eased / magnitude : 0;
+    const interfaceStrength = Math.min(1, pseudo3DStrength) * 0.42;
     localX *= scale;
     localY *= scale;
-    card.style.setProperty("--card-tilt-x", `${(-localY * 1.5 * uiMotionStrength).toFixed(3)}deg`);
-    card.style.setProperty("--card-tilt-y", `${(localX * 2 * uiMotionStrength).toFixed(3)}deg`);
-    card.style.setProperty("--card-shift-x", `${(localX * 1.1 * uiMotionStrength).toFixed(3)}px`);
-    card.style.setProperty("--card-shift-y", `${(localY * 0.8 * uiMotionStrength).toFixed(3)}px`);
+    card.style.setProperty("--card-tilt-x", `${(-localY * 1.5 * interfaceStrength).toFixed(3)}deg`);
+    card.style.setProperty("--card-tilt-y", `${(localX * 2 * interfaceStrength).toFixed(3)}deg`);
+    card.style.setProperty("--card-shift-x", `${(localX * 1.1 * interfaceStrength).toFixed(3)}px`);
+    card.style.setProperty("--card-shift-y", `${(localY * 0.8 * interfaceStrength).toFixed(3)}px`);
   }
 
   function createModuleCard(module, options = {}) {
@@ -7977,6 +7998,57 @@
     ctx.drawImage(arenaTextureCanvas, sourceX, sourceY, sourceWidth, sourceHeight, left, top, right - left, bottom - top);
   }
 
+  function drawArenaPlatformDepth() {
+    const strength = Math.min(CAMERA_PSEUDO_3D_STRENGTH_MAX, Math.max(0, worldCamera.projectionStrength));
+    if (strength <= 0.001 || ARENA_PLATFORM_DEPTH_PIXELS <= 0 || !cameraViewTouchesArenaBorder(ARENA_SHADOW_PADDING)) return;
+
+    const topLeft = worldToViewport(arena.left, arena.top, arenaPlatformCorners[0]);
+    const topRight = worldToViewport(arena.right, arena.top, arenaPlatformCorners[1]);
+    const bottomRight = worldToViewport(arena.right, arena.bottom, arenaPlatformCorners[2]);
+    const bottomLeft = worldToViewport(arena.left, arena.bottom, arenaPlatformCorners[3]);
+    const depth = ARENA_PLATFORM_DEPTH_PIXELS * strength;
+    const opacity = ARENA_PLATFORM_SIDE_OPACITY * Math.min(1, strength);
+
+    ctx.save();
+    applyCameraViewportClip();
+    ctx.globalAlpha = opacity;
+    const bottomGradient = ctx.createLinearGradient(0, Math.min(bottomLeft.y, bottomRight.y), 0, Math.max(bottomLeft.y, bottomRight.y) + depth);
+    bottomGradient.addColorStop(0, "#11171b");
+    bottomGradient.addColorStop(1, "#030607");
+    ctx.fillStyle = bottomGradient;
+    ctx.beginPath();
+    ctx.moveTo(bottomLeft.x, bottomLeft.y);
+    ctx.lineTo(bottomRight.x, bottomRight.y);
+    ctx.lineTo(bottomRight.x, bottomRight.y + depth);
+    ctx.lineTo(bottomLeft.x, bottomLeft.y + depth);
+    ctx.closePath();
+    ctx.fill();
+
+    const showLeftSide = worldCamera.axisX < -0.08;
+    const sideTop = showLeftSide ? topLeft : topRight;
+    const sideBottom = showLeftSide ? bottomLeft : bottomRight;
+    const sideOffsetX = (showLeftSide ? -1 : 1) * depth * 0.34;
+    const sideOffsetY = depth * 0.58;
+    ctx.globalAlpha = opacity * 0.82;
+    ctx.fillStyle = showLeftSide ? "#071013" : "#0b0d12";
+    ctx.beginPath();
+    ctx.moveTo(sideTop.x, sideTop.y);
+    ctx.lineTo(sideBottom.x, sideBottom.y);
+    ctx.lineTo(sideBottom.x + sideOffsetX, sideBottom.y + sideOffsetY);
+    ctx.lineTo(sideTop.x + sideOffsetX, sideTop.y + sideOffsetY);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.globalAlpha = opacity * 0.78;
+    ctx.strokeStyle = showLeftSide ? "#f3c600" : "#08c7dc";
+    ctx.lineWidth = Math.max(1, depth * 0.08);
+    ctx.beginPath();
+    ctx.moveTo(bottomLeft.x, bottomLeft.y + depth);
+    ctx.lineTo(bottomRight.x, bottomRight.y + depth);
+    ctx.stroke();
+    ctx.restore();
+  }
+
   function drawBackground(time) {
     if (time - lastAmbientRender >= AMBIENT_RENDER_INTERVAL) renderAmbientLayer(time);
     ctx.drawImage(ambientCanvas, 0, 0, ambientCanvas.width, ambientCanvas.height, 0, 0, width, height);
@@ -8038,6 +8110,7 @@
     }
 
     ctx.restore();
+    drawArenaPlatformDepth();
 
     const mark = Math.max(16, arena.cellSize * 0.8);
     if (!cameraViewTouchesArenaBorder(mark)) return;
@@ -8164,7 +8237,7 @@
   }
 
   function drawShadowBlob(x, y, radius, virtualHeight = 1, alpha = 1) {
-    const presentationStrength = Math.sqrt(Math.max(0, uiMotionStrength));
+    const presentationStrength = Math.min(CAMERA_PSEUDO_3D_STRENGTH_MAX, Math.max(0, pseudo3DStrength));
     if (presentationStrength <= 0.001 || ENTITY_SHADOW_OPACITY <= 0 || radius <= 0 || alpha <= 0) return;
     const safeHeight = Math.max(0, virtualHeight);
     const offset = ENTITY_SHADOW_OFFSET_PIXELS * safeHeight * presentationStrength;
@@ -8197,7 +8270,7 @@
   }
 
   function drawEntityShadows(time) {
-    if (uiMotionStrength <= 0 || ENTITY_SHADOW_OPACITY <= 0) return;
+    if (pseudo3DStrength <= 0 || ENTITY_SHADOW_OPACITY <= 0) return;
     const pieceScale = arenaPieceScale();
 
     for (const food of foods) {
@@ -8274,6 +8347,7 @@
         }
       }
       ctx.translate(food.x, food.y);
+      applyBillboardCompensation();
       ctx.globalAlpha *= 0.2 + birthProgress * 0.8;
       ctx.scale(pulse * birthScale, pulse * birthScale);
       ctx.rotate(Math.PI / 4 + Math.sin(time * 1.6 + food.phase) * 0.08);
@@ -8590,8 +8664,9 @@
   function drawEnemySegment(segment, pieceScale, sprite) {
     ctx.save();
     ctx.translate(segment.x, segment.y);
+    applyBillboardCompensation();
     ctx.scale(pieceScale, pieceScale);
-    ctx.rotate(segment.angle);
+    ctx.rotate(projectedWorldAngle(segment.angle));
     ctx.drawImage(sprite.canvas, -sprite.size / 2, -sprite.size / 2, sprite.size, sprite.size);
     ctx.restore();
   }
@@ -8605,8 +8680,9 @@
     if (reform && reformProgress >= 1) delete enemy.headReform;
     ctx.save();
     ctx.translate(enemy.x, enemy.y);
+    applyBillboardCompensation();
     ctx.scale(pieceScale, pieceScale);
-    ctx.rotate(enemy.angle);
+    ctx.rotate(projectedWorldAngle(enemy.angle));
     if (reform && reformProgress < 1) {
       const eased = 1 - (1 - reformProgress) ** 3;
       const pulse = Math.sin(reformProgress * Math.PI);
@@ -8660,6 +8736,7 @@
           const size = 2.1 * pieceScale * ENEMY_STATUS_PARTICLE_SIZE_SCALE;
           ctx.save();
           ctx.translate(node.x + Math.cos(angle) * radius, node.y + Math.sin(angle) * radius);
+          applyBillboardCompensation();
           ctx.rotate(angle + Math.PI / 4);
           ctx.fillStyle = "rgba(150,238,255,0.96)";
           ctx.fillRect(-size, -size, size * 2, size * 2);
@@ -8671,6 +8748,7 @@
         const sprite = corrosionParticleSprite(enemy.corrosionColor || MODULE_BY_ID.venom.color, radius);
         ctx.save();
         ctx.translate(node.x, node.y);
+        applyBillboardCompensation();
         ctx.rotate(-gameTime * 1.7 + index * 1.618);
         ctx.scale(pieceScale, pieceScale);
         ctx.shadowBlur = 0;
@@ -8726,7 +8804,9 @@
 
     if (!spawning && enemy.captured > 0 && headVisible) {
       ctx.save();
-      ctx.translate(enemy.x, enemy.y - 25 * pieceScale);
+      ctx.translate(enemy.x, enemy.y);
+      applyBillboardCompensation();
+      ctx.translate(0, -25 * pieceScale);
       ctx.scale(pieceScale, pieceScale);
       ctx.fillStyle = "rgba(8, 10, 11, 0.94)";
       ctx.strokeStyle = enemy.color;
@@ -8799,8 +8879,10 @@
     const textWidth = Math.min(maxWidth - textPadding, ctx.measureText(label).width);
     const widthValue = textWidth + textPadding;
     const heightValue = fontSize + 10 * labelScale;
-    const x = target.x - widthValue / 2;
-    const y = target.y - 31 * pieceScale * labelScale - heightValue;
+    ctx.translate(target.x, target.y);
+    applyBillboardCompensation();
+    const x = -widthValue / 2;
+    const y = -31 * pieceScale * labelScale - heightValue;
     ctx.fillStyle = target.isSelf ? "rgba(243,198,0,0.96)" : "rgba(8,11,13,0.9)";
     ctx.strokeStyle = target.isSelf ? "#ffffff" : target.playerColor;
     ctx.lineWidth = (target.isSelf ? 1.4 : 1) * labelScale;
@@ -8815,7 +8897,7 @@
     ctx.fillStyle = target.isSelf ? "#090b0c" : "#f6f7f6";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(label, target.x, y + heightValue / 2 + 0.5 * labelScale, maxWidth - textPadding);
+    ctx.fillText(label, 0, y + heightValue / 2 + 0.5 * labelScale, maxWidth - textPadding);
     ctx.restore();
   }
 
@@ -8826,7 +8908,7 @@
     const totalDuration = RESPAWN_LOCATOR_CONVERGE_DURATION + RESPAWN_LOCATOR_FADE_DURATION;
     if (elapsed >= totalDuration) return;
 
-    const center = worldToScreen(player.x, player.y);
+    const center = worldToViewport(player.x, player.y);
     const pieceScale = arenaPieceScale();
     const finalRadius = 25 * pieceScale;
     const startRadius = Math.max(
@@ -8864,6 +8946,7 @@
     const radius = (target.radius || playerHeadRadiusPixels()) * (0.92 + MULTIPLAYER_GHOST_PULSE_STRENGTH * pulse);
     ctx.save();
     ctx.translate(target.x, target.y);
+    applyBillboardCompensation();
     ctx.rotate(phase * 0.35);
     ctx.globalAlpha = clamp(MULTIPLAYER_GHOST_OPACITY + MULTIPLAYER_GHOST_PULSE_STRENGTH * 2, 0.2, 0.95);
     ctx.strokeStyle = "#bcefff";
@@ -8940,8 +9023,9 @@
         const visualScale = segmentBirthScale(segment) * (1 + growthPulse * 0.46);
         ctx.save();
         ctx.translate(segment.x, segment.y);
+        applyBillboardCompensation();
         ctx.scale(pieceScale * visualScale, pieceScale * visualScale);
-        ctx.rotate(segment.angle);
+        ctx.rotate(projectedWorldAngle(segment.angle));
         if (growthPulse > 0) {
           ctx.shadowColor = activeGrowth.color;
           ctx.shadowBlur = 12 + growthPulse * 10;
@@ -9052,10 +9136,11 @@
     if (headVisible) {
       ctx.save();
       ctx.translate(player.x, player.y);
+      applyBillboardCompensation();
       const headGrowthPulse = growthPulseForNode(0);
       const headScale = 1 + headGrowthPulse * 0.44;
       ctx.scale(pieceScale * headScale, pieceScale * headScale);
-      ctx.rotate(player.angle);
+      ctx.rotate(projectedWorldAngle(player.angle));
       ctx.shadowColor = damageVisual ? "#ff355e" : (headGrowthPulse > 0 ? activeGrowth.color : (player.playerColor || "rgba(243,198,0,0.7)"));
       ctx.shadowBlur = 14 + headGrowthPulse * 9;
       ctx.fillStyle = "#e7e9e8";
@@ -9130,6 +9215,7 @@
       const pulse = 1 + Math.sin(time * 8 + hazard.phase) * 0.12;
       ctx.save();
       ctx.translate(hazard.x, hazard.y);
+      applyBillboardCompensation();
 
       if (hazard.kind === "corrosion") {
         const pulse = 1 + Math.sin(time * 5.5 + hazard.phase) * 0.08;
@@ -9210,6 +9296,7 @@
         const bladeScale = projectile.size / 10;
         ctx.save();
         ctx.translate(projectile.x, projectile.y);
+        applyBillboardCompensation();
         ctx.scale(bladeScale, bladeScale);
         ctx.rotate((projectile.orbitAngle || 0) * 2);
         ctx.shadowColor = projectile.color;
@@ -9246,10 +9333,12 @@
       ctx.lineTo(projectile.x - directionX * trailLength, projectile.y - directionY * trailLength);
       ctx.stroke();
       ctx.globalAlpha = 1;
+      ctx.translate(projectile.x, projectile.y);
+      applyBillboardCompensation();
       ctx.fillStyle = projectile.color;
       ctx.shadowColor = projectile.color;
       ctx.shadowBlur = 9;
-      drawPolygonPath(projectile.x, projectile.y, projectile.size * 1.15, 4, Math.atan2(projectile.vy, projectile.vx));
+      drawPolygonPath(0, 0, projectile.size * 1.15, 4, projectedWorldAngle(Math.atan2(projectile.vy, projectile.vx)));
       ctx.fill();
       ctx.restore();
     }
@@ -9624,6 +9713,8 @@
   }, { passive: true });
 
   window.addEventListener("keydown", (event) => {
+    const rangeInputActive = event.target instanceof HTMLInputElement && event.target.type === "range";
+    if (rangeInputActive && ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Home", "End", "PageUp", "PageDown"].includes(event.code)) return;
     if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"].includes(event.code)) event.preventDefault();
     if (event.code === "KeyA" && !event.altKey && !event.ctrlKey && !event.metaKey && !isTextEntryTarget(event.target)) {
       event.preventDefault();
@@ -9850,7 +9941,7 @@
     ensureAudio();
     sound("ui");
   });
-  ui.motionSlider.addEventListener("input", () => applyUIMotionStrength(Number(ui.motionSlider.value) / 100));
+  ui.motionSlider.addEventListener("input", () => applyPseudo3DStrength(Number(ui.motionSlider.value) / 100));
   ui.motionSlider.addEventListener("change", () => {
     ensureAudio();
     sound("ui");
@@ -9897,7 +9988,7 @@
 
   applyFontScale(fontScale, false);
   applySoundVolume(soundVolume, false);
-  applyUIMotionStrength(uiMotionStrength, false);
+  applyPseudo3DStrength(pseudo3DStrength, false);
   applyFollowCameraZoom(followCameraZoom, false);
   applyCameraMode(cameraMode, false);
   applyScreenShake(screenShakeEnabled, false);

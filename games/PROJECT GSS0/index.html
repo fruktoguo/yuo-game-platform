@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0b0d0f">
   <meta name="description" content="代号：几何贪吃蛇 - 单人及多人共享世界肉鸽贪吃蛇战斗游戏">
   <title>代号：几何贪吃蛇</title>
-  <link rel="stylesheet" href="styles.css?v=137">
+  <link rel="stylesheet" href="styles.css?v=138">
 </head>
 <body>
   <main id="game-shell" aria-label="代号：几何贪吃蛇 游戏区域">
@@ -19,7 +19,7 @@
           <strong>代号：几何贪吃蛇</strong>
         </div>
         <span class="signature">by 四季鸽</span>
-        <span class="brand-version" aria-label="游戏版本 V137">V137</span>
+        <span class="brand-version" aria-label="游戏版本 V138">V138</span>
       </div>
 
       <div class="run-stats">
@@ -72,7 +72,7 @@
           </button>
           <div id="motion-popover" class="setting-popover" role="group" aria-label="伪3D强度" aria-hidden="true">
             <div class="setting-heading"><span>伪3D强度</span><output id="motion-output" for="motion-slider">100%</output></div>
-            <input id="motion-slider" type="range" min="0" max="300" step="25" value="100" aria-label="伪3D强度百分比">
+            <input id="motion-slider" type="range" min="0" max="150" step="10" value="100" aria-label="伪3D强度百分比">
           </div>
         </div>
         <div class="setting-control" data-tooltip="摄像机 跟随蛇头">
@@ -201,7 +201,7 @@
 
     <section id="start-screen" class="modal-layer start-screen is-visible" aria-labelledby="game-title">
       <div class="start-glow" aria-hidden="true"></div>
-          <div class="start-version" aria-label="游戏版本 V137"><span>BUILD</span><strong>V137</strong></div>
+          <div class="start-version" aria-label="游戏版本 V138"><span>BUILD</span><strong>V138</strong></div>
       <div class="start-layout">
         <div class="start-content">
           <div id="network-status" class="title-kicker">TACTICAL SURVIVAL / LOCAL</div>
@@ -383,6 +383,21 @@
           <button id="changelog-close-button" class="icon-button codex-close-button" type="button" aria-label="关闭更新日志" title="关闭更新日志">×</button>
         </header>
         <div class="changelog-list">
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V138</strong></div>
+              <time datetime="2026-08-02">2026.08.02</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">视觉修复</span>
+              <h3>伪3D舞台重构与可玩性修复</h3>
+              <ul>
+                <li>移除会把整张战场压成剧烈梯形的随瞄准项目投影，摄像机改为稳定浅俯视；瞄准只产生受限偏航、轻微侧倾与前视，最高强度仍保持平行边和正常操控。</li>
+                <li>场地边缘新增代码绘制的暗色悬浮平台侧壁与底沿高光，玩家、敌蛇、球、地雷和投射物使用逆矩阵保持正对屏幕，立体感不再依赖扭曲实体。</li>
+                <li>落地阴影按推荐浅伪3D重新校准，并将伪3D设置迁移到独立的0–150%安全范围；旧版300%动态透视记录不会继续污染摄像机。</li>
+              </ul>
+            </div>
+          </article>
           <article class="changelog-entry">
             <header>
               <div class="changelog-version"><span>BUILD</span><strong>V137</strong></div>
@@ -2190,23 +2205,23 @@
     </section>
   </main>
 
-  <script src="designer-config.js?v=137"></script>
-  <script src="status-catalog.js?v=137"></script>
-  <script src="module-catalog.js?v=137"></script>
-  <script src="module-progression.js?v=137"></script>
-  <script src="wave-director.js?v=137"></script>
-  <script src="spawn-planner.js?v=137"></script>
-  <script src="network-codec.js?v=137"></script>
-  <script src="network-player-prediction.js?v=137"></script>
-  <script src="network-player-state-codec.js?v=137"></script>
-  <script src="network-player-collisions.js?v=137"></script>
-  <script src="network-head-collisions.js?v=137"></script>
-  <script src="network-food-claims.js?v=137"></script>
-  <script src="network-projectiles.js?v=137"></script>
-  <script src="lobby-navigation.js?v=137"></script>
-  <script src="enemy-codex.js?v=137"></script>
-  <script src="camera-projection.js?v=137"></script>
-  <script type="module" src="src/client/p2p/bootstrap.ts?v=137"></script>
-  <script src="game.js?v=137"></script>
+  <script src="designer-config.js?v=138"></script>
+  <script src="status-catalog.js?v=138"></script>
+  <script src="module-catalog.js?v=138"></script>
+  <script src="module-progression.js?v=138"></script>
+  <script src="wave-director.js?v=138"></script>
+  <script src="spawn-planner.js?v=138"></script>
+  <script src="network-codec.js?v=138"></script>
+  <script src="network-player-prediction.js?v=138"></script>
+  <script src="network-player-state-codec.js?v=138"></script>
+  <script src="network-player-collisions.js?v=138"></script>
+  <script src="network-head-collisions.js?v=138"></script>
+  <script src="network-food-claims.js?v=138"></script>
+  <script src="network-projectiles.js?v=138"></script>
+  <script src="lobby-navigation.js?v=138"></script>
+  <script src="enemy-codex.js?v=138"></script>
+  <script src="camera-projection.js?v=138"></script>
+  <script type="module" src="src/client/p2p/bootstrap.ts?v=138"></script>
+  <script src="game.js?v=138"></script>
 </body>
 </html>
