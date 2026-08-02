@@ -14,7 +14,7 @@ import type {
 } from './protocol';
 
 const MAGIC = 0x5553_4e50;
-export const SNAPSHOT_PROTOCOL_VERSION = 20;
+export const SNAPSHOT_PROTOCOL_VERSION = 21;
 const COORDINATE_SCALE = 65_535;
 const COORDINATE_PADDING = 2;
 const VELOCITY_SCALE = 64;
@@ -156,9 +156,8 @@ function writeSegment(writer: BinaryWriter, segment: UltraSegment, arenaSize: nu
   if (segment.module && !moduleIndex) throw new Error(`无法编码未知模块：${segment.module}`);
   const hasCooldown = (segment.module === 'shield' || segment.module === 'phase') && !segment.ready;
   writer.u8(moduleIndex ?? 0);
-  writer.u8(Number(segment.neutral) | Number(segment.ready) << 1 | Number(hasCooldown) << 3 | Number(segment.tailGuard) << 4);
+  writer.u8(Number(segment.storage) | Number(segment.ready) << 1 | Number(hasCooldown) << 3 | Number(segment.tailGuard) << 4);
   writer.u16(Math.max(0, Math.min(65_535, Math.round(segment.moduleLevel))));
-  writer.u8(Math.max(0, Math.min(2, Math.round(segment.experienceTier))));
   writeCoordinate(writer, segment.col, arenaSize); writeCoordinate(writer, segment.row, arenaSize);
   if (hasCooldown) writer.f32(segment.cooldown);
 }
@@ -171,9 +170,8 @@ function readSegment(reader: BinaryReader, arenaSize: number): UltraSegment {
   const segment: UltraSegment = {
     module,
     moduleLevel: reader.u16(),
-    neutral: Boolean(flags & 1),
+    storage: Boolean(flags & 1),
     tailGuard: Boolean(flags & 16),
-    experienceTier: reader.u8(),
     ready: Boolean(flags & 2),
     col: readCoordinate(reader, arenaSize), row: readCoordinate(reader, arenaSize), angle: 0,
     timer: 0, cooldown: 0, orbit: 0,
@@ -185,7 +183,7 @@ function readSegment(reader: BinaryReader, arenaSize: number): UltraSegment {
 
 function writeGrowth(writer: BinaryWriter, growth: GrowthView): void {
   writer.color(growth.color);
-  writer.u8(Number(growth.special) | Number(growth.spawnTailFood) << 1);
+  writer.u8(Number(growth.special));
   writer.f32(growth.elapsed);
   writer.u16(growth.nodeCount);
 }
@@ -193,7 +191,7 @@ function writeGrowth(writer: BinaryWriter, growth: GrowthView): void {
 function readGrowth(reader: BinaryReader): GrowthView {
   const color = reader.color();
   const flags = reader.u8();
-  return { color, special: Boolean(flags & 1), spawnTailFood: Boolean(flags & 2), elapsed: reader.f32(), nodeCount: reader.u16() };
+  return { color, special: Boolean(flags & 1), elapsed: reader.f32(), nodeCount: reader.u16() };
 }
 
 function writeEnemy(writer: BinaryWriter, enemy: UltraEnemyView, arenaSize: number): void {

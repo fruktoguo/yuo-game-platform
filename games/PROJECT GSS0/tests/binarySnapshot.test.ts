@@ -9,11 +9,10 @@ describe('Ultra 二进制快照', () => {
     snapshot.players[0].name = '联机玩家甲';
     snapshot.players[0].segments[0].module = 'spark';
     snapshot.players[0].segments[0].moduleLevel = 4;
-    snapshot.players[0].segments[0].neutral = false;
-    snapshot.players[0].segments[0].experienceTier = 0;
+    snapshot.players[0].segments[0].storage = false;
     snapshot.players[0].segments[0].birthAge = 0.12;
     snapshot.players[0].segments.push({ ...snapshot.players[0].segments[0], col: 7.5, module: 'levelheal', orbit: 1.25 });
-    snapshot.players[0].growth = { color: '#b8f53f', special: true, spawnTailFood: true, elapsed: 0.18, nodeCount: 3 };
+    snapshot.players[0].growth = { color: '#b8f53f', special: true, elapsed: 0.18, nodeCount: 3 };
     snapshot.foods.push({ id: 9, col: 2.5, row: 3.5, color: '#36dcff', phase: 1.2, special: true, isPulled: true });
     snapshot.projectiles.push({ id: 7, ownerEntityId: 1, kind: 'blade', col: 4, row: 5, vx: 6, vy: -7, color: '#ff9f43', size: 4.5 });
     snapshot.hazards.push({ id: 3, ownerEntityId: 1, kind: 'gravity', col: 9, row: 10, radius: 2.5, color: '#a56cff', phase: 0.7, arm: 0 });
@@ -27,7 +26,7 @@ describe('Ultra 二进制快照', () => {
     expect(encoded.byteLength).toBeLessThan(Buffer.byteLength(JSON.stringify(snapshot)));
     expect(decoded).toMatchObject({ tick: 42, waveCount: 1, players: [{ name: '联机玩家甲' }] });
     expect(decoded.players[0]).toMatchObject({ ghost: true, lastInputSequence: 3, speed: 5, knockbackX: 0, knockbackY: 0 });
-    expect(decoded.players[0].segments[0]).toMatchObject({ module: 'spark', moduleLevel: 4, neutral: false, experienceTier: 0 });
+    expect(decoded.players[0].segments[0]).toMatchObject({ module: 'spark', moduleLevel: 4, storage: false });
     expect(decoded.players[0].segments[0].birthAge).toBeNull();
     expect(decoded.players[0].segments[1]).toMatchObject({ module: 'levelheal', orbit: 0 });
     expect(decoded.players[0].growth?.elapsed).toBeCloseTo(0.18, 5);
@@ -139,7 +138,7 @@ function snapshotAt(tick: number, col: number): UltraSnapshot {
       col, row: 5, angle: 0, desiredAngle: 0, lastInputSequence: 3, speed: 5, slow: 0, foodBoost: 0, knockbackX: 0, knockbackY: 0, invulnerable: 0, collisionCooldown: 0, health: 24, maxHealth: 30, shieldCharges: 2,
       score: 0, kills: 0, botKills: 0, pvpKills: 0, survivalTime: 1, level: 0, xp: 0, xpNeeded: 5,
       respawnAt: null,
-      segments: [{ col: col - 1, row: 5, angle: 0, module: null, moduleLevel: 0, neutral: true, tailGuard: false, experienceTier: 2, timer: 0, ready: true, cooldown: 0, orbit: 0, birthAge: null }],
+      segments: [{ col: col - 1, row: 5, angle: 0, module: null, moduleLevel: 0, storage: true, tailGuard: false, timer: 0, ready: true, cooldown: 0, orbit: 0, birthAge: null }],
       growth: null,
     }],
     enemies: [{ id: 1, archetype: 'forager', behaviorState: 'forage', behaviorPhase: 0, col: col + 2, row: 6, angle: 0, color: '#ff5c62', captured: 0, frostStacks: 0, corrosionStacks: 0, burnStacks: 0, segments: [{ col: col + 1, row: 6 }] }],

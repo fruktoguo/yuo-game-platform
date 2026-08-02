@@ -12,7 +12,7 @@ interface DesignerConfigSource {
 }
 
 const source = (globalThis as typeof globalThis & { GSS0_DESIGNER_CONFIG?: DesignerConfigSource }).GSS0_DESIGNER_CONFIG;
-if (source?.schemaVersion !== 47) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 47');
+if (source?.schemaVersion !== 48) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 48');
 
 function numberSetting(key: string, fallback: number, minimum: number, maximum: number, integer = false): number {
   const candidate = source?.balance?.[key];
@@ -59,9 +59,7 @@ export const DESIGNER_BALANCE = Object.freeze({
   playerKnockbackRearCorrectionAngleDegrees: numberSetting('playerKnockbackRearCorrectionAngleDegrees', 150, 90, 180),
   playerCollisionDamage: numberSetting('playerCollisionDamage', 1, 0, 1_000, true),
   enemyCollisionDamage: numberSetting('enemyCollisionDamage', 1, 0, 1_000, true),
-  xpRequirementBase: numberSetting('xpRequirementBase', 5, 1, 100, true),
-  xpRequirementPerLevel: numberSetting('xpRequirementPerLevel', 2, 0, 20, true),
-  experienceCompressionBase: numberSetting('experienceCompressionBase', 5, 2, 10, true),
+  xpRequirementPerTargetLevel: numberSetting('xpRequirementPerTargetLevel', 5, 1, 1_000, true),
   maxModuleLevel: numberSetting('maxModuleLevel', 5, 1, 20, true),
   initialModuleSlots: numberSetting('initialModuleSlots', 5, 1, 20, true),
   moduleSlotUnlockLevel1: numberSetting('moduleSlotUnlockLevel1', 8, 1, 100, true),
@@ -302,12 +300,6 @@ export const DESIGNER_BALANCE = Object.freeze({
   enemyDeathBodyParticleSpeed: numberSetting('enemyDeathBodyParticleSpeed', 105, 10, 400),
   enemyBodyReconnectDuration: numberSetting('enemyBodyReconnectDuration', 0.28, 0.05, 2),
   enemyHeadReformDuration: numberSetting('enemyHeadReformDuration', 0.42, 0.05, 2),
-  experienceCompressionDuration: numberSetting('experienceCompressionDuration', 0.42, 0.05, 3),
-  experienceCompressionCascadeDelay: numberSetting('experienceCompressionCascadeDelay', 0.18, 0, 2),
-  experienceCompressionGrayParticles: numberSetting('experienceCompressionGrayParticles', 24, 1, 100, true),
-  experienceCompressionGoldParticles: numberSetting('experienceCompressionGoldParticles', 42, 1, 160, true),
-  experienceCompressionGrayShake: numberSetting('experienceCompressionGrayShake', 1.8, 0, 12),
-  experienceCompressionGoldShake: numberSetting('experienceCompressionGoldShake', 5.2, 0, 16),
   profileSaveDelaySeconds: numberSetting('profileSaveDelaySeconds', 30, 1, 300),
 });
 

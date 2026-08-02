@@ -34,9 +34,7 @@ describe('设计配置', () => {
       playerKnockbackRearCorrectionAngleDegrees: 150,
       playerCollisionDamage: 1,
       enemyCollisionDamage: 1,
-      xpRequirementBase: 5,
-      xpRequirementPerLevel: 2,
-      experienceCompressionBase: 5,
+      xpRequirementPerTargetLevel: 5,
       initialModuleSlots: 5,
       moduleSlotUnlockLevel1: 8,
       moduleSlotUnlockLevel2: 12,
@@ -196,8 +194,6 @@ describe('设计配置', () => {
       enemyDeathBodyParticleSpeed: 105,
       enemyBodyReconnectDuration: 0.28,
       enemyHeadReformDuration: 0.42,
-      experienceCompressionDuration: 0.42,
-      experienceCompressionCascadeDelay: 0.18,
       profileSaveDelaySeconds: 30,
     });
     expect(DESIGNER_WAVE_ENEMY_COUNT_SCHEDULE).toEqual([
@@ -210,10 +206,10 @@ describe('设计配置', () => {
     ]);
   });
 
-  it('升级经验需求按基础值与当前等级线性增长', () => {
+  it('升级经验需求等于目标等级的五倍', () => {
     expect(experienceRequiredForLevel(0)).toBe(5);
-    expect(experienceRequiredForLevel(1)).toBe(7);
-    expect(experienceRequiredForLevel(2)).toBe(9);
+    expect(experienceRequiredForLevel(1)).toBe(10);
+    expect(experienceRequiredForLevel(2)).toBe(15);
   });
 
   it('主动技能使用公共基础冷却与独立百分比', () => {
@@ -265,8 +261,8 @@ describe('设计配置', () => {
 
     expect(parameterKeys.sort()).toEqual(Object.keys(DESIGNER_BALANCE).sort());
     expect(moduleIds.sort()).toEqual(MODULES.map((module) => module.id).sort());
-    expect(moduleProgressionSource).toContain('config?.schemaVersion !== 47');
-    expect(new Set(parameterKeys).size).toBe(262);
+    expect(moduleProgressionSource).toContain('config?.schemaVersion !== 48');
+    expect(new Set(parameterKeys).size).toBe(254);
     expect(parameterKeys).not.toContain('playerSpeedPerLevel');
     expect(parameterKeys).not.toContain('moduleEffectReductionMaximum');
     expect(parameterKeys).not.toContain('newModuleOfferChance');
@@ -305,8 +301,8 @@ describe('设计配置', () => {
     expect(MODULES.some((module) => ['输出', '进攻', '防御', '恢复'].includes(module.category as string))).toBe(false);
     expect(MODULES.every((module) => ['攻击', '生存', '辅助', '发育'].includes(module.category))).toBe(true);
     expect(MODULES.filter((module) => module.category === '发育')).toHaveLength(9);
-    expect(editorHtml).toContain('src="module-catalog.js?v=141"');
-    expect(editorHtml).toContain('src="module-progression.js?v=141"');
+    expect(editorHtml).toContain('src="module-catalog.js?v=142"');
+    expect(editorHtml).toContain('src="module-progression.js?v=142"');
     expect(editorHtml).toContain('const MODULES = moduleCatalog;');
     expect(editorHtml).toContain('descriptionText.textContent = describeModule(module.id, draft.balance);');
     expect(editorHtml).toContain('descriptionNote.textContent = describeModuleNote(module.id, draft.balance);');

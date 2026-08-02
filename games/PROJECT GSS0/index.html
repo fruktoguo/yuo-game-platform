@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0b0d0f">
   <meta name="description" content="代号：几何贪吃蛇 - 单人及多人共享世界肉鸽贪吃蛇战斗游戏">
   <title>代号：几何贪吃蛇</title>
-  <link rel="stylesheet" href="styles.css?v=141">
+  <link rel="stylesheet" href="styles.css?v=142">
 </head>
 <body>
   <main id="game-shell" aria-label="代号：几何贪吃蛇 游戏区域">
@@ -19,7 +19,7 @@
           <strong>代号：几何贪吃蛇</strong>
         </div>
         <span class="signature">by 四季鸽</span>
-        <span class="brand-version" aria-label="游戏版本 V141">V141</span>
+        <span class="brand-version" aria-label="游戏版本 V142">V142</span>
       </div>
 
       <div class="run-stats">
@@ -189,7 +189,6 @@
           </div>
           <div class="xp-track" aria-hidden="true">
             <div id="xp-fill" class="xp-fill"></div>
-            <div id="xp-pips" class="xp-pips"></div>
           </div>
         </div>
       </div>
@@ -201,7 +200,7 @@
 
     <section id="start-screen" class="modal-layer start-screen is-visible" aria-labelledby="game-title">
       <div class="start-glow" aria-hidden="true"></div>
-          <div class="start-version" aria-label="游戏版本 V141"><span>BUILD</span><strong>V141</strong></div>
+          <div class="start-version" aria-label="游戏版本 V142"><span>BUILD</span><strong>V142</strong></div>
       <div class="start-layout">
         <div class="start-content">
           <div id="network-status" class="title-kicker">TACTICAL SURVIVAL / LOCAL</div>
@@ -383,6 +382,22 @@
           <button id="changelog-close-button" class="icon-button codex-close-button" type="button" aria-label="关闭更新日志" title="关闭更新日志">×</button>
         </header>
         <div class="changelog-list">
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V142</strong></div>
+              <time datetime="2026-08-03">2026.08.03</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">成长重构</span>
+              <h3>经验储能节重构</h3>
+              <ul>
+                <li>玩家升级需求调整为目标等级的五倍，并保留升级时的溢出经验。</li>
+                <li>经验不再生成或压缩尾部经验机体，改由永久位于末端的储能节显示当前升级进度。</li>
+                <li>吃球数值结算与机体脉冲动画解耦，高频拾取会合并待播动画且不再延迟升级。</li>
+                <li>储能节不占机体槽、不可升级或替换，并作为实体身体参与敌人碰撞。</li>
+              </ul>
+            </div>
+          </article>
           <article class="changelog-entry">
             <header>
               <div class="changelog-version"><span>BUILD</span><strong>V141</strong></div>
@@ -2250,23 +2265,23 @@
     </section>
   </main>
 
-  <script src="designer-config.js?v=141"></script>
-  <script src="status-catalog.js?v=141"></script>
-  <script src="module-catalog.js?v=141"></script>
-  <script src="module-progression.js?v=141"></script>
-  <script src="wave-director.js?v=141"></script>
-  <script src="spawn-planner.js?v=141"></script>
-  <script src="network-codec.js?v=141"></script>
-  <script src="network-player-prediction.js?v=141"></script>
-  <script src="network-player-state-codec.js?v=141"></script>
-  <script src="network-player-collisions.js?v=141"></script>
-  <script src="network-head-collisions.js?v=141"></script>
-  <script src="network-food-claims.js?v=141"></script>
-  <script src="network-projectiles.js?v=141"></script>
-  <script src="lobby-navigation.js?v=141"></script>
-  <script src="enemy-codex.js?v=141"></script>
-  <script src="camera-projection.js?v=141"></script>
-  <script type="module" src="src/client/p2p/bootstrap.ts?v=141"></script>
-  <script src="game.js?v=141"></script>
+  <script src="designer-config.js?v=142"></script>
+  <script src="status-catalog.js?v=142"></script>
+  <script src="module-catalog.js?v=142"></script>
+  <script src="module-progression.js?v=142"></script>
+  <script src="wave-director.js?v=142"></script>
+  <script src="spawn-planner.js?v=142"></script>
+  <script src="network-codec.js?v=142"></script>
+  <script src="network-player-prediction.js?v=142"></script>
+  <script src="network-player-state-codec.js?v=142"></script>
+  <script src="network-player-collisions.js?v=142"></script>
+  <script src="network-head-collisions.js?v=142"></script>
+  <script src="network-food-claims.js?v=142"></script>
+  <script src="network-projectiles.js?v=142"></script>
+  <script src="lobby-navigation.js?v=142"></script>
+  <script src="enemy-codex.js?v=142"></script>
+  <script src="camera-projection.js?v=142"></script>
+  <script type="module" src="src/client/p2p/bootstrap.ts?v=142"></script>
+  <script src="game.js?v=142"></script>
 </body>
 </html>

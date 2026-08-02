@@ -3,8 +3,6 @@ import type { GSS0ModuleCatalogEntry, GSS0ModuleId } from './module-catalog.js';
 export interface GSS0ProgressionSegment {
   module?: GSS0ModuleId | null;
   moduleLevel?: number;
-  neutral?: boolean;
-  experienceTier?: number;
 }
 
 export interface GSS0UpgradePreview {
@@ -23,14 +21,10 @@ export interface GSS0ModuleCurrentEffect {
 
 export interface GSS0ModuleProgressionApi {
   readonly maxModuleLevel: number;
-  readonly experienceTiers: readonly { readonly tier: number; readonly value: number; readonly color: string; readonly accent: string; readonly name: string }[];
   readonly effects: Record<string, (...args: number[]) => number>;
   moduleLevelsFromSegments(segments: readonly GSS0ProgressionSegment[]): Record<string, number>;
   moduleSlotCapacity(playerLevel: number): number;
   activeCooldownSeconds(moduleId: GSS0ModuleId, level?: number, cooldownRateBonus?: number): number;
-  experienceTier(tier: number): { readonly tier: number; readonly value: number; readonly color: string; readonly accent: string; readonly name: string };
-  experienceValue(tier: number): number;
-  findCompressionIndexes(segments: readonly GSS0ProgressionSegment[], tier: number): number[];
   rollLinearRewards(amount: number, random?: () => number): number;
   levelUpHealAmount(maximumHealth: number, moduleLevel: number, firstAcquisition?: boolean): number;
   moduleCurrentEffect(moduleId: GSS0ModuleId, level?: number): GSS0ModuleCurrentEffect;

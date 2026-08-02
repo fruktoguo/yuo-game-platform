@@ -10,8 +10,7 @@ import {
   ENEMY_THREAT_GROWTH_PER_WAVE,
   ENEMY_THREAT_TIME_COEFFICIENT,
   FOODS_PER_PLAYER_PER_WAVE,
-  XP_REQUIREMENT_BASE,
-  XP_REQUIREMENT_PER_LEVEL,
+  XP_REQUIREMENT_PER_TARGET_LEVEL,
 } from './constants';
 import { DESIGNER_WAVE_ENEMY_COUNT_SCHEDULE } from './designerConfig';
 
@@ -68,7 +67,6 @@ export const enemyWaveDirector = api.create({
   speedGrowthPerWave: ENEMY_SPEED_GROWTH_PER_WAVE,
   speedMaxMultiplier: ENEMY_SPEED_MAX_MULTIPLIER,
   foodExperiencePerWave: FOODS_PER_PLAYER_PER_WAVE,
-  xpRequirementBase: XP_REQUIREMENT_BASE,
-  xpRequirementPerLevel: XP_REQUIREMENT_PER_LEVEL,
+  xpRequirementPerTargetLevel: XP_REQUIREMENT_PER_TARGET_LEVEL,
   healthWeightVariation: ENEMY_HEALTH_WEIGHT_VARIATION,
 });

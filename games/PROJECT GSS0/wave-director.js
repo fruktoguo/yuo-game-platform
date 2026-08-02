@@ -35,8 +35,7 @@
     const speedGrowthPerWave = finiteNumber(options.speedGrowthPerWave, 0.01, 0, 0.1);
     const speedMaxMultiplier = finiteNumber(options.speedMaxMultiplier, 2, 1, 100);
     const foodExperiencePerWave = Math.round(finiteNumber(options.foodExperiencePerWave, 2, 0, 1000));
-    const xpRequirementBase = positiveInteger(options.xpRequirementBase, 5, 100000);
-    const xpRequirementPerLevel = Math.round(finiteNumber(options.xpRequirementPerLevel, 2, 0, 100000));
+    const xpRequirementPerTargetLevel = positiveInteger(options.xpRequirementPerTargetLevel, 5, 100000);
     const healthWeightVariation = finiteNumber(options.healthWeightVariation, 0.25, 0, 1);
     const experienceBeforeWaveCache = [0, 0];
     let cachedThroughWave = 0;
@@ -83,8 +82,8 @@
     function expectedLevelForExperience(experience) {
       let remaining = Math.max(0, Math.floor(finiteNumber(experience, 0)));
       let level = 0;
-      while (remaining >= xpRequirementBase + level * xpRequirementPerLevel) {
-        remaining -= xpRequirementBase + level * xpRequirementPerLevel;
+      while (remaining >= xpRequirementPerTargetLevel * (level + 1)) {
+        remaining -= xpRequirementPerTargetLevel * (level + 1);
         level += 1;
       }
       return level;

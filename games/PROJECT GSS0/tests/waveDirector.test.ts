@@ -8,29 +8,30 @@ const serverSource = readFileSync(new URL('../src/server/UltraWorld.ts', import.
 describe('敌人波次导演', () => {
   it('固定波次边界、高压波和预期经验遵循正式曲线', () => {
     const expected = [
-      [1, 1, 0],
-      [5, 2, 12],
-      [10, 2, 28],
-      [11, 2, 32],
-      [30, 4, 114],
-      [31, 3, 120],
-      [90, 8, 482],
-      [91, 4, 492],
-      [95, 8, 516],
-      [100, 8, 550],
+      [1, 1, 0, 0],
+      [5, 2, 12, 1],
+      [10, 2, 28, 2],
+      [11, 2, 32, 3],
+      [30, 4, 114, 6],
+      [31, 3, 120, 6],
+      [90, 8, 482, 13],
+      [91, 4, 492, 13],
+      [95, 8, 516, 13],
+      [100, 8, 550, 14],
     ];
-    for (const [wave, enemyCount, experience] of expected) {
+    for (const [wave, enemyCount, experience, expectedLevel] of expected) {
       const plan = enemyWaveDirector.plan(wave);
       expect(plan.enemyCount).toBe(enemyCount);
       expect(plan.expectedExperience).toBe(experience);
+      expect(plan.expectedLevel).toBe(expectedLevel);
     }
     expect(enemyWaveDirector.experienceBeforeWave(101)).toBe(560);
   });
 
   it('第1波与第100波威胁值匹配验收口径', () => {
     expect(enemyWaveDirector.plan(1)).toMatchObject({ expectedLevel: 0, expectedDps: 1 / 6, totalThreat: 0.75 });
-    expect(enemyWaveDirector.plan(100)).toMatchObject({ expectedLevel: 21, expectedExperience: 550, enemyCount: 8 });
-    expect(enemyWaveDirector.plan(100).totalThreat).toBeCloseTo(65.67, 8);
+    expect(enemyWaveDirector.plan(100)).toMatchObject({ expectedLevel: 14, expectedExperience: 550, enemyCount: 8 });
+    expect(enemyWaveDirector.plan(100).totalThreat).toBeCloseTo(44.775, 8);
   });
 
   it('按波次同步提高敌人的移动速度与转向速率', () => {

@@ -155,7 +155,7 @@ interface PlayerEntity extends UltraPlayerView {
   lastManualStateAt: number;
   movementHistory: PlayerMovementSample[];
   recentPicks: ModuleId[];
-  growthQueue: Array<{ color: string; special: boolean; spawnTailFood: boolean }>;
+  growthQueue: Array<{ color: string; special: boolean }>;
   upgradePending: boolean;
   upgradeRevealTimer: number;
   upgradeOffer: UpgradeOffer | null;
@@ -1274,7 +1274,12 @@ export class UltraWorld {
     player.xp = 0;
     player.xpNeeded = experienceRequiredForLevel(0);
     player.respawnAt = null;
-    player.segments = [];
+    player.segments = [makeSegment(
+      spawn.col - SNAKE_SEGMENT_SPACING,
+      spawn.row,
+      { storage: true },
+      this.randomSource,
+    )];
     player.recentPicks = [];
     player.growth = null;
     player.growthQueue = [];
@@ -1667,31 +1672,41 @@ export class UltraWorld {
     if (player.upgradePending && player.upgradeRevealTimer > 0) {
       player.upgradeRevealTimer -= realDelta;
       if (player.upgradeRevealTimer <= 0) this.offerUpgrade(player, now);
-      return;
     }
     if (!player.growth && player.growthQueue.length > 0) {
       player.growth = { ...player.growthQueue.shift()!, elapsed: 0, nodeCount: player.segments.length + 1 };
     }
     if (!player.growth) return;
+    player.growth.nodeCount = Math.max(player.growth.nodeCount, player.segments.length + 1);
     player.growth.elapsed += delta;
     const totalDuration = (player.growth.nodeCount - 1) * GROWTH_NODE_DELAY + GROWTH_PULSE_DURATION;
     if (player.growth.elapsed < totalDuration) return;
     const completed = player.growth;
-    const tail = player.segments.at(-1) ?? player;
-    player.segments.push(makeSegment(tail.col, tail.row, { neutral: true, experienceTier: 0 }, this.randomSource));
-    this.compressExperienceSegments(player);
-    this.burst(tail.col, tail.row, completed.color, completed.special ? 28 : 22, completed.special ? 175 : 145, player.entityId);
-    this.burst(tail.col, tail.row, '#eef5ff', completed.special ? 18 : 12, completed.special ? 135 : 105, player.entityId);
-    this.ring(tail.col, tail.row, completed.color, 0.46, 3, 0.78, player.entityId);
-    this.ring(tail.col, tail.row, '#ffffff', 0.28, 2, 0.46, player.entityId);
-    if (completed.spawnTailFood) this.spawnFoodBehindTail(player);
+    const storage = energyStorageSegment(player) ?? (player.segments.at(-1) ?? player);
+    this.burst(storage.col, storage.row, completed.color, completed.special ? 28 : 22, completed.special ? 175 : 145, player.entityId);
+    this.burst(storage.col, storage.row, '#eef5ff', completed.special ? 18 : 12, completed.special ? 135 : 105, player.entityId);
+    this.ring(storage.col, storage.row, completed.color, 0.46, 3, 0.78, player.entityId);
+    this.ring(storage.col, storage.row, '#ffffff', 0.28, 2, 0.46, player.entityId);
     this.feedback(completed.special ? 'growth-special' : 'growth', player.entityId);
     player.growth = null;
     if (player.growthQueue.length > 0) {
       player.growth = { ...player.growthQueue.shift()!, elapsed: 0, nodeCount: player.segments.length + 1 };
-    } else if (player.upgradePending) {
-      this.startLevelUpTransition(player);
     }
+  }
+
+  private queuePlayerGrowthAnimation(player: PlayerEntity, color: string, special: boolean): void {
+    if (!player.growth) {
+      player.growth = { color, special, elapsed: 0, nodeCount: player.segments.length + 1 };
+      return;
+    }
+    const queued = player.growthQueue[0];
+    if (queued) {
+      queued.color = color;
+      queued.special ||= special;
+      player.growthQueue.length = 1;
+      return;
+    }
+    player.growthQueue.push({ color, special });
   }
 
   private spawnFoodBehindTail(player: PlayerEntity): void {
@@ -1700,66 +1715,6 @@ export class UltraWorld {
     const angle = Math.atan2(tail.row - previous.row, tail.col - previous.col);
     this.spawnFood({ col: tail.col + Math.cos(angle) * 1.2, row: tail.row + Math.sin(angle) * 1.2 }, true);
     this.ring(tail.col, tail.row, MODULE_BY_ID.replicator.color, 0.48, 3, 0.9, player.entityId);
-  }
-
-  private compressExperienceSegments(player: PlayerEntity, animate = true): number {
-    let cascade = 0;
-    for (let tier = 0; tier < MODULE_PROGRESSION.experienceTiers.length - 1; tier += 1) {
-      while (true) {
-        const indexes = MODULE_PROGRESSION.findCompressionIndexes(player.segments, tier);
-        if (indexes.length === 0) break;
-        const sources = indexes.map((index) => player.segments[index]);
-        const insertionIndex = indexes[0];
-        for (let index = indexes.length - 1; index >= 0; index -= 1) player.segments.splice(indexes[index], 1);
-        const target = sources[0] ?? (player.segments.at(-1) ?? player);
-        const compressed = makeSegment(target.col, target.row, {
-          neutral: true,
-          experienceTier: tier + 1,
-          birthAge: animate ? 0 : null,
-        }, this.randomSource);
-        player.segments.splice(Math.min(insertionIndex, player.segments.length), 0, compressed);
-        if (animate) {
-          this.pendingEffects.push({
-            id: this.effectId(),
-            type: 'experienceCompress',
-            sources: sources.map((segment) => ({ col: segment.col, row: segment.row })),
-            target: { col: compressed.col, row: compressed.row },
-            fromTier: tier,
-            toTier: tier + 1,
-            delay: cascade * DESIGNER_BALANCE.experienceCompressionCascadeDelay,
-            ownerEntityId: player.entityId,
-          });
-        }
-        cascade += 1;
-      }
-    }
-    return cascade;
-  }
-
-  private settlePendingExperienceGrowth(player: PlayerEntity): void {
-    const pendingGrowth = player.growth ? [player.growth, ...player.growthQueue] : [...player.growthQueue];
-    player.growth = null;
-    player.growthQueue.length = 0;
-    for (const growth of pendingGrowth) {
-      const tail = player.segments.at(-1) ?? player;
-      player.segments.push(makeSegment(tail.col, tail.row, {
-        neutral: true,
-        experienceTier: 0,
-      }, this.randomSource));
-      if (growth.spawnTailFood) this.spawnFoodBehindTail(player);
-    }
-    this.compressExperienceSegments(player, false);
-    for (const segment of player.segments) {
-      if (segment.neutral) segment.birthAge = null;
-    }
-    retainInPlace(this.pendingEffects, (effect) => (
-      effect.type !== 'experienceCompress' || effect.ownerEntityId !== player.entityId
-    ));
-    this.pendingEffects.push({
-      id: this.effectId(),
-      type: 'experienceSettle',
-      ownerEntityId: player.entityId,
-    });
   }
 
   private startLevelUpTransition(player: PlayerEntity): void {
@@ -1805,19 +1760,24 @@ export class UltraWorld {
   }
 
   private completeLevelWithoutModule(player: PlayerEntity): void {
-    player.segments = player.segments.filter((segment) => !segment.neutral);
-    player.level += 1;
-    player.xp = 0;
-    player.xpNeeded = experienceRequiredForLevel(player.level);
+    const continuesLeveling = this.consumeLevelExperience(player);
     player.score += 250 * player.level;
     this.applyPlayerLevelUpHealing(player);
     player.choosingUpgrade = false;
-    player.upgradePending = false;
+    player.upgradePending = continuesLeveling;
     player.upgradeOffer = null;
     player.upgradeRevealTimer = 0;
     this.callbacks.onUpgrade?.(player.entityId, null);
     player.invulnerable = Math.max(player.invulnerable, UPGRADE_INVULNERABILITY_DURATION);
     this.effectSound('select', player.entityId);
+    if (continuesLeveling) this.startLevelUpTransition(player);
+  }
+
+  private consumeLevelExperience(player: PlayerEntity): boolean {
+    player.xp = Math.max(0, player.xp - player.xpNeeded);
+    player.level += 1;
+    player.xpNeeded = experienceRequiredForLevel(player.level);
+    return player.xp >= player.xpNeeded;
   }
 
   private refreshActiveModuleCooldown(player: PlayerEntity, moduleId: ModuleId, segment: UltraSegment): void {
@@ -1839,11 +1799,8 @@ export class UltraWorld {
   private applyUpgrade(player: PlayerEntity, moduleId: ModuleId, _now: number): void {
     const existing = player.segments.find((segment) => segment.module === moduleId) ?? null;
     const previousMaximumHealth = player.maxHealth;
-    const consumedExperience = player.segments.filter((segment) => segment.neutral);
-    player.segments = player.segments.filter((segment) => !segment.neutral);
-    player.level += 1;
-    player.xp = 0;
-    player.xpNeeded = experienceRequiredForLevel(player.level);
+    const storage = energyStorageSegment(player);
+    const continuesLeveling = this.consumeLevelExperience(player);
     const definition = MODULE_BY_ID[moduleId];
     let upgradedSegment = existing;
     if (upgradedSegment) {
@@ -1852,10 +1809,10 @@ export class UltraWorld {
         Math.max(1, upgradedSegment.moduleLevel || 1) + 1,
       );
     } else {
-      const tail = player.segments.at(-1) ?? player;
+      const tail = storage ?? (player.segments.at(-1) ?? player);
       const initialTimer = definition.activeCooldown ? 0 : this.randomBetween(0.2, 0.8);
       upgradedSegment = makeSegment(tail.col, tail.row, { module: moduleId, moduleLevel: 1, timer: initialTimer }, this.randomSource);
-      player.segments.push(upgradedSegment);
+      insertBeforeEnergyStorage(player, upgradedSegment);
     }
     this.refreshActiveModuleCooldown(player, moduleId, upgradedSegment);
     this.syncPlayerMaximumHealth(player, previousMaximumHealth);
@@ -1865,14 +1822,15 @@ export class UltraWorld {
     if (player.recentPicks.length > 6) player.recentPicks.shift();
     player.score += 250 * player.level;
     player.choosingUpgrade = false;
-    player.upgradePending = false;
+    player.upgradePending = continuesLeveling;
     player.upgradeOffer = null;
     this.callbacks.onUpgrade?.(player.entityId, null);
     player.invulnerable = Math.max(player.invulnerable, UPGRADE_INVULNERABILITY_DURATION);
     this.effectSound('select', player.entityId);
-    for (const segment of consumedExperience) this.beam('beam', segment, upgradedSegment, definition.color, 0.34, player.entityId);
+    this.beam('beam', storage ?? player, upgradedSegment, definition.color, 0.34, player.entityId);
     this.burst(upgradedSegment.col, upgradedSegment.row, definition.color, existing ? 30 : 22, existing ? 165 : 130, player.entityId);
     this.ring(upgradedSegment.col, upgradedSegment.row, definition.color, 0.7, 12, existing ? 72 : 57, player.entityId, 'pixels');
+    if (continuesLeveling) this.startLevelUpTransition(player);
   }
 
   private syncPlayerMaximumHealth(player: PlayerEntity, previousMaximum: number): void {
@@ -1894,8 +1852,8 @@ export class UltraWorld {
     const targetCount = MODULE_PROGRESSION.effects.tailGuardSegmentCount(this.moduleCount(player, 'tailguard'));
     player.segments = player.segments.filter((segment) => !segment.tailGuard);
     for (let index = 0; index < targetCount; index += 1) {
-      const tail = player.segments.at(-1) ?? player;
-      player.segments.push(makeSegment(tail.col, tail.row, { tailGuard: true, birthAge: 0 }, this.randomSource));
+      const tail = energyStorageSegment(player) ?? (player.segments.at(-1) ?? player);
+      insertBeforeEnergyStorage(player, makeSegment(tail.col, tail.row, { tailGuard: true, birthAge: 0 }, this.randomSource));
     }
   }
 
@@ -1905,17 +1863,13 @@ export class UltraWorld {
     const bonusExperience = this.random() < MODULE_PROGRESSION.effects.bonusXpChance(this.moduleCount(player, 'insight')) ? 1 : 0;
     player.xp += 1 + bonusExperience;
     player.score += food.special ? 35 : 20;
-    player.growthQueue.push({
-      color: food.color,
-      special: food.special,
-      spawnTailFood: this.random() < MODULE_PROGRESSION.effects.foodReplicationChance(this.moduleCount(player, 'replicator')),
-    });
-    const completesLevel = player.xp >= player.xpNeeded;
+    this.queuePlayerGrowthAnimation(player, food.color, food.special);
+    if (this.random() < MODULE_PROGRESSION.effects.foodReplicationChance(this.moduleCount(player, 'replicator'))) {
+      this.spawnFoodBehindTail(player);
+    }
+    const completesLevel = !player.upgradePending && player.xp >= player.xpNeeded;
     if (completesLevel) {
       player.upgradePending = true;
-      this.settlePendingExperienceGrowth(player);
-    } else if (!player.growth) {
-      player.growth = { ...player.growthQueue.shift()!, elapsed: 0, nodeCount: player.segments.length + 1 };
     }
     if (this.moduleCount(player, 'feast') > 0) player.foodBoost = MODULE_PROGRESSION.effects.feastDuration();
     const emergency = this.moduleCount(player, 'emergency');
@@ -4813,15 +4767,23 @@ function makeSegment(col: number, row: number, options: Partial<UltraSegment>, r
     angle: 0,
     module: options.module ?? null,
     moduleLevel: options.moduleLevel ?? (options.module ? 1 : 0),
-    neutral: options.neutral ?? false,
+    storage: options.storage ?? false,
     tailGuard: options.tailGuard ?? false,
-    experienceTier: options.experienceTier ?? 0,
     timer: options.timer ?? 0,
     ready: options.ready ?? true,
     cooldown: options.cooldown ?? 0,
     orbit: options.orbit ?? random() * TAU,
     birthAge: options.birthAge ?? null,
   };
+}
+
+function energyStorageSegment(player: { segments: UltraSegment[] }): UltraSegment | null {
+  return player.segments.find((segment) => segment.storage) ?? null;
+}
+
+function insertBeforeEnergyStorage(player: { segments: UltraSegment[] }, segment: UltraSegment): void {
+  const storageIndex = player.segments.findIndex((candidate) => candidate.storage);
+  player.segments.splice(storageIndex < 0 ? player.segments.length : storageIndex, 0, segment);
 }
 
 function followContinuousSegments(headCol: number, headRow: number, segments: GridPoint[], spacing: number): void {

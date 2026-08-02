@@ -2,7 +2,7 @@
   "use strict";
 
   const MAGIC = 0x55534e50;
-  const VERSION = 20;
+  const VERSION = 21;
   const GRID_SIZE = 24;
   const COORDINATE_PADDING = 2;
   const TAU = Math.PI * 2;
@@ -56,11 +56,10 @@
     const flags = reader.u8();
     const definition = moduleIndex ? modules[moduleIndex - 1] : null;
     result.module = typeof definition === "string" ? definition : definition?.id || null;
-    result.neutral = Boolean(flags & 1);
+    result.storage = Boolean(flags & 1);
     result.tailGuard = Boolean(flags & 16);
     result.ready = Boolean(flags & 2);
     result.moduleLevel = reader.u16();
-    result.experienceTier = reader.u8();
     result.col = reader.coordinate();
     result.row = reader.coordinate();
     result.angle = 0;
@@ -116,7 +115,6 @@
       growth.color = reader.color();
       const growthFlags = reader.u8();
       growth.special = Boolean(growthFlags & 1);
-      growth.spawnTailFood = Boolean(growthFlags & 2);
       growth.elapsed = reader.f32();
       growth.nodeCount = reader.u16();
     } else result.growth = null;

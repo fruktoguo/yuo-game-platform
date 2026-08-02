@@ -15,9 +15,8 @@ export interface UltraSegment extends GridPoint {
   angle: number;
   module: ModuleId | null;
   moduleLevel: number;
-  neutral: boolean;
+  storage: boolean;
   tailGuard: boolean;
-  experienceTier: number;
   timer: number;
   ready: boolean;
   cooldown: number;
@@ -28,7 +27,6 @@ export interface UltraSegment extends GridPoint {
 export interface GrowthView {
   color: string;
   special: boolean;
-  spawnTailFood: boolean;
   elapsed: number;
   nodeCount: number;
 }
@@ -194,8 +192,6 @@ export type UltraEffect = UltraEffectBase & (
   | ({ type: 'ring'; col: number; row: number; color: string; life: number; radius: number; endRadius: number; endRadiusUnit: 'pixels' | 'cells' } & UltraEffectAnchor)
   | ({ type: 'beam' | 'lightning'; col: number; row: number; col2: number; row2: number; color: string; life: number; width?: number } & UltraEffectAnchor)
   | ({ type: 'text'; col: number; row: number; text: string; color: string; life: number; emphasis?: boolean; damageNumber?: boolean } & UltraEffectAnchor)
-  | { id: string; type: 'experienceCompress'; sources: GridPoint[]; target: GridPoint; fromTier: number; toTier: number; delay: number; ownerEntityId: number; audienceEntityId?: number }
-  | { id: string; type: 'experienceSettle'; ownerEntityId: number }
   | { id: string; type: 'enemyBodyHit'; enemyId: number; beforeCount: number; start: number; count: number; reconnectIndex: number; audienceEntityId?: number }
   | { id: string; type: 'enemyHeadHit'; enemyId: number; beforeCount: number; count: number; oldHead: GridPoint; newHead: GridPoint; color: string; duration: number; audienceEntityId?: number }
   | { id: string; type: 'playerHurt'; playerEntityId: number; col: number; row: number; amount: number; health: number; maxHealth: number }

@@ -3,16 +3,6 @@ import { MODULES } from '../src/shared/modules';
 import { MODULE_PROGRESSION } from '../src/shared/moduleProgression';
 
 describe('机体成长规则', () => {
-  it('使用五进制经验面额并识别可压缩的经验机体', () => {
-    expect(MODULE_PROGRESSION.experienceTiers.map((tier) => tier.value)).toEqual([1, 5, 25]);
-    const segments = [
-      ...Array.from({ length: 5 }, () => ({ neutral: true, experienceTier: 0 })),
-      ...Array.from({ length: 4 }, () => ({ neutral: true, experienceTier: 1 })),
-    ];
-    expect(MODULE_PROGRESSION.findCompressionIndexes(segments, 0)).toEqual([0, 1, 2, 3, 4]);
-    expect(MODULE_PROGRESSION.findCompressionIndexes(segments, 1)).toEqual([]);
-  });
-
   it('在 25 级达到九槽，此后每十级继续扩容且不封顶', () => {
     expect([0, 7, 8, 11, 12, 17, 18, 24, 25, 34, 35, 45, 105].map(MODULE_PROGRESSION.moduleSlotCapacity)).toEqual([
       5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 11, 17,

@@ -32,7 +32,6 @@
     shieldFill: document.querySelector("#shield-fill"),
     healthGroup: document.querySelector("#health-group"),
     xpFill: document.querySelector("#xp-fill"),
-    xpPips: document.querySelector("#xp-pips"),
     rack: document.querySelector("#module-rack"),
     touch: document.querySelector("#touch-indicator"),
     start: document.querySelector("#start-screen"),
@@ -137,7 +136,7 @@
   const TAU = Math.PI * 2;
   const P2P_TOAST_DURATION_MS = 2800;
   const DESIGNER_CONFIG = globalThis.GSS0_DESIGNER_CONFIG || {};
-  if (DESIGNER_CONFIG.schemaVersion !== 47) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 47");
+  if (DESIGNER_CONFIG.schemaVersion !== 48) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 48");
   const DESIGNER_BALANCE = DESIGNER_CONFIG.balance || {};
   const MODULE_DESIGN_STATES = DESIGNER_CONFIG.moduleStates || {};
 
@@ -165,11 +164,10 @@
   const MODULE_MINE_KICK_DISTANCE_CELLS = designerNumber("moduleMineKickDistanceCells", 1.25, 0.1, 10);
   const MODULE_MINE_VISUAL_RADIUS_PIXELS = designerNumber("moduleMineVisualRadiusPixels", 15, 1, 60);
   const MINE_KICK_DIRECTION_OFFSETS = Object.freeze([0, Math.PI / 4, -Math.PI / 4, Math.PI / 2, -Math.PI / 2, Math.PI * 3 / 4, -Math.PI * 3 / 4, Math.PI]);
-  const XP_REQUIREMENT_BASE = designerNumber("xpRequirementBase", 5, 1, 100, true);
-  const XP_REQUIREMENT_PER_LEVEL = designerNumber("xpRequirementPerLevel", 2, 0, 20, true);
+  const XP_REQUIREMENT_PER_TARGET_LEVEL = designerNumber("xpRequirementPerTargetLevel", 5, 1, 1000, true);
 
   function experienceRequiredForLevel(currentLevel) {
-    return XP_REQUIREMENT_BASE + Math.max(0, Math.floor(currentLevel)) * XP_REQUIREMENT_PER_LEVEL;
+    return XP_REQUIREMENT_PER_TARGET_LEVEL * (Math.max(0, Math.floor(currentLevel)) + 1);
   }
 
   function moduleCooldownSeconds(moduleId, moduleLevel = 1, cooldownRateBonus = 0) {
@@ -319,8 +317,7 @@
     speedGrowthPerWave: ENEMY_SPEED_GROWTH_PER_WAVE,
     speedMaxMultiplier: ENEMY_SPEED_MAX_MULTIPLIER,
     foodExperiencePerWave: FOODS_PER_PLAYER_PER_WAVE,
-    xpRequirementBase: XP_REQUIREMENT_BASE,
-    xpRequirementPerLevel: XP_REQUIREMENT_PER_LEVEL,
+    xpRequirementPerTargetLevel: XP_REQUIREMENT_PER_TARGET_LEVEL,
     healthWeightVariation: ENEMY_HEALTH_WEIGHT_VARIATION
   });
   function enemyArchetype(id, prefix, defaults) {
@@ -416,12 +413,6 @@
   const ENEMY_DEATH_BODY_PARTICLE_SPEED = designerNumber("enemyDeathBodyParticleSpeed", 105, 10, 400);
   const ENEMY_BODY_RECONNECT_DURATION = designerNumber("enemyBodyReconnectDuration", 0.28, 0.05, 2);
   const ENEMY_HEAD_REFORM_DURATION = designerNumber("enemyHeadReformDuration", 0.42, 0.05, 2);
-  const EXPERIENCE_COMPRESSION_DURATION = designerNumber("experienceCompressionDuration", 0.42, 0.05, 3);
-  const EXPERIENCE_COMPRESSION_CASCADE_DELAY = designerNumber("experienceCompressionCascadeDelay", 0.18, 0, 2);
-  const EXPERIENCE_COMPRESSION_GRAY_PARTICLES = designerNumber("experienceCompressionGrayParticles", 24, 1, 100, true);
-  const EXPERIENCE_COMPRESSION_GOLD_PARTICLES = designerNumber("experienceCompressionGoldParticles", 42, 1, 160, true);
-  const EXPERIENCE_COMPRESSION_GRAY_SHAKE = designerNumber("experienceCompressionGrayShake", 1.8, 0, 12);
-  const EXPERIENCE_COMPRESSION_GOLD_SHAKE = designerNumber("experienceCompressionGoldShake", 5.2, 0, 16);
   const MAX_RENDER_FPS = designerNumber("maxRenderFps", 240, 30, 240, true);
   const MAX_RENDER_DPR = designerNumber("maxRenderDpr", 2, 1, 2);
   const HUD_UPDATE_INTERVAL = 1 / designerNumber("hudUpdateHz", 15, 1, 60, true);
@@ -458,7 +449,6 @@
   let level = 0;
   let xp = 0;
   let xpNeeded = experienceRequiredForLevel(0);
-  let lastNeeded = -1;
   let waveTimer = 0;
   let waveCount = 0;
   let nextEnemyId = 1;
@@ -1694,9 +1684,8 @@
       angle: 0,
       module: options.module || null,
       moduleLevel: options.moduleLevel ?? (options.module ? 1 : 0),
-      neutral: Boolean(options.neutral),
+      storage: Boolean(options.storage),
       tailGuard: Boolean(options.tailGuard),
-      experienceTier: options.experienceTier ?? 0,
       base: Boolean(options.base),
       timer: options.timer || 0,
       ready: true,
@@ -1709,6 +1698,21 @@
   function makeSegmentAtCell(col, row, options = {}) {
     const point = cellCenter(col, row);
     return makeSegment(point.x, point.y, { ...options, col, row });
+  }
+
+  function energyStorageSegment(target = player) {
+    return target?.segments?.find((segment) => segment.storage) || null;
+  }
+
+  function insertBeforeEnergyStorage(target, segment) {
+    const storageIndex = target.segments.findIndex((candidate) => candidate.storage);
+    target.segments.splice(storageIndex < 0 ? target.segments.length : storageIndex, 0, segment);
+  }
+
+  function energyStorageProgress(target = player) {
+    const currentExperience = Number.isFinite(target?.xp) ? target.xp : xp;
+    const requiredExperience = Number.isFinite(target?.xpNeeded) ? target.xpNeeded : xpNeeded;
+    return clamp(currentExperience / Math.max(1, requiredExperience), 0, 1);
   }
 
   function gameEndpoint(relativePath) {
@@ -2729,22 +2733,6 @@
   }
 
   function applyNetworkEffect(item) {
-    if (item.type === "experienceSettle") {
-      cancelExperienceCompressionEffects(item.ownerEntityId);
-      retainInPlace(network.pendingVisualEffects, (effect) => (
-        effect.type !== "experienceCompress" || effect.ownerEntityId !== item.ownerEntityId
-      ));
-      const target = network.playerViews.get(item.ownerEntityId);
-      if (target) {
-        target.growth = null;
-        target.experienceSettled = true;
-        for (const segment of target.segments || []) {
-          if (segment.neutral) segment.birthAge = null;
-        }
-      }
-      if (item.ownerEntityId === network.selfEntityId) activeGrowth = null;
-      return;
-    }
     if (item.type === "playerHurt") {
       const target = network.playerViews.get(item.playerEntityId) || cellCenter(item.col, item.row);
       const affectsSelf = item.playerEntityId === network.selfEntityId;
@@ -2840,20 +2828,6 @@
         rewardSelf: item.ownerEntityId === network.selfEntityId,
         soundSourceEntityId: item.ownerEntityId
       });
-      return;
-    }
-    if (item.type === "experienceCompress") {
-      const sources = item.sources.map((source) => cellCenter(source.col, source.row));
-      const target = cellCenter(item.target.col, item.target.row);
-      queueExperienceCompression(
-        sources,
-        target,
-        item.fromTier,
-        item.toTier,
-        item.delay || 0,
-        item.ownerEntityId,
-        item.ownerEntityId === network.selfEntityId
-      );
       return;
     }
     const from = networkEffectPoint(item);
@@ -3347,7 +3321,7 @@
     return view;
   }
 
-  function syncNetworkSegments(views, items, previousItems, amount, suppressNeutralBirth = false) {
+  function syncNetworkSegments(views, items, previousItems, amount) {
     for (let index = 0; index < items.length; index += 1) {
       const item = items[index];
       const old = previousItems?.[index];
@@ -3355,7 +3329,7 @@
       const view = views[index] || {};
       syncNetworkNode(view, item, old, amount);
       if (isNew) view.orbit = index * 2.399963229728653 % TAU;
-      if (!old && previousItems) view.birthAge = suppressNeutralBirth && item.neutral ? null : 0;
+      if (!old && previousItems) view.birthAge = 0;
       views[index] = view;
     }
     views.length = items.length;
@@ -3503,8 +3477,7 @@
       view.angle = authoritativeAngle;
       view.desiredAngle = item.desiredAngle;
       view.protectedState = item.paused || item.choosingUpgrade || item.invulnerable > 0;
-      const experienceSettled = Boolean(view.experienceSettled);
-      syncNetworkSegments(view.segments, item.segments, old?.segments, playerAmount, experienceSettled);
+      syncNetworkSegments(view.segments, item.segments, old?.segments, playerAmount);
       if (view.isSelf && !automaticModeEnabled && !item.paused && !item.choosingUpgrade) applyNetworkSelfPrediction(view);
       else if (!view.isSelf) applyNetworkRemotePlayerCorrection(view, displayedCol, displayedRow, sourceChanged, now);
       view.protectedState = item.paused || item.choosingUpgrade || view.invulnerable > 0;
@@ -3520,13 +3493,11 @@
           const growth = view.growth || {};
           growth.color = item.growth.color;
           growth.special = item.growth.special;
-          growth.spawnTailFood = item.growth.spawnTailFood;
           growth.elapsed = item.growth.elapsed;
           growth.nodeCount = item.growth.nodeCount;
           view.growth = growth;
         } else view.growth = null;
       }
-      if (experienceSettled && !item.growth) view.experienceSettled = false;
       view.seenAtTick = activeTick;
       visiblePlayers.push(view);
     }
@@ -4132,7 +4103,7 @@
       thornsCooldown: 0,
       bloomCooldown: 0,
       cacheKills: 0,
-      segments: []
+      segments: [makeSegmentAtCell(startCol - SNAKE_SEGMENT_SPACING, startRow, { storage: true })]
     };
     localModuleCountCache.clear();
     visiblePlayers = [];
@@ -5017,24 +4988,25 @@
   }
 
   function completeLocalLevelWithoutModule() {
-    const consumedExperience = player.segments.filter((segment) => segment.neutral);
-    player.segments = player.segments.filter((segment) => !segment.neutral);
-    level += 1;
-    xp = 0;
-    xpNeeded = experienceRequiredForLevel(level);
+    const continuesLeveling = consumeLocalLevelExperience();
     score += 250 * level;
     applyPlayerLevelUpHealing();
-    upgradePending = false;
+    upgradePending = continuesLeveling;
     upgradeRevealTimer = 0;
     ui.upgrade.classList.remove("is-visible");
     enterRunningState();
     player.invulnerable = Math.max(player.invulnerable, UPGRADE_INVULNERABILITY_DURATION);
     sound("select");
-    for (const segment of consumedExperience) {
-      burst(segment.x, segment.y, "#f3c600", 4, 80);
-    }
     renderModuleRack();
     updateHud(true);
+    if (continuesLeveling) startLevelUpTransition();
+  }
+
+  function consumeLocalLevelExperience() {
+    xp = Math.max(0, xp - xpNeeded);
+    level += 1;
+    xpNeeded = experienceRequiredForLevel(level);
+    return xp >= xpNeeded;
   }
 
   function scheduleAutomaticUpgrade() {
@@ -5080,8 +5052,8 @@
     const targetCount = MODULE_EFFECTS.tailGuardSegmentCount(moduleCount("tailguard"));
     player.segments = player.segments.filter((segment) => !segment.tailGuard);
     for (let index = 0; index < targetCount; index += 1) {
-      const tail = player.segments[player.segments.length - 1] || player;
-      player.segments.push(makeSegmentAtCell(tail.col, tail.row, { tailGuard: true, birthAge: 0 }));
+      const tail = energyStorageSegment() || player.segments[player.segments.length - 1] || player;
+      insertBeforeEnergyStorage(player, makeSegmentAtCell(tail.col, tail.row, { tailGuard: true, birthAge: 0 }));
     }
   }
 
@@ -5114,11 +5086,8 @@
     }
     const existing = player.segments.find((segment) => segment.module === module.id) || null;
     const previousMaximumHealth = player.maxHealth;
-    const consumedExperience = player.segments.filter((segment) => segment.neutral);
-    player.segments = player.segments.filter((segment) => !segment.neutral);
-    level += 1;
-    xp = 0;
-    xpNeeded = experienceRequiredForLevel(level);
+    const storage = energyStorageSegment();
+    const continuesLeveling = consumeLocalLevelExperience();
     let upgradedSegment = existing;
     if (upgradedSegment) {
       upgradedSegment.moduleLevel = Math.min(
@@ -5126,10 +5095,10 @@
         Math.max(1, upgradedSegment.moduleLevel || 1) + 1
       );
     } else {
-      const tail = player.segments[player.segments.length - 1] || player;
+      const tail = storage || player.segments[player.segments.length - 1] || player;
       const initialTimer = module.activeCooldown ? 0 : random(0.2, 0.8);
       upgradedSegment = makeSegmentAtCell(tail.col, tail.row, { module: module.id, moduleLevel: 1, timer: initialTimer });
-      player.segments.push(upgradedSegment);
+      insertBeforeEnergyStorage(player, upgradedSegment);
     }
     localModuleCountCache.clear();
     refreshActiveModuleCooldown(module.id, upgradedSegment);
@@ -5139,111 +5108,19 @@
     recentPicks.push(module.id);
     if (recentPicks.length > 6) recentPicks.shift();
     score += 250 * level;
+    upgradePending = continuesLeveling;
+    upgradeRevealTimer = 0;
     ui.upgrade.classList.remove("is-visible");
     enterRunningState();
     player.invulnerable = Math.max(player.invulnerable, UPGRADE_INVULNERABILITY_DURATION);
     sound("select");
-    for (const segment of consumedExperience) {
-      effects.push({ type: "beam", x: segment.x, y: segment.y, x2: upgradedSegment.x, y2: upgradedSegment.y, color: module.color, life: 0.34, maxLife: 0.34, width: 2.4 });
-    }
+    const energySource = storage || player;
+    effects.push({ type: "beam", x: energySource.x, y: energySource.y, x2: upgradedSegment.x, y2: upgradedSegment.y, color: module.color, life: 0.34, maxLife: 0.34, width: 2.4 });
     burst(upgradedSegment.x, upgradedSegment.y, module.color, existing ? 30 : 22, existing ? 165 : 130);
     effects.push({ type: "ring", x: upgradedSegment.x, y: upgradedSegment.y, color: module.color, life: 0.7, maxLife: 0.7, radius: 12, endRadius: arena.cellSize * (existing ? 1.9 : 1.5) });
     renderModuleRack();
     updateHud(true);
-  }
-
-  function addNeutralSegment(animate = false, experienceTier = 0) {
-    const tail = player.segments[player.segments.length - 1] || player;
-    const segment = makeSegmentAtCell(tail.col, tail.row, { neutral: true, experienceTier, birthAge: animate ? 0 : null });
-    player.segments.push(segment);
-    return segment;
-  }
-
-  function storedNeutralCount() {
-    const grown = player.segments.reduce((total, segment) => total + (segment.neutral ? MODULE_PROGRESSION.experienceValue(segment.experienceTier || 0) : 0), 0);
-    return grown + growthQueue.length + (activeGrowth ? 1 : 0);
-  }
-
-  function activateExperienceCompression(effect) {
-    if (effect.started) return;
-    effect.started = true;
-    const tier = MODULE_PROGRESSION.experienceTier(effect.toTier);
-    const gold = effect.toTier >= 2;
-    burst(effect.x, effect.y, tier.color, gold ? EXPERIENCE_COMPRESSION_GOLD_PARTICLES : EXPERIENCE_COMPRESSION_GRAY_PARTICLES, gold ? 235 : 165);
-    burst(effect.x, effect.y, tier.accent, gold ? 24 : 12, gold ? 175 : 115);
-    sound(gold ? "compressGold" : "compress", 0, effect.ownerEntityId ?? null);
-    if (effect.isLocal) triggerScreenShake(gold ? EXPERIENCE_COMPRESSION_GOLD_SHAKE : EXPERIENCE_COMPRESSION_GRAY_SHAKE);
-  }
-
-  function queueExperienceCompression(sources, target, fromTier, toTier, delay = 0, ownerEntityId = null, isLocal = true) {
-    const tier = MODULE_PROGRESSION.experienceTier(toTier);
-    const effect = {
-      type: "experienceCompress",
-      sources: sources.map((source) => ({ x: source.x, y: source.y })),
-      x: target.x,
-      y: target.y,
-      color: tier.color,
-      accent: tier.accent,
-      fromTier,
-      toTier,
-      delay: Math.max(0, delay),
-      life: EXPERIENCE_COMPRESSION_DURATION,
-      maxLife: EXPERIENCE_COMPRESSION_DURATION,
-      ownerEntityId,
-      isLocal,
-      started: false
-    };
-    effects.push(effect);
-    if (effect.delay <= 0) activateExperienceCompression(effect);
-  }
-
-  function cancelExperienceCompressionEffects(ownerEntityId = null) {
-    retainInPlace(effects, (effect) => {
-      if (effect.type !== "experienceCompress") return true;
-      return ownerEntityId == null
-        ? effect.ownerEntityId != null
-        : effect.ownerEntityId !== ownerEntityId;
-    });
-  }
-
-  function compressExperienceSegments(animate = true) {
-    let cascade = 0;
-    for (let tier = 0; tier < MODULE_PROGRESSION.experienceTiers.length - 1; tier += 1) {
-      while (true) {
-        const indexes = MODULE_PROGRESSION.findCompressionIndexes(player.segments, tier);
-        if (!indexes.length) break;
-        const sources = indexes.map((index) => player.segments[index]);
-        const insertionIndex = indexes[0];
-        for (let index = indexes.length - 1; index >= 0; index -= 1) player.segments.splice(indexes[index], 1);
-        const target = sources[0] || player.segments[player.segments.length - 1] || player;
-        const compressed = makeSegmentAtCell(target.col, target.row, {
-          neutral: true,
-          experienceTier: tier + 1,
-          birthAge: animate ? 0 : null
-        });
-        player.segments.splice(Math.min(insertionIndex, player.segments.length), 0, compressed);
-        if (animate) {
-          queueExperienceCompression(sources, compressed, tier, tier + 1, cascade * EXPERIENCE_COMPRESSION_CASCADE_DELAY, null, true);
-        }
-        cascade += 1;
-      }
-    }
-    return cascade;
-  }
-
-  function settlePendingExperienceGrowth() {
-    const pendingGrowth = activeGrowth ? [activeGrowth, ...growthQueue] : [...growthQueue];
-    activeGrowth = null;
-    growthQueue.length = 0;
-    for (const growth of pendingGrowth) {
-      addNeutralSegment();
-      if (growth.spawnTailFood) spawnFoodBehindTail();
-    }
-    compressExperienceSegments(false);
-    for (const segment of player.segments) {
-      if (segment.neutral) segment.birthAge = null;
-    }
-    cancelExperienceCompressionEffects();
+    if (continuesLeveling) startLevelUpTransition();
   }
 
   function spawnFoodBehindTail() {
@@ -5262,6 +5139,21 @@
       elapsed: 0,
       nodeCount: player.segments.length + 1
     };
+  }
+
+  function queueGrowthAnimation(color, special) {
+    if (!activeGrowth) {
+      activeGrowth = { color, special, elapsed: 0, nodeCount: player.segments.length + 1 };
+      return;
+    }
+    const queued = growthQueue[0];
+    if (queued) {
+      queued.color = color;
+      queued.special ||= special;
+      growthQueue.length = 1;
+      return;
+    }
+    growthQueue.push({ color, special });
   }
 
   function growthPulseForNode(index) {
@@ -5315,36 +5207,29 @@
     if (upgradePending && upgradeRevealTimer > 0) {
       upgradeRevealTimer -= realDt;
       if (upgradeRevealTimer <= 0) {
-        upgradePending = false;
         upgradeRevealTimer = 0;
         showUpgrade();
       }
-      return;
     }
 
     startNextGrowthAnimation();
     if (!activeGrowth) return;
 
+    activeGrowth.nodeCount = Math.max(activeGrowth.nodeCount, player.segments.length + 1);
     activeGrowth.elapsed += dt;
     const totalDuration = (activeGrowth.nodeCount - 1) * GROWTH_NODE_DELAY + GROWTH_PULSE_DURATION;
     if (activeGrowth.elapsed < totalDuration) return;
 
     const color = activeGrowth.color;
     const special = activeGrowth.special;
-    const segment = addNeutralSegment(true);
-    compressExperienceSegments();
-    burst(segment.x, segment.y, color, special ? 28 : 22, special ? 175 : 145);
-    burst(segment.x, segment.y, "#eef5ff", special ? 18 : 12, special ? 135 : 105);
-    effects.push({ type: "ring", x: segment.x, y: segment.y, color, life: 0.46, maxLife: 0.46, radius: 3, endRadius: arena.cellSize * 0.78 });
-    effects.push({ type: "ring", x: segment.x, y: segment.y, color: "#ffffff", life: 0.28, maxLife: 0.28, radius: 2, endRadius: arena.cellSize * 0.46 });
-    if (activeGrowth.spawnTailFood) spawnFoodBehindTail();
+    const storage = energyStorageSegment() || player.segments[player.segments.length - 1] || player;
+    burst(storage.x, storage.y, color, special ? 28 : 22, special ? 175 : 145);
+    burst(storage.x, storage.y, "#eef5ff", special ? 18 : 12, special ? 135 : 105);
+    effects.push({ type: "ring", x: storage.x, y: storage.y, color, life: 0.46, maxLife: 0.46, radius: 3, endRadius: arena.cellSize * 0.78 });
+    effects.push({ type: "ring", x: storage.x, y: storage.y, color: "#ffffff", life: 0.28, maxLife: 0.28, radius: 2, endRadius: arena.cellSize * 0.46 });
     triggerScreenShake(special ? 2.5 : 1.5);
     activeGrowth = null;
     startNextGrowthAnimation();
-
-    if (upgradePending && !activeGrowth && growthQueue.length === 0) {
-      startLevelUpTransition();
-    }
   }
 
   function collectFood(index, collector = player) {
@@ -5355,17 +5240,11 @@
     const bonusExperience = Math.random() < MODULE_EFFECTS.bonusXpChance(moduleCount("insight")) ? 1 : 0;
     xp += 1 + bonusExperience;
     score += food.special ? 35 : 20;
-    growthQueue.push({
-      color: food.color,
-      special: food.special,
-      spawnTailFood: Math.random() < MODULE_EFFECTS.foodReplicationChance(moduleCount("replicator"))
-    });
-    const completesLevel = xp >= xpNeeded;
+    queueGrowthAnimation(food.color, food.special);
+    if (Math.random() < MODULE_EFFECTS.foodReplicationChance(moduleCount("replicator"))) spawnFoodBehindTail();
+    const completesLevel = !upgradePending && xp >= xpNeeded;
     if (completesLevel) {
       upgradePending = true;
-      settlePendingExperienceGrowth();
-    } else {
-      startNextGrowthAnimation();
     }
     if (moduleCount("feast") > 0) player.foodBoost = MODULE_EFFECTS.feastDuration();
     const emergency = moduleCount("emergency");
@@ -5378,7 +5257,7 @@
     effects.push({ type: "ring", x: collector.x, y: collector.y, color: food.color, life: 0.58, maxLife: 0.58, radius: 5, endRadius: arena.cellSize * 1.5 });
     effects.push({ type: "ring", x: collector.x, y: collector.y, color: "#ffffff", life: 0.32, maxLife: 0.32, radius: 4, endRadius: arena.cellSize * 0.82 });
     effects.push({ type: "text", x: collector.x, y: collector.y, text: `+${1 + bonusExperience}`, color: food.color, life: 0.72, maxLife: 0.72 });
-    sound("eat", storedNeutralCount());
+    sound("eat", xp);
     triggerScreenShake(food.special ? 4 : 2.8);
     if (completesLevel) startLevelUpTransition();
     updateHud();
@@ -5443,11 +5322,6 @@
     const xpWidth = `${clamp((xp / xpNeeded) * 100, 0, 100)}%`;
     if (force || ui.xpFill.style.width !== xpWidth) ui.xpFill.style.width = xpWidth;
 
-    if (force || lastNeeded !== xpNeeded) {
-      lastNeeded = xpNeeded;
-      ui.xpPips.style.gridTemplateColumns = `repeat(${xpNeeded}, 1fr)`;
-      ui.xpPips.replaceChildren(...Array.from({ length: xpNeeded }, () => document.createElement("span")));
-    }
   }
 
   function automaticHeadPathIsClear(target) {
@@ -5893,7 +5767,7 @@
     const collectorBonusCells = MODULE_EFFECTS.collectorPickupRadiusCells(moduleCount("collector"));
     registerLocalFoodContacts(player, player.radius / arena.cellSize + foodRadiusCells + magnetRange);
     for (const segment of player.segments) {
-      const visualRadiusCells = (segment.module ? 11 : segment.neutral ? 10 : 8) * pieceScale / arena.cellSize;
+      const visualRadiusCells = (segment.module ? 11 : segment.storage ? 10 : 8) * pieceScale / arena.cellSize;
       registerLocalFoodContacts(segment, visualRadiusCells + foodRadiusCells + collectorBonusCells);
     }
     if (localFoodContacts.size === 0) return;
@@ -7799,7 +7673,6 @@
         effect.delay -= dt;
         if (effect.delay > 0) continue;
       }
-      if (effect.type === "experienceCompress" && !effect.started) activateExperienceCompression(effect);
       effect.life -= dt;
     }
     retainInPlace(effects, (effect) => effect.life > 0);
@@ -8226,7 +8099,7 @@
       ctx.lineTo(-8, -8);
       ctx.lineTo(5, -10);
       ctx.closePath();
-    } else if (segment.neutral) {
+    } else if (segment.storage) {
       ctx.moveTo(10, 0);
       ctx.lineTo(4, 8);
       ctx.lineTo(-8, 7);
@@ -9177,6 +9050,7 @@
 
   function drawPlayer(target = player) {
     if (!target) return;
+    const storageProgress = energyStorageProgress(target);
     const previousPlayer = player;
     const previousGrowth = activeGrowth;
     player = target;
@@ -9222,8 +9096,7 @@
     let previous = player;
     for (const segment of player.segments) {
       const module = segment.module ? MODULE_BY_ID[segment.module] : null;
-      const experience = segment.neutral ? MODULE_PROGRESSION.experienceTier(segment.experienceTier || 0) : null;
-      const color = module?.color || experience?.color || (segment.tailGuard ? "#f4f7f7" : "rgba(116, 124, 127, 0.72)");
+      const color = module?.color || (segment.storage ? "#08c7dc" : segment.tailGuard ? "#f4f7f7" : "rgba(116, 124, 127, 0.72)");
       drawLink(previous, segment, "rgba(5, 7, 8, 0.9)", (module ? 10 : 9) * pieceScale, 0.82);
       drawLink(previous, segment, color, 2.1 * pieceScale, 0.78);
       previous = segment;
@@ -9301,15 +9174,12 @@
           ctx.arc(0, 0, 14.5, -Math.PI / 2, -Math.PI / 2 + TAU * progress);
           ctx.stroke();
         }
-        } else if (segment.neutral) {
-        const experience = MODULE_PROGRESSION.experienceTier(segment.experienceTier || 0);
-        const experienceBaseAlpha = ctx.globalAlpha;
-        ctx.shadowColor = experience.color;
-        ctx.shadowBlur = segment.experienceTier > 0 ? 13 : 5;
-        ctx.fillStyle = experience.color;
-        ctx.globalAlpha = experienceBaseAlpha * (segment.experienceTier > 0 ? 0.92 : 0.78);
-        ctx.strokeStyle = experience.accent;
-        ctx.lineWidth = segment.experienceTier >= 2 ? 2.2 : 1.2;
+        } else if (segment.storage) {
+        ctx.shadowColor = "#08c7dc";
+        ctx.shadowBlur = 5 + storageProgress * 10;
+        ctx.fillStyle = "#10181b";
+        ctx.strokeStyle = "#dffcff";
+        ctx.lineWidth = 1.5;
         ctx.beginPath();
         ctx.moveTo(10, 0);
         ctx.lineTo(4, 8);
@@ -9320,19 +9190,25 @@
         ctx.closePath();
         ctx.fill();
         ctx.stroke();
-        ctx.globalAlpha = experienceBaseAlpha;
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(8, 0);
+        ctx.lineTo(3, 6);
+        ctx.lineTo(-7, 5.5);
+        ctx.lineTo(-8, 0);
+        ctx.lineTo(-7, -5.5);
+        ctx.lineTo(3, -6);
+        ctx.closePath();
+        ctx.clip();
+        ctx.fillStyle = "rgba(8, 199, 220, 0.88)";
+        ctx.fillRect(-8, -6, 16 * storageProgress, 12);
+        ctx.restore();
         ctx.shadowBlur = 0;
-        ctx.fillStyle = segment.experienceTier >= 2 ? "#4e3f00" : "rgba(32, 37, 39, 0.76)";
-        if ((segment.experienceTier || 0) === 0) {
-          ctx.fillRect(-5, -1.5, 10, 3);
-        } else {
-          ctx.beginPath();
-          ctx.arc(0, 0, segment.experienceTier >= 2 ? 4.2 : 3.6, 0, TAU);
-          ctx.fill();
-          ctx.strokeStyle = experience.accent;
-          ctx.lineWidth = 1;
-          ctx.stroke();
-        }
+        ctx.strokeStyle = "rgba(223, 252, 255, 0.72)";
+        ctx.lineWidth = 1;
+        ctx.strokeRect(-5.5, -2, 11, 4);
+        ctx.fillStyle = "#dffcff";
+        ctx.fillRect(-5, -1.5, 10 * storageProgress, 3);
         } else {
         ctx.fillStyle = segment.tailGuard ? "#f4f7f7" : "#343b3e";
         ctx.strokeStyle = segment.tailGuard ? "#ffffff" : "#a9afb1";
@@ -9568,13 +9444,6 @@
     if (effect.type === "text") {
       return pointIntersectsRenderBounds(effect.x, effect.y, COMBAT_TEXT_FONT_SIZE * 4);
     }
-    if (effect.type === "experienceCompress") {
-      if (pointIntersectsRenderBounds(effect.x, effect.y, effect.toTier >= 2 ? 66 : 46)) return true;
-      for (const source of effect.sources) {
-        if (lineIntersectsRenderBounds(source, effect, 12)) return true;
-      }
-      return false;
-    }
     return pointIntersectsRenderBounds(effect.x, effect.y, Math.max(effect.radius || 0, effect.endRadius || 0) + 32);
   }
 
@@ -9594,27 +9463,7 @@
       const alpha = clamp(effect.life / effect.maxLife, 0, 1);
       ctx.save();
       ctx.globalAlpha = alpha;
-      if (effect.type === "experienceCompress") {
-        const eased = 1 - Math.pow(1 - progress, 3);
-        const sourceTier = MODULE_PROGRESSION.experienceTier(effect.fromTier);
-        for (const source of effect.sources) {
-          const x = source.x + (effect.x - source.x) * eased;
-          const y = source.y + (effect.y - source.y) * eased;
-          if (renderWorldBounds.active && !pointIntersectsRenderBounds(x, y, 16)) continue;
-          ctx.fillStyle = progress < 0.58 ? sourceTier.color : effect.color;
-          ctx.shadowColor = effect.color;
-          ctx.shadowBlur = 8 + progress * 12;
-          drawPolygonPath(x, y, Math.max(1.5, 5.5 * (1 - progress)), 6, progress * 0.8);
-          ctx.fill();
-        }
-        ctx.globalAlpha = alpha * (0.72 + Math.sin(progress * Math.PI) * 0.28);
-        ctx.strokeStyle = effect.accent;
-        ctx.shadowColor = effect.color;
-        ctx.shadowBlur = 15;
-        ctx.lineWidth = 3 * (1 - progress) + 0.8;
-        drawPolygonPath(effect.x, effect.y, 8 + progress * (effect.toTier >= 2 ? 58 : 38), 8, Math.PI / 8 + progress * 0.4);
-        ctx.stroke();
-      } else if (effect.type === "ring") {
+      if (effect.type === "ring") {
         const end = effect.endRadius || effect.radius + 45;
         const radius = effect.radius + (end - effect.radius) * progress;
         ctx.strokeStyle = effect.color;

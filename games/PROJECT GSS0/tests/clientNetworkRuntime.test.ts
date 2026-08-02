@@ -90,10 +90,10 @@ describe('客户端网络模块', () => {
       players: [{
         entityId: 1, name: '玩家甲', colorIndex: 0, connected: true, alive: true, ghost: false, paused: false, choosingUpgrade: false,
         col: 4.25, row: 5.5, angle: 0.4, desiredAngle: 0.5, lastInputSequence: 7, speed: 5, slow: 0, foodBoost: 0, knockbackX: 0.5, knockbackY: -0.25, invulnerable: 0, collisionCooldown: 0, health: 18.5, maxHealth: 30, shieldCharges: 4,
-        score: 12, kills: 1, botKills: 1, pvpKills: 0, survivalTime: 3, level: 1, xp: 2, xpNeeded: 7, respawnAt: null,
+        score: 12, kills: 1, botKills: 1, pvpKills: 0, survivalTime: 3, level: 1, xp: 2, xpNeeded: 10, respawnAt: null,
         segments: [
-          { col: 3.7, row: 5.5, angle: 0, module: 'shield', moduleLevel: 3, neutral: false, tailGuard: false, experienceTier: 0, timer: 5, ready: false, cooldown: 7.5, orbit: 2, birthAge: null },
-          { col: 3.2, row: 5.5, angle: 0, module: 'blade', moduleLevel: 2, neutral: false, tailGuard: false, experienceTier: 0, timer: 0, ready: true, cooldown: 0, orbit: 1.25, birthAge: null },
+          { col: 3.7, row: 5.5, angle: 0, module: 'shield', moduleLevel: 3, storage: false, tailGuard: false, timer: 5, ready: false, cooldown: 7.5, orbit: 2, birthAge: null },
+          { col: 3.2, row: 5.5, angle: 0, module: 'blade', moduleLevel: 2, storage: false, tailGuard: false, timer: 0, ready: true, cooldown: 0, orbit: 1.25, birthAge: null },
         ],
         growth: null,
       }],
@@ -108,7 +108,7 @@ describe('客户端网络模块', () => {
     expect(decoded.players[0].shieldCharges).toBe(4);
     expect(decoded.players[0].col).toBeCloseTo(4.25, 3);
     expect(decoded.players[0].segments).toHaveLength(2);
-    expect(decoded.players[0].segments[0]).toMatchObject({ module: 'shield', moduleLevel: 3, experienceTier: 0, cooldown: 7.5 });
+    expect(decoded.players[0].segments[0]).toMatchObject({ module: 'shield', moduleLevel: 3, storage: false, cooldown: 7.5 });
     expect(decoded.players[0].segments[0]).toMatchObject({ angle: 0, timer: 0, orbit: 0 });
     expect(decoded.players[0].segments[1]).toMatchObject({ module: 'blade', angle: 0, timer: 0 });
     expect(decoded.players[0].segments[1].orbit).toBe(0);
@@ -314,7 +314,7 @@ function snapshotAt(tick: number, col: number): UltraSnapshot {
       col, row: 5, angle: 0.4, desiredAngle: 0.5, lastInputSequence: tick, speed: 5, slow: 0, foodBoost: 0, knockbackX: 0, knockbackY: 0, invulnerable: 0, collisionCooldown: 0, health: 30, maxHealth: 30, shieldCharges: 0,
       score: 0, kills: 0, botKills: 0, pvpKills: 0, survivalTime: 1, level: 0, xp: 0, xpNeeded: 5,
       respawnAt: null,
-      segments: [{ col: col - 0.6, row: 5, angle: 0, module: null, moduleLevel: 0, neutral: true, tailGuard: false, experienceTier: 1, timer: 0, ready: true, cooldown: 0, orbit: 0, birthAge: null }],
+      segments: [{ col: col - 0.6, row: 5, angle: 0, module: null, moduleLevel: 0, storage: true, tailGuard: false, timer: 0, ready: true, cooldown: 0, orbit: 0, birthAge: null }],
       growth: null,
     }],
     enemies: [], foods: [], projectiles: [], hazards: [], pendingSpawns: [],

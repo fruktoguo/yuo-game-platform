@@ -3,7 +3,7 @@
 
   const config = globalThis.GSS0_DESIGNER_CONFIG;
   const modules = globalThis.GSS0ModuleCatalog;
-  if (config?.schemaVersion !== 47 || !Array.isArray(modules) || modules.length === 0) {
+  if (config?.schemaVersion !== 48 || !Array.isArray(modules) || modules.length === 0) {
     throw new Error("PROJECT GSS0 机体成长规则依赖加载失败");
   }
 
@@ -11,7 +11,6 @@
   const cooldownPercentages = config.moduleCooldownPercentages;
   const moduleById = Object.fromEntries(modules.map((module) => [module.id, module]));
   const maxModuleLevel = Math.max(1, Math.round(Number(balance.maxModuleLevel) || 5));
-  const compressionBase = Math.max(2, Math.round(balance.experienceCompressionBase));
   const slotUnlockLevels = Object.freeze([
     balance.moduleSlotUnlockLevel1,
     balance.moduleSlotUnlockLevel2,
@@ -19,11 +18,6 @@
     balance.moduleSlotUnlockLevel4
   ].map((level) => Math.max(1, Math.round(level))).sort((left, right) => left - right));
   const moduleSlotGrowthIntervalAfterFullUnlock = Math.max(1, Math.round(Number(balance.moduleSlotGrowthIntervalAfterFullUnlock) || 10));
-  const experienceTiers = Object.freeze([
-    Object.freeze({ tier: 0, value: 1, color: "#c7cdcf", accent: "#f4f7f7", name: "灰色经验机体" }),
-    Object.freeze({ tier: 1, value: compressionBase, color: "#38a9ff", accent: "#dff5ff", name: "蓝色经验机体" }),
-    Object.freeze({ tier: 2, value: compressionBase * compressionBase, color: "#f3c600", accent: "#fff3a6", name: "金色经验机体" })
-  ]);
 
   function clamp(value, minimum, maximum) {
     return Math.max(minimum, Math.min(maximum, value));
@@ -67,26 +61,6 @@
 
   function activeCooldownSeconds(moduleId, level = 1, cooldownRateBonus = 0) {
     return baseCooldownSeconds(moduleId) / safeLevel(level) / Math.max(0.05, 1 + Math.max(0, cooldownRateBonus));
-  }
-
-  function experienceTier(tier) {
-    return experienceTiers[clamp(Math.floor(Number(tier) || 0), 0, experienceTiers.length - 1)];
-  }
-
-  function experienceValue(tier) {
-    return experienceTier(tier).value;
-  }
-
-  function findCompressionIndexes(segments, tier) {
-    if (tier >= experienceTiers.length - 1) return [];
-    const indexes = [];
-    for (let index = 0; index < (segments?.length || 0); index += 1) {
-      const segment = segments[index];
-      if (!segment?.neutral || (segment.experienceTier || 0) !== tier) continue;
-      indexes.push(index);
-      if (indexes.length === compressionBase) return indexes;
-    }
-    return [];
   }
 
   function linearRewardAmount(perLevel, level) {
@@ -374,14 +348,10 @@
 
   globalThis.GSS0ModuleProgression = Object.freeze({
     maxModuleLevel,
-    experienceTiers,
     effects,
     moduleLevelsFromSegments,
     moduleSlotCapacity,
     activeCooldownSeconds,
-    experienceTier,
-    experienceValue,
-    findCompressionIndexes,
     rollLinearRewards,
     levelUpHealAmount,
     moduleCurrentEffect,

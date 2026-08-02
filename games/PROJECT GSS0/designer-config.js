@@ -1,5 +1,5 @@
 globalThis.GSS0_DESIGNER_CONFIG = {
-  "schemaVersion": 47,
+  "schemaVersion": 48,
   "balance": {
     "playerBaseSpeed": 5,
     "snakeBodySizeScale": 0.775,
@@ -11,9 +11,7 @@ globalThis.GSS0_DESIGNER_CONFIG = {
     "playerOtherBodyCollisionDamage": 10,
     "playerKnockbackRearBlockedAngleDegrees": 60,
     "playerKnockbackRearCorrectionAngleDegrees": 150,
-    "xpRequirementBase": 5,
-    "xpRequirementPerLevel": 2,
-    "experienceCompressionBase": 5,
+    "xpRequirementPerTargetLevel": 5,
     "maxModuleLevel": 5,
     "initialModuleSlots": 5,
     "moduleSlotUnlockLevel1": 8,
@@ -256,12 +254,6 @@ globalThis.GSS0_DESIGNER_CONFIG = {
     "enemyDeathBodyParticleSpeed": 105,
     "enemyBodyReconnectDuration": 0.28,
     "enemyHeadReformDuration": 0.42,
-    "experienceCompressionDuration": 0.42,
-    "experienceCompressionCascadeDelay": 0.18,
-    "experienceCompressionGrayParticles": 24,
-    "experienceCompressionGoldParticles": 42,
-    "experienceCompressionGrayShake": 1.8,
-    "experienceCompressionGoldShake": 5.2,
     "profileSaveDelaySeconds": 30
   },
   "waveEnemyCountSchedule": [

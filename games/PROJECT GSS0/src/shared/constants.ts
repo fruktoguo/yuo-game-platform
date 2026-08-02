@@ -55,8 +55,7 @@ export const AUTOMATIC_SELF_AVOIDANCE_STRENGTH = DESIGNER_BALANCE.automaticSelfA
 export const AUTOMATIC_SELF_AVOIDANCE_RANGE = DESIGNER_BALANCE.automaticSelfAvoidanceRange;
 export const AUTOMATIC_TEAMMATE_AVOIDANCE_STRENGTH = DESIGNER_BALANCE.automaticTeammateAvoidanceStrength;
 export const AUTOMATIC_TEAMMATE_AVOIDANCE_RANGE = DESIGNER_BALANCE.automaticTeammateAvoidanceRange;
-export const XP_REQUIREMENT_BASE = DESIGNER_BALANCE.xpRequirementBase;
-export const XP_REQUIREMENT_PER_LEVEL = DESIGNER_BALANCE.xpRequirementPerLevel;
+export const XP_REQUIREMENT_PER_TARGET_LEVEL = DESIGNER_BALANCE.xpRequirementPerTargetLevel;
 export const ENEMY_BASE_SPEED = DESIGNER_BALANCE.enemyBaseSpeed;
 export const ENEMY_SPEED_GROWTH_PER_WAVE = DESIGNER_BALANCE.enemySpeedPerWave;
 export const ENEMY_SPEED_MAX_MULTIPLIER = DESIGNER_BALANCE.enemySpeedMaxMultiplier;
@@ -125,5 +124,5 @@ export const ENEMY_COLORS = ['#ff5c62', '#ff8a4c', '#d95cff', '#ff477e', '#f4c54
 export const PLAYER_COLORS = ['#f3c600', '#08c7dc', '#ef3e4a', '#8be04e', '#b49cff', '#ff8a5b', '#70d6ff', '#ff88c7'] as const;
 
 export function experienceRequiredForLevel(currentLevel: number): number {
-  return XP_REQUIREMENT_BASE + Math.max(0, Math.floor(currentLevel)) * XP_REQUIREMENT_PER_LEVEL;
+  return XP_REQUIREMENT_PER_TARGET_LEVEL * (Math.max(0, Math.floor(currentLevel)) + 1);
 }
