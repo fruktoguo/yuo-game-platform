@@ -215,7 +215,6 @@ globalThis.GSS0_DESIGNER_CONFIG = {
     "cameraPseudo3DRollDegrees": 0.65,
     "cameraPseudo3DVerticalAimInfluence": 0.16,
     "cameraPseudo3DResponse": 4.5,
-    "cameraAimLookAheadCells": 1.1,
     "arenaPlatformDepthPixels": 16,
     "arenaPlatformSideOpacity": 0.9,
     "cameraFollowRenderOverscanPixels": 120,

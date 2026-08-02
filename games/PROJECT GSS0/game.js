@@ -237,7 +237,6 @@
   const CAMERA_PSEUDO_3D_ROLL_DEGREES = designerNumber("cameraPseudo3DRollDegrees", 0.65, 0, 2);
   const CAMERA_PSEUDO_3D_VERTICAL_AIM_INFLUENCE = designerNumber("cameraPseudo3DVerticalAimInfluence", 0.16, 0, 0.5);
   const CAMERA_PSEUDO_3D_RESPONSE = designerNumber("cameraPseudo3DResponse", 4.5, 0.1, 30);
-  const CAMERA_AIM_LOOK_AHEAD_CELLS = designerNumber("cameraAimLookAheadCells", 1.1, 0, 8);
   const ARENA_PLATFORM_DEPTH_PIXELS = designerNumber("arenaPlatformDepthPixels", 16, 0, 40);
   const ARENA_PLATFORM_SIDE_OPACITY = designerNumber("arenaPlatformSideOpacity", 0.9, 0, 1);
   const CAMERA_FOLLOW_RENDER_OVERSCAN_PIXELS = designerNumber("cameraFollowRenderOverscanPixels", 120, 0, 600, true);
@@ -606,8 +605,6 @@
   const worldCamera = {
     axisX: 0,
     axisY: 0,
-    lookAheadX: 0,
-    lookAheadY: 0,
     projectionStrength: 0
   };
   const renderWorldCorners = [
@@ -850,9 +847,6 @@
       if (Math.abs(targetX - worldCamera.axisX) < 0.00035) worldCamera.axisX = targetX;
       if (Math.abs(targetY - worldCamera.axisY) < 0.00035) worldCamera.axisY = targetY;
     }
-    const lookAheadDistance = CAMERA_AIM_LOOK_AHEAD_CELLS * (arena?.cellSize || 0);
-    worldCamera.lookAheadX = worldCamera.axisX * lookAheadDistance;
-    worldCamera.lookAheadY = worldCamera.axisY * lookAheadDistance;
     refreshWorldCameraProjection();
   }
 
@@ -1436,8 +1430,8 @@
   }
 
   function cameraPosition(target = cameraPoint) {
-    target.x = cameraMode === "follow" && player ? player.x + worldCamera.lookAheadX : arena.centerX;
-    target.y = cameraMode === "follow" && player ? player.y + worldCamera.lookAheadY : arena.centerY;
+    target.x = cameraMode === "follow" && player ? player.x : arena.centerX;
+    target.y = cameraMode === "follow" && player ? player.y : arena.centerY;
     return target;
   }
 

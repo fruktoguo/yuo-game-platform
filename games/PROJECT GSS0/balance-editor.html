@@ -401,12 +401,12 @@
     </div>
   </main>
 
-  <script src="enemy-codex.js?v=140"></script>
-  <script src="wave-director.js?v=140"></script>
-  <script src="designer-config.js?v=140"></script>
-  <script src="status-catalog.js?v=140"></script>
-  <script src="module-catalog.js?v=140"></script>
-  <script src="module-progression.js?v=140"></script>
+  <script src="enemy-codex.js?v=141"></script>
+  <script src="wave-director.js?v=141"></script>
+  <script src="designer-config.js?v=141"></script>
+  <script src="status-catalog.js?v=141"></script>
+  <script src="module-catalog.js?v=141"></script>
+  <script src="module-progression.js?v=141"></script>
   <script>
     (() => {
       "use strict";
@@ -639,8 +639,7 @@
         { key: "cameraPseudo3DYawShear", group: "摄像机", label: "伪3D瞄准偏航", hint: "瞄准左右方向只允许增加的轻微场地横向剪切量", min: 0, max: 0.08, step: 0.001, unit: "比例" },
         { key: "cameraPseudo3DRollDegrees", group: "摄像机", label: "伪3D瞄准侧倾", hint: "瞄准左右方向只允许增加的轻微舞台侧倾角度", min: 0, max: 2, step: 0.05, unit: "°" },
         { key: "cameraPseudo3DVerticalAimInfluence", group: "摄像机", label: "纵向瞄准俯视变化", hint: "向上或向下瞄准时对固定俯视压缩量的有限调整比例", min: 0, max: 0.5, step: 0.01, unit: "比例" },
-        { key: "cameraPseudo3DResponse", group: "摄像机", label: "瞄准倾斜响应", hint: "轻微偏航、侧倾和平移前视追随玩家瞄准方向的平滑速率", min: 0.1, max: 30, step: 0.1, unit: "速率" },
-        { key: "cameraAimLookAheadCells", group: "摄像机", label: "瞄准前视距离", hint: "跟随蛇头模式沿当前瞄准方向额外展示的前方场地距离", min: 0, max: 8, step: 0.05, unit: "格" },
+        { key: "cameraPseudo3DResponse", group: "摄像机", label: "瞄准倾斜响应", hint: "轻微偏航与侧倾追随玩家瞄准方向的平滑速率，不改变蛇头的屏幕中心位置", min: 0.1, max: 30, step: 0.1, unit: "速率" },
         { key: "arenaPlatformDepthPixels", group: "摄像机", label: "场地平台侧壁厚度", hint: "固定视角看到场地边缘时绘制的暗色悬浮平台侧壁厚度", min: 0, max: 40, step: 1, unit: "px" },
         { key: "arenaPlatformSideOpacity", group: "摄像机", label: "场地平台侧壁不透明度", hint: "暗色侧壁与底沿高光的整体可见度", min: 0, max: 1, step: 0.01, unit: "比例" },
         { key: "cameraFollowRenderOverscanPixels", group: "性能", label: "跟随视角渲染缓冲", hint: "跟随蛇头模式在屏幕边缘外继续绘制的缓冲宽度，增大可减少高速移动时的边缘跳入", min: 0, max: 600, step: 10, unit: "px" },

@@ -241,7 +241,6 @@ export const DESIGNER_BALANCE = Object.freeze({
   cameraPseudo3DRollDegrees: numberSetting('cameraPseudo3DRollDegrees', 0.65, 0, 2),
   cameraPseudo3DVerticalAimInfluence: numberSetting('cameraPseudo3DVerticalAimInfluence', 0.16, 0, 0.5),
   cameraPseudo3DResponse: numberSetting('cameraPseudo3DResponse', 4.5, 0.1, 30),
-  cameraAimLookAheadCells: numberSetting('cameraAimLookAheadCells', 1.1, 0, 8),
   arenaPlatformDepthPixels: numberSetting('arenaPlatformDepthPixels', 16, 0, 40),
   arenaPlatformSideOpacity: numberSetting('arenaPlatformSideOpacity', 0.9, 0, 1),
   cameraFollowRenderOverscanPixels: numberSetting('cameraFollowRenderOverscanPixels', 120, 0, 600, true),
