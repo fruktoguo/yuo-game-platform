@@ -143,6 +143,15 @@ describe('设计配置', () => {
       cameraFollowRenderOverscanPixels: 120,
       cameraFollowFoodIndicatorLimit: 6,
       cameraFollowEnemyIndicatorLimit: 8,
+      entityShadowOpacity: 0.72,
+      entityShadowOffsetPixels: 14,
+      entityShadowDirectionDegrees: 56,
+      entityShadowWidthScale: 1.48,
+      entityShadowHeightScale: 0.58,
+      entityShadowHeightStretch: 0.3,
+      entityShadowBlurPixels: 4,
+      entityContactShadowOpacity: 0.4,
+      entityContactShadowScale: 0.72,
       upgradeInvulnerabilityDuration: 1,
       respawnLocatorConvergeDuration: 1,
       respawnLocatorFadeDuration: 3,
@@ -257,7 +266,7 @@ describe('设计配置', () => {
     expect(parameterKeys.sort()).toEqual(Object.keys(DESIGNER_BALANCE).sort());
     expect(moduleIds.sort()).toEqual(MODULES.map((module) => module.id).sort());
     expect(moduleProgressionSource).toContain('config?.schemaVersion !== 47');
-    expect(new Set(parameterKeys).size).toBe(261);
+    expect(new Set(parameterKeys).size).toBe(263);
     expect(parameterKeys).not.toContain('playerSpeedPerLevel');
     expect(parameterKeys).not.toContain('moduleEffectReductionMaximum');
     expect(parameterKeys).not.toContain('newModuleOfferChance');
@@ -296,8 +305,8 @@ describe('设计配置', () => {
     expect(MODULES.some((module) => ['输出', '进攻', '防御', '恢复'].includes(module.category as string))).toBe(false);
     expect(MODULES.every((module) => ['攻击', '生存', '辅助', '发育'].includes(module.category))).toBe(true);
     expect(MODULES.filter((module) => module.category === '发育')).toHaveLength(9);
-    expect(editorHtml).toContain('src="module-catalog.js?v=138"');
-    expect(editorHtml).toContain('src="module-progression.js?v=138"');
+    expect(editorHtml).toContain('src="module-catalog.js?v=139"');
+    expect(editorHtml).toContain('src="module-progression.js?v=139"');
     expect(editorHtml).toContain('const MODULES = moduleCatalog;');
     expect(editorHtml).toContain('descriptionText.textContent = describeModule(module.id, draft.balance);');
     expect(editorHtml).toContain('descriptionNote.textContent = describeModuleNote(module.id, draft.balance);');

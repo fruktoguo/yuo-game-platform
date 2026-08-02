@@ -245,13 +245,15 @@
   const CAMERA_FOLLOW_RENDER_OVERSCAN_PIXELS = designerNumber("cameraFollowRenderOverscanPixels", 120, 0, 600, true);
   const CAMERA_FOLLOW_FOOD_INDICATOR_LIMIT = designerNumber("cameraFollowFoodIndicatorLimit", 6, 0, 100, true);
   const CAMERA_FOLLOW_ENEMY_INDICATOR_LIMIT = designerNumber("cameraFollowEnemyIndicatorLimit", 8, 0, 100, true);
-  const ENTITY_SHADOW_OPACITY = designerNumber("entityShadowOpacity", 0.54, 0, 1);
+  const ENTITY_SHADOW_OPACITY = designerNumber("entityShadowOpacity", 0.72, 0, 1);
   const ENTITY_SHADOW_OFFSET_PIXELS = designerNumber("entityShadowOffsetPixels", 14, 0, 40);
   const ENTITY_SHADOW_DIRECTION = designerNumber("entityShadowDirectionDegrees", 56, -180, 180) * Math.PI / 180;
-  const ENTITY_SHADOW_WIDTH_SCALE = designerNumber("entityShadowWidthScale", 1.3, 0.25, 4);
-  const ENTITY_SHADOW_HEIGHT_SCALE = designerNumber("entityShadowHeightScale", 0.48, 0.1, 2);
-  const ENTITY_SHADOW_HEIGHT_STRETCH = designerNumber("entityShadowHeightStretch", 0.24, 0, 1.5);
-  const ENTITY_SHADOW_BLUR_PIXELS = designerNumber("entityShadowBlurPixels", 6, 0, 24);
+  const ENTITY_SHADOW_WIDTH_SCALE = designerNumber("entityShadowWidthScale", 1.48, 0.25, 4);
+  const ENTITY_SHADOW_HEIGHT_SCALE = designerNumber("entityShadowHeightScale", 0.58, 0.1, 2);
+  const ENTITY_SHADOW_HEIGHT_STRETCH = designerNumber("entityShadowHeightStretch", 0.3, 0, 1.5);
+  const ENTITY_SHADOW_BLUR_PIXELS = designerNumber("entityShadowBlurPixels", 4, 0, 24);
+  const ENTITY_CONTACT_SHADOW_OPACITY = designerNumber("entityContactShadowOpacity", 0.4, 0, 1);
+  const ENTITY_CONTACT_SHADOW_SCALE = designerNumber("entityContactShadowScale", 0.72, 0.1, 1.5);
   const FOOD_SHADOW_HEIGHT = designerNumber("foodShadowHeight", 1.2, 0, 4);
   const PROJECTILE_SHADOW_HEIGHT = designerNumber("projectileShadowHeight", 1.9, 0, 6);
   const FOOD_WALL_MARGIN = 2;
@@ -8245,14 +8247,17 @@
       + Math.max(0, safeHeight - 1) * ENTITY_SHADOW_HEIGHT_STRETCH * presentationStrength;
     const shadowWidth = radius * 2 * widthScale;
     const shadowHeight = radius * 2 * ENTITY_SHADOW_HEIGHT_SCALE;
+    const inheritedAlpha = ctx.globalAlpha;
     ctx.save();
-    ctx.globalAlpha *= ENTITY_SHADOW_OPACITY * Math.min(1, presentationStrength) * alpha;
-    ctx.translate(
-      x + Math.cos(ENTITY_SHADOW_DIRECTION) * offset,
-      y + Math.sin(ENTITY_SHADOW_DIRECTION) * offset
-    );
+    ctx.translate(x, y);
     ctx.rotate(ENTITY_SHADOW_DIRECTION);
-    ctx.drawImage(entityShadowCanvas, -shadowWidth / 2, -shadowHeight / 2, shadowWidth, shadowHeight);
+    ctx.globalAlpha = inheritedAlpha * ENTITY_SHADOW_OPACITY * Math.min(1, presentationStrength) * alpha;
+    ctx.drawImage(entityShadowCanvas, offset - shadowWidth / 2, -shadowHeight / 2, shadowWidth, shadowHeight);
+
+    const contactWidth = shadowWidth * ENTITY_CONTACT_SHADOW_SCALE;
+    const contactHeight = shadowHeight * ENTITY_CONTACT_SHADOW_SCALE;
+    ctx.globalAlpha = inheritedAlpha * ENTITY_CONTACT_SHADOW_OPACITY * Math.min(1, presentationStrength) * alpha / Math.max(1, safeHeight);
+    ctx.drawImage(entityShadowCanvas, -contactWidth / 2, -contactHeight / 2, contactWidth, contactHeight);
     ctx.restore();
   }
 

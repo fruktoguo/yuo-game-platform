@@ -10,7 +10,7 @@ describe('界面设置', () => {
   it('使用正式游戏名并在左上品牌卡显示当前版本', () => {
     expect(indexHtml).toContain('<title>代号：几何贪吃蛇</title>');
     expect(indexHtml).toContain('<h1 id="game-title"><span>代号：几何贪吃蛇</span></h1>');
-    expect(indexHtml).toContain('<span class="brand-version" aria-label="游戏版本 V138">V138</span>');
+    expect(indexHtml).toContain('<span class="brand-version" aria-label="游戏版本 V139">V139</span>');
     expect(styles).toContain('.brand-version');
     const brandTitleRule = styles.match(/\.brand-lockup strong\s*\{([^}]*)\}/)?.[1];
     const brandVersionRule = styles.match(/\.brand-version\s*\{([^}]*)\}/)?.[1];
@@ -40,7 +40,7 @@ describe('界面设置', () => {
     expect(gameSource).toContain('function updateRenderWorldBounds()');
     expect(gameSource).toContain('CAMERA_FOLLOW_FOOD_INDICATOR_LIMIT');
     expect(gameSource).toContain('CAMERA_FOLLOW_ENEMY_INDICATOR_LIMIT');
-    expect(indexHtml).toContain('src="camera-projection.js?v=138"');
+    expect(indexHtml).toContain('src="camera-projection.js?v=139"');
     expect(indexHtml).toContain('id="motion-slider" type="range" min="0" max="150" step="10" value="100"');
     expect(gameSource).toContain('loadSetting("gss0-pseudo-3d-strength", 1, 0, CAMERA_PSEUDO_3D_STRENGTH_MAX)');
     expect(gameSource).not.toContain('loadSetting("gss0-ui-motion-strength"');
@@ -48,6 +48,8 @@ describe('界面设置', () => {
     expect(gameSource).toContain('function updateWorldCamera(dt)');
     expect(gameSource).toContain('function applyBillboardCompensation()');
     expect(gameSource).toContain('function drawArenaPlatformDepth()');
+    expect(gameSource).toContain('ENTITY_CONTACT_SHADOW_OPACITY');
+    expect(gameSource).toContain('ENTITY_CONTACT_SHADOW_SCALE');
     expect(gameSource).toContain('function drawEntityShadows(time)');
     expect(gameSource).toContain('drawEntityShadows(visualTime);');
     expect(styles.match(/#game\s*\{([^}]*)\}/u)?.[1]).not.toContain('transform-origin');
@@ -92,7 +94,7 @@ describe('界面设置', () => {
   });
 
   it('升级卡展示机体等级变化且机体架显示槽位占用', () => {
-    expect(indexHtml).toContain('src="module-progression.js?v=138"');
+    expect(indexHtml).toContain('src="module-progression.js?v=139"');
     expect(gameSource).toContain('MODULE_PROGRESSION.moduleUpgradePreview');
     expect(gameSource).toContain('progression.levelLabel');
     expect(gameSource).toContain('ui.rack.dataset.capacity');
@@ -211,7 +213,7 @@ describe('界面设置', () => {
     expect(tooltipRule).not.toContain('transition');
     expect(indexHtml).not.toContain('id="description-button"');
     expect(indexHtml).not.toContain('id="description-toggle"');
-    expect(indexHtml).toContain('src="module-catalog.js?v=138"');
+    expect(indexHtml).toContain('src="module-catalog.js?v=139"');
     expect(gameSource).toContain('const MODULE_CATALOG = globalThis.GSS0ModuleCatalog;');
     expect(gameSource).not.toContain('SHORT_MODULE_DESCRIPTIONS');
     expect(gameSource).not.toContain('gss0-detailed-descriptions');

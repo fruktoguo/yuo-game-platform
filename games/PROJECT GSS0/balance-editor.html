@@ -401,12 +401,12 @@
     </div>
   </main>
 
-  <script src="enemy-codex.js?v=138"></script>
-  <script src="wave-director.js?v=138"></script>
-  <script src="designer-config.js?v=138"></script>
-  <script src="status-catalog.js?v=138"></script>
-  <script src="module-catalog.js?v=138"></script>
-  <script src="module-progression.js?v=138"></script>
+  <script src="enemy-codex.js?v=139"></script>
+  <script src="wave-director.js?v=139"></script>
+  <script src="designer-config.js?v=139"></script>
+  <script src="status-catalog.js?v=139"></script>
+  <script src="module-catalog.js?v=139"></script>
+  <script src="module-progression.js?v=139"></script>
   <script>
     (() => {
       "use strict";
@@ -653,6 +653,8 @@
         { key: "entityShadowHeightScale", group: "表现", label: "实体落影厚度", hint: "相对实体半径的基础阴影短轴倍率", min: 0.1, max: 2, step: 0.02, unit: "倍" },
         { key: "entityShadowHeightStretch", group: "表现", label: "虚拟高度拉影", hint: "实体虚拟高度每增加一倍时，阴影沿投影方向额外拉长的比例", min: 0, max: 1.5, step: 0.02, unit: "比例" },
         { key: "entityShadowBlurPixels", group: "表现", label: "实体落影柔化", hint: "缓存式阴影贴图生成时使用的边缘柔化半径", min: 0, max: 24, step: 0.5, unit: "px" },
+        { key: "entityContactShadowOpacity", group: "表现", label: "实体接触影不透明度", hint: "实体正下方紧实暗部的强度，用于在深色场地和发光轮廓下保持落地关系", min: 0, max: 1, step: 0.01, unit: "比例" },
+        { key: "entityContactShadowScale", group: "表现", label: "实体接触影尺寸", hint: "紧实接触影相对右下偏移投影的尺寸比例", min: 0.1, max: 1.5, step: 0.02, unit: "比例" },
         { key: "foodShadowHeight", group: "表现", label: "球的虚拟高度", hint: "球相对普通蛇身的阴影距离与拉伸倍率", min: 0, max: 4, step: 0.05, unit: "倍" },
         { key: "projectileShadowHeight", group: "表现", label: "投射物虚拟高度", hint: "子弹与环刃相对普通蛇身的阴影距离与拉伸倍率", min: 0, max: 6, step: 0.05, unit: "倍" },
         { key: "maxRenderFps", group: "性能", label: "最高绘制帧率", hint: "Canvas 与界面动效的绘制上限；默认覆盖常见高刷新率屏幕，避免非整除节流造成帧间隔抖动", min: 30, max: 240, step: 1, unit: "FPS" },
