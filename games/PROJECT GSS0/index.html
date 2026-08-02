@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0b0d0f">
   <meta name="description" content="代号：几何贪吃蛇 - 单人及多人共享世界肉鸽贪吃蛇战斗游戏">
   <title>代号：几何贪吃蛇</title>
-  <link rel="stylesheet" href="styles.css?v=136">
+  <link rel="stylesheet" href="styles.css?v=137">
 </head>
 <body>
   <main id="game-shell" aria-label="代号：几何贪吃蛇 游戏区域">
@@ -19,7 +19,7 @@
           <strong>代号：几何贪吃蛇</strong>
         </div>
         <span class="signature">by 四季鸽</span>
-        <span class="brand-version" aria-label="游戏版本 V136">V136</span>
+        <span class="brand-version" aria-label="游戏版本 V137">V137</span>
       </div>
 
       <div class="run-stats">
@@ -66,13 +66,13 @@
             <input id="sound-slider" type="range" min="0" max="300" step="5" value="100" aria-label="声音大小百分比">
           </div>
         </div>
-        <div class="setting-control" data-tooltip="动态透视强度 100%">
-          <button id="motion-button" class="icon-button" type="button" aria-label="调节动态透视强度，当前 100%" aria-expanded="false" aria-controls="motion-popover">
+        <div class="setting-control" data-tooltip="伪3D强度 100%">
+          <button id="motion-button" class="icon-button" type="button" aria-label="调节伪3D强度，当前 100%" aria-expanded="false" aria-controls="motion-popover">
             <span class="motion-icon" aria-hidden="true"></span>
           </button>
-          <div id="motion-popover" class="setting-popover" role="group" aria-label="动态透视强度" aria-hidden="true">
-            <div class="setting-heading"><span>动态透视</span><output id="motion-output" for="motion-slider">100%</output></div>
-            <input id="motion-slider" type="range" min="100" max="300" step="25" value="100" aria-label="动态透视强度百分比">
+          <div id="motion-popover" class="setting-popover" role="group" aria-label="伪3D强度" aria-hidden="true">
+            <div class="setting-heading"><span>伪3D强度</span><output id="motion-output" for="motion-slider">100%</output></div>
+            <input id="motion-slider" type="range" min="0" max="300" step="25" value="100" aria-label="伪3D强度百分比">
           </div>
         </div>
         <div class="setting-control" data-tooltip="摄像机 跟随蛇头">
@@ -201,7 +201,7 @@
 
     <section id="start-screen" class="modal-layer start-screen is-visible" aria-labelledby="game-title">
       <div class="start-glow" aria-hidden="true"></div>
-          <div class="start-version" aria-label="游戏版本 V136"><span>BUILD</span><strong>V136</strong></div>
+          <div class="start-version" aria-label="游戏版本 V137"><span>BUILD</span><strong>V137</strong></div>
       <div class="start-layout">
         <div class="start-content">
           <div id="network-status" class="title-kicker">TACTICAL SURVIVAL / LOCAL</div>
@@ -383,6 +383,21 @@
           <button id="changelog-close-button" class="icon-button codex-close-button" type="button" aria-label="关闭更新日志" title="关闭更新日志">×</button>
         </header>
         <div class="changelog-list">
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V137</strong></div>
+              <time datetime="2026-08-02">2026.08.02</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">视觉升级</span>
+              <h3>强伪3D摄像机与落地阴影</h3>
+              <ul>
+                <li>战场摄像机升级为随玩家瞄准方向平滑倾斜的强伪3D投影，加入前视、远近缩放与精确逆投影，倾斜后鼠标和触控瞄准仍与世界坐标一致。</li>
+                <li>玩家、敌蛇、球、地雷与投射物新增缓存式落地阴影，蛇头和每节身体获得明确离地层次，投射物使用更长影距表现虚拟高度。</li>
+                <li>动态透视设置更名为伪3D强度并允许调至0%，同时保留减少动态效果降级；本次全部视觉均由代码生成，没有新增美术素材。</li>
+              </ul>
+            </div>
+          </article>
           <article class="changelog-entry">
             <header>
               <div class="changelog-version"><span>BUILD</span><strong>V136</strong></div>
@@ -2175,22 +2190,23 @@
     </section>
   </main>
 
-  <script src="designer-config.js?v=136"></script>
-  <script src="status-catalog.js?v=136"></script>
-  <script src="module-catalog.js?v=136"></script>
-  <script src="module-progression.js?v=136"></script>
-  <script src="wave-director.js?v=136"></script>
-  <script src="spawn-planner.js?v=136"></script>
-  <script src="network-codec.js?v=136"></script>
-  <script src="network-player-prediction.js?v=136"></script>
-  <script src="network-player-state-codec.js?v=136"></script>
-  <script src="network-player-collisions.js?v=136"></script>
-  <script src="network-head-collisions.js?v=136"></script>
-  <script src="network-food-claims.js?v=136"></script>
-  <script src="network-projectiles.js?v=136"></script>
-  <script src="lobby-navigation.js?v=136"></script>
-  <script src="enemy-codex.js?v=136"></script>
-  <script type="module" src="src/client/p2p/bootstrap.ts?v=136"></script>
-  <script src="game.js?v=136"></script>
+  <script src="designer-config.js?v=137"></script>
+  <script src="status-catalog.js?v=137"></script>
+  <script src="module-catalog.js?v=137"></script>
+  <script src="module-progression.js?v=137"></script>
+  <script src="wave-director.js?v=137"></script>
+  <script src="spawn-planner.js?v=137"></script>
+  <script src="network-codec.js?v=137"></script>
+  <script src="network-player-prediction.js?v=137"></script>
+  <script src="network-player-state-codec.js?v=137"></script>
+  <script src="network-player-collisions.js?v=137"></script>
+  <script src="network-head-collisions.js?v=137"></script>
+  <script src="network-food-claims.js?v=137"></script>
+  <script src="network-projectiles.js?v=137"></script>
+  <script src="lobby-navigation.js?v=137"></script>
+  <script src="enemy-codex.js?v=137"></script>
+  <script src="camera-projection.js?v=137"></script>
+  <script type="module" src="src/client/p2p/bootstrap.ts?v=137"></script>
+  <script src="game.js?v=137"></script>
 </body>
 </html>

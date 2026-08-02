@@ -9,8 +9,13 @@
   const arenaTextureCtx = arenaTextureCanvas.getContext("2d", { alpha: false });
   const arenaShadowCanvas = document.createElement("canvas");
   const arenaShadowCtx = arenaShadowCanvas.getContext("2d");
+  const entityShadowCanvas = document.createElement("canvas");
+  const entityShadowCtx = entityShadowCanvas.getContext("2d");
   const enemySpriteCache = new Map();
   const corrosionParticleSpriteCache = new Map();
+  const cameraProjectionApi = globalThis.GSS0CameraProjection;
+  if (!cameraProjectionApi) throw new Error("PROJECT GSS0 摄像机投影运行时未加载");
+  const cameraProjection = cameraProjectionApi.create();
   let localModeForced = false;
   const PLAYER_COLORS = ["#f3c600", "#08c7dc", "#ef3e4a", "#8be04e", "#b49cff", "#ff8a5b", "#70d6ff", "#ff88c7"];
 
@@ -228,9 +233,23 @@
     CAMERA_FOLLOW_ZOOM_MIN,
     CAMERA_FOLLOW_ZOOM_MAX
   );
+  const CAMERA_PSEUDO_3D_PERSPECTIVE = designerNumber("cameraPseudo3DPerspective", 0.11, 0, 0.4);
+  const CAMERA_PSEUDO_3D_FORESHORTENING = designerNumber("cameraPseudo3DForeshortening", 0.12, 0, 0.4);
+  const CAMERA_PSEUDO_3D_OVERSCAN = designerNumber("cameraPseudo3DOverscan", 0.36, 0, 1);
+  const CAMERA_PSEUDO_3D_RESPONSE = designerNumber("cameraPseudo3DResponse", 5.5, 0.1, 30);
+  const CAMERA_AIM_LOOK_AHEAD_CELLS = designerNumber("cameraAimLookAheadCells", 1.25, 0, 8);
   const CAMERA_FOLLOW_RENDER_OVERSCAN_PIXELS = designerNumber("cameraFollowRenderOverscanPixels", 120, 0, 600, true);
   const CAMERA_FOLLOW_FOOD_INDICATOR_LIMIT = designerNumber("cameraFollowFoodIndicatorLimit", 6, 0, 100, true);
   const CAMERA_FOLLOW_ENEMY_INDICATOR_LIMIT = designerNumber("cameraFollowEnemyIndicatorLimit", 8, 0, 100, true);
+  const ENTITY_SHADOW_OPACITY = designerNumber("entityShadowOpacity", 0.42, 0, 1);
+  const ENTITY_SHADOW_OFFSET_PIXELS = designerNumber("entityShadowOffsetPixels", 10, 0, 40);
+  const ENTITY_SHADOW_DIRECTION = designerNumber("entityShadowDirectionDegrees", 56, -180, 180) * Math.PI / 180;
+  const ENTITY_SHADOW_WIDTH_SCALE = designerNumber("entityShadowWidthScale", 1.45, 0.25, 4);
+  const ENTITY_SHADOW_HEIGHT_SCALE = designerNumber("entityShadowHeightScale", 0.52, 0.1, 2);
+  const ENTITY_SHADOW_HEIGHT_STRETCH = designerNumber("entityShadowHeightStretch", 0.28, 0, 1.5);
+  const ENTITY_SHADOW_BLUR_PIXELS = designerNumber("entityShadowBlurPixels", 8, 0, 24);
+  const FOOD_SHADOW_HEIGHT = designerNumber("foodShadowHeight", 1.2, 0, 4);
+  const PROJECTILE_SHADOW_HEIGHT = designerNumber("projectileShadowHeight", 1.9, 0, 6);
   const FOOD_WALL_MARGIN = 2;
   const ENEMY_SPAWN_WARNING_TIME = designerNumber("enemySpawnWarning", 1.5, 0, 10);
   const ENEMY_SPAWN_ACTIVATION_DURATION = designerNumber("enemySpawnActivationDuration", 0.38, 0.05, 3);
@@ -505,7 +524,7 @@
   });
   let soundVolume = loadSetting("ultra-snake-volume", 1, 0, SOUND_MAX_VOLUME);
   let fontScale = loadSetting("ultra-snake-font-scale", 1.5, 0.5, 2);
-  let uiMotionStrength = loadSetting("gss0-ui-motion-strength", 1, 1, 3);
+  let uiMotionStrength = loadSetting("gss0-ui-motion-strength", 1, 0, 3);
   let cameraMode = loadSetting("gss0-camera-mode", 1, 0, 1) >= 0.5 ? "follow" : "fixed";
   let followCameraZoom = loadSetting(
     "gss0-follow-camera-zoom",
@@ -567,11 +586,19 @@
   };
   const cameraPoint = { x: 0, y: 0 };
   const cameraViewport = { left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0, centerX: 0, centerY: 0 };
-  const perspectiveMatrix = { a: 1, b: 0, c: 0, d: 1 };
-  const projectedArenaPoint = { x: 0, y: 0 };
-  const unprojectedArenaPoint = { x: 0, y: 0 };
+  const unprojectedCameraPoint = { x: 0, y: 0 };
   const screenWorldPoint = { x: 0, y: 0 };
   const worldScreenPoint = { x: 0, y: 0 };
+  const worldViewportPoint = { x: 0, y: 0 };
+  const viewportCanvasPoint = { x: 0, y: 0 };
+  const worldCamera = {
+    axisX: 0,
+    axisY: 0,
+    lookAheadX: 0,
+    lookAheadY: 0,
+    projectionStrength: 0,
+    appliedTransform: ""
+  };
   const renderWorldCorners = [
     { x: 0, y: 0 },
     { x: 0, y: 0 },
@@ -679,6 +706,7 @@
   const keys = new Set();
   const pointer = { active: false, x: 0, y: 0, touchId: null };
   const uiMotionMedia = window.matchMedia("(hover: hover) and (pointer: fine)");
+  const reducedMotionMedia = window.matchMedia("(prefers-reduced-motion: reduce)");
   const uiMotion = { x: 0, y: 0, targetX: 0, targetY: 0, appliedX: NaN, appliedY: NaN, appliedStrength: NaN };
   const ambientNodes = Array.from({ length: 28 }, (_, index) => ({
     x: fract(Math.sin(index * 127.1 + 18.3) * 43758.5453),
@@ -775,6 +803,49 @@
     uiMotion.appliedX = uiMotion.x;
     uiMotion.appliedY = uiMotion.y;
     uiMotion.appliedStrength = uiMotionStrength;
+  }
+
+  function refreshWorldCameraProjection() {
+    const magnitude = Math.min(1, Math.hypot(worldCamera.axisX, worldCamera.axisY));
+    const strength = magnitude * Math.sqrt(Math.max(0, uiMotionStrength));
+    worldCamera.projectionStrength = strength;
+    const transform = cameraProjection.update(
+      width,
+      height,
+      worldCamera.axisX,
+      worldCamera.axisY,
+      strength,
+      CAMERA_PSEUDO_3D_PERSPECTIVE,
+      CAMERA_PSEUDO_3D_FORESHORTENING,
+      CAMERA_PSEUDO_3D_OVERSCAN
+    );
+    if (transform !== worldCamera.appliedTransform) {
+      canvas.style.transform = transform;
+      worldCamera.appliedTransform = transform;
+    }
+    ui.shell.classList.toggle("is-pseudo-3d", strength > 0.001);
+    ui.shell.style.setProperty("--camera-pseudo-3d-strength", strength.toFixed(3));
+  }
+
+  function updateWorldCamera(dt) {
+    const hasWorld = Boolean(player && state !== "menu");
+    const motionAllowed = !reducedMotionMedia.matches && uiMotionStrength > 0;
+    const targetX = hasWorld && motionAllowed ? Math.cos(player.desiredAngle ?? player.angle ?? 0) : 0;
+    const targetY = hasWorld && motionAllowed ? Math.sin(player.desiredAngle ?? player.angle ?? 0) : 0;
+    if (reducedMotionMedia.matches) {
+      worldCamera.axisX = 0;
+      worldCamera.axisY = 0;
+    } else {
+      const response = 1 - Math.exp(-Math.min(dt, 0.05) * CAMERA_PSEUDO_3D_RESPONSE);
+      worldCamera.axisX += (targetX - worldCamera.axisX) * response;
+      worldCamera.axisY += (targetY - worldCamera.axisY) * response;
+      if (Math.abs(targetX - worldCamera.axisX) < 0.00035) worldCamera.axisX = targetX;
+      if (Math.abs(targetY - worldCamera.axisY) < 0.00035) worldCamera.axisY = targetY;
+    }
+    const lookAheadDistance = CAMERA_AIM_LOOK_AHEAD_CELLS * (arena?.cellSize || 0);
+    worldCamera.lookAheadX = worldCamera.axisX * lookAheadDistance;
+    worldCamera.lookAheadY = worldCamera.axisY * lookAheadDistance;
+    refreshWorldCameraProjection();
   }
 
   function random(min, max) {
@@ -970,12 +1041,12 @@
   }
 
   function applyUIMotionStrength(value, persist = true) {
-    uiMotionStrength = clamp(value, 1, 3);
+    uiMotionStrength = clamp(value, 0, 3);
     uiMotion.appliedStrength = NaN;
     const percent = Math.round(uiMotionStrength * 100);
     ui.motionSlider.value = String(percent);
     ui.motionOutput.textContent = `${percent}%`;
-    updateSettingButtonLabel(ui.motionButton, `调节动态透视强度，当前 ${percent}%`, `动态透视强度 ${percent}%`);
+    updateSettingButtonLabel(ui.motionButton, `调节伪3D强度，当前 ${percent}%`, `伪3D强度 ${percent}%`);
     if (persist) saveSetting("gss0-ui-motion-strength", uiMotionStrength);
   }
 
@@ -1194,16 +1265,32 @@
     arenaShadowCtx.shadowOffsetY = 0;
   }
 
+  function rebuildEntityShadowTexture() {
+    const textureWidth = 192;
+    const textureHeight = 96;
+    entityShadowCanvas.width = textureWidth;
+    entityShadowCanvas.height = textureHeight;
+    entityShadowCtx.clearRect(0, 0, textureWidth, textureHeight);
+    entityShadowCtx.save();
+    entityShadowCtx.filter = `blur(${ENTITY_SHADOW_BLUR_PIXELS}px)`;
+    entityShadowCtx.fillStyle = "rgba(0, 0, 0, 0.94)";
+    entityShadowCtx.beginPath();
+    entityShadowCtx.ellipse(textureWidth / 2, textureHeight / 2, textureWidth * 0.34, textureHeight * 0.17, 0, 0, TAU);
+    entityShadowCtx.fill();
+    entityShadowCtx.restore();
+  }
+
   function resizeRenderCaches() {
     ambientCanvas.width = Math.max(1, Math.round(width * AMBIENT_RENDER_SCALE));
     ambientCanvas.height = Math.max(1, Math.round(height * AMBIENT_RENDER_SCALE));
     lastAmbientRender = -Infinity;
+    rebuildEntityShadowTexture();
     rebuildArenaTexture();
   }
 
   function resize() {
     const previousArena = arena;
-    const rect = canvas.getBoundingClientRect();
+    const rect = ui.shell.getBoundingClientRect();
     width = Math.max(320, rect.width);
     height = Math.max(420, rect.height);
     dpr = Math.min(MAX_RENDER_DPR, window.devicePixelRatio || 1);
@@ -1228,6 +1315,7 @@
         food.radius = arena.cellSize * 0.13;
       }
     }
+    refreshWorldCameraProjection();
   }
 
   function updateArenaBounds() {
@@ -1354,13 +1442,14 @@
   }
 
   function cameraPosition(target = cameraPoint) {
-    target.x = cameraMode === "follow" && player ? player.x : arena.centerX;
-    target.y = cameraMode === "follow" && player ? player.y : arena.centerY;
+    target.x = cameraMode === "follow" && player ? player.x + worldCamera.lookAheadX : arena.centerX;
+    target.y = cameraMode === "follow" && player ? player.y + worldCamera.lookAheadY : arena.centerY;
     return target;
   }
 
   function cameraZoom() {
-    return cameraMode === "follow" ? followCameraZoom : 1;
+    const baseZoom = cameraMode === "follow" ? followCameraZoom : 1;
+    return baseZoom / Math.max(1, cameraProjection.scale());
   }
 
   function cameraViewportBounds() {
@@ -1393,47 +1482,10 @@
     ctx.translate(-camera.x, -camera.y);
   }
 
-  function arenaPerspectiveMatrix() {
-    const strength = uiMotionMedia.matches ? uiMotionStrength : 0;
-    const motionX = uiMotion.x * strength;
-    const motionY = uiMotion.y * strength;
-    perspectiveMatrix.a = 1 - Math.abs(motionX) * 0.003;
-    perspectiveMatrix.b = motionY * 0.0024;
-    perspectiveMatrix.c = motionX * 0.0042;
-    perspectiveMatrix.d = 1 - Math.abs(motionY) * 0.003;
-    return perspectiveMatrix;
-  }
-
-  function applyArenaPerspectiveTransform() {
-    const matrix = arenaPerspectiveMatrix();
-    ctx.translate(arena.centerX, arena.centerY);
-    ctx.transform(matrix.a, matrix.b, matrix.c, matrix.d, 0, 0);
-    ctx.translate(-arena.centerX, -arena.centerY);
-  }
-
-  function projectArenaPoint(x, y, target = projectedArenaPoint) {
-    const matrix = arenaPerspectiveMatrix();
-    const dx = x - arena.centerX;
-    const dy = y - arena.centerY;
-    target.x = arena.centerX + matrix.a * dx + matrix.c * dy;
-    target.y = arena.centerY + matrix.b * dx + matrix.d * dy;
-    return target;
-  }
-
-  function unprojectArenaPoint(x, y, target = unprojectedArenaPoint) {
-    const matrix = arenaPerspectiveMatrix();
-    const determinant = matrix.a * matrix.d - matrix.b * matrix.c || 1;
-    const dx = x - arena.centerX;
-    const dy = y - arena.centerY;
-    target.x = arena.centerX + (matrix.d * dx - matrix.c * dy) / determinant;
-    target.y = arena.centerY + (-matrix.b * dx + matrix.a * dy) / determinant;
-    return target;
-  }
-
   function screenToWorld(x, y, target = screenWorldPoint) {
     const camera = cameraPosition();
     const zoom = cameraZoom();
-    const point = unprojectArenaPoint(x, y);
+    const point = cameraProjection.unproject(x, y, unprojectedCameraPoint);
     target.x = camera.x + (point.x - arena.centerX) / zoom;
     target.y = camera.y + (point.y - arena.centerY) / zoom;
     return target;
@@ -1442,11 +1494,18 @@
   function worldToScreen(x, y, target = worldScreenPoint) {
     const camera = cameraPosition();
     const zoom = cameraZoom();
-    return projectArenaPoint(
-      arena.centerX + (x - camera.x) * zoom,
-      arena.centerY + (y - camera.y) * zoom,
-      target
-    );
+    target.x = arena.centerX + (x - camera.x) * zoom;
+    target.y = arena.centerY + (y - camera.y) * zoom;
+    return target;
+  }
+
+  function worldToViewport(x, y, target = worldViewportPoint) {
+    const point = worldToScreen(x, y, worldScreenPoint);
+    return cameraProjection.project(point.x, point.y, target);
+  }
+
+  function viewportToCanvas(x, y, target = viewportCanvasPoint) {
+    return cameraProjection.unproject(x, y, target);
   }
 
   function updateRenderWorldBounds() {
@@ -7923,7 +7982,6 @@
     ctx.drawImage(ambientCanvas, 0, 0, ambientCanvas.width, ambientCanvas.height, 0, 0, width, height);
 
     ctx.save();
-    applyArenaPerspectiveTransform();
     if (cameraMode === "follow") {
       applyCameraViewportClip();
       applyCameraTransform();
@@ -7984,7 +8042,6 @@
     const mark = Math.max(16, arena.cellSize * 0.8);
     if (!cameraViewTouchesArenaBorder(mark)) return;
     ctx.save();
-    applyArenaPerspectiveTransform();
     applyCameraViewportClip();
     applyCameraTransform();
     ctx.shadowColor = "rgba(0, 0, 0, 0.65)";
@@ -8103,6 +8160,82 @@
     }
     if (rectIntersectsRenderBounds(arena.left, arena.bottom - edgeBandHeight, arena.right, arena.bottom)) {
       ctx.fillRect(visibleLeft, arena.bottom - edgeBandHeight, visibleRight - visibleLeft, edgeBandHeight);
+    }
+  }
+
+  function drawShadowBlob(x, y, radius, virtualHeight = 1, alpha = 1) {
+    const presentationStrength = Math.sqrt(Math.max(0, uiMotionStrength));
+    if (presentationStrength <= 0.001 || ENTITY_SHADOW_OPACITY <= 0 || radius <= 0 || alpha <= 0) return;
+    const safeHeight = Math.max(0, virtualHeight);
+    const offset = ENTITY_SHADOW_OFFSET_PIXELS * safeHeight * presentationStrength;
+    const widthScale = ENTITY_SHADOW_WIDTH_SCALE
+      + Math.max(0, safeHeight - 1) * ENTITY_SHADOW_HEIGHT_STRETCH * presentationStrength;
+    const shadowWidth = radius * 2 * widthScale;
+    const shadowHeight = radius * 2 * ENTITY_SHADOW_HEIGHT_SCALE;
+    ctx.save();
+    ctx.globalAlpha *= ENTITY_SHADOW_OPACITY * Math.min(1, presentationStrength) * alpha;
+    ctx.translate(
+      x + Math.cos(ENTITY_SHADOW_DIRECTION) * offset,
+      y + Math.sin(ENTITY_SHADOW_DIRECTION) * offset
+    );
+    ctx.rotate(ENTITY_SHADOW_DIRECTION);
+    ctx.drawImage(entityShadowCanvas, -shadowWidth / 2, -shadowHeight / 2, shadowWidth, shadowHeight);
+    ctx.restore();
+  }
+
+  function drawSnakeShadow(head, segments, headRadius, segmentRadius, alpha = 1) {
+    if (!head || (renderWorldBounds.active && !snakeIntersectsRenderBounds(head, segments, headRadius * 2))) return;
+    for (let index = segments.length - 1; index >= 0; index -= 1) {
+      const segment = segments[index];
+      if (!renderWorldBounds.active || pointIntersectsRenderBounds(segment.x, segment.y, segmentRadius * 2)) {
+        drawShadowBlob(segment.x, segment.y, segmentRadius, 1, alpha);
+      }
+    }
+    if (!renderWorldBounds.active || pointIntersectsRenderBounds(head.x, head.y, headRadius * 2)) {
+      drawShadowBlob(head.x, head.y, headRadius, 1, alpha);
+    }
+  }
+
+  function drawEntityShadows(time) {
+    if (uiMotionStrength <= 0 || ENTITY_SHADOW_OPACITY <= 0) return;
+    const pieceScale = arenaPieceScale();
+
+    for (const food of foods) {
+      if (food.networkHidden || (renderWorldBounds.active && !pointIntersectsRenderBounds(food.x, food.y, food.radius * 2 + 12))) continue;
+      const birthProgress = food.birthAge == null ? 1 : clamp(food.birthAge / FOOD_BIRTH_DURATION, 0, 1);
+      const pulse = 1 + Math.sin(time * 5 + food.phase) * 0.08;
+      drawShadowBlob(food.x, food.y, food.radius * 1.45 * pulse, FOOD_SHADOW_HEIGHT, 0.2 + birthProgress * 0.8);
+    }
+
+    for (const hazard of hazards) {
+      if (hazard.kind !== "mine") continue;
+      const radius = mineVisualRadius(hazard);
+      if (!renderWorldBounds.active || pointIntersectsRenderBounds(hazard.x, hazard.y, radius * 2)) {
+        drawShadowBlob(hazard.x, hazard.y, radius, 0.72, hazard.arm > 0 ? 0.56 : 0.86);
+      }
+    }
+
+    for (const enemy of enemies) {
+      if (enemy.dead) continue;
+      const headRadius = (enemy.archetype === "warden" ? 20 : 17) * pieceScale;
+      const segmentRadius = (enemy.archetype === "warden" ? 12 : 10) * pieceScale;
+      drawSnakeShadow(enemy, enemy.segments, headRadius, segmentRadius);
+    }
+
+    if (network.enabled) {
+      for (const target of visiblePlayers) {
+        const headRadius = target.radius || playerHeadRadiusPixels();
+        drawSnakeShadow(target, target.segments || [], headRadius, 11 * pieceScale, target.ghost ? 0.2 : 1);
+      }
+    } else if (player) {
+      drawSnakeShadow(player, player.segments, player.radius || playerHeadRadiusPixels(), 11 * pieceScale, player.ghost ? 0.2 : 1);
+    }
+
+    for (const projectile of projectiles) {
+      const radius = Math.max(3, projectile.size || 3);
+      if (!renderWorldBounds.active || pointIntersectsRenderBounds(projectile.x, projectile.y, radius * 3 + 24)) {
+        drawShadowBlob(projectile.x, projectile.y, radius * 1.15, PROJECTILE_SHADOW_HEIGHT, 0.92);
+      }
     }
   }
 
@@ -9235,7 +9368,7 @@
     const bottom = viewport.bottom - inset;
 
     function marker(x, y, color, kind) {
-      const screen = worldToScreen(x, y);
+      const screen = worldToViewport(x, y);
       if (screen.x >= left && screen.x <= right && screen.y >= top && screen.y <= bottom) return;
       const dx = screen.x - viewport.centerX;
       const dy = screen.y - viewport.centerY;
@@ -9245,8 +9378,9 @@
       );
       const markerX = viewport.centerX + dx * scale;
       const markerY = viewport.centerY + dy * scale;
+      const canvasPoint = viewportToCanvas(markerX, markerY);
       ctx.save();
-      ctx.translate(markerX, markerY);
+      ctx.translate(canvasPoint.x, canvasPoint.y);
       ctx.shadowColor = color;
       ctx.shadowBlur = 8;
       ctx.fillStyle = color;
@@ -9288,10 +9422,10 @@
     resetOffscreenIndicatorCandidates();
     drawBackground(visualTime);
     ctx.save();
-    applyArenaPerspectiveTransform();
     applyCameraViewportClip();
     if (shake > 0) ctx.translate(random(-shake, shake), random(-shake, shake));
     applyCameraTransform();
+    drawEntityShadows(visualTime);
     drawFood(visualTime);
     drawEnemySpawnWarnings(visualTime);
     drawHazards(visualTime);
@@ -9417,7 +9551,9 @@
       const renderInterval = 1000 / renderFps;
       if (now + 0.25 >= nextCanvasRenderAt) {
         const renderedFrameInterval = lastCanvasRender > 0 ? now - lastCanvasRender : 0;
-        updateUIMotion(pendingUiMotionDt);
+        const renderMotionDt = pendingUiMotionDt;
+        updateUIMotion(renderMotionDt);
+        updateWorldCamera(renderMotionDt);
         pendingUiMotionDt = 0;
         render(now);
         lastCanvasRender = now;
@@ -9432,7 +9568,7 @@
   }
 
   function updatePointer(event) {
-    const rect = canvas.getBoundingClientRect();
+    const rect = ui.shell.getBoundingClientRect();
     pointer.x = event.clientX - rect.left;
     pointer.y = event.clientY - rect.top;
     if (event.pointerType === "touch") {

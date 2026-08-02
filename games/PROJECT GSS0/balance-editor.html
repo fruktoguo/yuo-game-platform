@@ -401,12 +401,12 @@
     </div>
   </main>
 
-  <script src="enemy-codex.js?v=136"></script>
-  <script src="wave-director.js?v=136"></script>
-  <script src="designer-config.js?v=136"></script>
-  <script src="status-catalog.js?v=136"></script>
-  <script src="module-catalog.js?v=136"></script>
-  <script src="module-progression.js?v=136"></script>
+  <script src="enemy-codex.js?v=137"></script>
+  <script src="wave-director.js?v=137"></script>
+  <script src="designer-config.js?v=137"></script>
+  <script src="status-catalog.js?v=137"></script>
+  <script src="module-catalog.js?v=137"></script>
+  <script src="module-progression.js?v=137"></script>
   <script>
     (() => {
       "use strict";
@@ -634,9 +634,23 @@
         { key: "cameraFollowZoomMin", group: "摄像机", label: "跟随视角最小缩放", hint: "跟随蛇头模式使用滚轮缩小时允许达到的最低倍率", min: 0.25, max: 5, step: 0.05, unit: "倍" },
         { key: "cameraFollowZoomDefault", group: "摄像机", label: "跟随视角默认缩放", hint: "首次启用跟随蛇头模式时使用的缩放倍率，并受最小与最大值约束", min: 0.25, max: 5, step: 0.05, unit: "倍" },
         { key: "cameraFollowZoomMax", group: "摄像机", label: "跟随视角最大缩放", hint: "跟随蛇头模式使用滚轮放大时允许达到的最高倍率", min: 0.25, max: 5, step: 0.05, unit: "倍" },
+        { key: "cameraPseudo3DPerspective", group: "摄像机", label: "伪3D远近透视", hint: "瞄准方向远端收窄、近端放大的投影强度；界面伪3D强度会继续乘算", min: 0, max: 0.4, step: 0.005, unit: "强度" },
+        { key: "cameraPseudo3DForeshortening", group: "摄像机", label: "伪3D纵深压缩", hint: "沿瞄准方向压缩战场平面的比例，增强倾斜舞台的纵深感", min: 0, max: 0.4, step: 0.005, unit: "比例" },
+        { key: "cameraPseudo3DOverscan", group: "摄像机", label: "伪3D画布超扫", hint: "放大投影画布以覆盖强倾斜产生的屏幕角落；运行时会补偿中心缩放", min: 0, max: 1, step: 0.01, unit: "比例" },
+        { key: "cameraPseudo3DResponse", group: "摄像机", label: "瞄准倾斜响应", hint: "摄像机倾斜方向和平移前视追随玩家瞄准方向的平滑速率", min: 0.1, max: 30, step: 0.1, unit: "速率" },
+        { key: "cameraAimLookAheadCells", group: "摄像机", label: "瞄准前视距离", hint: "跟随蛇头模式沿当前瞄准方向额外展示的前方场地距离", min: 0, max: 8, step: 0.05, unit: "格" },
         { key: "cameraFollowRenderOverscanPixels", group: "性能", label: "跟随视角渲染缓冲", hint: "跟随蛇头模式在屏幕边缘外继续绘制的缓冲宽度，增大可减少高速移动时的边缘跳入", min: 0, max: 600, step: 10, unit: "px" },
         { key: "cameraFollowFoodIndicatorLimit", group: "性能", label: "跟随视角球提示上限", hint: "跟随蛇头模式最多显示的最近离屏球提示数量", min: 0, max: 100, step: 1, unit: "个" },
         { key: "cameraFollowEnemyIndicatorLimit", group: "性能", label: "跟随视角敌人提示上限", hint: "跟随蛇头模式最多显示的最近离屏敌人提示数量；预生成警告不受此限制", min: 0, max: 100, step: 1, unit: "个" },
+        { key: "entityShadowOpacity", group: "表现", label: "实体落影不透明度", hint: "玩家、敌蛇、球、地雷和投射物共享的代码生成地面阴影强度", min: 0, max: 1, step: 0.01, unit: "比例" },
+        { key: "entityShadowOffsetPixels", group: "表现", label: "实体基础影距", hint: "普通贴地实体与其落地阴影中心之间的基础距离", min: 0, max: 40, step: 0.5, unit: "px" },
+        { key: "entityShadowDirectionDegrees", group: "表现", label: "实体落影方向", hint: "所有实体共享的虚拟主光源投影方向，以屏幕向右为0度", min: -180, max: 180, step: 1, unit: "°" },
+        { key: "entityShadowWidthScale", group: "表现", label: "实体落影宽度", hint: "相对实体半径的基础阴影长轴倍率", min: 0.25, max: 4, step: 0.05, unit: "倍" },
+        { key: "entityShadowHeightScale", group: "表现", label: "实体落影厚度", hint: "相对实体半径的基础阴影短轴倍率", min: 0.1, max: 2, step: 0.02, unit: "倍" },
+        { key: "entityShadowHeightStretch", group: "表现", label: "虚拟高度拉影", hint: "实体虚拟高度每增加一倍时，阴影沿投影方向额外拉长的比例", min: 0, max: 1.5, step: 0.02, unit: "比例" },
+        { key: "entityShadowBlurPixels", group: "表现", label: "实体落影柔化", hint: "缓存式阴影贴图生成时使用的边缘柔化半径", min: 0, max: 24, step: 0.5, unit: "px" },
+        { key: "foodShadowHeight", group: "表现", label: "球的虚拟高度", hint: "球相对普通蛇身的阴影距离与拉伸倍率", min: 0, max: 4, step: 0.05, unit: "倍" },
+        { key: "projectileShadowHeight", group: "表现", label: "投射物虚拟高度", hint: "子弹与环刃相对普通蛇身的阴影距离与拉伸倍率", min: 0, max: 6, step: 0.05, unit: "倍" },
         { key: "maxRenderFps", group: "性能", label: "最高绘制帧率", hint: "Canvas 与界面动效的绘制上限；默认覆盖常见高刷新率屏幕，避免非整除节流造成帧间隔抖动", min: 30, max: 240, step: 1, unit: "FPS" },
         { key: "maxRenderDpr", group: "性能", label: "最高渲染像素倍率", hint: "Canvas 按设备像素密度清晰绘制时使用的倍率上限；运行中不会再自动降低", min: 1, max: 2, step: 0.05, unit: "DPR" },
         { key: "hudUpdateHz", group: "性能", label: "本地 HUD 更新频率", hint: "单人游戏中时间、分数、波次等文字的每秒刷新次数；关键状态变化仍会立即刷新", min: 1, max: 60, step: 1, unit: "Hz" },
