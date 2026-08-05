@@ -2,15 +2,18 @@
   "use strict";
 
   const canvas = document.querySelector("#game");
-  const ctx = canvas.getContext("2d", { alpha: false });
+  let ctx = canvas.getContext("2d", { alpha: false });
   const ambientCanvas = document.createElement("canvas");
   const ambientCtx = ambientCanvas.getContext("2d", { alpha: false });
   const arenaTextureCanvas = document.createElement("canvas");
   const arenaTextureCtx = arenaTextureCanvas.getContext("2d", { alpha: false });
   const arenaShadowCanvas = document.createElement("canvas");
   const arenaShadowCtx = arenaShadowCanvas.getContext("2d");
+  const entityShadowLayerCanvas = document.createElement("canvas");
+  const entityShadowLayerCtx = entityShadowLayerCanvas.getContext("2d");
   const enemySpriteCache = new Map();
   const corrosionParticleSpriteCache = new Map();
+  const entityShadowSpriteCache = new Map();
   const cameraProjectionApi = globalThis.GSS0CameraProjection;
   if (!cameraProjectionApi) throw new Error("PROJECT GSS0 摄像机投影运行时未加载");
   const cameraProjection = cameraProjectionApi.create();
@@ -260,8 +263,6 @@
   const ENTITY_SHADOW_BLUR_PIXELS = designerNumber("entityShadowBlurPixels", 4, 0, 24);
   const ENTITY_CONTACT_SHADOW_OPACITY = designerNumber("entityContactShadowOpacity", 0.34, 0, 1);
   const ENTITY_CONTACT_SHADOW_SCALE = designerNumber("entityContactShadowScale", 0.82, 0.1, 1.5);
-  const ENTITY_SHADOW_FILTER = ENTITY_SHADOW_BLUR_PIXELS > 0 ? `blur(${ENTITY_SHADOW_BLUR_PIXELS}px)` : "none";
-  const ENTITY_CONTACT_SHADOW_FILTER = ENTITY_SHADOW_BLUR_PIXELS > 0 ? `blur(${ENTITY_SHADOW_BLUR_PIXELS * 0.42}px)` : "none";
   const FOOD_SHADOW_HEIGHT = designerNumber("foodShadowHeight", 1.2, 0, 4);
   const PROJECTILE_SHADOW_HEIGHT = designerNumber("projectileShadowHeight", 1.9, 0, 6);
   const FOOD_WALL_MARGIN = 2;
@@ -429,6 +430,7 @@
   const HUD_UPDATE_INTERVAL = 1 / designerNumber("hudUpdateHz", 15, 1, 60, true);
   const AMBIENT_RENDER_INTERVAL = 1 / 30;
   const AMBIENT_RENDER_SCALE = 0.55;
+  const ENTITY_SHADOW_RENDER_SCALE = AMBIENT_RENDER_SCALE;
   const MAX_DECORATIVE_PARTICLES = 720;
   const MAX_DECORATIVE_EFFECTS = 420;
   const ARENA_SHADOW_PADDING = 48;
@@ -1350,6 +1352,8 @@
   function resizeRenderCaches() {
     ambientCanvas.width = Math.max(1, Math.round(width * AMBIENT_RENDER_SCALE));
     ambientCanvas.height = Math.max(1, Math.round(height * AMBIENT_RENDER_SCALE));
+    entityShadowLayerCanvas.width = Math.max(1, Math.round(width * ENTITY_SHADOW_RENDER_SCALE));
+    entityShadowLayerCanvas.height = Math.max(1, Math.round(height * ENTITY_SHADOW_RENDER_SCALE));
     lastAmbientRender = -Infinity;
     rebuildArenaTexture();
   }
@@ -8233,125 +8237,163 @@
     }
   }
 
-  function paintPlayerSegmentShadow(segment) {
-    ctx.beginPath();
-    if (segment.module) {
-      ctx.moveTo(11, 0);
-      ctx.lineTo(5, 10);
-      ctx.lineTo(-8, 8);
-      ctx.lineTo(-11, 0);
-      ctx.lineTo(-8, -8);
-      ctx.lineTo(5, -10);
-      ctx.closePath();
-    } else if (segment.storage) {
-      ctx.moveTo(10, 0);
-      ctx.lineTo(4, 8);
-      ctx.lineTo(-8, 7);
-      ctx.lineTo(-10, 0);
-      ctx.lineTo(-8, -7);
-      ctx.lineTo(4, -8);
-      ctx.closePath();
-    } else {
-      ctx.rect(-8, -7, 16, 14);
-    }
-    ctx.fill();
+  function paintPlayerHeadShadow(context) {
+    context.beginPath();
+    context.moveTo(19, 0);
+    context.lineTo(9, 13);
+    context.lineTo(-7, 12);
+    context.lineTo(-16, 6);
+    context.lineTo(-12, 0);
+    context.lineTo(-16, -6);
+    context.lineTo(-7, -12);
+    context.lineTo(9, -13);
+    context.closePath();
+    context.fill();
   }
 
-  function paintPlayerHeadShadow() {
-    ctx.beginPath();
-    ctx.moveTo(19, 0);
-    ctx.lineTo(9, 13);
-    ctx.lineTo(-7, 12);
-    ctx.lineTo(-16, 6);
-    ctx.lineTo(-12, 0);
-    ctx.lineTo(-16, -6);
-    ctx.lineTo(-7, -12);
-    ctx.lineTo(9, -13);
-    ctx.closePath();
-    ctx.fill();
-  }
-
-  function paintEnemySegmentShadow(enemy) {
-    ctx.beginPath();
+  function paintEnemyHeadShadow(context, enemy) {
+    context.beginPath();
     switch (enemy.archetype) {
       case "scout":
-        ctx.moveTo(10, 0); ctx.lineTo(0, 6); ctx.lineTo(-9, 0); ctx.lineTo(0, -6); ctx.closePath();
+        context.moveTo(19, 0); context.lineTo(-8, 9); context.lineTo(-3, 0); context.lineTo(-8, -9); context.closePath();
         break;
       case "courier":
-        roundedRectPath(-11, -7, 22, 14, 3);
+        context.moveTo(18, 0); context.lineTo(9, 9); context.lineTo(-11, 9); context.lineTo(-16, 4); context.lineTo(-16, -4); context.lineTo(-11, -9); context.lineTo(9, -9); context.closePath();
         break;
       case "charger":
-        ctx.moveTo(11, 0); ctx.lineTo(1, 9); ctx.lineTo(-9, 6); ctx.lineTo(-5, 0); ctx.lineTo(-9, -6); ctx.lineTo(1, -9); ctx.closePath();
+        context.moveTo(21, 0); context.lineTo(8, 7); context.lineTo(3, 15); context.lineTo(-1, 9); context.lineTo(-14, 10); context.lineTo(-10, 0); context.lineTo(-14, -10); context.lineTo(-1, -9); context.lineTo(3, -15); context.lineTo(8, -7); context.closePath();
         break;
       case "cutter":
-        ctx.moveTo(10, 0); ctx.lineTo(0, 11); ctx.lineTo(-5, 4); ctx.lineTo(-11, 0); ctx.lineTo(-5, -4); ctx.lineTo(0, -11); ctx.closePath();
+        context.moveTo(18, 0); context.lineTo(2, 15); context.lineTo(-3, 9); context.lineTo(-15, 5); context.lineTo(-11, 0); context.lineTo(-15, -5); context.lineTo(-3, -9); context.lineTo(2, -15); context.closePath();
         break;
       case "coiler":
-        ctx.arc(0, 0, 9, 0, TAU);
+        context.arc(0, 0, 14, 0, TAU);
         break;
       case "warden":
-        ctx.moveTo(8, -9); ctx.lineTo(11, -4); ctx.lineTo(11, 4); ctx.lineTo(8, 9); ctx.lineTo(-8, 9); ctx.lineTo(-11, 4); ctx.lineTo(-11, -4); ctx.lineTo(-8, -9); ctx.closePath();
+        context.moveTo(16, 0); context.lineTo(10, 13); context.lineTo(-8, 15); context.lineTo(-17, 8); context.lineTo(-17, -8); context.lineTo(-8, -15); context.lineTo(10, -13); context.closePath();
         break;
       default:
-        ctx.moveTo(10, 0); ctx.lineTo(4, 9); ctx.lineTo(-8, 7); ctx.lineTo(-11, 0); ctx.lineTo(-8, -7); ctx.lineTo(4, -9); ctx.closePath();
+        context.moveTo(18, 0); context.lineTo(8, 12); context.lineTo(-7, 11); context.lineTo(-15, 5); context.lineTo(-12, 0); context.lineTo(-15, -5); context.lineTo(-7, -11); context.lineTo(8, -12); context.closePath();
         break;
     }
-    ctx.fill();
+    context.fill();
   }
 
-  function paintEnemyHeadShadow(enemy) {
-    ctx.beginPath();
-    switch (enemy.archetype) {
-      case "scout":
-        ctx.moveTo(19, 0); ctx.lineTo(-8, 9); ctx.lineTo(-3, 0); ctx.lineTo(-8, -9); ctx.closePath();
-        break;
-      case "courier":
-        ctx.moveTo(18, 0); ctx.lineTo(9, 9); ctx.lineTo(-11, 9); ctx.lineTo(-16, 4); ctx.lineTo(-16, -4); ctx.lineTo(-11, -9); ctx.lineTo(9, -9); ctx.closePath();
-        break;
-      case "charger":
-        ctx.moveTo(21, 0); ctx.lineTo(8, 7); ctx.lineTo(3, 15); ctx.lineTo(-1, 9); ctx.lineTo(-14, 10); ctx.lineTo(-10, 0); ctx.lineTo(-14, -10); ctx.lineTo(-1, -9); ctx.lineTo(3, -15); ctx.lineTo(8, -7); ctx.closePath();
-        break;
-      case "cutter":
-        ctx.moveTo(18, 0); ctx.lineTo(2, 15); ctx.lineTo(-3, 9); ctx.lineTo(-15, 5); ctx.lineTo(-11, 0); ctx.lineTo(-15, -5); ctx.lineTo(-3, -9); ctx.lineTo(2, -15); ctx.closePath();
-        break;
-      case "coiler":
-        ctx.arc(0, 0, 14, 0, TAU);
-        break;
-      case "warden":
-        ctx.moveTo(16, 0); ctx.lineTo(10, 13); ctx.lineTo(-8, 15); ctx.lineTo(-17, 8); ctx.lineTo(-17, -8); ctx.lineTo(-8, -15); ctx.lineTo(10, -13); ctx.closePath();
-        break;
-      default:
-        ctx.moveTo(18, 0); ctx.lineTo(8, 12); ctx.lineTo(-7, 11); ctx.lineTo(-15, 5); ctx.lineTo(-12, 0); ctx.lineTo(-15, -5); ctx.lineTo(-7, -11); ctx.lineTo(8, -12); ctx.closePath();
-        break;
-    }
-    ctx.fill();
+  function paintFoodShadow(context, _food, shapeSize) {
+    context.fillRect(-shapeSize, -shapeSize, shapeSize * 2, shapeSize * 2);
   }
 
-  function paintFoodShadow(food) {
-    const outer = food.radius * 1.52;
-    ctx.fillRect(-outer, -outer, outer * 2, outer * 2);
+  function paintMineShadow(context, _hazard, shapeSize) {
+    context.beginPath();
+    context.arc(0, 0, shapeSize, 0, TAU);
+    context.fill();
   }
 
-  function paintMineShadow(hazard) {
-    ctx.beginPath();
-    ctx.arc(0, 0, mineVisualRadius(hazard), 0, TAU);
-    ctx.fill();
-  }
-
-  function paintProjectileShadow(projectile) {
+  function paintProjectileShadow(context, projectile, shapeSize) {
+    context.beginPath();
     if (projectile.kind === "blade") {
-      ctx.beginPath();
-      ctx.moveTo(10, 0);
-      ctx.lineTo(3.6, 4.2);
-      ctx.lineTo(-1.4, 1.5);
-      ctx.lineTo(-10, 0);
-      ctx.lineTo(-3.6, -4.2);
-      ctx.lineTo(1.4, -1.5);
-      ctx.closePath();
+      context.moveTo(10, 0);
+      context.lineTo(3.6, 4.2);
+      context.lineTo(-1.4, 1.5);
+      context.lineTo(-10, 0);
+      context.lineTo(-3.6, -4.2);
+      context.lineTo(1.4, -1.5);
+      context.closePath();
     } else {
-      drawPolygonPath(0, 0, projectile.size * 1.15, 4, 0);
+      context.moveTo(shapeSize, 0);
+      context.lineTo(0, shapeSize);
+      context.lineTo(-shapeSize, 0);
+      context.lineTo(0, -shapeSize);
+      context.closePath();
     }
-    ctx.fill();
+    context.fill();
+  }
+
+  function quantizedEntityShadowSize(size) {
+    return Math.max(0.5, Math.round(size * 2) / 2);
+  }
+
+  function entityShadowShapeSize(paintShadow, source) {
+    if (paintShadow === paintFoodShadow) return quantizedEntityShadowSize(source.radius * 1.52);
+    if (paintShadow === paintMineShadow) return quantizedEntityShadowSize(mineVisualRadius(source));
+    if (paintShadow === paintProjectileShadow && source.kind !== "blade") {
+      return quantizedEntityShadowSize(Math.max(3, source.size || 3) * 1.15);
+    }
+    return 0;
+  }
+
+  function entityShadowSpriteKey(paintShadow, source, shapeSize) {
+    if (paintShadow === paintPlayerHeadShadow) return "player-head";
+    if (paintShadow === paintEnemyHeadShadow) return `enemy-head:${source.archetype || "default"}`;
+    if (paintShadow === paintFoodShadow) return `food:${shapeSize}`;
+    if (paintShadow === paintMineShadow) return `mine:${shapeSize}`;
+    return source.kind === "blade" ? "projectile:blade" : `projectile:shot:${shapeSize}`;
+  }
+
+  function entityShadowSpriteExtent(paintShadow, source, shapeSize) {
+    if (paintShadow === paintPlayerHeadShadow) return 22;
+    if (paintShadow === paintEnemyHeadShadow) return 24;
+    if (paintShadow === paintFoodShadow || paintShadow === paintMineShadow) return shapeSize + 1;
+    if (paintShadow === paintProjectileShadow && source.kind !== "blade") return shapeSize + 1;
+    return 12;
+  }
+
+  function createEntityShadowSprite(paintShadow, source, shapeSize, extent, blurPixels, color) {
+    const renderScale = MAX_RENDER_DPR;
+    const halfSize = Math.ceil(extent + blurPixels * 3 + 2);
+    const size = halfSize * 2;
+    const spriteCanvas = document.createElement("canvas");
+    spriteCanvas.width = Math.max(1, Math.ceil(size * renderScale));
+    spriteCanvas.height = Math.max(1, Math.ceil(size * renderScale));
+    const spriteContext = spriteCanvas.getContext("2d");
+    spriteContext.setTransform(renderScale, 0, 0, renderScale, halfSize * renderScale, halfSize * renderScale);
+    spriteContext.filter = blurPixels > 0 ? `blur(${blurPixels * renderScale}px)` : "none";
+    spriteContext.fillStyle = color;
+    paintShadow(spriteContext, source, shapeSize);
+    return { canvas: spriteCanvas, size };
+  }
+
+  function entityShadowSprite(paintShadow, source) {
+    const shapeSize = entityShadowShapeSize(paintShadow, source);
+    const key = entityShadowSpriteKey(paintShadow, source, shapeSize);
+    let sprite = entityShadowSpriteCache.get(key);
+    if (!sprite) {
+      const extent = entityShadowSpriteExtent(paintShadow, source, shapeSize);
+      sprite = {
+        soft: createEntityShadowSprite(
+          paintShadow,
+          source,
+          shapeSize,
+          extent,
+          ENTITY_SHADOW_BLUR_PIXELS,
+          "rgba(0, 0, 0, 0.96)"
+        ),
+        contact: createEntityShadowSprite(
+          paintShadow,
+          source,
+          shapeSize,
+          extent,
+          ENTITY_SHADOW_BLUR_PIXELS * 0.42,
+          "rgba(0, 0, 0, 0.98)"
+        )
+      };
+      entityShadowSpriteCache.set(key, sprite);
+    }
+    return sprite;
+  }
+
+  function drawEntityShadowSprite(sprite) {
+    ctx.drawImage(
+      sprite.canvas,
+      0,
+      0,
+      sprite.canvas.width,
+      sprite.canvas.height,
+      -sprite.size / 2,
+      -sprite.size / 2,
+      sprite.size,
+      sprite.size
+    );
   }
 
   function drawEntityShadowSilhouette(
@@ -8372,6 +8414,7 @@
     const heightStretch = Math.max(0, safeHeight - 1) * ENTITY_SHADOW_HEIGHT_STRETCH * presentationStrength;
     const inheritedAlpha = ctx.globalAlpha;
     const strengthAlpha = Math.min(1, presentationStrength);
+    const shadowSprite = entityShadowSprite(paintShadow, source);
 
     ctx.save();
     ctx.translate(x, y);
@@ -8383,41 +8426,59 @@
     ctx.rotate(rotation);
     ctx.scale(scaleX, scaleY);
     ctx.globalAlpha = inheritedAlpha * ENTITY_SHADOW_OPACITY * strengthAlpha * alpha;
-    ctx.filter = ENTITY_SHADOW_FILTER;
-    ctx.fillStyle = "rgba(0, 0, 0, 0.96)";
-    paintShadow(source);
+    drawEntityShadowSprite(shadowSprite.soft);
     ctx.restore();
 
+    if (ENTITY_CONTACT_SHADOW_OPACITY > 0) {
+      ctx.save();
+      ctx.translate(x, y);
+      applyBillboardCompensation();
+      ctx.rotate(rotation);
+      ctx.scale(scaleX * ENTITY_CONTACT_SHADOW_SCALE, scaleY * ENTITY_CONTACT_SHADOW_SCALE);
+      ctx.globalAlpha = inheritedAlpha * ENTITY_CONTACT_SHADOW_OPACITY * strengthAlpha * alpha / Math.max(1, safeHeight);
+      drawEntityShadowSprite(shadowSprite.contact);
+      ctx.restore();
+    }
+  }
+
+  function strokeSnakeBodyShadow(head, segments, pieceScale, alpha, inheritedAlpha, strengthAlpha, offset, offsetScale, opacity, widthScale) {
+    if (opacity <= 0) return;
     ctx.save();
-    ctx.translate(x, y);
-    applyBillboardCompensation();
-    ctx.rotate(rotation);
-    ctx.scale(scaleX * ENTITY_CONTACT_SHADOW_SCALE, scaleY * ENTITY_CONTACT_SHADOW_SCALE);
-    ctx.globalAlpha = inheritedAlpha * ENTITY_CONTACT_SHADOW_OPACITY * strengthAlpha * alpha / Math.max(1, safeHeight);
-    ctx.filter = ENTITY_CONTACT_SHADOW_FILTER;
-    ctx.fillStyle = "rgba(0, 0, 0, 0.98)";
-    paintShadow(source);
+    ctx.translate(
+      Math.cos(ENTITY_SHADOW_DIRECTION) * offset * offsetScale,
+      Math.sin(ENTITY_SHADOW_DIRECTION) * offset * offsetScale
+    );
+    ctx.globalAlpha = inheritedAlpha * opacity * strengthAlpha * alpha;
+    ctx.strokeStyle = "rgba(0, 0, 0, 0.96)";
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.lineWidth = 18 * pieceScale * widthScale;
+    ctx.beginPath();
+    ctx.moveTo(head.x, head.y);
+    for (const segment of segments) ctx.lineTo(segment.x, segment.y);
+    ctx.stroke();
     ctx.restore();
+  }
+
+  function drawSnakeBodyShadow(head, segments, pieceScale, alpha = 1) {
+    if (!segments.length || alpha <= 0) return;
+    const presentationStrength = Math.min(CAMERA_PSEUDO_3D_STRENGTH_MAX, Math.max(0, pseudo3DStrength));
+    const strengthAlpha = Math.min(1, presentationStrength);
+    const offset = ENTITY_SHADOW_OFFSET_PIXELS * presentationStrength / Math.max(0.001, cameraZoom());
+    const inheritedAlpha = ctx.globalAlpha;
+    strokeSnakeBodyShadow(
+      head, segments, pieceScale, alpha, inheritedAlpha, strengthAlpha, offset,
+      1, ENTITY_SHADOW_OPACITY, (ENTITY_SHADOW_WIDTH_SCALE + ENTITY_SHADOW_HEIGHT_SCALE) / 2
+    );
+    strokeSnakeBodyShadow(
+      head, segments, pieceScale, alpha, inheritedAlpha, strengthAlpha, offset,
+      0, ENTITY_CONTACT_SHADOW_OPACITY, ENTITY_CONTACT_SHADOW_SCALE
+    );
   }
 
   function drawEnemyShadow(enemy, pieceScale, alpha = 1) {
     if (!enemy || (renderWorldBounds.active && !snakeIntersectsRenderBounds(enemy, enemy.segments, 48 * pieceScale))) return;
-    for (let index = enemy.segments.length - 1; index >= 0; index -= 1) {
-      const segment = enemy.segments[index];
-      if (!renderWorldBounds.active || pointIntersectsRenderBounds(segment.x, segment.y, 24 * pieceScale)) {
-        drawEntityShadowSilhouette(
-          segment.x,
-          segment.y,
-          1,
-          alpha,
-          projectedWorldAngle(segment.angle || 0),
-          pieceScale,
-          pieceScale,
-          paintEnemySegmentShadow,
-          enemy
-        );
-      }
-    }
+    drawSnakeBodyShadow(enemy, enemy.segments, pieceScale, alpha);
     if (!renderWorldBounds.active || pointIntersectsRenderBounds(enemy.x, enemy.y, 44 * pieceScale)) {
       drawEntityShadowSilhouette(
         enemy.x,
@@ -8436,23 +8497,7 @@
   function drawPlayerShadow(target, pieceScale, alpha = 1) {
     if (!target || (renderWorldBounds.active && !snakeIntersectsRenderBounds(target, target.segments || [], 44 * pieceScale))) return;
     const segments = target.segments || [];
-    for (let index = segments.length - 1; index >= 0; index -= 1) {
-      const segment = segments[index];
-      if (!renderWorldBounds.active || pointIntersectsRenderBounds(segment.x, segment.y, 28 * pieceScale)) {
-        const visualScale = segmentBirthScale(segment);
-        drawEntityShadowSilhouette(
-          segment.x,
-          segment.y,
-          1,
-          alpha,
-          projectedWorldAngle(segment.angle || 0),
-          pieceScale * visualScale,
-          pieceScale * visualScale,
-          paintPlayerSegmentShadow,
-          segment
-        );
-      }
-    }
+    drawSnakeBodyShadow(target, segments, pieceScale, alpha);
     if (!renderWorldBounds.active || pointIntersectsRenderBounds(target.x, target.y, 44 * pieceScale)) {
       drawEntityShadowSilhouette(
         target.x,
@@ -8468,8 +8513,7 @@
     }
   }
 
-  function drawEntityShadows(time) {
-    if (pseudo3DStrength <= 0 || ENTITY_SHADOW_OPACITY <= 0) return;
+  function drawEntityShadowsToLayer(time) {
     const pieceScale = arenaPieceScale();
 
     for (const food of foods) {
@@ -8540,6 +8584,54 @@
         projectile
       );
     }
+  }
+
+  function drawEntityShadows(time) {
+    if (pseudo3DStrength <= 0 || ENTITY_SHADOW_OPACITY <= 0) return;
+    // Shadows are intentionally rasterized on the soft-effect layer: their blur is
+    // a presentation cue, so it does not need the full gameplay canvas resolution.
+    const mainContext = ctx;
+    const mainTransform = mainContext.getTransform();
+    const layerScaleX = entityShadowLayerCanvas.width / canvas.width;
+    const layerScaleY = entityShadowLayerCanvas.height / canvas.height;
+
+    entityShadowLayerCtx.setTransform(1, 0, 0, 1, 0, 0);
+    entityShadowLayerCtx.globalAlpha = 1;
+    entityShadowLayerCtx.globalCompositeOperation = "source-over";
+    entityShadowLayerCtx.filter = "none";
+    entityShadowLayerCtx.clearRect(0, 0, entityShadowLayerCanvas.width, entityShadowLayerCanvas.height);
+    entityShadowLayerCtx.setTransform(
+      mainTransform.a * layerScaleX,
+      mainTransform.b * layerScaleY,
+      mainTransform.c * layerScaleX,
+      mainTransform.d * layerScaleY,
+      mainTransform.e * layerScaleX,
+      mainTransform.f * layerScaleY
+    );
+
+    ctx = entityShadowLayerCtx;
+    try {
+      drawEntityShadowsToLayer(time);
+    } finally {
+      ctx = mainContext;
+    }
+
+    mainContext.save();
+    mainContext.setTransform(dpr, 0, 0, dpr, 0, 0);
+    mainContext.globalAlpha = 1;
+    mainContext.filter = "none";
+    mainContext.drawImage(
+      entityShadowLayerCanvas,
+      0,
+      0,
+      entityShadowLayerCanvas.width,
+      entityShadowLayerCanvas.height,
+      0,
+      0,
+      width,
+      height
+    );
+    mainContext.restore();
   }
 
   function drawFood(time) {
