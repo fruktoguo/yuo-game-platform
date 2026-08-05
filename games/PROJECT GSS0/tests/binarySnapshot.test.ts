@@ -18,6 +18,10 @@ describe('Ultra 二进制快照', () => {
     snapshot.hazards.push({ id: 3, ownerEntityId: 1, kind: 'gravity', col: 9, row: 10, radius: 2.5, color: '#a56cff', phase: 0.7, arm: 0 });
     snapshot.hazards.push({ id: 4, ownerEntityId: 1, kind: 'corrosion', col: 8, row: 10, radius: 0.25, color: '#72e06a', phase: 0.2, arm: 0 });
     snapshot.pendingSpawns.push({ id: 5, archetype: 'charger', color: '#ff5c62', angle: Math.PI / 2, headCell: { col: 20, row: 2 }, bodyCells: [{ col: 19, row: 2 }], timer: 1.1, maxTimer: 1.5 });
+    snapshot.enemies[0].health = 3;
+    snapshot.enemies[0].maxHealth = 13;
+    snapshot.enemies[0].segments[0].health = 456_789;
+    snapshot.enemies[0].segments[0].maxHealth = 1_000_000;
 
     const encoded = encodeUltraSnapshot(snapshot);
     const later = encodeUltraSnapshot(snapshotAt(43, 9.5));
@@ -36,6 +40,8 @@ describe('Ultra 二进制快照', () => {
     expect(decoded.hazards[1]).toMatchObject({ id: 4, ownerEntityId: 1, kind: 'corrosion', color: '#72e06a', arm: 0 });
     expect(decoded.pendingSpawns[0].timer).toBeCloseTo(1.1, 5);
     expect(decoded.pendingSpawns[0].angle).toBeCloseTo(Math.PI / 2, 3);
+    expect(decoded.enemies[0]).toMatchObject({ health: 3, maxHealth: 13 });
+    expect(decoded.enemies[0].segments[0]).toMatchObject({ health: 456_789, maxHealth: 1_000_000 });
     const decodedLater = decodeUltraSnapshot(later);
     expect(decodedLater).toMatchObject({ tick: 43 });
     expect(decodedLater.players[0].col).toBeCloseTo(9.5, 3);
@@ -66,6 +72,8 @@ describe('Ultra 二进制快照', () => {
       col: 4 + enemyIndex % 16,
       row: 2 + enemyIndex % 18,
       angle: enemyIndex * 0.13,
+      health: 2,
+      maxHealth: 3,
       color: '#ff5c62',
       captured: enemyIndex,
       frostStacks: 2,
@@ -74,6 +82,8 @@ describe('Ultra 二进制快照', () => {
       segments: Array.from({ length: 20 }, (_, segmentIndex) => ({
         col: 4 + enemyIndex % 16 - segmentIndex * 0.12,
         row: 2 + enemyIndex % 18,
+        health: 1,
+        maxHealth: 1,
       })),
     }));
     crowded.foods = Array.from({ length: 200 }, (_, index) => ({
@@ -141,7 +151,7 @@ function snapshotAt(tick: number, col: number): UltraSnapshot {
       segments: [{ col: col - 1, row: 5, angle: 0, module: null, moduleLevel: 0, storage: true, tailGuard: false, timer: 0, ready: true, cooldown: 0, orbit: 0, birthAge: null }],
       growth: null,
     }],
-    enemies: [{ id: 1, archetype: 'forager', behaviorState: 'forage', behaviorPhase: 0, col: col + 2, row: 6, angle: 0, color: '#ff5c62', captured: 0, frostStacks: 0, corrosionStacks: 0, burnStacks: 0, segments: [{ col: col + 1, row: 6 }] }],
+    enemies: [{ id: 1, archetype: 'forager', behaviorState: 'forage', behaviorPhase: 0, col: col + 2, row: 6, angle: 0, health: 2, maxHealth: 3, color: '#ff5c62', captured: 0, frostStacks: 0, corrosionStacks: 0, burnStacks: 0, segments: [{ col: col + 1, row: 6, health: 1, maxHealth: 1 }] }],
     foods: [], projectiles: [], hazards: [], pendingSpawns: [],
   };
 }

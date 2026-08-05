@@ -96,12 +96,14 @@ import {
 } from '../shared/modules';
 import { MODULE_PROGRESSION } from '../shared/moduleProgression';
 import { PLAYER_BODY_PATH, type PlayerBodyPathState } from '../shared/playerBodyPath';
+import { ENEMY_VITALITY } from '../shared/enemyVitality';
 import type { PlayerMovementState } from '../shared/playerStateCodec';
 import { chooseCircularSpawn, spaceSpawnBody } from '../shared/spawnPlanner';
 import { enemyWaveDirector } from '../shared/waveDirector';
 import type {
   ArenaEvent,
   EnemyArchetypeId,
+  EnemyJointView,
   GridPoint,
   LeaderboardEntry,
   PendingSpawnView,
@@ -176,7 +178,7 @@ interface PlayerEntity extends UltraPlayerView {
   corrosionFieldTrailRow: number | null;
 }
 
-interface EnemySegment extends GridPoint {
+interface EnemySegment extends EnemyJointView {
   reconnectElapsed: number;
   reconnectGap: number;
 }
@@ -184,6 +186,7 @@ interface EnemySegment extends GridPoint {
 interface EnemyEntity extends UltraEnemyView {
   segments: EnemySegment[];
   birthLength: number;
+  totalHealth: number;
   speed: number;
   turnRate: number;
   desiredAngle: number;
@@ -2415,7 +2418,8 @@ export class UltraWorld {
   }
 
   private queueEnemySpawn(archetype: EnemyArchetypeDefinition, assignedHealth: number, occupied: GridPoint[]): boolean {
-    const totalLength = Math.max(1, Math.round(assignedHealth));
+    const vitality = ENEMY_VITALITY.allocate(assignedHealth, () => this.random());
+    const totalLength = vitality.jointCount;
     const placement = this.chooseEnemySpawn(totalLength - 1, occupied);
     if (!placement) return false;
     const direction = { col: placement.next.col - placement.head.col, row: placement.next.row - placement.head.row };
@@ -2425,7 +2429,12 @@ export class UltraWorld {
     const color = ENEMY_COLORS[(this.nextEnemyId - 1) % ENEMY_COLORS.length];
     const angle = Math.atan2(direction.row, direction.col);
     const bodyCells = spaceSpawnBody(placement.head, placement.body, SNAKE_SEGMENT_SPACING, totalLength - 1);
-    const segments = bodyCells.map((cell) => ({ ...cell, reconnectElapsed: 0, reconnectGap: 0 }));
+    const segments = bodyCells.map((cell, index) => ({
+      ...cell,
+      ...vitality.joints[index + 1],
+      reconnectElapsed: 0,
+      reconnectGap: 0,
+    }));
     this.addPendingSpawn({
       id: this.nextEnemyId++,
       archetype: archetype.id,
@@ -2437,6 +2446,9 @@ export class UltraWorld {
       angle,
       desiredAngle: angle,
       birthLength: totalLength,
+      totalHealth: vitality.totalHealth,
+      health: vitality.joints[0].health,
+      maxHealth: vitality.joints[0].maxHealth,
       speed: ENEMY_BASE_SPEED * archetype.speedMultiplier,
       turnRate: ENEMY_TURN_RATE * archetype.turnMultiplier,
       segments,
@@ -2863,7 +2875,7 @@ export class UltraWorld {
           segment.timer = this.activeModuleCooldown(player, 'lance', segment.moduleLevel);
           break;
         case 'execute': {
-          const executionTarget = this.nearestTarget(player, segment, Number.POSITIVE_INFINITY, (enemy) => enemy.segments.length === 0);
+          const executionTarget = this.nearestTarget(player, segment, Number.POSITIVE_INFINITY, (enemy) => ENEMY_VITALITY.currentTotal(enemy) === 1);
           if (!executionTarget) {
             segment.timer = 0;
             break;
@@ -4138,25 +4150,38 @@ export class UltraWorld {
     }
     const hitsHead = resolvedHitIndex < 0;
     const oldHead = { col: target.col, row: target.row };
-    const span = enemyDamageSpan(beforeCount, resolvedHitIndex, safeAmount);
-    const removed = target.segments.splice(span.start, span.count);
-    const destroysHead = safeAmount > beforeCount;
-    const promotedHead = hitsHead && !destroysHead ? removed.at(-1) ?? null : null;
-    const reconnectIndex = span.start < target.segments.length ? span.start : -1;
+    const hitJoint = hitsHead ? target : target.segments[resolvedHitIndex];
+    if (!hitJoint) return;
+    const damageResult = ENEMY_VITALITY.damage(hitJoint, safeAmount);
+    if (damageResult.applied <= 0) return;
+    const removed: EnemySegment[] = [];
+    let reconnectIndex = -1;
+    let promotedHead: EnemySegment | null = null;
+    const destroysHead = hitsHead && damageResult.destroyed && beforeCount === 0;
+    if (hitsHead && damageResult.destroyed && beforeCount > 0) {
+      promotedHead = target.segments.shift() ?? null;
+    } else if (!hitsHead && damageResult.destroyed) {
+      removed.push(...target.segments.splice(resolvedHitIndex, 1));
+      reconnectIndex = resolvedHitIndex < target.segments.length ? resolvedHitIndex : -1;
+    }
     if (promotedHead) {
       const tangentCol = oldHead.col - promotedHead.col;
       const tangentRow = oldHead.row - promotedHead.row;
       target.col = promotedHead.col;
       target.row = promotedHead.row;
+      target.health = promotedHead.health;
+      target.maxHealth = promotedHead.maxHealth;
       if (Math.hypot(tangentCol, tangentRow) > 0.001) target.angle = Math.atan2(tangentRow, tangentCol);
       this.pendingEffects.push({
         id: this.effectId(),
         type: 'enemyHeadHit',
         enemyId: target.id,
         beforeCount,
-        count: removed.length,
+        count: 1,
         oldHead,
         newHead: { col: target.col, row: target.row },
+        newHeadHealth: target.health,
+        newHeadMaxHealth: target.maxHealth,
         color,
         duration: ENEMY_HEAD_REFORM_DURATION,
       });
@@ -4167,14 +4192,12 @@ export class UltraWorld {
         type: 'enemyBodyHit',
         enemyId: target.id,
         beforeCount,
-        start: span.start,
+        start: resolvedHitIndex,
         count: removed.length,
         reconnectIndex,
       });
     }
-    const destroyedNodes: GridPoint[] = promotedHead
-      ? [oldHead, ...removed.slice(0, -1)]
-      : removed;
+    const destroyedNodes: GridPoint[] = promotedHead ? [oldHead] : removed;
     for (const segment of destroyedNodes) {
       this.burst(segment.col, segment.row, color, 7, 95, owner?.entityId);
       if (owner) {
@@ -4194,7 +4217,7 @@ export class UltraWorld {
     }
     if (destroysHead) this.killEnemy(target, owner);
     if (owner) {
-      this.textEffect(point.col, point.row + (destroysHead ? 0.35 : -0.35), `-${safeAmount}`, color, ENEMY_DAMAGE_NUMBER_DURATION, owner.entityId, true, true);
+      this.textEffect(point.col, point.row + (destroysHead ? 0.35 : -0.35), `-${damageResult.applied}`, color, ENEMY_DAMAGE_NUMBER_DURATION, owner.entityId, true, true);
     }
   }
 
@@ -4295,7 +4318,7 @@ export class UltraWorld {
     let highestHealth = -1;
     for (const target of this.enemies) {
       if (target.dead) continue;
-      const health = target.segments.length + 1;
+      const health = ENEMY_VITALITY.currentTotal(target);
       const candidate = this.nearestJointOnTarget(origin, target);
       if (health < highestHealth || (health === highestHealth && selected && candidate.distanceSquared >= selected.distanceSquared)) continue;
       highestHealth = health;
@@ -4305,7 +4328,7 @@ export class UltraWorld {
   }
 
   private applyBurning(owner: PlayerEntity, target: EnemyEntity, color: string): void {
-    const baseLayers = Math.ceil((target.segments.length + 1) * BURN_HEALTH_FRACTION);
+    const baseLayers = Math.ceil(ENEMY_VITALITY.currentTotal(target) * BURN_HEALTH_FRACTION);
     this.applyBurningLayers(owner, target, baseLayers, color);
   }
 
@@ -4769,15 +4792,6 @@ function nearestEnemySegmentIndex(enemy: EnemyEntity, point: GridPoint): number 
   return nearestIndex;
 }
 
-function enemyDamageSpan(segmentCount: number, hitSegmentIndex: number, amount: number): { start: number; count: number } {
-  const count = Math.min(segmentCount, amount);
-  if (count <= 0) return { start: 0, count: 0 };
-  if (hitSegmentIndex < 0) return { start: 0, count };
-  const hit = clamp(Math.round(hitSegmentIndex), 0, segmentCount - 1);
-  const before = Math.min(hit, Math.floor((count - 1) / 2));
-  return { start: Math.min(hit - before, segmentCount - count), count };
-}
-
 function beginEnemyReconnect(enemy: EnemyEntity, index: number, spacing: number): void {
   if (index < 0 || index >= enemy.segments.length) return;
   const previous = index === 0 ? enemy : enemy.segments[index - 1];
@@ -4882,12 +4896,19 @@ function toEnemyView(enemy: EnemyEntity): UltraEnemyView {
     col: enemy.col,
     row: enemy.row,
     angle: enemy.angle,
+    health: enemy.health,
+    maxHealth: enemy.maxHealth,
     color: enemy.color,
     captured: enemy.captured,
     frostStacks: enemy.frostStacks,
     corrosionStacks: enemy.corrosionStacks,
     burnStacks: enemy.burnStacks,
-    segments: enemy.segments.map((segment) => ({ col: segment.col, row: segment.row })),
+    segments: enemy.segments.map((segment) => ({
+      col: segment.col,
+      row: segment.row,
+      health: segment.health,
+      maxHealth: segment.maxHealth,
+    })),
   };
 }
 

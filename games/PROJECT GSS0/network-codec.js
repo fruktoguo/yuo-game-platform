@@ -2,7 +2,7 @@
   "use strict";
 
   const MAGIC = 0x55534e50;
-  const VERSION = 21;
+  const VERSION = 22;
   const GRID_SIZE = 24;
   const COORDINATE_PADDING = 2;
   const TAU = Math.PI * 2;
@@ -27,6 +27,18 @@
     u32() { this.ensure(4); const value = this.view.getUint32(this.offset, true); this.offset += 4; return value; }
     f32() { this.ensure(4); const value = this.view.getFloat32(this.offset, true); this.offset += 4; return value; }
     f64() { this.ensure(8); const value = this.view.getFloat64(this.offset, true); this.offset += 8; return value; }
+    varUint() {
+      let value = 0;
+      let multiplier = 1;
+      for (let index = 0; index < 8; index += 1) {
+        const byte = this.u8();
+        value += (byte & 127) * multiplier;
+        if (!Number.isSafeInteger(value)) throw new Error("快照关节生命超出安全整数范围");
+        if (byte < 128) return value;
+        multiplier *= 128;
+      }
+      throw new Error("快照关节生命编码无效");
+    }
     string() { const length = this.u8(); this.ensure(length); const value = textDecoder.decode(this.bytes.subarray(this.offset, this.offset + length)); this.offset += length; return value; }
     coordinate() {
       const minimum = (GRID_SIZE - this.arenaSize) / 2 - COORDINATE_PADDING;
@@ -131,6 +143,8 @@
     result.col = reader.coordinate();
     result.row = reader.coordinate();
     result.angle = reader.angle();
+    result.health = reader.varUint();
+    result.maxHealth = reader.varUint();
     result.color = reader.color();
     result.captured = reader.u16();
     result.frostStacks = reader.u32();
@@ -142,6 +156,8 @@
       const segment = itemAt(segments, index);
       segment.col = reader.coordinate();
       segment.row = reader.coordinate();
+      segment.health = reader.varUint();
+      segment.maxHealth = reader.varUint();
     }
     segments.length = count;
     return result;

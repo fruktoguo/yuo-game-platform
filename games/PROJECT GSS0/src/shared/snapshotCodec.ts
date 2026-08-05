@@ -14,7 +14,7 @@ import type {
 } from './protocol';
 
 const MAGIC = 0x5553_4e50;
-export const SNAPSHOT_PROTOCOL_VERSION = 21;
+export const SNAPSHOT_PROTOCOL_VERSION = 22;
 const COORDINATE_SCALE = 65_535;
 const COORDINATE_PADDING = 2;
 const VELOCITY_SCALE = 64;
@@ -200,8 +200,12 @@ function writeEnemy(writer: BinaryWriter, enemy: UltraEnemyView, arenaSize: numb
   if (archetypeIndex === undefined || behaviorIndex === undefined) throw new Error('无法编码未知敌人类型或行为');
   writer.u16(enemy.id); writer.u8(archetypeIndex); writer.u8(behaviorIndex); writer.u8(clampInteger(Math.round(enemy.behaviorPhase * 255), 0, 255));
   writeCoordinate(writer, enemy.col, arenaSize); writeCoordinate(writer, enemy.row, arenaSize); writeAngle(writer, enemy.angle);
+  writer.varUint(enemy.health); writer.varUint(enemy.maxHealth);
   writer.color(enemy.color); writer.u16(enemy.captured); writer.u32(enemy.frostStacks); writer.u32(enemy.corrosionStacks); writer.u32(enemy.burnStacks); writer.u16(enemy.segments.length);
-  for (const segment of enemy.segments) { writeCoordinate(writer, segment.col, arenaSize); writeCoordinate(writer, segment.row, arenaSize); }
+  for (const segment of enemy.segments) {
+    writeCoordinate(writer, segment.col, arenaSize); writeCoordinate(writer, segment.row, arenaSize);
+    writer.varUint(segment.health); writer.varUint(segment.maxHealth);
+  }
 }
 
 function readEnemy(reader: BinaryReader, arenaSize: number): UltraEnemyView {
@@ -213,10 +217,16 @@ function readEnemy(reader: BinaryReader, arenaSize: number): UltraEnemyView {
   const enemy: UltraEnemyView = {
     id, archetype, behaviorState, behaviorPhase,
     col: readCoordinate(reader, arenaSize), row: readCoordinate(reader, arenaSize), angle: readAngle(reader),
+    health: reader.varUint(), maxHealth: reader.varUint(),
     color: reader.color(), captured: reader.u16(), frostStacks: reader.u32(), corrosionStacks: reader.u32(), burnStacks: reader.u32(), segments: [],
   };
   const count = reader.u16();
-  for (let index = 0; index < count; index += 1) enemy.segments.push({ col: readCoordinate(reader, arenaSize), row: readCoordinate(reader, arenaSize) });
+  for (let index = 0; index < count; index += 1) enemy.segments.push({
+    col: readCoordinate(reader, arenaSize),
+    row: readCoordinate(reader, arenaSize),
+    health: reader.varUint(),
+    maxHealth: reader.varUint(),
+  });
   return enemy;
 }
 
@@ -298,6 +308,16 @@ class BinaryWriter {
   f32(value: number): void { this.ensure(4); this.view.setFloat32(this.offset, value, true); this.offset += 4; }
   f64(value: number): void { this.ensure(8); this.view.setFloat64(this.offset, value, true); this.offset += 8; }
 
+  varUint(value: number): void {
+    if (!Number.isSafeInteger(value) || value < 0) throw new Error('Ultra 快照包含无效关节生命');
+    let remaining = value;
+    while (remaining >= 128) {
+      this.u8(remaining % 128 + 128);
+      remaining = Math.floor(remaining / 128);
+    }
+    this.u8(remaining);
+  }
+
   string(value: string): void {
     let encoded = encodedStrings.get(value);
     if (!encoded) {
@@ -348,6 +368,19 @@ class BinaryReader {
   u32(): number { this.ensure(4); const value = this.view.getUint32(this.offset, true); this.offset += 4; return value; }
   f32(): number { this.ensure(4); const value = this.view.getFloat32(this.offset, true); this.offset += 4; return value; }
   f64(): number { this.ensure(8); const value = this.view.getFloat64(this.offset, true); this.offset += 8; return value; }
+
+  varUint(): number {
+    let value = 0;
+    let multiplier = 1;
+    for (let index = 0; index < 8; index += 1) {
+      const byte = this.u8();
+      value += (byte & 127) * multiplier;
+      if (!Number.isSafeInteger(value)) throw new Error('Ultra 快照关节生命超出安全整数范围');
+      if (byte < 128) return value;
+      multiplier *= 128;
+    }
+    throw new Error('Ultra 快照关节生命编码无效');
+  }
 
   string(): string {
     const length = this.u8();

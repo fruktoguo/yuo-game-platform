@@ -22,7 +22,7 @@ describe('敌人伤害数字反馈', () => {
     expect(protocolSource).toContain('damageNumber?: boolean');
   });
 
-  it('直接摧毁敌蛇时在击破反馈之后显示包含溢出部分的完整伤害数字', () => {
+  it('伤害数字只显示命中关节实际扣除值，不包含未传播的溢出伤害', () => {
     const localDamageSource = gameSource.slice(
       gameSource.indexOf('function damageEnemy('),
       gameSource.indexOf('function killEnemy('),
@@ -34,11 +34,13 @@ describe('敌人伤害数字反馈', () => {
 
     expect(localDamageSource).toContain('y: impactY + (destroysHead ? 18 : -12)');
     expect(serverDamageSource).toContain('point.row + (destroysHead ? 0.35 : -0.35)');
-    expect(localDamageSource).toContain('text: `-${safeAmount}`');
-    expect(serverDamageSource).toContain('`-${safeAmount}`');
-    expect(localDamageSource).not.toContain('appliedDamage');
-    expect(serverDamageSource).not.toContain('const applied = removed.length');
-    expect(localDamageSource.indexOf('if (destroysHead) killEnemy')).toBeLessThan(localDamageSource.indexOf('text: `-${safeAmount}`'));
+    expect(localDamageSource).toContain('const damageResult = enemyVitalityApi.damage(hitJoint, safeAmount);');
+    expect(serverDamageSource).toContain('const damageResult = ENEMY_VITALITY.damage(hitJoint, safeAmount);');
+    expect(localDamageSource).toContain('text: `-${damageResult.applied}`');
+    expect(serverDamageSource).toContain('`-${damageResult.applied}`');
+    expect(localDamageSource).not.toContain('text: `-${safeAmount}`');
+    expect(serverDamageSource).not.toContain('`-${safeAmount}`');
+    expect(localDamageSource.indexOf('if (destroysHead) killEnemy')).toBeLessThan(localDamageSource.indexOf('text: `-${damageResult.applied}`'));
     expect(serverDamageSource.indexOf('if (destroysHead) this.killEnemy')).toBeLessThan(serverDamageSource.indexOf('this.textEffect('));
   });
 });

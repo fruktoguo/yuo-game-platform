@@ -8,11 +8,15 @@ const moduleCatalogSource = readFileSync(new URL('../module-catalog.js', import.
 
 describe('敌蛇断首与新头接替', () => {
   it('本地与服务端都将头部伤害投影到新的蛇头位置', () => {
-    expect(gameSource).toContain('const promotedHead = hitsHead && !destroysHead');
-    expect(gameSource).toContain('setEnemyHeadFromPromotion(enemy, promotedHead, oldHead);');
+    expect(gameSource).toContain('if (hitsHead && damageResult.destroyed && beforeCount > 0)');
+    expect(gameSource).toContain('promotedHead = enemy.segments.shift() || null;');
+    expect(gameSource).toContain('setEnemyHeadFromPromotion(enemy, promotedHead, oldHeadX, oldHeadY);');
     expect(serverSource).toContain("type: 'enemyHeadHit'");
     expect(serverSource).toContain('target.col = promotedHead.col;');
+    expect(serverSource).toContain('target.health = promotedHead.health;');
+    expect(serverSource).toContain('newHeadHealth: target.health');
     expect(protocolSource).toContain("type: 'enemyHeadHit'");
+    expect(protocolSource).toContain('newHeadHealth: number; newHeadMaxHealth: number');
   });
 
   it('头部碎裂与身体变形动画通过可靠事件在联机端重放', () => {

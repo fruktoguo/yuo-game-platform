@@ -146,6 +146,9 @@
   const arenaGeometry = globalThis.GSS0ArenaGeometry;
   if (!arenaGeometry) throw new Error("PROJECT GSS0 圆形场地几何未加载");
   const playerBodyPathApi = globalThis.GSS0PlayerBodyPath;
+  const enemyVitalityApi = globalThis.GSS0EnemyVitality;
+  if (!enemyVitalityApi) throw new Error("PROJECT GSS0 敌人关节生命运行时未加载");
+  const ENEMY_JOINT_HEALTH_DEBUG = new URLSearchParams(window.location.search).get("debug-joint-health") === "1";
   if (!playerBodyPathApi) throw new Error("PROJECT GSS0 玩家历史轨迹未加载");
 
   function designerNumber(key, fallback, minimum, maximum, integer = false) {
@@ -565,7 +568,6 @@
   const nearbyEnemyFoods = [];
   const enemyMovementStart = { col: 0, row: 0 };
   const enemyMovementEnd = { col: 0, row: 0 };
-  const enemyDamageSpanResult = { start: 0, count: 0 };
   let projectiles = [];
   const projectileContactBuffer = [];
   let hazards = [];
@@ -2694,7 +2696,7 @@
     return applyEnemyBodyDamageOperationsInPlace(scratch, operations);
   }
 
-  function projectedEnemyHead(item, operations, scratch) {
+  function projectedEnemyHead(item, operations, scratch, projection) {
     if (!item || !operations?.length) return item;
     scratch.length = 0;
     for (const segment of item.segments || []) scratch.push(segment);
@@ -2703,7 +2705,15 @@
       if (scratch.length !== operation.beforeCount) continue;
       const start = clamp(operation.start, 0, scratch.length);
       const count = clamp(operation.count, 0, scratch.length - start);
-      if (operation.promoteHead && count > 0) head = scratch[start + count - 1] || head;
+      if (operation.promoteHead && count > 0) {
+        const promoted = scratch[start + count - 1];
+        if (promoted) {
+          Object.assign(projection, promoted);
+          projection.health = operation.newHeadHealth ?? promoted.health;
+          projection.maxHealth = operation.newHeadMaxHealth ?? promoted.maxHealth;
+          head = projection;
+        }
+      }
       scratch.splice(start, count);
     }
     return head;
@@ -2911,7 +2921,9 @@
         beforeCount: Math.max(0, Math.floor(item.beforeCount)),
         start: item.type === "enemyHeadHit" ? 0 : Math.max(0, Math.floor(item.start)),
         count: Math.max(0, Math.floor(item.count)),
-        promoteHead: item.type === "enemyHeadHit"
+        promoteHead: item.type === "enemyHeadHit",
+        newHeadHealth: item.type === "enemyHeadHit" ? item.newHeadHealth : null,
+        newHeadMaxHealth: item.type === "enemyHeadHit" ? item.newHeadMaxHealth : null
       };
       operations.push(operation);
       const renderedEnemy = network.enemyViews.get(item.enemyId);
@@ -2920,6 +2932,10 @@
         const promotedSegment = canApply && operation.promoteHead
           ? renderedEnemy.segments[operation.start + operation.count - 1] || null
           : null;
+        if (promotedSegment) {
+          promotedSegment.health = operation.newHeadHealth;
+          promotedSegment.maxHealth = operation.newHeadMaxHealth;
+        }
         const renderedOldHead = canApply
           ? { x: renderedEnemy.x, y: renderedEnemy.y, col: renderedEnemy.col, row: renderedEnemy.row }
           : null;
@@ -3653,13 +3669,27 @@
         network.enemyViews.set(item.id, enemy);
       }
       const damageOperations = network.enemyBodyDamageOps.get(item.id);
-      const currentHead = projectedEnemyHead(item, damageOperations, enemy.currentHeadProjectionScratch ||= []);
-      const previousHead = projectedEnemyHead(old, damageOperations, enemy.previousHeadProjectionScratch ||= []);
+      const currentHead = projectedEnemyHead(
+        item,
+        damageOperations,
+        enemy.currentHeadProjectionScratch ||= [],
+        enemy.currentHeadProjection ||= {}
+      );
+      const previousHead = projectedEnemyHead(
+        old,
+        damageOperations,
+        enemy.previousHeadProjectionScratch ||= [],
+        enemy.previousHeadProjection ||= {}
+      );
       syncNetworkNode(enemy, item, old, amount);
       if (currentHead && (currentHead !== item || previousHead !== old)) {
         enemy.col = interpolateNumber(previousHead?.col, currentHead.col, amount);
         enemy.row = interpolateNumber(previousHead?.row, currentHead.row, amount);
         syncNodePosition(enemy);
+      }
+      if (currentHead) {
+        enemy.health = currentHead.health;
+        enemy.maxHealth = currentHead.maxHealth;
       }
       enemy.angle = interpolateAngle(old?.angle ?? item.angle, item.angle, amount);
       enemy.archetype = item.archetype;
@@ -4355,7 +4385,8 @@
 
   function queueEnemySpawn(archetype, assignedHealth, occupied = occupiedSpawnPoints()) {
     if (!player) return;
-    const totalLength = Math.max(1, Math.round(assignedHealth));
+    const vitality = enemyVitalityApi.allocate(assignedHealth, Math.random);
+    const totalLength = vitality.jointCount;
     const bodySegmentCount = totalLength - 1;
     const placement = chooseEnemySpawn(bodySegmentCount, occupied);
     if (!placement) return false;
@@ -4379,10 +4410,16 @@
       angle: directionAngle(direction),
       desiredAngle: directionAngle(direction),
       birthLength: totalLength,
+      totalHealth: vitality.totalHealth,
+      health: vitality.joints[0].health,
+      maxHealth: vitality.joints[0].maxHealth,
       speed: ENEMY_BASE_SPEED * archetype.speedMultiplier,
       turnRate: ENEMY_TURN_RATE * archetype.turnMultiplier,
       radius: arena.cellSize * ENEMY_HEAD_RADIUS_CELLS,
-      segments: bodyCells.map((cell) => makeSegmentAtCell(cell.col, cell.row)),
+      segments: bodyCells.map((cell, index) => Object.assign(
+        makeSegmentAtCell(cell.col, cell.row),
+        vitality.joints[index + 1]
+      )),
       captured: 0,
       target: null,
       think: random(0.1, 0.5),
@@ -5966,7 +6003,7 @@
     let highestHealth = -1;
     for (const enemy of enemies) {
       if (enemy.dead) continue;
-      const health = enemy.segments.length + 1;
+      const health = enemyVitalityApi.currentTotal(enemy);
       const candidate = nearestJointOnEnemy(origin, enemy);
       if (health < highestHealth || (health === highestHealth && selected && candidate.distanceSquared >= selected.distanceSquared)) continue;
       highestHealth = health;
@@ -6357,7 +6394,7 @@
           break;
         case "execute":
           {
-            const executionTarget = nearestEnemyJoint(segment, Infinity, (enemy) => enemy.segments.length === 0);
+            const executionTarget = nearestEnemyJoint(segment, Infinity, (enemy) => enemyVitalityApi.currentTotal(enemy) === 1);
             if (!executionTarget) {
               segment.timer = 0;
               break;
@@ -7326,7 +7363,7 @@
           for (let stack = 0; stack < projectile.corrosionStacks; stack += 1) applyLocalCorrosionStack(enemy, projectile.color);
         }
         if (!enemy.dead && projectile.burnOnHit) {
-          const baseLayers = Math.ceil((enemy.segments.length + 1) * BURN_HEALTH_FRACTION);
+          const baseLayers = Math.ceil(enemyVitalityApi.currentTotal(enemy) * BURN_HEALTH_FRACTION);
           applyLocalBurningLayers(enemy, baseLayers, projectile.color);
         }
         if (projectile.pierce > 0) projectile.pierce -= 1;
@@ -7451,22 +7488,11 @@
     return nearestIndex;
   }
 
-  function enemyDamageSpan(segmentCount, hitSegmentIndex, amount, result = enemyDamageSpanResult) {
-    const count = Math.min(segmentCount, amount);
-    result.count = Math.max(0, count);
-    if (count <= 0 || hitSegmentIndex < 0) {
-      result.start = 0;
-      return result;
-    }
-    const hit = clamp(Math.round(hitSegmentIndex), 0, segmentCount - 1);
-    const before = Math.min(hit, Math.floor((count - 1) / 2));
-    result.start = Math.min(hit - before, segmentCount - count);
-    return result;
-  }
-
   function setEnemyHeadFromPromotion(enemy, promotedSegment, oldX, oldY) {
     enemy.col = promotedSegment.col;
     enemy.row = promotedSegment.row;
+    enemy.health = promotedSegment.health;
+    enemy.maxHealth = promotedSegment.maxHealth;
     syncNodePosition(enemy);
     const tangentX = oldX - enemy.x;
     const tangentY = oldY - enemy.y;
@@ -7505,15 +7531,24 @@
     const hitsHead = hitSegmentIndex < 0;
     const oldHeadX = enemy.x;
     const oldHeadY = enemy.y;
-    const span = enemyDamageSpan(beforeCount, hitSegmentIndex, safeAmount);
-    const removed = enemy.segments.splice(span.start, span.count);
-    const destroysHead = safeAmount > beforeCount;
-    const reconnectIndex = span.start < enemy.segments.length ? span.start : -1;
-    const promotedHead = hitsHead && !destroysHead ? removed.at(-1) || null : null;
+    const hitJoint = hitsHead ? enemy : enemy.segments[hitSegmentIndex];
+    if (!hitJoint) return;
+    const damageResult = enemyVitalityApi.damage(hitJoint, safeAmount);
+    if (damageResult.applied <= 0) return;
+    const removed = [];
+    let reconnectIndex = -1;
+    let promotedHead = null;
+    const destroysHead = hitsHead && damageResult.destroyed && beforeCount === 0;
+    if (hitsHead && damageResult.destroyed && beforeCount > 0) {
+      promotedHead = enemy.segments.shift() || null;
+    } else if (!hitsHead && damageResult.destroyed) {
+      removed.push(...enemy.segments.splice(hitSegmentIndex, 1));
+      reconnectIndex = hitSegmentIndex < enemy.segments.length ? hitSegmentIndex : -1;
+    }
     if (promotedHead) {
       setEnemyHeadFromPromotion(enemy, promotedHead, oldHeadX, oldHeadY);
       playEnemyHeadReformPresentation(enemy, impactColor);
-    } else if (!destroysHead) {
+    } else if (removed.length > 0 && !destroysHead) {
       startEnemyReconnect(enemy, reconnectIndex);
     }
     const salvageExpectedDrops = causedByPlayer
@@ -7522,10 +7557,6 @@
     const salvageOccupied = salvageExpectedDrops > 0 ? occupiedSpawnPoints() : null;
     if (promotedHead) {
       presentDestroyedEnemyNode(oldHeadX, oldHeadY, impactColor, salvageExpectedDrops, salvageOccupied);
-      for (let index = 0; index < removed.length - 1; index += 1) {
-        const segment = removed[index];
-        presentDestroyedEnemyNode(segment.x, segment.y, impactColor, salvageExpectedDrops, salvageOccupied);
-      }
     } else {
       for (const segment of removed) {
         presentDestroyedEnemyNode(segment.x, segment.y, impactColor, salvageExpectedDrops, salvageOccupied);
@@ -7544,7 +7575,7 @@
         type: "text",
         x: impactX,
         y: impactY + (destroysHead ? 18 : -12),
-        text: `-${safeAmount}`,
+        text: `-${damageResult.applied}`,
         color: impactColor,
         life: ENEMY_DAMAGE_NUMBER_DURATION,
         maxLife: ENEMY_DAMAGE_NUMBER_DURATION,
@@ -9105,6 +9136,35 @@
     ctx.restore();
   }
 
+  function drawEnemyJointHealthLabel(node, pieceScale) {
+    const current = Math.max(0, Math.floor(Number(node.health) || 0));
+    const maximum = Math.max(current, Math.floor(Number(node.maxHealth) || 0));
+    const text = `${current}/${maximum}`;
+    ctx.save();
+    ctx.translate(node.x, node.y);
+    applyBillboardCompensation();
+    ctx.scale(pieceScale, pieceScale);
+    ctx.translate(0, -18);
+    ctx.font = "800 9px Bahnschrift, Arial Narrow, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    const width = Math.ceil(ctx.measureText(text).width) + 8;
+    ctx.fillStyle = "rgba(3, 7, 9, 0.88)";
+    ctx.fillRect(-width / 2, -6, width, 12);
+    ctx.strokeStyle = current < maximum ? "#ff9d6c" : "#87eaff";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(-width / 2, -6, width, 12);
+    ctx.fillStyle = "#ffffff";
+    ctx.fillText(text, 0, 0.5);
+    ctx.restore();
+  }
+
+  function drawEnemyJointHealth(enemy, pieceScale) {
+    if (!ENEMY_JOINT_HEALTH_DEBUG) return;
+    drawEnemyJointHealthLabel(enemy, pieceScale);
+    for (const segment of enemy.segments) drawEnemyJointHealthLabel(segment, pieceScale);
+  }
+
   function drawEnemy(enemy, time = gameTime, spawning = false) {
     const pieceScale = arenaPieceScale();
     if (renderWorldBounds.active && !snakeIntersectsRenderBounds(enemy, enemy.segments, 48 * pieceScale)) return;
@@ -9123,6 +9183,7 @@
     const headVisible = !renderWorldBounds.active || pointIntersectsRenderBounds(enemy.x, enemy.y, 42 * pieceScale);
     if (headVisible) drawEnemyHead(enemy, pieceScale, segmentSprite);
     if (!spawning) drawEnemyStatusParticles(enemy, pieceScale);
+    if (!spawning) drawEnemyJointHealth(enemy, pieceScale);
 
     if (!spawning && enemy.captured > 0 && headVisible) {
       ctx.save();
