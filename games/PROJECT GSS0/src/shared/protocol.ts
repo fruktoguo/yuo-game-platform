@@ -143,8 +143,8 @@ export interface PendingSpawnView {
   archetype: EnemyArchetypeId;
   color: string;
   angle: number;
-  headCell: GridPoint;
-  bodyCells: GridPoint[];
+  headCell: EnemyJointView;
+  bodyCells: EnemyJointView[];
   timer: number;
   maxTimer: number;
 }
@@ -194,7 +194,7 @@ export interface UltraEffectAnchor {
 
 export type UltraEffect = UltraEffectBase & (
   | ({ type: 'burst'; col: number; row: number; color: string; count: number; speed: number } & UltraEffectAnchor)
-  | ({ type: 'ring'; col: number; row: number; color: string; life: number; radius: number; endRadius: number; endRadiusUnit: 'pixels' | 'cells' } & UltraEffectAnchor)
+  | ({ type: 'ring'; col: number; row: number; color: string; life: number; radius: number; endRadius: number; endRadiusUnit: 'pixels' | 'cells'; delay?: number } & UltraEffectAnchor)
   | ({ type: 'beam' | 'lightning'; col: number; row: number; col2: number; row2: number; color: string; life: number; width?: number } & UltraEffectAnchor)
   | ({ type: 'text'; col: number; row: number; text: string; color: string; life: number; emphasis?: boolean; damageNumber?: boolean } & UltraEffectAnchor)
   | { id: string; type: 'enemyBodyHit'; enemyId: number; beforeCount: number; start: number; count: number; reconnectIndex: number; audienceEntityId?: number }

@@ -13,7 +13,7 @@ interface DesignerConfigSource {
 }
 
 const source = (globalThis as typeof globalThis & { GSS0_DESIGNER_CONFIG?: DesignerConfigSource }).GSS0_DESIGNER_CONFIG;
-if (source?.schemaVersion !== 50) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 50');
+if (source?.schemaVersion !== 51) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 51');
 
 function numberSetting(key: string, fallback: number, minimum: number, maximum: number, integer = false): number {
   const candidate = source?.balance?.[key];
@@ -53,6 +53,13 @@ export const DESIGNER_BALANCE = Object.freeze({
   playerBaseSpeed: numberSetting('playerBaseSpeed', 5, 1, 12),
   snakeBodySizeScale: numberSetting('snakeBodySizeScale', 0.775, 0.25, 2),
   snakeSegmentSpacing: numberSetting('snakeSegmentSpacing', 0.45, 0.1, 1.5),
+  enemyArmorHeadCoreRadiusCells: numberSetting('enemyArmorHeadCoreRadiusCells', 0.53, 0.1, 1.5),
+  enemyArmorBodyCoreRadiusCells: numberSetting('enemyArmorBodyCoreRadiusCells', 0.265, 0.05, 1),
+  enemyArmorLayerThicknessCells: numberSetting('enemyArmorLayerThicknessCells', 0.055, 0.005, 0.25),
+  enemyArmorMaxPlatesPerLayer: numberSetting('enemyArmorMaxPlatesPerLayer', 8, 1, 32, true),
+  enemyArmorSpacingScale: numberSetting('enemyArmorSpacingScale', 1, 0, 3),
+  enemyArmorSpacingResponse: numberSetting('enemyArmorSpacingResponse', 12, 0.1, 60),
+  enemyArmorBreakCascadeInterval: numberSetting('enemyArmorBreakCascadeInterval', 0.055, 0, 0.3),
   playerMaxHealth: numberSetting('playerMaxHealth', 30, 0, 100),
   playerHealthRegenPerSecond: numberSetting('playerHealthRegenPerSecond', 1, 0, 1),
   playerEnemyBodyCollisionDamage: numberSetting('playerEnemyBodyCollisionDamage', 10, 0, 10_000),

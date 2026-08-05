@@ -1,9 +1,16 @@
 globalThis.GSS0_DESIGNER_CONFIG = {
-  "schemaVersion": 50,
+  "schemaVersion": 51,
   "balance": {
     "playerBaseSpeed": 5,
     "snakeBodySizeScale": 0.775,
     "snakeSegmentSpacing": 0.66,
+    "enemyArmorHeadCoreRadiusCells": 0.53,
+    "enemyArmorBodyCoreRadiusCells": 0.265,
+    "enemyArmorLayerThicknessCells": 0.055,
+    "enemyArmorMaxPlatesPerLayer": 8,
+    "enemyArmorSpacingScale": 1,
+    "enemyArmorSpacingResponse": 12,
+    "enemyArmorBreakCascadeInterval": 0.055,
     "playerMaxHealth": 20,
     "playerHealthRegenPerSecond": 0.1,
     "playerEnemyBodyCollisionDamage": 10,

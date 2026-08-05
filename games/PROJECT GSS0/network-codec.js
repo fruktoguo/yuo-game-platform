@@ -2,7 +2,7 @@
   "use strict";
 
   const MAGIC = 0x55534e50;
-  const VERSION = 22;
+  const VERSION = 23;
   const GRID_SIZE = 24;
   const COORDINATE_PADDING = 2;
   const TAU = Math.PI * 2;
@@ -215,12 +215,16 @@
     const headCell = result.headCell || (result.headCell = {});
     headCell.col = reader.coordinate();
     headCell.row = reader.coordinate();
+    headCell.health = reader.varUint();
+    headCell.maxHealth = reader.varUint();
     const bodyCells = result.bodyCells || (result.bodyCells = []);
     const count = reader.u16();
     for (let index = 0; index < count; index += 1) {
       const cell = itemAt(bodyCells, index);
       cell.col = reader.coordinate();
       cell.row = reader.coordinate();
+      cell.health = reader.varUint();
+      cell.maxHealth = reader.varUint();
     }
     bodyCells.length = count;
     result.timer = reader.f32();

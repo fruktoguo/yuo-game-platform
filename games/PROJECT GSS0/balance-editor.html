@@ -404,12 +404,12 @@
     </div>
   </main>
 
-  <script src="enemy-codex.js?v=147"></script>
-  <script src="wave-director.js?v=147"></script>
-  <script src="designer-config.js?v=147"></script>
-  <script src="status-catalog.js?v=147"></script>
-  <script src="module-catalog.js?v=147"></script>
-  <script src="module-progression.js?v=147"></script>
+  <script src="enemy-codex.js?v=148"></script>
+  <script src="wave-director.js?v=148"></script>
+  <script src="designer-config.js?v=148"></script>
+  <script src="status-catalog.js?v=148"></script>
+  <script src="module-catalog.js?v=148"></script>
+  <script src="module-progression.js?v=148"></script>
   <script>
     (() => {
       "use strict";
@@ -431,7 +431,14 @@
       const ALL_PARAMETER_DEFINITIONS = [
         { key: "playerBaseSpeed", group: "玩家", label: "玩家基础速度", hint: "升级与机体加速前的每秒移动格数", min: 1, max: 12, step: 0.1, unit: "格/秒" },
         { key: "snakeBodySizeScale", group: "表现", label: "蛇体大小", hint: "统一缩放玩家与敌蛇的蛇头、身体节及对应碰撞体积", min: 0.25, max: 2, step: 0.025, unit: "倍" },
-        { key: "snakeSegmentSpacing", group: "表现", label: "连接线距离", hint: "玩家与敌蛇相邻身体节中心之间保持的距离；单机与多人共用", min: 0.1, max: 1.5, step: 0.01, unit: "格" },
+        { key: "snakeSegmentSpacing", group: "表现", label: "连接线距离", hint: "玩家身体节以及无装甲敌蛇关节的基础中心距；单机与多人共用", min: 0.1, max: 1.5, step: 0.01, unit: "格" },
+        { key: "enemyArmorHeadCoreRadiusCells", group: "表现", label: "敌蛇头核心半径", hint: "装甲增长前的敌蛇头真实碰撞半径；最终值还会乘以蛇体大小", min: 0.1, max: 1.5, step: 0.005, unit: "格" },
+        { key: "enemyArmorBodyCoreRadiusCells", group: "表现", label: "敌关节核心半径", hint: "装甲增长前的敌蛇身体关节真实碰撞半径；最终值还会乘以蛇体大小", min: 0.05, max: 1, step: 0.005, unit: "格" },
+        { key: "enemyArmorLayerThicknessCells", group: "表现", label: "指数装甲层厚度", hint: "每多保留一层指数装甲时增加的真实半径；最终值还会乘以蛇体大小", min: 0.005, max: 0.25, step: 0.005, unit: "格/层" },
+        { key: "enemyArmorMaxPlatesPerLayer", group: "性能", label: "每层装甲板上限", hint: "小容量逐点显示；超过此数量后压缩为有限装甲板并在板内显示损伤", min: 1, max: 32, step: 1, unit: "块/层" },
+        { key: "enemyArmorSpacingScale", group: "表现", label: "装甲中心距增量", hint: "相邻关节因装甲半径增长而额外拉开的中心距离倍率", min: 0, max: 3, step: 0.05, unit: "倍" },
+        { key: "enemyArmorSpacingResponse", group: "表现", label: "破甲缩距响应", hint: "破甲后身体中心距追向新半径的平滑速度；越大越快", min: 0.1, max: 60, step: 0.5, unit: "/秒" },
+        { key: "enemyArmorBreakCascadeInterval", group: "表现", label: "连续破甲间隔", hint: "高伤害一次击穿多层时，相邻破甲反馈之间的时间间隔", min: 0, max: 0.3, step: 0.005, unit: "秒" },
         { key: "playerMaxHealth", group: "玩家", label: "玩家生命上限", hint: "每次出生时拥有的生命值与生命上限", min: 0, max: 100, step: 1, unit: "点" },
         { key: "playerHealthRegenPerSecond", group: "玩家", label: "玩家生命恢复", hint: "存活并正常行动时每秒恢复的生命值", min: 0, max: 1, step: 0.1, unit: "点/秒" },
         { key: "playerEnemyBodyCollisionDamage", group: "玩家", label: "撞敌蛇身体受伤", hint: "玩家蛇头撞上敌蛇身体时受到的伤害", min: 0, max: 10000, step: 1, unit: "点" },
@@ -750,7 +757,7 @@
       const filePickerSupported = typeof window.showOpenFilePicker === "function";
 
       function normalizeConfig(value) {
-        const config = { schemaVersion: 50, balance: {}, waveSpawnSchedule: [], moduleCooldownPercentages: {}, moduleNames: {}, moduleInitialUpgrades: {}, moduleStates: {} };
+        const config = { schemaVersion: 51, balance: {}, waveSpawnSchedule: [], moduleCooldownPercentages: {}, moduleNames: {}, moduleInitialUpgrades: {}, moduleStates: {} };
         for (const definition of ALL_PARAMETER_DEFINITIONS) {
           const candidate = Number(value?.balance?.[definition.key]);
           config.balance[definition.key] = Number.isFinite(candidate) ? Math.max(definition.min, Math.min(definition.max, candidate)) : definition.min;
@@ -795,7 +802,7 @@
         const end = text.lastIndexOf("}");
         if (start < 0 || end <= start) throw new Error("配置内容不完整");
         const parsed = JSON.parse(text.slice(start, end + 1));
-        if (parsed?.schemaVersion !== 50) throw new Error("配置版本无效，需要 schemaVersion 50");
+        if (parsed?.schemaVersion !== 51) throw new Error("配置版本无效，需要 schemaVersion 51");
         return normalizeConfig(parsed);
       }
 

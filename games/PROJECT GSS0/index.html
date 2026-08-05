@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0b0d0f">
   <meta name="description" content="代号：几何贪吃蛇 - 单人及多人共享世界肉鸽贪吃蛇战斗游戏">
   <title>代号：几何贪吃蛇</title>
-  <link rel="stylesheet" href="styles.css?v=147">
+  <link rel="stylesheet" href="styles.css?v=148">
 </head>
 <body>
   <main id="game-shell" aria-label="代号：几何贪吃蛇 游戏区域">
@@ -19,7 +19,7 @@
           <strong>代号：几何贪吃蛇</strong>
         </div>
         <span class="signature">by 四季鸽</span>
-        <span class="brand-version" aria-label="游戏版本 V147">V147</span>
+        <span class="brand-version" aria-label="游戏版本 V148">V148</span>
       </div>
 
       <div class="run-stats">
@@ -200,7 +200,7 @@
 
     <section id="start-screen" class="modal-layer start-screen is-visible" aria-labelledby="game-title">
       <div class="start-glow" aria-hidden="true"></div>
-          <div class="start-version" aria-label="游戏版本 V147"><span>BUILD</span><strong>V147</strong></div>
+          <div class="start-version" aria-label="游戏版本 V148"><span>BUILD</span><strong>V148</strong></div>
       <div class="start-layout">
         <div class="start-content">
           <div id="network-status" class="title-kicker">TACTICAL SURVIVAL / LOCAL</div>
@@ -389,6 +389,21 @@
           <button id="changelog-close-button" class="icon-button codex-close-button" type="button" aria-label="关闭更新日志" title="关闭更新日志">×</button>
         </header>
         <div class="changelog-list">
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V148</strong></div>
+              <time datetime="2026-08-06">2026.08.06</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">战斗系统</span>
+              <h3>指数装甲与可变碰撞体</h3>
+              <ul>
+                <li>敌蛇关节现在以核心1点、1/2/4/8……指数装甲层表现生命，非二次幂余量由最外层承担；高容量装甲压缩为有限装甲板并显示板内损伤。</li>
+                <li>蛇头与身体关节的装甲外沿现在就是实际碰撞边缘；破甲后外形和碰撞体同步缩小，相邻关节会依据半径平滑调整中心距。</li>
+                <li>高伤害连续击穿多层时会依次播放破甲反馈；使用 ?debug-armor-showcase=1 可依次验收1、2、3、4、5、8、13、100血关节。</li>
+              </ul>
+            </div>
+          </article>
           <article class="changelog-entry">
             <header>
               <div class="changelog-version"><span>BUILD</span><strong>V147</strong></div>
@@ -2347,26 +2362,27 @@
     </section>
   </main>
 
-  <script src="designer-config.js?v=147"></script>
-  <script src="status-catalog.js?v=147"></script>
-  <script src="module-catalog.js?v=147"></script>
-  <script src="module-progression.js?v=147"></script>
-  <script src="wave-director.js?v=147"></script>
-  <script src="arena-geometry.js?v=147"></script>
-  <script src="player-body-path.js?v=147"></script>
-  <script src="enemy-vitality.js?v=147"></script>
-  <script src="spawn-planner.js?v=147"></script>
-  <script src="network-codec.js?v=147"></script>
-  <script src="network-player-prediction.js?v=147"></script>
-  <script src="network-player-state-codec.js?v=147"></script>
-  <script src="network-player-collisions.js?v=147"></script>
-  <script src="network-head-collisions.js?v=147"></script>
-  <script src="network-food-claims.js?v=147"></script>
-  <script src="network-projectiles.js?v=147"></script>
-  <script src="lobby-navigation.js?v=147"></script>
-  <script src="enemy-codex.js?v=147"></script>
-  <script src="camera-projection.js?v=147"></script>
-  <script type="module" src="src/client/p2p/bootstrap.ts?v=147"></script>
-  <script src="game.js?v=147"></script>
+  <script src="designer-config.js?v=148"></script>
+  <script src="status-catalog.js?v=148"></script>
+  <script src="module-catalog.js?v=148"></script>
+  <script src="module-progression.js?v=148"></script>
+  <script src="wave-director.js?v=148"></script>
+  <script src="arena-geometry.js?v=148"></script>
+  <script src="player-body-path.js?v=148"></script>
+  <script src="enemy-vitality.js?v=148"></script>
+  <script src="enemy-armor.js?v=148"></script>
+  <script src="spawn-planner.js?v=148"></script>
+  <script src="network-codec.js?v=148"></script>
+  <script src="network-player-prediction.js?v=148"></script>
+  <script src="network-player-state-codec.js?v=148"></script>
+  <script src="network-player-collisions.js?v=148"></script>
+  <script src="network-head-collisions.js?v=148"></script>
+  <script src="network-food-claims.js?v=148"></script>
+  <script src="network-projectiles.js?v=148"></script>
+  <script src="lobby-navigation.js?v=148"></script>
+  <script src="enemy-codex.js?v=148"></script>
+  <script src="camera-projection.js?v=148"></script>
+  <script type="module" src="src/client/p2p/bootstrap.ts?v=148"></script>
+  <script src="game.js?v=148"></script>
 </body>
 </html>

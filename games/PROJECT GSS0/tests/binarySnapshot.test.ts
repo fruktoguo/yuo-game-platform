@@ -17,7 +17,7 @@ describe('Ultra 二进制快照', () => {
     snapshot.projectiles.push({ id: 7, ownerEntityId: 1, kind: 'blade', col: 4, row: 5, vx: 6, vy: -7, color: '#ff9f43', size: 4.5 });
     snapshot.hazards.push({ id: 3, ownerEntityId: 1, kind: 'gravity', col: 9, row: 10, radius: 2.5, color: '#a56cff', phase: 0.7, arm: 0 });
     snapshot.hazards.push({ id: 4, ownerEntityId: 1, kind: 'corrosion', col: 8, row: 10, radius: 0.25, color: '#72e06a', phase: 0.2, arm: 0 });
-    snapshot.pendingSpawns.push({ id: 5, archetype: 'charger', color: '#ff5c62', angle: Math.PI / 2, headCell: { col: 20, row: 2 }, bodyCells: [{ col: 19, row: 2 }], timer: 1.1, maxTimer: 1.5 });
+    snapshot.pendingSpawns.push({ id: 5, archetype: 'charger', color: '#ff5c62', angle: Math.PI / 2, headCell: { col: 20, row: 2, health: 13, maxHealth: 13 }, bodyCells: [{ col: 19, row: 2, health: 35, maxHealth: 36 }], timer: 1.1, maxTimer: 1.5 });
     snapshot.enemies[0].health = 3;
     snapshot.enemies[0].maxHealth = 13;
     snapshot.enemies[0].segments[0].health = 456_789;
@@ -40,6 +40,8 @@ describe('Ultra 二进制快照', () => {
     expect(decoded.hazards[1]).toMatchObject({ id: 4, ownerEntityId: 1, kind: 'corrosion', color: '#72e06a', arm: 0 });
     expect(decoded.pendingSpawns[0].timer).toBeCloseTo(1.1, 5);
     expect(decoded.pendingSpawns[0].angle).toBeCloseTo(Math.PI / 2, 3);
+    expect(decoded.pendingSpawns[0].headCell).toMatchObject({ health: 13, maxHealth: 13 });
+    expect(decoded.pendingSpawns[0].bodyCells[0]).toMatchObject({ health: 35, maxHealth: 36 });
     expect(decoded.enemies[0]).toMatchObject({ health: 3, maxHealth: 13 });
     expect(decoded.enemies[0].segments[0]).toMatchObject({ health: 456_789, maxHealth: 1_000_000 });
     const decodedLater = decodeUltraSnapshot(later);

@@ -18,6 +18,8 @@ import {
   CANONICAL_CELL_SIZE,
   DISCONNECT_GRACE_MS,
   ENEMY_BASE_SPEED,
+  ENEMY_ARMOR_BREAK_CASCADE_INTERVAL,
+  ENEMY_ARMOR_TUNING,
   ENEMY_BODY_RECONNECT_DURATION,
   ENEMY_HEAD_REFORM_DURATION,
   ENEMY_COLORS,
@@ -96,6 +98,7 @@ import {
 } from '../shared/modules';
 import { MODULE_PROGRESSION } from '../shared/moduleProgression';
 import { PLAYER_BODY_PATH, type PlayerBodyPathState } from '../shared/playerBodyPath';
+import { ENEMY_ARMOR, type EnemyArmorJoint } from '../shared/enemyArmor';
 import { ENEMY_VITALITY } from '../shared/enemyVitality';
 import type { PlayerMovementState } from '../shared/playerStateCodec';
 import { chooseCircularSpawn, spaceSpawnBody } from '../shared/spawnPlanner';
@@ -130,11 +133,8 @@ import type { HitClaim, SkillSpawn, WorldCommit } from '../shared/roomProtocol';
 
 const TAU = Math.PI * 2;
 const MINE_KICK_DIRECTION_OFFSETS = [0, Math.PI / 4, -Math.PI / 4, Math.PI / 2, -Math.PI / 2, Math.PI * 3 / 4, -Math.PI * 3 / 4, Math.PI] as const;
-const ENEMY_HEAD_RADIUS_CELLS = 0.28 * SNAKE_BODY_SIZE_SCALE;
 const SNAKE_BODY_CONTACT_RANGE = 0.42 * SNAKE_BODY_SIZE_SCALE;
-const ENEMY_BODY_CONTACT_RANGE = 0.46 * SNAKE_BODY_SIZE_SCALE;
 const PLAYER_SELF_COLLISION_RANGE = 0.5 * SNAKE_BODY_SIZE_SCALE;
-const ENEMY_SELF_COLLISION_RANGE = 0.48 * SNAKE_BODY_SIZE_SCALE;
 const TARGET_REQUIRED_MODULES = new Set<ModuleId>([
   'frost', 'prism', 'tesla', 'laser', 'missile', 'venom',
   'rail', 'ricochet', 'cluster', 'fan', 'gravity', 'needle', 'mortar', 'sweep',
@@ -179,11 +179,14 @@ interface PlayerEntity extends UltraPlayerView {
 }
 
 interface EnemySegment extends EnemyJointView {
+  radius: number;
+  spacing: number;
   reconnectElapsed: number;
   reconnectGap: number;
 }
 
 interface EnemyEntity extends UltraEnemyView {
+  radius: number;
   segments: EnemySegment[];
   birthLength: number;
   totalHealth: number;
@@ -1493,7 +1496,7 @@ export class UltraWorld {
     const targetRow = target.row - player.row;
     const targetDistance = Math.hypot(targetCol, targetRow);
     const playerHeadRadius = this.playerHeadRadiusCells();
-    const headContactDistance = playerHeadRadius + ENEMY_HEAD_RADIUS_CELLS;
+    const headContactDistance = playerHeadRadius + this.enemyHeadRadiusCells(target);
     if (targetDistance <= headContactDistance) return true;
 
     const pathRatio = (targetDistance - headContactDistance) / targetDistance;
@@ -1505,11 +1508,16 @@ export class UltraWorld {
 
     for (const enemy of this.enemies) {
       if (enemy.dead) continue;
-      if (pathIntersectsBodyConnections(player, pathEnd, enemy, SNAKE_BODY_CONTACT_RANGE)) return false;
+      if (pathIntersectsBodyConnections(
+        player,
+        pathEnd,
+        enemy,
+        playerHeadRadius + this.enemyMaximumBodyRadiusCells(enemy),
+      )) return false;
     }
     for (const enemy of this.enemies) {
       if (enemy.dead || enemy === target) continue;
-      if (sweptContactProgress(player, pathEnd, enemy, headContactDistance) !== null) return false;
+      if (sweptContactProgress(player, pathEnd, enemy, playerHeadRadius + this.enemyHeadRadiusCells(enemy)) !== null) return false;
     }
     for (const other of presentPlayers) {
       if (other === player || other.ghost) continue;
@@ -2420,7 +2428,18 @@ export class UltraWorld {
   private queueEnemySpawn(archetype: EnemyArchetypeDefinition, assignedHealth: number, occupied: GridPoint[]): boolean {
     const vitality = ENEMY_VITALITY.allocate(assignedHealth, () => this.random());
     const totalLength = vitality.jointCount;
-    const placement = this.chooseEnemySpawn(totalLength - 1, occupied);
+    let spawnWallMargin = ENEMY_ARMOR.radius(vitality.joints[0].health, vitality.joints[0].maxHealth, true, ENEMY_ARMOR_TUNING);
+    let spawnSpacing = SNAKE_SEGMENT_SPACING;
+    let previousJoint = vitality.joints[0];
+    let previousIsHead = true;
+    for (let index = 1; index < vitality.joints.length; index += 1) {
+      const joint = vitality.joints[index];
+      spawnWallMargin = Math.max(spawnWallMargin, ENEMY_ARMOR.radius(joint.health, joint.maxHealth, false, ENEMY_ARMOR_TUNING));
+      spawnSpacing = Math.max(spawnSpacing, enemyJointSpacing(previousJoint, previousIsHead, joint));
+      previousJoint = joint;
+      previousIsHead = false;
+    }
+    const placement = this.chooseEnemySpawn(totalLength - 1, occupied, spawnWallMargin, spawnSpacing);
     if (!placement) return false;
     const direction = { col: placement.next.col - placement.head.col, row: placement.next.row - placement.head.row };
     if (direction.col === 0 && direction.row === 0) {
@@ -2428,14 +2447,16 @@ export class UltraWorld {
     }
     const color = ENEMY_COLORS[(this.nextEnemyId - 1) % ENEMY_COLORS.length];
     const angle = Math.atan2(direction.row, direction.col);
-    const bodyCells = spaceSpawnBody(placement.head, placement.body, SNAKE_SEGMENT_SPACING, totalLength - 1);
+    const bodyCells = spaceSpawnBody(placement.head, placement.body, spawnSpacing, totalLength - 1);
     const segments = bodyCells.map((cell, index) => ({
       ...cell,
       ...vitality.joints[index + 1],
+      radius: ENEMY_ARMOR.radius(vitality.joints[index + 1].health, vitality.joints[index + 1].maxHealth, false, ENEMY_ARMOR_TUNING),
+      spacing: SNAKE_SEGMENT_SPACING,
       reconnectElapsed: 0,
       reconnectGap: 0,
     }));
-    this.addPendingSpawn({
+    const spawn: PendingSpawn = {
       id: this.nextEnemyId++,
       archetype: archetype.id,
       behaviorState: 'roam',
@@ -2449,6 +2470,7 @@ export class UltraWorld {
       totalHealth: vitality.totalHealth,
       health: vitality.joints[0].health,
       maxHealth: vitality.joints[0].maxHealth,
+      radius: ENEMY_ARMOR.radius(vitality.joints[0].health, vitality.joints[0].maxHealth, true, ENEMY_ARMOR_TUNING),
       speed: ENEMY_BASE_SPEED * archetype.speedMultiplier,
       turnRate: ENEMY_TURN_RATE * archetype.turnMultiplier,
       segments,
@@ -2483,9 +2505,14 @@ export class UltraWorld {
       nextCell: { ...placement.next },
       timer: ENEMY_SPAWN_WARNING_TIME,
       maxTimer: ENEMY_SPAWN_WARNING_TIME,
-    });
+    };
+    initializeEnemySegmentSpacing(spawn);
+    spawn.headCell.col = spawn.col;
+    spawn.headCell.row = spawn.row;
+    spawn.reservedCells = [spawn.headCell, ...spawn.segments].map((cell) => ({ col: cell.col, row: cell.row }));
+    this.addPendingSpawn(spawn);
     occupied.push({ col: placement.head.col, row: placement.head.row });
-    for (const cell of bodyCells) occupied.push({ col: cell.col, row: cell.row });
+    for (const cell of spawn.segments) occupied.push({ col: cell.col, row: cell.row });
     this.effectSound('enemyWarning');
     return true;
   }
@@ -2499,16 +2526,21 @@ export class UltraWorld {
     this.effectSound('enemySpawn');
   }
 
-  private chooseEnemySpawn(bodySegmentCount: number, occupied: GridPoint[]): { head: GridPoint; body: GridPoint[]; next: GridPoint } | null {
+  private chooseEnemySpawn(
+    bodySegmentCount: number,
+    occupied: GridPoint[],
+    wallMargin = 0,
+    occupancyDistance = SNAKE_SEGMENT_SPACING,
+  ): { head: GridPoint; body: GridPoint[]; next: GridPoint } | null {
     const center = ARENA_GEOMETRY.centerForGrid(GRID_SIZE);
     const players = this.livingPlayers();
     return chooseCircularSpawn({
       centerCol: center,
       centerRow: center,
-      radius: this.arenaPlayableRadius(),
+      radius: this.arenaPlayableRadius(wallMargin),
       bodySegmentCount,
       safetyDistance: ENEMY_SPAWN_SAFETY_DISTANCE,
-      occupancyDistance: SNAKE_SEGMENT_SPACING,
+      occupancyDistance,
       forwardPathHalfWidth: ENEMY_SPAWN_FORWARD_PATH_HALF_WIDTH,
       occupiedPoints: occupied,
       players,
@@ -3011,10 +3043,10 @@ export class UltraWorld {
 
   private circularTargetHitIndexes(origin: GridPoint, radius: number, target: EnemyEntity): number[] {
     const hits: number[] = [];
-    if (distanceSquared(origin, target) < (radius + ENEMY_HEAD_RADIUS_CELLS) ** 2) hits.push(-1);
-    const segmentRadiusSquared = (radius + this.enemySegmentRadiusCells()) ** 2;
+    if (distanceSquared(origin, target) < (radius + this.enemyHeadRadiusCells(target)) ** 2) hits.push(-1);
     for (let index = 0; index < target.segments.length; index += 1) {
-      if (distanceSquared(origin, target.segments[index]) < segmentRadiusSquared) hits.push(index);
+      const segmentRadius = radius + this.enemySegmentRadiusCells(target.segments[index]);
+      if (distanceSquared(origin, target.segments[index]) < segmentRadius * segmentRadius) hits.push(index);
     }
     return hits;
   }
@@ -3028,7 +3060,7 @@ export class UltraWorld {
       const projection = relativeCol * directionCol + relativeRow * directionRow;
       if (projection < 0 || projection > range) continue;
       const perpendicular = Math.abs(relativeCol * directionRow - relativeRow * directionCol);
-      const nodeRadius = index < 0 ? ENEMY_HEAD_RADIUS_CELLS : this.enemySegmentRadiusCells();
+      const nodeRadius = index < 0 ? this.enemyHeadRadiusCells(target) : this.enemySegmentRadiusCells(target.segments[index]);
       if (perpendicular <= halfWidth + nodeRadius) hits.push(index);
     }
     return hits;
@@ -3262,7 +3294,7 @@ export class UltraWorld {
     const radialCol = projectedCol - center;
     const radialRow = projectedRow - center;
     const radialDistance = Math.hypot(radialCol, radialRow);
-    const safeRadius = this.arenaPlayableRadius(ENEMY_WALL_AVOIDANCE_DISTANCE);
+    const safeRadius = this.arenaPlayableRadius(ENEMY_WALL_AVOIDANCE_DISTANCE + this.enemyHeadRadiusCells(enemy));
     if (radialDistance > safeRadius && radialDistance > 0.001) {
       enemy.desiredAngle = Math.atan2(-radialRow, -radialCol);
     }
@@ -3340,9 +3372,15 @@ export class UltraWorld {
         continue;
       }
       const center = ARENA_GEOMETRY.centerForGrid(GRID_SIZE);
-      const wallNormal = ARENA_GEOMETRY.wallNormal(nextCol, nextRow, center, center, this.arenaPlayableRadius());
+      const wallNormal = ARENA_GEOMETRY.wallNormal(
+        nextCol,
+        nextRow,
+        center,
+        center,
+        this.arenaPlayableRadius(this.enemyHeadRadiusCells(enemy)),
+      );
       if (wallNormal) {
-        const constrained = this.constrainArenaPoint(nextCol, nextRow);
+        const constrained = this.constrainArenaPoint(nextCol, nextRow, this.enemyHeadRadiusCells(enemy));
         enemy.col = constrained.col;
         enemy.row = constrained.row;
         if (this.enemyWallDamageMultiplier > 0) {
@@ -3358,9 +3396,9 @@ export class UltraWorld {
       enemy.col = nextCol;
       enemy.row = nextRow;
       this.applyKnockbackDecay(enemy, delta);
-      followEnemySegments(enemy, delta, SNAKE_SEGMENT_SPACING);
+      followEnemySegments(enemy, delta);
       if (enemy.collisionCooldown <= 0) {
-        const ownBodyHit = findSelfCollision(enemy, ENEMY_SELF_COLLISION_RANGE);
+        const ownBodyHit = findEnemySelfCollision(enemy);
         if (ownBodyHit) {
           this.bounceEntity(enemy, enemy.col - ownBodyHit.col, enemy.row - ownBodyHit.row, enemy.color);
           continue;
@@ -3391,7 +3429,7 @@ export class UltraWorld {
     for (const player of presentPlayers) {
       const protectedPlayer = this.isPlayerProtected(player);
       if ((protectedPlayer || player.collisionCooldown <= 0) && enemy.collisionCooldown <= 0) {
-        const headProgress = sweptContactProgress(start, end, player, this.playerHeadRadiusCells() + ENEMY_HEAD_RADIUS_CELLS);
+        const headProgress = sweptContactProgress(start, end, player, this.playerHeadRadiusCells() + this.enemyHeadRadiusCells(enemy));
         if (headProgress !== null && (!nearest || headProgress < nearest.progress)) {
           nearest = protectedPlayer
             ? { kind: 'protected', player, point: player, progress: headProgress }
@@ -3402,7 +3440,13 @@ export class UltraWorld {
         if (protectedPlayer && enemy.collisionCooldown > 0) continue;
         const segment = player.segments[segmentIndex];
         const previousSegment = segmentIndex > 0 ? player.segments[segmentIndex - 1] : player;
-        const progress = sweptCapsuleContactProgress(start, end, previousSegment, segment, ENEMY_BODY_CONTACT_RANGE);
+        const progress = sweptCapsuleContactProgress(
+          start,
+          end,
+          previousSegment,
+          segment,
+          this.enemyHeadRadiusCells(enemy) + this.playerBodyRadiusCells(),
+        );
         if (progress === null || (nearest && nearest.progress <= progress)) continue;
         const collisionPosition = {
           col: start.col + (end.col - start.col) * progress,
@@ -3420,14 +3464,14 @@ export class UltraWorld {
   private resolveEnemyCollisions(): void {
     const collisionDamageAmount = ENEMY_COLLISION_DAMAGE * this.enemyCollisionDamageMultiplier;
     const collisionKnockback = this.enemyWallKnockbackMultiplier;
-    const headRangeSquared = (ENEMY_HEAD_RADIUS_CELLS * 2) ** 2;
     for (let firstIndex = 0; firstIndex < this.enemies.length; firstIndex += 1) {
       const first = this.enemies[firstIndex];
       if (first.dead || first.collisionCooldown > 0) continue;
       for (let secondIndex = firstIndex + 1; secondIndex < this.enemies.length; secondIndex += 1) {
         const second = this.enemies[secondIndex];
         if (second.dead || second.collisionCooldown > 0) continue;
-        if (distanceSquared(first, second) >= headRangeSquared) continue;
+        const headRange = this.enemyHeadRadiusCells(first) + this.enemyHeadRadiusCells(second);
+        if (distanceSquared(first, second) >= headRange * headRange) continue;
         const normal = collisionNormal(first, second);
         const collisionDamage = MODULE_PROGRESSION.rollLinearRewards(collisionDamageAmount, () => this.random());
         this.damageTarget(null, first, collisionDamage, first, second.color, -1);
@@ -3465,14 +3509,19 @@ export class UltraWorld {
         bucket.count += 1;
       }
     }
-    const bodyRangeSquared = ENEMY_BODY_CONTACT_RANGE ** 2;
+    let maximumBodyRadius = ENEMY_ARMOR_TUNING.bodyCoreRadius;
+    for (const owner of this.enemies) {
+      if (owner.dead) continue;
+      for (const segment of owner.segments) maximumBodyRadius = Math.max(maximumBodyRadius, this.enemySegmentRadiusCells(segment));
+    }
     for (const enemy of this.enemies) {
       if (enemy.dead || enemy.collisionCooldown > 0) continue;
       let bodyHit: EnemyBodyBucketEntry | null = null;
-      const minimumCol = Math.floor(enemy.col - ENEMY_BODY_CONTACT_RANGE);
-      const maximumCol = Math.floor(enemy.col + ENEMY_BODY_CONTACT_RANGE);
-      const minimumRow = Math.floor(enemy.row - ENEMY_BODY_CONTACT_RANGE);
-      const maximumRow = Math.floor(enemy.row + ENEMY_BODY_CONTACT_RANGE);
+      const queryRange = this.enemyHeadRadiusCells(enemy) + maximumBodyRadius;
+      const minimumCol = Math.floor(enemy.col - queryRange);
+      const maximumCol = Math.floor(enemy.col + queryRange);
+      const minimumRow = Math.floor(enemy.row - queryRange);
+      const maximumRow = Math.floor(enemy.row + queryRange);
       for (let col = minimumCol; col <= maximumCol && !bodyHit; col += 1) {
         for (let row = minimumRow; row <= maximumRow && !bodyHit; row += 1) {
           const bucket = bodyBuckets.get(spatialBucketCode(col, row));
@@ -3483,8 +3532,9 @@ export class UltraWorld {
               entry.owner === enemy
               || entry.owner.dead
               || !entry.owner.segments.includes(entry.segment)
-              || distanceSquared(enemy, entry.segment) >= bodyRangeSquared
             ) continue;
+            const contactRange = this.enemyHeadRadiusCells(enemy) + this.enemySegmentRadiusCells(entry.segment);
+            if (distanceSquared(enemy, entry.segment) >= contactRange * contactRange) continue;
             bodyHit = entry;
             break;
           }
@@ -3725,7 +3775,7 @@ export class UltraWorld {
           hostile.col += dx / distance * pull;
           hostile.row += dy / distance * pull;
           hostile.slow = Math.max(hostile.slow, 0.2);
-          followEnemySegments(hostile, 0, SNAKE_SEGMENT_SPACING);
+          followEnemySegments(hostile, 0);
         }
         continue;
       }
@@ -3733,7 +3783,7 @@ export class UltraWorld {
       if (hazard.arm > 0) continue;
       let trigger: EnemyEntity | null = null;
       for (const hostile of this.enemies) {
-        if (!hostile.dead && Math.hypot(hostile.col - hazard.col, hostile.row - hazard.row) < hazard.radius) {
+        if (!hostile.dead && this.pointHitsTarget(hazard, hazard.radius, hostile)) {
           trigger = hostile;
           break;
         }
@@ -3788,11 +3838,12 @@ export class UltraWorld {
   }
 
   private enemyTouchesCorrosionField(enemy: EnemyEntity, field: HazardEntity): boolean {
-    const headRange = field.radius + ENEMY_HEAD_RADIUS_CELLS;
+    const headRange = field.radius + this.enemyHeadRadiusCells(enemy);
     if (distanceSquared(enemy, field) <= headRange * headRange) return true;
-    const segmentRange = field.radius + this.enemySegmentRadiusCells();
-    const segmentRangeSquared = segmentRange * segmentRange;
-    for (const segment of enemy.segments) if (distanceSquared(segment, field) <= segmentRangeSquared) return true;
+    for (const segment of enemy.segments) {
+      const segmentRange = field.radius + this.enemySegmentRadiusCells(segment);
+      if (distanceSquared(segment, field) <= segmentRange * segmentRange) return true;
+    }
     return false;
   }
 
@@ -3934,7 +3985,10 @@ export class UltraWorld {
       if (player.invulnerable <= 0 && player.collisionCooldown <= 0) {
         for (const enemy of this.enemies) {
           if (enemy.dead) continue;
-          const segmentIndex = enemy.segments.findIndex((segment) => Math.hypot(player.col - segment.col, player.row - segment.row) < SNAKE_BODY_CONTACT_RANGE);
+          const segmentIndex = enemy.segments.findIndex((segment) => (
+            Math.hypot(player.col - segment.col, player.row - segment.row)
+              < this.playerHeadRadiusCells() + this.enemySegmentRadiusCells(segment)
+          ));
           if (segmentIndex < 0) continue;
           const body = enemy.segments[segmentIndex];
           const defended = this.consumeDefense(player);
@@ -3946,7 +4000,7 @@ export class UltraWorld {
       }
       if (!player.alive) continue;
       for (const enemy of this.enemies) {
-        if (enemy.dead || Math.hypot(player.col - enemy.col, player.row - enemy.row) >= this.playerHeadRadiusCells() + ENEMY_HEAD_RADIUS_CELLS || player.collisionCooldown > 0 || enemy.collisionCooldown > 0) continue;
+        if (enemy.dead || Math.hypot(player.col - enemy.col, player.row - enemy.row) >= this.playerHeadRadiusCells() + this.enemyHeadRadiusCells(enemy) || player.collisionCooldown > 0 || enemy.collisionCooldown > 0) continue;
         const normal = collisionNormal(player, enemy);
         this.applyPlayerCollisionAttack(player, enemy, enemy, -1, true);
         const knockbackMultiplier = enemy.archetype === 'warden' ? DESIGNER_BALANCE.enemyWardenKnockbackMultiplier : 1;
@@ -4154,6 +4208,16 @@ export class UltraWorld {
     if (!hitJoint) return;
     const damageResult = ENEMY_VITALITY.damage(hitJoint, safeAmount);
     if (damageResult.applied <= 0) return;
+    this.presentArmorDamage(
+      hitJoint.col,
+      hitJoint.row,
+      target.color,
+      hitJoint.maxHealth,
+      damageResult.before,
+      damageResult.after,
+      hitsHead,
+    );
+    hitJoint.radius = enemyJointRadiusCells(hitJoint, hitsHead);
     const removed: EnemySegment[] = [];
     let reconnectIndex = -1;
     let promotedHead: EnemySegment | null = null;
@@ -4171,6 +4235,7 @@ export class UltraWorld {
       target.row = promotedHead.row;
       target.health = promotedHead.health;
       target.maxHealth = promotedHead.maxHealth;
+      target.radius = enemyJointRadiusCells(target, true);
       if (Math.hypot(tangentCol, tangentRow) > 0.001) target.angle = Math.atan2(tangentRow, tangentCol);
       this.pendingEffects.push({
         id: this.effectId(),
@@ -4186,7 +4251,7 @@ export class UltraWorld {
         duration: ENEMY_HEAD_REFORM_DURATION,
       });
     } else if (removed.length > 0 && !destroysHead) {
-      beginEnemyReconnect(target, reconnectIndex, SNAKE_SEGMENT_SPACING);
+      beginEnemyReconnect(target, reconnectIndex);
       this.pendingEffects.push({
         id: this.effectId(),
         type: 'enemyBodyHit',
@@ -4356,8 +4421,8 @@ export class UltraWorld {
   }
 
   private pointHitsTarget(point: GridPoint, radius: number, target: EnemyEntity): boolean {
-    if (distanceSquared(point, target) < (radius + ENEMY_HEAD_RADIUS_CELLS) ** 2) return true;
-    return target.segments.some((segment) => distanceSquared(point, segment) < (radius + this.enemySegmentRadiusCells()) ** 2);
+    if (distanceSquared(point, target) < (radius + this.enemyHeadRadiusCells(target)) ** 2) return true;
+    return target.segments.some((segment) => distanceSquared(point, segment) < (radius + this.enemySegmentRadiusCells(segment)) ** 2);
   }
 
   private refreshProjectileHitBounds(): void {
@@ -4381,7 +4446,7 @@ export class UltraWorld {
   }
 
   private sweptTargetContacts(start: GridPoint, end: GridPoint, radius: number, target: EnemyEntity): Array<{ node: GridPoint; progress: number; head: boolean }> {
-    const padding = radius + ENEMY_HEAD_RADIUS_CELLS;
+    const padding = radius + this.enemyMaximumRadiusCells(target);
     if (
       Math.max(start.col, end.col) < target.projectileMinCol - padding
       || Math.min(start.col, end.col) > target.projectileMaxCol + padding
@@ -4389,11 +4454,10 @@ export class UltraWorld {
       || Math.min(start.row, end.row) > target.projectileMaxRow + padding
     ) return [];
     const contacts: Array<{ node: GridPoint; progress: number; head: boolean }> = [];
-    const headProgress = sweptContactProgress(start, end, target, radius + ENEMY_HEAD_RADIUS_CELLS);
+    const headProgress = sweptContactProgress(start, end, target, radius + this.enemyHeadRadiusCells(target));
     if (headProgress !== null) contacts.push({ node: target, progress: headProgress, head: true });
-    const segmentRadius = radius + this.enemySegmentRadiusCells();
     for (const segment of target.segments) {
-      const progress = sweptContactProgress(start, end, segment, segmentRadius);
+      const progress = sweptContactProgress(start, end, segment, radius + this.enemySegmentRadiusCells(segment));
       if (progress !== null) contacts.push({ node: segment, progress, head: false });
     }
     return contacts;
@@ -4425,8 +4489,33 @@ export class UltraWorld {
     return 18 / CANONICAL_CELL_SIZE * SNAKE_BODY_SIZE_SCALE;
   }
 
-  private enemySegmentRadiusCells(): number {
-    return this.pixelsToCells(9) * SNAKE_BODY_SIZE_SCALE;
+  private playerBodyRadiusCells(): number {
+    return 9 / CANONICAL_CELL_SIZE * SNAKE_BODY_SIZE_SCALE;
+  }
+
+  private enemyHeadRadiusCells(enemy: EnemyJointView & { radius?: number }): number {
+    return Number.isFinite(enemy.radius) && enemy.radius! > 0
+      ? enemy.radius!
+      : enemyJointRadiusCells(enemy, true);
+  }
+
+  private enemySegmentRadiusCells(segment?: EnemyJointView & { radius?: number }): number {
+    if (!segment) return ENEMY_ARMOR_TUNING.bodyCoreRadius;
+    return Number.isFinite(segment.radius) && segment.radius! > 0
+      ? segment.radius!
+      : enemyJointRadiusCells(segment, false);
+  }
+
+  private enemyMaximumRadiusCells(enemy: EnemyEntity): number {
+    let maximum = this.enemyHeadRadiusCells(enemy);
+    for (const segment of enemy.segments) maximum = Math.max(maximum, this.enemySegmentRadiusCells(segment));
+    return maximum;
+  }
+
+  private enemyMaximumBodyRadiusCells(enemy: EnemyEntity): number {
+    let maximum = ENEMY_ARMOR_TUNING.bodyCoreRadius;
+    for (const segment of enemy.segments) maximum = Math.max(maximum, this.enemySegmentRadiusCells(segment));
+    return maximum;
   }
 
   private allocateProjectileId(): number {
@@ -4581,7 +4670,7 @@ export class UltraWorld {
     entity.slow = Math.max(entity.slow, BOUNCE_SLOW_TIME * (1 - MODULE_PROGRESSION.effects.stabilizerSlowReduction(stabilization)) * (1 - collisionReduction));
     entity.collisionCooldown = Math.max(0.06, BOUNCE_LOCK_TIME * (1 - MODULE_PROGRESSION.effects.stabilizerLockReduction(stabilization)) * (1 - collisionReduction));
     if (isPlayer) PLAYER_BODY_PATH.resample(entity.bodyPath, entity, entity.segments, this.playerSegmentSpacing(entity));
-    else followEnemySegments(entity, 0, SNAKE_SEGMENT_SPACING);
+    else followEnemySegments(entity, 0);
     const anchor: UltraEffectAnchor = isPlayer
       ? { anchorKind: 'player', anchorId: entity.entityId }
       : { anchorKind: 'enemy', anchorId: entity.id };
@@ -4619,6 +4708,36 @@ export class UltraWorld {
     anchor?: UltraEffectAnchor,
   ): void {
     this.pendingEffects.push({ id: this.effectId(), type: 'ring', col, row, color, life, radius, endRadius, endRadiusUnit, audienceEntityId, ...anchor });
+  }
+
+  private presentArmorDamage(
+    col: number,
+    row: number,
+    color: string,
+    maxHealth: number,
+    beforeHealth: number,
+    afterHealth: number,
+    isHead: boolean,
+  ): void {
+    const transitions = ENEMY_ARMOR.damageTransitions(maxHealth, beforeHealth, afterHealth);
+    const life = Math.max(0.18, ENEMY_ARMOR_BREAK_CASCADE_INTERVAL * 5);
+    for (let index = 0; index < transitions.length; index += 1) {
+      const transition = transitions[index];
+      const radiusCells = ENEMY_ARMOR.radiusForLayer(transition.index, isHead, ENEMY_ARMOR_TUNING);
+      const delay = index * ENEMY_ARMOR_BREAK_CASCADE_INTERVAL;
+      this.pendingEffects.push({
+        id: this.effectId(),
+        type: 'ring',
+        col,
+        row,
+        color,
+        life,
+        radius: radiusCells * CANONICAL_CELL_SIZE,
+        endRadius: radiusCells * 1.34,
+        endRadiusUnit: 'cells',
+        ...(delay > 0 ? { delay } : {}),
+      });
+    }
   }
 
   private feedback(kind: UltraFeedbackKind, audienceEntityId: number): void {
@@ -4792,27 +4911,85 @@ function nearestEnemySegmentIndex(enemy: EnemyEntity, point: GridPoint): number 
   return nearestIndex;
 }
 
-function beginEnemyReconnect(enemy: EnemyEntity, index: number, spacing: number): void {
+function enemyJointRadiusCells(joint: EnemyArmorJoint, isHead: boolean): number {
+  return ENEMY_ARMOR.radius(joint.health, joint.maxHealth, isHead, ENEMY_ARMOR_TUNING);
+}
+
+function syncEnemyJointRadii(enemy: EnemyEntity): void {
+  enemy.radius = enemyJointRadiusCells(enemy, true);
+  for (const segment of enemy.segments) segment.radius = enemyJointRadiusCells(segment, false);
+}
+
+function enemyJointSpacing(
+  previous: EnemyArmorJoint & { radius?: number },
+  previousIsHead: boolean,
+  segment: EnemyArmorJoint & { radius?: number },
+): number {
+  const previousCoreRadius = previousIsHead ? ENEMY_ARMOR_TUNING.headCoreRadius : ENEMY_ARMOR_TUNING.bodyCoreRadius;
+  const previousRadius = Number.isFinite(previous.radius) && previous.radius! > 0
+    ? previous.radius!
+    : enemyJointRadiusCells(previous, previousIsHead);
+  const segmentRadius = Number.isFinite(segment.radius) && segment.radius! > 0
+    ? segment.radius!
+    : enemyJointRadiusCells(segment, false);
+  const armorGrowth = Math.max(0, previousRadius - previousCoreRadius)
+    + Math.max(0, segmentRadius - ENEMY_ARMOR_TUNING.bodyCoreRadius);
+  return ENEMY_ARMOR_TUNING.baseSpacing + armorGrowth * ENEMY_ARMOR_TUNING.spacingScale;
+}
+
+function initializeEnemySegmentSpacing(enemy: EnemyEntity): void {
+  syncEnemyJointRadii(enemy);
+  let previous: EnemyEntity | EnemySegment = enemy;
+  let previousIsHead = true;
+  for (const segment of enemy.segments) {
+    const targetSpacing = enemyJointSpacing(previous, previousIsHead, segment);
+    segment.spacing = targetSpacing;
+    let dx = previous.col - segment.col;
+    let dy = previous.row - segment.row;
+    let distance = Math.hypot(dx, dy);
+    if (distance <= 0.000001) {
+      dx = Math.cos(enemy.angle);
+      dy = Math.sin(enemy.angle);
+      distance = 1;
+    }
+    segment.col = previous.col - dx / distance * targetSpacing;
+    segment.row = previous.row - dy / distance * targetSpacing;
+    previous = segment;
+    previousIsHead = false;
+  }
+}
+
+function beginEnemyReconnect(enemy: EnemyEntity, index: number): void {
   if (index < 0 || index >= enemy.segments.length) return;
   const previous = index === 0 ? enemy : enemy.segments[index - 1];
   const segment = enemy.segments[index];
+  const targetSpacing = enemyJointSpacing(previous, index === 0, segment);
   const gap = Math.hypot(previous.col - segment.col, previous.row - segment.row);
-  if (gap <= spacing) return;
+  if (gap <= targetSpacing) return;
+  segment.spacing = Math.max(Number(segment.spacing) || targetSpacing, targetSpacing);
   segment.reconnectElapsed = 0;
   segment.reconnectGap = gap;
 }
 
-function followEnemySegments(enemy: EnemyEntity, delta: number, spacing: number): void {
-  let previous: GridPoint = enemy;
+function followEnemySegments(enemy: EnemyEntity, delta: number): void {
+  let previous: EnemyEntity | EnemySegment = enemy;
+  let previousIsHead = true;
   for (const segment of enemy.segments) {
-    let allowedDistance = spacing;
-    if (segment.reconnectGap > spacing) {
+    const targetSpacing = enemyJointSpacing(previous, previousIsHead, segment);
+    segment.spacing = ENEMY_ARMOR.smoothSpacing(
+      segment.spacing,
+      targetSpacing,
+      delta,
+      ENEMY_ARMOR_TUNING.spacingResponse,
+    );
+    let allowedDistance = segment.spacing;
+    if (segment.reconnectGap > targetSpacing) {
       segment.reconnectElapsed = Math.min(ENEMY_BODY_RECONNECT_DURATION, segment.reconnectElapsed + delta);
       const progress = ENEMY_BODY_RECONNECT_DURATION <= 0
         ? 1
         : clamp(segment.reconnectElapsed / ENEMY_BODY_RECONNECT_DURATION, 0, 1);
       const eased = 1 - (1 - progress) ** 3;
-      allowedDistance += (segment.reconnectGap - spacing) * (1 - eased);
+      allowedDistance += (segment.reconnectGap - targetSpacing) * (1 - eased);
       if (progress >= 1) {
         segment.reconnectElapsed = 0;
         segment.reconnectGap = 0;
@@ -4826,7 +5003,18 @@ function followEnemySegments(enemy: EnemyEntity, delta: number, spacing: number)
       segment.row = previous.row - dy / distance * allowedDistance;
     }
     previous = segment;
+    previousIsHead = false;
   }
+}
+
+function findEnemySelfCollision(enemy: EnemyEntity): GridPoint | null {
+  const headRadius = enemy.radius || enemyJointRadiusCells(enemy, true);
+  for (let index = 2; index < enemy.segments.length; index += 1) {
+    const segment = enemy.segments[index];
+    const range = headRadius + (segment.radius || enemyJointRadiusCells(segment, false));
+    if (distanceSquared(enemy, segment) < range * range) return segment;
+  }
+  return null;
 }
 
 function toRosterPlayer(player: PlayerEntity): RosterPlayer {
@@ -4958,7 +5146,16 @@ function toFoodView(food: FoodEntity): UltraFoodView {
 }
 
 function toPendingSpawnView(spawn: PendingSpawn): PendingSpawnView {
-  return { id: spawn.id, archetype: spawn.archetype, color: spawn.color, angle: spawn.angle, headCell: { ...spawn.headCell }, bodyCells: spawn.bodyCells.map((cell) => ({ ...cell })), timer: spawn.timer, maxTimer: spawn.maxTimer };
+  return {
+    id: spawn.id,
+    archetype: spawn.archetype,
+    color: spawn.color,
+    angle: spawn.angle,
+    headCell: { col: spawn.headCell.col, row: spawn.headCell.row, health: spawn.health, maxHealth: spawn.maxHealth },
+    bodyCells: spawn.bodyCells.map((cell) => ({ col: cell.col, row: cell.row, health: cell.health, maxHealth: cell.maxHealth })),
+    timer: spawn.timer,
+    maxTimer: spawn.maxTimer,
+  };
 }
 
 function distanceSquared(left: GridPoint, right: GridPoint): number {

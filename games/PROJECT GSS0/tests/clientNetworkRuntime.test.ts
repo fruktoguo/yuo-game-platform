@@ -87,7 +87,7 @@ interface ClientProjectileRuntime {
 }
 
 describe('客户端网络模块', () => {
-  it('独立解码器与服务端 V22 逐关节生命快照格式一致', () => {
+  it('独立解码器与服务端 V23 装甲出生预警快照格式一致', () => {
     const snapshot: UltraSnapshot = {
       tick: 7, serverTime: 700, gameTime: 3, waveCount: 2, waveTimer: 4, threatLevel: 1, arenaSize: 24, worldObjectRevision: 0, worldObjectsComplete: true,
       players: [{
@@ -102,7 +102,7 @@ describe('客户端网络模块', () => {
       }],
       enemies: [{ id: 2, archetype: 'charger', behaviorState: 'roam', behaviorPhase: 0, col: 8, row: 9, angle: 1, health: 2, maxHealth: 5, color: '#ff5c62', captured: 0, frostStacks: 2, corrosionStacks: 2, burnStacks: 5, segments: [{ col: 7.5, row: 9, health: 3, maxHealth: 3 }] }],
       foods: [], projectiles: [], hazards: [],
-      pendingSpawns: [{ id: 3, archetype: 'warden', color: '#d95cff', angle: Math.PI / 2, headCell: { col: 18, row: 4 }, bodyCells: [{ col: 17, row: 4 }], timer: 1, maxTimer: 1.5 }],
+      pendingSpawns: [{ id: 3, archetype: 'warden', color: '#d95cff', angle: Math.PI / 2, headCell: { col: 18, row: 4, health: 13, maxHealth: 13 }, bodyCells: [{ col: 17, row: 4, health: 8, maxHealth: 8 }], timer: 1, maxTimer: 1.5 }],
     };
 
     const decoded = clientGlobals.GSS0NetworkCodec.decode(encodeUltraSnapshot(snapshot), MODULES);
@@ -207,11 +207,22 @@ describe('客户端网络模块', () => {
     expect(decoded.segments[0].col).toBeCloseTo(player.segments[0].col, 2);
     expect(decoded.segments[0].row).toBeCloseTo(player.segments[0].row, 2);
 
-    const options = { centerCol: 11.5, centerRow: 11.5, arenaRadius: 11.5, selfRange: 0.5, bodyRange: 0.42, playerHeadRange: 1.05, enemyHeadRange: 0.81 };
-    const far = clientGlobals.GSS0PlayerCollisions.detect(player, [{ id: 2, col: 5.9, row: 5, angle: Math.PI, segments: [], dead: false }], [player], options);
-    const touching = clientGlobals.GSS0PlayerCollisions.detect(player, [{ id: 2, col: 5.7, row: 5, angle: Math.PI, segments: [], dead: false }], [player], options);
+    const options = {
+      centerCol: 11.5, centerRow: 11.5, arenaRadius: 11.5,
+      selfRange: 0.5, bodyRange: 0.42, playerHeadRange: 1.05,
+      playerHeadRadius: 0.4, playerBodyRadius: 0.2,
+      enemyHeadRadius: (enemy: { radiusCells?: number }) => enemy.radiusCells ?? 0.48,
+      enemyBodyRadius: (_enemy: unknown, segment: { radiusCells?: number }) => segment.radiusCells ?? 0.2,
+    };
+    const far = clientGlobals.GSS0PlayerCollisions.detect(player, [{ id: 2, col: 5.9, row: 5, angle: Math.PI, radiusCells: 0.48, segments: [], dead: false }], [player], options);
+    const touching = clientGlobals.GSS0PlayerCollisions.detect(player, [{ id: 2, col: 5.7, row: 5, angle: Math.PI, radiusCells: 0.48, segments: [], dead: false }], [player], options);
     expect(far).toBeNull();
     expect(touching).toMatchObject({ kind: 'enemy-head', targetId: 2 });
+    const armoredBody = clientGlobals.GSS0PlayerCollisions.detect(player, [{
+      id: 3, col: 8, row: 5, angle: Math.PI, radiusCells: 0.2,
+      segments: [{ col: 5.68, row: 5, radiusCells: 0.3 }], dead: false,
+    }], [player], options);
+    expect(armoredBody).toMatchObject({ kind: 'enemy-body', targetId: 3, segmentIndex: 0 });
   });
 
   it('玩家头撞事件可靠去重，先等待视觉接触再平滑补足远端弹开', () => {

@@ -32,6 +32,16 @@ export const PROJECTILE_SIZE_SCALE = DESIGNER_BALANCE.projectileSizeScale;
 export const PLAYER_BASE_SPEED = DESIGNER_BALANCE.playerBaseSpeed;
 export const SNAKE_BODY_SIZE_SCALE = DESIGNER_BALANCE.snakeBodySizeScale;
 export const SNAKE_SEGMENT_SPACING = DESIGNER_BALANCE.snakeSegmentSpacing;
+export const ENEMY_ARMOR_TUNING = Object.freeze({
+  headCoreRadius: DESIGNER_BALANCE.enemyArmorHeadCoreRadiusCells * SNAKE_BODY_SIZE_SCALE,
+  bodyCoreRadius: DESIGNER_BALANCE.enemyArmorBodyCoreRadiusCells * SNAKE_BODY_SIZE_SCALE,
+  layerThickness: DESIGNER_BALANCE.enemyArmorLayerThicknessCells * SNAKE_BODY_SIZE_SCALE,
+  baseSpacing: SNAKE_SEGMENT_SPACING,
+  spacingScale: DESIGNER_BALANCE.enemyArmorSpacingScale,
+  spacingResponse: DESIGNER_BALANCE.enemyArmorSpacingResponse,
+  maxPlates: DESIGNER_BALANCE.enemyArmorMaxPlatesPerLayer,
+});
+export const ENEMY_ARMOR_BREAK_CASCADE_INTERVAL = DESIGNER_BALANCE.enemyArmorBreakCascadeInterval;
 export const PLAYER_MAX_HEALTH = DESIGNER_BALANCE.playerMaxHealth;
 export const PLAYER_HEALTH_REGEN_PER_SECOND = DESIGNER_BALANCE.playerHealthRegenPerSecond;
 export const PLAYER_ENEMY_BODY_COLLISION_DAMAGE = DESIGNER_BALANCE.playerEnemyBodyCollisionDamage;

@@ -140,15 +140,20 @@
   const TAU = Math.PI * 2;
   const P2P_TOAST_DURATION_MS = 2800;
   const DESIGNER_CONFIG = globalThis.GSS0_DESIGNER_CONFIG || {};
-  if (DESIGNER_CONFIG.schemaVersion !== 50) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 50");
+  if (DESIGNER_CONFIG.schemaVersion !== 51) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 51");
   const DESIGNER_BALANCE = DESIGNER_CONFIG.balance || {};
   const MODULE_DESIGN_STATES = DESIGNER_CONFIG.moduleStates || {};
   const arenaGeometry = globalThis.GSS0ArenaGeometry;
   if (!arenaGeometry) throw new Error("PROJECT GSS0 圆形场地几何未加载");
   const playerBodyPathApi = globalThis.GSS0PlayerBodyPath;
   const enemyVitalityApi = globalThis.GSS0EnemyVitality;
+  const enemyArmorApi = globalThis.GSS0EnemyArmor;
   if (!enemyVitalityApi) throw new Error("PROJECT GSS0 敌人关节生命运行时未加载");
-  const ENEMY_JOINT_HEALTH_DEBUG = new URLSearchParams(window.location.search).get("debug-joint-health") === "1";
+  if (!enemyArmorApi) throw new Error("PROJECT GSS0 敌人指数装甲运行时未加载");
+  const DEBUG_QUERY = new URLSearchParams(window.location.search);
+  const ENEMY_ARMOR_SHOWCASE = DEBUG_QUERY.get("debug-armor-showcase") === "1";
+  const ENEMY_ARMOR_SHOWCASE_HEALTHS = Object.freeze([1, 2, 3, 4, 5, 8, 13, 100]);
+  const ENEMY_JOINT_HEALTH_DEBUG = DEBUG_QUERY.get("debug-joint-health") === "1" || ENEMY_ARMOR_SHOWCASE;
   if (!playerBodyPathApi) throw new Error("PROJECT GSS0 玩家历史轨迹未加载");
 
   function designerNumber(key, fallback, minimum, maximum, integer = false) {
@@ -229,11 +234,53 @@
   const ARENA_CENTER_COORDINATE = arenaGeometry.centerForGrid(GRID_SIZE);
   const SNAKE_BODY_SIZE_SCALE = designerNumber("snakeBodySizeScale", 0.775, 0.25, 2);
   const SNAKE_SEGMENT_SPACING = designerNumber("snakeSegmentSpacing", 0.45, 0.1, 1.5);
-  const ENEMY_HEAD_RADIUS_CELLS = 0.28 * SNAKE_BODY_SIZE_SCALE;
+  const ENEMY_ARMOR_TUNING = Object.freeze({
+    headCoreRadius: designerNumber("enemyArmorHeadCoreRadiusCells", 0.53, 0.1, 1.5) * SNAKE_BODY_SIZE_SCALE,
+    bodyCoreRadius: designerNumber("enemyArmorBodyCoreRadiusCells", 0.265, 0.05, 1) * SNAKE_BODY_SIZE_SCALE,
+    layerThickness: designerNumber("enemyArmorLayerThicknessCells", 0.055, 0.005, 0.25) * SNAKE_BODY_SIZE_SCALE,
+    baseSpacing: SNAKE_SEGMENT_SPACING,
+    spacingScale: designerNumber("enemyArmorSpacingScale", 1, 0, 3),
+    spacingResponse: designerNumber("enemyArmorSpacingResponse", 12, 0.1, 60),
+    maxPlates: designerNumber("enemyArmorMaxPlatesPerLayer", 8, 1, 32, true)
+  });
+  const ENEMY_ARMOR_BREAK_CASCADE_INTERVAL = designerNumber("enemyArmorBreakCascadeInterval", 0.055, 0, 0.3);
+
+  function createEnemyArmorPolygon(points) {
+    const extent = Math.max(0.001, ...points.map((point) => Math.hypot(point[0], point[1])));
+    const normalized = points.map((point) => Object.freeze([point[0] / extent, point[1] / extent]));
+    let perimeter = 0;
+    for (let index = 0; index < normalized.length; index += 1) {
+      const current = normalized[index];
+      const next = normalized[(index + 1) % normalized.length];
+      perimeter += Math.hypot(next[0] - current[0], next[1] - current[1]);
+    }
+    return Object.freeze({ kind: "polygon", points: Object.freeze(normalized), perimeter, extent });
+  }
+
+  function createEnemyArmorCircle(extent) {
+    return Object.freeze({ kind: "circle", points: null, perimeter: TAU, extent });
+  }
+
+  const ENEMY_HEAD_ARMOR_SHAPES = Object.freeze({
+    scout: createEnemyArmorPolygon([[19, 0], [-8, 9], [-3, 0], [-8, -9]]),
+    courier: createEnemyArmorPolygon([[18, 0], [9, 9], [-11, 9], [-16, 4], [-16, -4], [-11, -9], [9, -9]]),
+    charger: createEnemyArmorPolygon([[21, 0], [8, 7], [3, 15], [-1, 9], [-14, 10], [-10, 0], [-14, -10], [-1, -9], [3, -15], [8, -7]]),
+    cutter: createEnemyArmorPolygon([[18, 0], [2, 15], [-3, 9], [-15, 5], [-11, 0], [-15, -5], [-3, -9], [2, -15]]),
+    coiler: createEnemyArmorCircle(14),
+    warden: createEnemyArmorPolygon([[16, 0], [10, 13], [-8, 15], [-17, 8], [-17, -8], [-8, -15], [10, -13]]),
+    default: createEnemyArmorPolygon([[18, 0], [8, 12], [-7, 11], [-15, 5], [-12, 0], [-15, -5], [-7, -11], [8, -12]])
+  });
+  const ENEMY_BODY_ARMOR_SHAPES = Object.freeze({
+    scout: createEnemyArmorPolygon([[10, 0], [0, 6], [-9, 0], [0, -6]]),
+    courier: createEnemyArmorPolygon([[8, -7], [-8, -7], [-11, -4], [-11, 4], [-8, 7], [8, 7], [11, 4], [11, -4]]),
+    charger: createEnemyArmorPolygon([[11, 0], [1, 9], [-9, 6], [-5, 0], [-9, -6], [1, -9]]),
+    cutter: createEnemyArmorPolygon([[10, 0], [0, 11], [-5, 4], [-11, 0], [-5, -4], [0, -11]]),
+    coiler: createEnemyArmorCircle(9),
+    warden: createEnemyArmorPolygon([[8, -9], [11, -4], [11, 4], [8, 9], [-8, 9], [-11, 4], [-11, -4], [-8, -9]]),
+    default: createEnemyArmorPolygon([[10, 0], [4, 9], [-8, 7], [-11, 0], [-8, -7], [4, -9]])
+  });
   const SNAKE_BODY_CONTACT_RANGE = 0.42 * SNAKE_BODY_SIZE_SCALE;
-  const ENEMY_BODY_CONTACT_RANGE = 0.46 * SNAKE_BODY_SIZE_SCALE;
   const PLAYER_SELF_COLLISION_RANGE = 0.5 * SNAKE_BODY_SIZE_SCALE;
-  const ENEMY_SELF_COLLISION_RANGE = 0.48 * SNAKE_BODY_SIZE_SCALE;
   const ARENA_BASE_SIZE = arenaGeometry.diameterFromArea(designerNumber("arenaBaseArea", 452.4, 64, 4096));
   const ARENA_AREA_PER_LEVEL = designerNumber("arenaAreaPerLevel", 0.03, 0, 0.5);
   const ARENA_RESIZE_RATE = designerNumber("arenaResizeRate", 2.4, 0.1, 10);
@@ -468,6 +515,7 @@
   let waveTimer = 0;
   let waveCount = 0;
   let nextEnemyId = 1;
+  let enemyArmorShowcaseIndex = 0;
   let nextLocalFoodId = 1;
   let nextLocalHazardId = 1;
   let shake = 0;
@@ -1379,7 +1427,7 @@
       for (const segment of player.segments) syncNodePosition(segment);
       for (const enemy of enemies) {
         syncNodePosition(enemy);
-        enemy.radius = arena.cellSize * ENEMY_HEAD_RADIUS_CELLS;
+        syncEnemyJointRadii(enemy);
         for (const segment of enemy.segments) syncNodePosition(segment);
       }
       for (const food of foods) {
@@ -1509,7 +1557,7 @@
     }
     for (const enemy of enemies) {
       syncNodePosition(enemy);
-      enemy.radius = arena.cellSize * ENEMY_HEAD_RADIUS_CELLS;
+      syncEnemyJointRadii(enemy);
       for (const segment of enemy.segments) syncNodePosition(segment);
     }
     for (const food of foods) {
@@ -1745,8 +1793,97 @@
     return 18 * arenaPieceScale();
   }
 
-  function enemySegmentRadiusPixels() {
-    return 9 * arenaVisualScale() * SNAKE_BODY_SIZE_SCALE;
+  function playerBodyRadiusCells() {
+    return 9 / 34 * SNAKE_BODY_SIZE_SCALE;
+  }
+
+  function enemyJointRadiusCells(node, isHead = false) {
+    const health = Math.max(0, Math.floor(Number(node?.health) || 0));
+    const maxHealth = Math.max(1, Math.floor(Number(node?.maxHealth) || 1));
+    if (
+      node
+      && node.armorRadiusHealth === health
+      && node.armorRadiusMaxHealth === maxHealth
+      && node.armorRadiusIsHead === isHead
+      && Number.isFinite(node.armorRadiusCells)
+    ) return node.armorRadiusCells;
+    const radius = enemyArmorApi.radius(health, maxHealth, isHead, ENEMY_ARMOR_TUNING);
+    if (node) {
+      node.armorRadiusHealth = health;
+      node.armorRadiusMaxHealth = maxHealth;
+      node.armorRadiusIsHead = isHead;
+      node.armorRadiusCells = radius;
+    }
+    return radius;
+  }
+
+  function enemyJointRadiusPixels(node, isHead = false) {
+    return enemyJointRadiusCells(node, isHead) * arena.cellSize;
+  }
+
+  function enemySegmentRadiusPixels(segment = null) {
+    return segment ? (segment.radius || enemyJointRadiusPixels(segment, false)) : ENEMY_ARMOR_TUNING.bodyCoreRadius * arena.cellSize;
+  }
+
+  function enemyHeadRadiusPixels(enemy) {
+    return enemy?.radius || enemyJointRadiusPixels(enemy, true);
+  }
+
+  function syncEnemyJointRadii(enemy) {
+    enemy.radius = enemyJointRadiusPixels(enemy, true);
+    for (const segment of enemy.segments || []) segment.radius = enemyJointRadiusPixels(segment, false);
+  }
+
+  function enemyJointSpacingCells(previous, previousIsHead, segment) {
+    const previousCoreRadius = previousIsHead ? ENEMY_ARMOR_TUNING.headCoreRadius : ENEMY_ARMOR_TUNING.bodyCoreRadius;
+    const previousRadius = enemyJointRadiusCells(previous, previousIsHead) || previousCoreRadius;
+    const segmentRadius = enemyJointRadiusCells(segment, false) || ENEMY_ARMOR_TUNING.bodyCoreRadius;
+    const armorGrowth = Math.max(0, previousRadius - previousCoreRadius)
+      + Math.max(0, segmentRadius - ENEMY_ARMOR_TUNING.bodyCoreRadius);
+    return ENEMY_ARMOR_TUNING.baseSpacing + armorGrowth * ENEMY_ARMOR_TUNING.spacingScale;
+  }
+
+  function initializeEnemySegmentSpacing(enemy) {
+    syncEnemyJointRadii(enemy);
+    let previous = enemy;
+    let previousIsHead = true;
+    for (const segment of enemy.segments || []) {
+      const targetSpacing = enemyJointSpacingCells(previous, previousIsHead, segment);
+      segment.spacing = targetSpacing;
+      let dx = previous.col - segment.col;
+      let dy = previous.row - segment.row;
+      let distance = Math.hypot(dx, dy);
+      if (distance <= 0.000001) {
+        dx = Math.cos(enemy.angle || 0);
+        dy = Math.sin(enemy.angle || 0);
+        distance = 1;
+      }
+      segment.col = previous.col - dx / distance * targetSpacing;
+      segment.row = previous.row - dy / distance * targetSpacing;
+      syncNodePosition(segment);
+      previous = segment;
+      previousIsHead = false;
+    }
+  }
+
+  function enemyMaximumRadiusPixels(enemy) {
+    let maximum = enemyHeadRadiusPixels(enemy);
+    for (const segment of enemy.segments || []) maximum = Math.max(maximum, enemySegmentRadiusPixels(segment));
+    return maximum;
+  }
+
+  function enemyMaximumBodyRadiusCells(enemy) {
+    let maximum = ENEMY_ARMOR_TUNING.bodyCoreRadius;
+    for (const segment of enemy.segments || []) maximum = Math.max(maximum, enemySegmentRadiusPixels(segment) / arena.cellSize);
+    return maximum;
+  }
+
+  function enemyHeadRadiusCells(enemy) {
+    return enemyHeadRadiusPixels(enemy) / arena.cellSize;
+  }
+
+  function enemyBodyRadiusCells(_enemy, segment) {
+    return enemySegmentRadiusPixels(segment) / arena.cellSize;
   }
 
   function arenaVisualScale() {
@@ -2975,7 +3112,7 @@
     } else if (item.type === "ring") {
       const scale = arenaVisualScale();
       const endRadius = item.endRadiusUnit === "pixels" ? item.endRadius * scale : item.endRadius * arena.cellSize;
-      effects.push({ type: "ring", x: from.x, y: from.y, color: item.color, life: item.life, maxLife: item.life, radius: item.radius * scale, endRadius });
+      effects.push({ type: "ring", x: from.x, y: from.y, color: item.color, life: item.life, maxLife: item.life, radius: item.radius * scale, endRadius, delay: Math.max(0, Number(item.delay) || 0) });
     } else if (item.type === "beam" || item.type === "lightning") {
       const to = cellCenter(item.col2, item.row2);
       const width = item.width ? item.width * arenaVisualScale() : undefined;
@@ -3326,23 +3463,32 @@
     spawn.maxTimer = Number(item.maxTimer) || 0;
     spawn.headCell.col = Number(item.headCell?.col) || 0;
     spawn.headCell.row = Number(item.headCell?.row) || 0;
+    spawn.headCell.health = Math.max(0, Math.floor(Number(item.headCell?.health) || 0));
+    spawn.headCell.maxHealth = Math.max(1, Math.floor(Number(item.headCell?.maxHealth) || 1));
     spawn.col = spawn.headCell.col;
     spawn.row = spawn.headCell.row;
-    spawn.radius = arena.cellSize * ENEMY_HEAD_RADIUS_CELLS;
+    spawn.health = spawn.headCell.health;
+    spawn.maxHealth = spawn.headCell.maxHealth;
     syncNodePosition(spawn);
     const bodyItems = Array.isArray(item.bodyCells) ? item.bodyCells : [];
     for (let index = 0; index < bodyItems.length; index += 1) {
       const body = spawn.segments[index] || (spawn.segments[index] = {});
       body.col = Number(bodyItems[index]?.col) || 0;
       body.row = Number(bodyItems[index]?.row) || 0;
+      body.health = Math.max(0, Math.floor(Number(bodyItems[index]?.health) || 0));
+      body.maxHealth = Math.max(1, Math.floor(Number(bodyItems[index]?.maxHealth) || 1));
       syncNodePosition(body);
     }
     spawn.segments.length = bodyItems.length;
     spawn.bodyCells = spawn.segments;
+    syncEnemyJointRadii(spawn);
     let previous = spawn;
+    let previousIsHead = true;
     for (const segment of spawn.segments) {
       segment.angle = Math.atan2(previous.row - segment.row, previous.col - segment.col);
+      segment.spacing = enemyJointSpacingCells(previous, previousIsHead, segment);
       previous = segment;
+      previousIsHead = false;
     }
     if (isNew) addNetworkSpawnView(spawn);
   }
@@ -3698,11 +3844,11 @@
       enemy.frostStacks = item.frostStacks || 0;
       enemy.corrosionStacks = item.corrosionStacks || 0;
       enemy.burnStacks = item.burnStacks || 0;
-      enemy.radius = arena.cellSize * ENEMY_HEAD_RADIUS_CELLS;
       enemy.dead = false;
       const currentSegments = projectedEnemySegments(item.segments, damageOperations, enemy.currentSegmentScratch ||= []);
       const previousSegments = projectedEnemySegments(old?.segments, damageOperations, enemy.previousSegmentScratch ||= []);
       syncNetworkSegments(enemy.segments, currentSegments, previousSegments, amount);
+      syncEnemyJointRadii(enemy);
       if (enemy.reconnectActive) enemy.reconnectActive = followEnemySegments(enemy, 0, performance.now());
       let previousNode = enemy;
       for (const segment of enemy.segments) {
@@ -3942,9 +4088,11 @@
       arenaRadius: arenaPlayableRadius(),
       selfRange: PLAYER_SELF_COLLISION_RANGE,
       bodyRange: SNAKE_BODY_CONTACT_RANGE,
-      enemyBodyRange: ENEMY_BODY_CONTACT_RANGE,
       playerHeadRange: playerHeadRadiusPixels() * 2 / arena.cellSize,
-      enemyHeadRange: playerHeadRadiusPixels() / arena.cellSize + ENEMY_HEAD_RADIUS_CELLS
+      playerHeadRadius: playerHeadRadiusPixels() / arena.cellSize,
+      playerBodyRadius: playerBodyRadiusCells(),
+      enemyHeadRadius: enemyHeadRadiusCells,
+      enemyBodyRadius: enemyBodyRadiusCells
     });
     if (!collision) return;
     if (collision.kind === "wall") {
@@ -4215,6 +4363,7 @@
     waveTimer = 0;
     waveCount = 0;
     nextEnemyId = 1;
+    enemyArmorShowcaseIndex = 0;
     nextLocalFoodId = 1;
     nextLocalHazardId = 1;
     shake = 0;
@@ -4367,14 +4516,14 @@
     sound("foodSpawn");
   }
 
-  function chooseEnemySpawn(bodySegmentCount, occupied = occupiedSpawnPoints()) {
+  function chooseEnemySpawn(bodySegmentCount, occupied = occupiedSpawnPoints(), wallMargin = 0, occupancyDistance = SNAKE_SEGMENT_SPACING) {
     return spawnPlanner.choose({
       centerCol: ARENA_CENTER_COORDINATE,
       centerRow: ARENA_CENTER_COORDINATE,
-      radius: arenaPlayableRadius(),
+      radius: arenaPlayableRadius(wallMargin),
       bodySegmentCount,
       safetyDistance: ENEMY_SPAWN_SAFETY_DISTANCE,
-      occupancyDistance: SNAKE_SEGMENT_SPACING,
+      occupancyDistance,
       forwardPathHalfWidth: ENEMY_SPAWN_FORWARD_PATH_HALF_WIDTH,
       occupiedPoints: occupied,
       players: player ? [player] : [],
@@ -4385,17 +4534,33 @@
 
   function queueEnemySpawn(archetype, assignedHealth, occupied = occupiedSpawnPoints()) {
     if (!player) return;
-    const vitality = enemyVitalityApi.allocate(assignedHealth, Math.random);
+    const showcaseHealth = ENEMY_ARMOR_SHOWCASE
+      ? ENEMY_ARMOR_SHOWCASE_HEALTHS[enemyArmorShowcaseIndex % ENEMY_ARMOR_SHOWCASE_HEALTHS.length]
+      : null;
+    const vitality = showcaseHealth == null
+      ? enemyVitalityApi.allocate(assignedHealth, Math.random)
+      : enemyVitalityApi.allocateForJointCount(showcaseHealth, 1, Math.random);
     const totalLength = vitality.jointCount;
     const bodySegmentCount = totalLength - 1;
-    const placement = chooseEnemySpawn(bodySegmentCount, occupied);
+    let spawnWallMargin = enemyArmorApi.radius(vitality.joints[0].health, vitality.joints[0].maxHealth, true, ENEMY_ARMOR_TUNING);
+    let spawnSpacing = SNAKE_SEGMENT_SPACING;
+    let previousJoint = vitality.joints[0];
+    let previousIsHead = true;
+    for (let index = 1; index < vitality.joints.length; index += 1) {
+      const joint = vitality.joints[index];
+      spawnWallMargin = Math.max(spawnWallMargin, enemyArmorApi.radius(joint.health, joint.maxHealth, false, ENEMY_ARMOR_TUNING));
+      spawnSpacing = Math.max(spawnSpacing, enemyJointSpacingCells(previousJoint, previousIsHead, joint));
+      previousJoint = joint;
+      previousIsHead = false;
+    }
+    const placement = chooseEnemySpawn(bodySegmentCount, occupied, spawnWallMargin, spawnSpacing);
     if (!placement) return false;
     const headCell = placement.head;
     const nextCell = placement.next;
     const direction = { dx: nextCell.col - headCell.col, dy: nextCell.row - headCell.row };
     if (direction.dx === 0 && direction.dy === 0) direction.dx = headCell.col < ARENA_CENTER_COORDINATE ? 1 : -1;
     const color = ENEMY_COLORS[(nextEnemyId - 1) % ENEMY_COLORS.length];
-    const bodyCells = spawnPlanner.spaceSpawnBody(headCell, placement.body, SNAKE_SEGMENT_SPACING, bodySegmentCount);
+    const bodyCells = spawnPlanner.spaceSpawnBody(headCell, placement.body, spawnSpacing, bodySegmentCount);
     const headPoint = cellCenter(headCell.col, headCell.row);
     const enemy = {
       id: nextEnemyId++,
@@ -4415,7 +4580,7 @@
       maxHealth: vitality.joints[0].maxHealth,
       speed: ENEMY_BASE_SPEED * archetype.speedMultiplier,
       turnRate: ENEMY_TURN_RATE * archetype.turnMultiplier,
-      radius: arena.cellSize * ENEMY_HEAD_RADIUS_CELLS,
+      radius: 0,
       segments: bodyCells.map((cell, index) => Object.assign(
         makeSegmentAtCell(cell.col, cell.row),
         vitality.joints[index + 1]
@@ -4448,6 +4613,8 @@
       maxTimer: ENEMY_SPAWN_WARNING_TIME
     };
     enemy.bodyCells = enemy.segments;
+    initializeEnemySegmentSpacing(enemy);
+    enemy.reservedCells = [enemy, ...enemy.segments].map((cell) => ({ col: cell.col, row: cell.row }));
     let previous = enemy;
     for (const segment of enemy.segments) {
       segment.angle = Math.atan2(previous.row - segment.row, previous.col - segment.col);
@@ -4455,8 +4622,9 @@
     }
     updateEnemyHitBounds(enemy);
     pendingEnemySpawns.push(enemy);
+    if (showcaseHealth != null) enemyArmorShowcaseIndex += 1;
     occupied.push({ col: headCell.col, row: headCell.row });
-    for (const cell of bodyCells) occupied.push({ col: cell.col, row: cell.row });
+    for (const cell of enemy.segments) occupied.push({ col: cell.col, row: cell.row });
     sound("enemyWarning");
     return true;
   }
@@ -5495,7 +5663,7 @@
     const targetY = target.row - player.row;
     const targetDistance = Math.hypot(targetX, targetY);
     const playerHeadRadius = player.radius / arena.cellSize;
-    const headContactDistance = playerHeadRadius + target.radius / arena.cellSize;
+    const headContactDistance = playerHeadRadius + enemyHeadRadiusCells(target);
     if (targetDistance <= headContactDistance) return true;
 
     const pathRatio = (targetDistance - headContactDistance) / targetDistance;
@@ -5506,11 +5674,11 @@
 
     for (const enemy of enemies) {
       if (enemy.dead) continue;
-      if (pathIntersectsBodyConnections(player, pathEnd, enemy, SNAKE_BODY_CONTACT_RANGE)) return false;
+      if (pathIntersectsBodyConnections(player, pathEnd, enemy, playerHeadRadius + enemyMaximumBodyRadiusCells(enemy))) return false;
     }
     for (const enemy of enemies) {
       if (enemy.dead || enemy === target) continue;
-      const headRange = playerHeadRadius + enemy.radius / arena.cellSize;
+      const headRange = playerHeadRadius + enemyHeadRadiusCells(enemy);
       if (sweptContactProgress(player, pathEnd, enemy, headRange) !== null) return false;
     }
     if (network.enabled) {
@@ -5680,8 +5848,10 @@
     if (!Number.isInteger(index) || index < 0 || index >= enemy.segments.length) return;
     const previous = index === 0 ? enemy : enemy.segments[index - 1];
     const segment = enemy.segments[index];
+    const targetSpacing = enemyJointSpacingCells(previous, index === 0, segment);
     const gap = Math.hypot(previous.col - segment.col, previous.row - segment.row);
-    if (gap <= SNAKE_SEGMENT_SPACING) return;
+    if (gap <= targetSpacing) return;
+    segment.spacing = Math.max(Number(segment.spacing) || targetSpacing, targetSpacing);
     segment.reconnectElapsed = 0;
     segment.reconnectGap = gap;
     segment.reconnectStartedAt = Number.isFinite(startedAt) ? startedAt : null;
@@ -5690,16 +5860,24 @@
 
   function followEnemySegments(enemy, dt, now = null) {
     let previous = enemy;
+    let previousIsHead = true;
     let reconnectActive = false;
     for (const segment of enemy.segments) {
-      let allowedDistance = SNAKE_SEGMENT_SPACING;
-      if (segment.reconnectGap > SNAKE_SEGMENT_SPACING) {
+      const targetSpacing = enemyJointSpacingCells(previous, previousIsHead, segment);
+      segment.spacing = enemyArmorApi.smoothSpacing(
+        segment.spacing,
+        targetSpacing,
+        dt,
+        ENEMY_ARMOR_TUNING.spacingResponse
+      );
+      let allowedDistance = segment.spacing;
+      if (segment.reconnectGap > targetSpacing) {
         segment.reconnectElapsed = Number.isFinite(segment.reconnectStartedAt) && Number.isFinite(now)
           ? Math.max(0, (now - segment.reconnectStartedAt) / 1000)
           : (segment.reconnectElapsed || 0) + dt;
         const progress = clamp(segment.reconnectElapsed / ENEMY_BODY_RECONNECT_DURATION, 0, 1);
         const eased = 1 - (1 - progress) ** 3;
-        allowedDistance += (segment.reconnectGap - SNAKE_SEGMENT_SPACING) * (1 - eased);
+        allowedDistance += (segment.reconnectGap - targetSpacing) * (1 - eased);
         if (progress >= 1) {
           segment.reconnectElapsed = 0;
           segment.reconnectGap = 0;
@@ -5716,8 +5894,21 @@
         syncNodePosition(segment);
       }
       previous = segment;
+      previousIsHead = false;
     }
     return reconnectActive;
+  }
+
+  function findEnemySelfCollision(enemy) {
+    const headRadius = enemyHeadRadiusCells(enemy);
+    for (let index = 2; index < enemy.segments.length; index += 1) {
+      const segment = enemy.segments[index];
+      const contactRange = headRadius + enemySegmentRadiusPixels(segment) / arena.cellSize;
+      const deltaCol = enemy.col - segment.col;
+      const deltaRow = enemy.row - segment.row;
+      if (deltaCol * deltaCol + deltaRow * deltaRow < contactRange * contactRange) return segment;
+    }
+    return null;
   }
 
   function correctPlayerKnockbackNormal(heading, normalX, normalY) {
@@ -5799,13 +5990,13 @@
     return Math.hypot(entity.knockbackX || 0, entity.knockbackY || 0) >= KNOCKBACK_STOP_SPEED;
   }
 
-  function wallBounceNormal(col, row) {
+  function wallBounceNormal(col, row, margin = 0) {
     const normal = arenaGeometry.wallNormal(
       col,
       row,
       ARENA_CENTER_COORDINATE,
       ARENA_CENTER_COORDINATE,
-      arenaPlayableRadius()
+      arenaPlayableRadius(margin)
     );
     return normal ? { x: normal.col, y: normal.row } : null;
   }
@@ -5841,7 +6032,7 @@
     }
     const duration = MODULE_EFFECTS.corrosionFieldDuration(level);
     if (!(duration > 0)) return;
-    const radius = enemySegmentRadiusPixels();
+    const radius = ENEMY_ARMOR_TUNING.bodyCoreRadius * arena.cellSize;
     const spacing = Math.max(0.18 * arena.cellSize, radius * 1.25);
     const start = corrosionFieldTrailPoint || { col: previousCol, row: previousRow };
     const deltaCol = player.col - start.col;
@@ -6013,12 +6204,13 @@
   }
 
   function hasEnemyJointWithinDistance(origin, maxDistance) {
-    const maximumDistanceSquared = maxDistance * maxDistance;
     for (const enemy of enemies) {
       if (enemy.dead) continue;
-      if (distanceSquared(origin, enemy) < maximumDistanceSquared) return true;
+      const headRange = maxDistance + enemyHeadRadiusPixels(enemy);
+      if ((origin.x - enemy.x) ** 2 + (origin.y - enemy.y) ** 2 < headRange * headRange) return true;
       for (const segment of enemy.segments) {
-        if (distanceSquared(origin, segment) < maximumDistanceSquared) return true;
+        const segmentRange = maxDistance + enemySegmentRadiusPixels(segment);
+        if ((origin.x - segment.x) ** 2 + (origin.y - segment.y) ** 2 < segmentRange * segmentRange) return true;
       }
     }
     return false;
@@ -6493,12 +6685,11 @@
 
   function circularEnemyHitIndexes(originX, originY, radius, enemy) {
     const hits = [];
-    if ((enemy.x - originX) ** 2 + (enemy.y - originY) ** 2 < (radius + enemy.radius) ** 2) hits.push(-1);
-    const segmentRadius = radius + enemySegmentRadiusPixels();
-    const segmentRadiusSquared = segmentRadius * segmentRadius;
+    if ((enemy.x - originX) ** 2 + (enemy.y - originY) ** 2 < (radius + enemyHeadRadiusPixels(enemy)) ** 2) hits.push(-1);
     for (let index = 0; index < enemy.segments.length; index += 1) {
       const segment = enemy.segments[index];
-      if ((segment.x - originX) ** 2 + (segment.y - originY) ** 2 < segmentRadiusSquared) hits.push(index);
+      const segmentRadius = radius + enemySegmentRadiusPixels(segment);
+      if ((segment.x - originX) ** 2 + (segment.y - originY) ** 2 < segmentRadius * segmentRadius) hits.push(index);
     }
     return hits;
   }
@@ -6512,7 +6703,7 @@
       const projection = relativeX * directionX + relativeY * directionY;
       if (projection < 0 || projection > range) continue;
       const perpendicular = Math.abs(relativeX * directionY - relativeY * directionX);
-      const nodeRadius = segmentIndex < 0 ? enemy.radius : enemySegmentRadiusPixels();
+      const nodeRadius = segmentIndex < 0 ? enemyHeadRadiusPixels(enemy) : enemySegmentRadiusPixels(node);
       if (perpendicular <= halfWidth + nodeRadius) hits.push(segmentIndex);
     }
     return hits;
@@ -6742,18 +6933,25 @@
     const collisionDamageAmount = ENEMY_COLLISION_DAMAGE * (1 + MODULE_EFFECTS.enemyWallDamageBonus(moduleCount("wallbreaker")));
     const collisionKnockback = 1 + MODULE_EFFECTS.enemyWallKnockbackBonus(moduleCount("wallbreaker"));
     const bucketSize = ENEMY_BEHAVIOR_TUNING.bodyAvoidanceRange;
-    const headContactRange = ENEMY_HEAD_RADIUS_CELLS * 2;
     rebuildEnemySpatialBuckets();
+    let maximumHeadRadius = ENEMY_ARMOR_TUNING.headCoreRadius;
+    let maximumBodyRadius = ENEMY_ARMOR_TUNING.bodyCoreRadius;
+    for (const owner of enemies) {
+      if (owner.dead) continue;
+      maximumHeadRadius = Math.max(maximumHeadRadius, enemyHeadRadiusCells(owner));
+      maximumBodyRadius = Math.max(maximumBodyRadius, enemyMaximumBodyRadiusCells(owner));
+    }
     for (let firstIndex = 0; firstIndex < enemies.length; firstIndex += 1) {
       const first = enemies[firstIndex];
       if (first.dead || first.collisionCooldown > 0) continue;
 
       let second = null;
       let secondIndex = Infinity;
-      const minimumBucketCol = Math.floor((first.col - headContactRange) / bucketSize);
-      const maximumBucketCol = Math.floor((first.col + headContactRange) / bucketSize);
-      const minimumBucketRow = Math.floor((first.row - headContactRange) / bucketSize);
-      const maximumBucketRow = Math.floor((first.row + headContactRange) / bucketSize);
+      const headQueryRange = enemyHeadRadiusCells(first) + maximumHeadRadius;
+      const minimumBucketCol = Math.floor((first.col - headQueryRange) / bucketSize);
+      const maximumBucketCol = Math.floor((first.col + headQueryRange) / bucketSize);
+      const minimumBucketRow = Math.floor((first.row - headQueryRange) / bucketSize);
+      const maximumBucketRow = Math.floor((first.row + headQueryRange) / bucketSize);
       for (let bucketCol = minimumBucketCol; bucketCol <= maximumBucketCol; bucketCol += 1) {
         for (let bucketRow = minimumBucketRow; bucketRow <= maximumBucketRow; bucketRow += 1) {
           const bucket = enemySpatialBuckets.get(enemySpatialBucketCode(bucketCol, bucketRow));
@@ -6769,7 +6967,7 @@
             ) continue;
             const normalX = first.col - entry.owner.col;
             const normalY = first.row - entry.owner.row;
-            const hitDistance = (first.radius + entry.owner.radius) / arena.cellSize;
+            const hitDistance = enemyHeadRadiusCells(first) + enemyHeadRadiusCells(entry.owner);
             if (normalX * normalX + normalY * normalY >= hitDistance * hitDistance) continue;
             second = entry.owner;
             secondIndex = entry.ownerIndex;
@@ -6796,14 +6994,14 @@
       if (!second.dead) bounceEntity(second, -normalX, -normalY, second.color, collisionKnockback);
     }
 
-    const bodyRangeSquared = ENEMY_BODY_CONTACT_RANGE ** 2;
     for (const enemy of enemies) {
       if (enemy.dead || enemy.collisionCooldown > 0) continue;
       let bodyHit = null;
-      const minimumBucketCol = Math.floor((enemy.col - ENEMY_BODY_CONTACT_RANGE) / bucketSize);
-      const maximumBucketCol = Math.floor((enemy.col + ENEMY_BODY_CONTACT_RANGE) / bucketSize);
-      const minimumBucketRow = Math.floor((enemy.row - ENEMY_BODY_CONTACT_RANGE) / bucketSize);
-      const maximumBucketRow = Math.floor((enemy.row + ENEMY_BODY_CONTACT_RANGE) / bucketSize);
+      const bodyQueryRange = enemyHeadRadiusCells(enemy) + maximumBodyRadius;
+      const minimumBucketCol = Math.floor((enemy.col - bodyQueryRange) / bucketSize);
+      const maximumBucketCol = Math.floor((enemy.col + bodyQueryRange) / bucketSize);
+      const minimumBucketRow = Math.floor((enemy.row - bodyQueryRange) / bucketSize);
+      const maximumBucketRow = Math.floor((enemy.row + bodyQueryRange) / bucketSize);
       for (let bucketCol = minimumBucketCol; bucketCol <= maximumBucketCol && !bodyHit; bucketCol += 1) {
         for (let bucketRow = minimumBucketRow; bucketRow <= maximumBucketRow && !bodyHit; bucketRow += 1) {
           const bucket = enemySpatialBuckets.get(enemySpatialBucketCode(bucketCol, bucketRow));
@@ -6815,8 +7013,11 @@
               || entry.owner === enemy
               || entry.owner.dead
               || !entry.owner.segments.includes(entry.node)
-              || distanceSquared(enemy, entry.node) >= bodyRangeSquared
             ) continue;
+            const contactRange = enemyHeadRadiusCells(enemy) + enemySegmentRadiusPixels(entry.node) / arena.cellSize;
+            const deltaCol = enemy.col - entry.node.col;
+            const deltaRow = enemy.row - entry.node.row;
+            if (deltaCol * deltaCol + deltaRow * deltaRow >= contactRange * contactRange) continue;
             bodyHit = entry;
             break;
           }
@@ -6965,7 +7166,7 @@
     const radialCol = projectedCol - ARENA_CENTER_COORDINATE;
     const radialRow = projectedRow - ARENA_CENTER_COORDINATE;
     const radialDistance = Math.hypot(radialCol, radialRow);
-    if (radialDistance > arenaPlayableRadius(ENEMY_WALL_AVOIDANCE_DISTANCE) && radialDistance > 0.001) {
+    if (radialDistance > arenaPlayableRadius(ENEMY_WALL_AVOIDANCE_DISTANCE + enemyHeadRadiusCells(enemy)) && radialDistance > 0.001) {
       enemy.desiredAngle = Math.atan2(-radialRow, -radialCol);
     }
   }
@@ -7031,7 +7232,7 @@
           enemyMovementStart,
           enemyMovementEnd,
           player,
-          (player.radius + enemy.radius) / arena.cellSize
+          player.radius / arena.cellSize + enemyHeadRadiusCells(enemy)
         );
         if (headProgress !== null) playerCollision = protectedPlayer
           ? { kind: "protected", point: player, progress: headProgress }
@@ -7046,7 +7247,7 @@
           enemyMovementEnd,
           previousSegment,
           segment,
-          ENEMY_BODY_CONTACT_RANGE
+          enemyHeadRadiusCells(enemy) + playerBodyRadiusCells()
         );
         if (progress === null || (playerCollision && playerCollision.progress <= progress)) continue;
         const collisionPosition = {
@@ -7097,9 +7298,10 @@
         }
         continue;
       }
-      const wallNormal = wallBounceNormal(nextCol, nextRow);
+      const wallMargin = enemyHeadRadiusCells(enemy);
+      const wallNormal = wallBounceNormal(nextCol, nextRow, wallMargin);
       if (wallNormal) {
-        const constrained = constrainArenaPoint(nextCol, nextRow);
+        const constrained = constrainArenaPoint(nextCol, nextRow, wallMargin);
         enemy.col = constrained.col;
         enemy.row = constrained.row;
         syncNodePosition(enemy);
@@ -7119,7 +7321,7 @@
       updateEnemyHitBounds(enemy);
 
       if (enemy.collisionCooldown <= 0) {
-        const ownBodyHit = findSelfCollision(enemy, ENEMY_SELF_COLLISION_RANGE);
+        const ownBodyHit = findEnemySelfCollision(enemy);
         if (ownBodyHit) {
           bounceEntity(enemy, enemy.col - ownBodyHit.col, enemy.row - ownBodyHit.row, enemy.color);
           continue;
@@ -7145,15 +7347,17 @@
   }
 
   function updateEnemyHitBounds(enemy) {
-    let minX = enemy.x;
-    let maxX = enemy.x;
-    let minY = enemy.y;
-    let maxY = enemy.y;
+    const headRadius = enemyHeadRadiusPixels(enemy);
+    let minX = enemy.x - headRadius;
+    let maxX = enemy.x + headRadius;
+    let minY = enemy.y - headRadius;
+    let maxY = enemy.y + headRadius;
     for (const segment of enemy.segments) {
-      minX = Math.min(minX, segment.x);
-      maxX = Math.max(maxX, segment.x);
-      minY = Math.min(minY, segment.y);
-      maxY = Math.max(maxY, segment.y);
+      const segmentRadius = enemySegmentRadiusPixels(segment);
+      minX = Math.min(minX, segment.x - segmentRadius);
+      maxX = Math.max(maxX, segment.x + segmentRadius);
+      minY = Math.min(minY, segment.y - segmentRadius);
+      maxY = Math.max(maxY, segment.y + segmentRadius);
     }
     const bounds = enemy.hitBounds || (enemy.hitBounds = { minX, maxX, minY, maxY });
     bounds.minX = minX;
@@ -7164,8 +7368,7 @@
 
   function pointHitsEnemy(x, y, radius, enemy) {
     const bounds = enemy.hitBounds;
-    const segmentRadius = enemySegmentRadiusPixels();
-    const broadPadding = radius + Math.max(enemy.radius, segmentRadius);
+    const broadPadding = radius;
     if (
       bounds
       && (
@@ -7175,10 +7378,10 @@
         || y > bounds.maxY + broadPadding
       )
     ) return false;
-    const hitRadius = radius + enemy.radius;
+    const hitRadius = radius + enemyHeadRadiusPixels(enemy);
     if ((enemy.x - x) ** 2 + (enemy.y - y) ** 2 < hitRadius * hitRadius) return true;
     for (const segment of enemy.segments) {
-      const hitSegmentRadius = radius + segmentRadius;
+      const hitSegmentRadius = radius + enemySegmentRadiusPixels(segment);
       if ((segment.x - x) ** 2 + (segment.y - y) ** 2 < hitSegmentRadius * hitSegmentRadius) return true;
     }
     return false;
@@ -7311,11 +7514,9 @@
       }
 
       let contactCount = 0;
-      const segmentRadius = enemySegmentRadiusPixels();
       for (const enemy of enemies) {
         if (enemy.dead) continue;
-        const broadRadius = projectile.size + Math.max(enemy.radius, segmentRadius);
-        if (!sweptPathIntersectsEnemyBounds(startX, startY, projectile.x, projectile.y, broadRadius, enemy)) continue;
+        if (!sweptPathIntersectsEnemyBounds(startX, startY, projectile.x, projectile.y, projectile.size, enemy)) continue;
         if (!projectile.hitNodes.has(enemy)) {
           const headProgress = sweptPixelContactProgress(
             startX,
@@ -7323,7 +7524,7 @@
             projectile.x,
             projectile.y,
             enemy,
-            projectile.size + enemy.radius
+            projectile.size + enemyHeadRadiusPixels(enemy)
           );
           if (headProgress !== null) contactCount = appendProjectileContact(contactCount, enemy, enemy, headProgress, true);
         }
@@ -7335,7 +7536,7 @@
             projectile.x,
             projectile.y,
             segment,
-            projectile.size + segmentRadius
+            projectile.size + enemySegmentRadiusPixels(segment)
           );
           if (progress !== null) contactCount = appendProjectileContact(contactCount, enemy, segment, progress, false);
         }
@@ -7430,12 +7631,11 @@
   }
 
   function enemyTouchesCorrosionField(enemy, hazard) {
-    const headRange = hazard.radius + (enemy.radius || arena.cellSize * ENEMY_HEAD_RADIUS_CELLS);
+    const headRange = hazard.radius + enemyHeadRadiusPixels(enemy);
     if ((enemy.x - hazard.x) ** 2 + (enemy.y - hazard.y) ** 2 <= headRange * headRange) return true;
-    const segmentRange = hazard.radius + enemySegmentRadiusPixels();
-    const segmentRangeSquared = segmentRange * segmentRange;
     for (const segment of enemy.segments) {
-      if ((segment.x - hazard.x) ** 2 + (segment.y - hazard.y) ** 2 <= segmentRangeSquared) return true;
+      const segmentRange = hazard.radius + enemySegmentRadiusPixels(segment);
+      if ((segment.x - hazard.x) ** 2 + (segment.y - hazard.y) ** 2 <= segmentRange * segmentRange) return true;
     }
     return false;
   }
@@ -7493,6 +7693,7 @@
     enemy.row = promotedSegment.row;
     enemy.health = promotedSegment.health;
     enemy.maxHealth = promotedSegment.maxHealth;
+    enemy.radius = enemyJointRadiusPixels(enemy, true);
     syncNodePosition(enemy);
     const tangentX = oldX - enemy.x;
     const tangentY = oldY - enemy.y;
@@ -7502,7 +7703,7 @@
   function playEnemyHeadReformPresentation(enemy, color, duration = ENEMY_HEAD_REFORM_DURATION) {
     if (!enemy || enemy.dead) return;
     const safeDuration = clamp(Number(duration) || ENEMY_HEAD_REFORM_DURATION, 0.05, 2);
-    const radius = enemy.radius || arena.cellSize * ENEMY_HEAD_RADIUS_CELLS;
+    const radius = enemyHeadRadiusPixels(enemy);
     enemy.headReform = { startedAt: performance.now(), duration: safeDuration };
     effects.push({ type: "ring", x: enemy.x, y: enemy.y, color, life: safeDuration, maxLife: safeDuration, radius: radius * 0.45, endRadius: radius * 1.65 });
   }
@@ -7513,6 +7714,26 @@
     const salvageDrops = MODULE_PROGRESSION.rollLinearRewards(salvageExpectedDrops, Math.random);
     for (let index = 0; index < salvageDrops; index += 1) {
       spawnFood(x + random(-10, 10), y + random(-10, 10), true, occupied);
+    }
+  }
+
+  function presentArmorDamage(node, color, beforeHealth, afterHealth, isHead) {
+    const transitions = enemyArmorApi.damageTransitions(node.maxHealth, beforeHealth, afterHealth);
+    if (transitions.length === 0) return;
+    const life = Math.max(0.18, ENEMY_ARMOR_BREAK_CASCADE_INTERVAL * 5);
+    for (let index = 0; index < transitions.length; index += 1) {
+      const radius = enemyArmorApi.radiusForLayer(transitions[index].index, isHead, ENEMY_ARMOR_TUNING) * arena.cellSize;
+      effects.push({
+        type: "ring",
+        x: node.x,
+        y: node.y,
+        color,
+        life,
+        maxLife: life,
+        radius,
+        endRadius: radius * 1.34,
+        delay: index * ENEMY_ARMOR_BREAK_CASCADE_INTERVAL
+      });
     }
   }
 
@@ -7535,6 +7756,8 @@
     if (!hitJoint) return;
     const damageResult = enemyVitalityApi.damage(hitJoint, safeAmount);
     if (damageResult.applied <= 0) return;
+    presentArmorDamage(hitJoint, impactColor, damageResult.before, damageResult.after, hitsHead);
+    hitJoint.radius = enemyJointRadiusPixels(hitJoint, hitsHead);
     const removed = [];
     let reconnectIndex = -1;
     let promotedHead = null;
@@ -7759,7 +7982,8 @@
         if (enemy.dead) continue;
         for (let segmentIndex = 0; segmentIndex < enemy.segments.length; segmentIndex += 1) {
           const segment = enemy.segments[segmentIndex];
-          if (Math.hypot(player.col - segment.col, player.row - segment.row) < SNAKE_BODY_CONTACT_RANGE) {
+          const contactRange = player.radius / arena.cellSize + enemySegmentRadiusPixels(segment) / arena.cellSize;
+          if (Math.hypot(player.col - segment.col, player.row - segment.row) < contactRange) {
             const defended = consumeDefense();
             applyPlayerCollisionAttack(enemy, segment, false);
             if (!defended) damagePlayer(PLAYER_ENEMY_BODY_COLLISION_DAMAGE);
@@ -7772,7 +7996,7 @@
 
     for (const enemy of enemies) {
       if (enemy.dead) continue;
-      const headHitDistance = (player.radius + enemy.radius) / arena.cellSize;
+      const headHitDistance = player.radius / arena.cellSize + enemyHeadRadiusCells(enemy);
       if (Math.hypot(player.col - enemy.col, player.row - enemy.row) >= headHitDistance) continue;
       if (player.collisionCooldown > 0 || enemy.collisionCooldown > 0) return;
 
@@ -8491,7 +8715,7 @@
     ctx.restore();
   }
 
-  function drawSnakeBodyShadow(head, segments, pieceScale, alpha = 1) {
+  function drawSnakeBodyShadow(head, segments, pieceScale, alpha = 1, bodyWidthScale = 1) {
     if (!segments.length || alpha <= 0) return;
     const presentationStrength = Math.min(CAMERA_PSEUDO_3D_STRENGTH_MAX, Math.max(0, pseudo3DStrength));
     const strengthAlpha = Math.min(1, presentationStrength);
@@ -8499,26 +8723,32 @@
     const inheritedAlpha = ctx.globalAlpha;
     strokeSnakeBodyShadow(
       head, segments, pieceScale, alpha, inheritedAlpha, strengthAlpha, offset,
-      1, ENTITY_SHADOW_OPACITY, (ENTITY_SHADOW_WIDTH_SCALE + ENTITY_SHADOW_HEIGHT_SCALE) / 2
+      1, ENTITY_SHADOW_OPACITY, (ENTITY_SHADOW_WIDTH_SCALE + ENTITY_SHADOW_HEIGHT_SCALE) / 2 * bodyWidthScale
     );
     strokeSnakeBodyShadow(
       head, segments, pieceScale, alpha, inheritedAlpha, strengthAlpha, offset,
-      0, ENTITY_CONTACT_SHADOW_OPACITY, ENTITY_CONTACT_SHADOW_SCALE
+      0, ENTITY_CONTACT_SHADOW_OPACITY, ENTITY_CONTACT_SHADOW_SCALE * bodyWidthScale
     );
   }
 
   function drawEnemyShadow(enemy, pieceScale, alpha = 1) {
-    if (!enemy || (renderWorldBounds.active && !snakeIntersectsRenderBounds(enemy, enemy.segments, 48 * pieceScale))) return;
-    drawSnakeBodyShadow(enemy, enemy.segments, pieceScale, alpha);
-    if (!renderWorldBounds.active || pointIntersectsRenderBounds(enemy.x, enemy.y, 44 * pieceScale)) {
+    const maximumRadius = enemy ? enemyMaximumRadiusPixels(enemy) : 0;
+    if (!enemy || (renderWorldBounds.active && !snakeIntersectsRenderBounds(enemy, enemy.segments, maximumRadius + 24 * pieceScale))) return;
+    const bodyCoreRadius = ENEMY_ARMOR_TUNING.bodyCoreRadius * arena.cellSize;
+    const bodyWidthScale = enemyMaximumBodyRadiusCells(enemy) * arena.cellSize / Math.max(0.001, bodyCoreRadius);
+    drawSnakeBodyShadow(enemy, enemy.segments, pieceScale, alpha, bodyWidthScale);
+    if (!renderWorldBounds.active || pointIntersectsRenderBounds(enemy.x, enemy.y, enemyHeadRadiusPixels(enemy) + 24 * pieceScale)) {
+      const headCoreRadius = ENEMY_ARMOR_TUNING.headCoreRadius * arena.cellSize;
+      const headArmorScale = enemyHeadRadiusPixels(enemy) / Math.max(0.001, headCoreRadius);
+      const headCoreScale = enemyCoreSpriteScale(enemy, true, pieceScale);
       drawEntityShadowSilhouette(
         enemy.x,
         enemy.y,
         1,
         alpha,
         projectedWorldAngle(enemy.angle || 0),
-        pieceScale,
-        pieceScale,
+        pieceScale * headCoreScale * headArmorScale,
+        pieceScale * headCoreScale * headArmorScale,
         paintEnemyHeadShadow,
         enemy
       );
@@ -9014,11 +9244,126 @@
     else window.setTimeout(runBatch, 0);
   }
 
-  function drawEnemySegment(segment, pieceScale, sprite) {
+  function enemyArmorShape(enemy, isHead) {
+    const shapes = isHead ? ENEMY_HEAD_ARMOR_SHAPES : ENEMY_BODY_ARMOR_SHAPES;
+    return shapes[enemy.archetype] || shapes.default;
+  }
+
+  function enemyArmorRenderLayers(node) {
+    const health = Math.max(0, Math.floor(Number(node.health) || 0));
+    const maxHealth = Math.max(1, Math.floor(Number(node.maxHealth) || 1));
+    if (
+      node.armorRenderHealth === health
+      && node.armorRenderMaxHealth === maxHealth
+      && node.armorRenderMaxPlates === ENEMY_ARMOR_TUNING.maxPlates
+      && node.armorRenderLayers
+    ) return node.armorRenderLayers;
+    const rendered = [];
+    for (const layer of enemyArmorApi.layers(maxHealth, health)) {
+      if (layer.index === 0 || layer.health <= 0) continue;
+      const plates = enemyArmorApi.plates(layer.capacity, layer.health, ENEMY_ARMOR_TUNING.maxPlates);
+      let filledPlateSpan = 0;
+      for (const plate of plates) {
+        if (plate.health >= plate.capacity) filledPlateSpan += 1;
+        else if (plate.health > 0) filledPlateSpan += plate.fill;
+      }
+      rendered.push({
+        index: layer.index,
+        plateCount: plates.length,
+        filledFraction: clamp(filledPlateSpan / Math.max(1, plates.length), 0, 1)
+      });
+    }
+    node.armorRenderHealth = health;
+    node.armorRenderMaxHealth = maxHealth;
+    node.armorRenderMaxPlates = ENEMY_ARMOR_TUNING.maxPlates;
+    node.armorRenderLayers = rendered;
+    return rendered;
+  }
+
+  function traceEnemyArmorShape(shape, radius, fraction = 1) {
+    const visibleFraction = clamp(fraction, 0, 1);
+    if (visibleFraction <= 0) return;
+    if (shape.kind === "circle") {
+      ctx.arc(0, 0, radius, -Math.PI / 2, -Math.PI / 2 + TAU * visibleFraction);
+      return;
+    }
+    const points = shape.points;
+    const first = points[0];
+    ctx.moveTo(first[0] * radius, first[1] * radius);
+    let remaining = shape.perimeter * radius * visibleFraction;
+    for (let index = 0; index < points.length; index += 1) {
+      const start = points[index];
+      const end = points[(index + 1) % points.length];
+      const segmentLength = Math.hypot(end[0] - start[0], end[1] - start[1]) * radius;
+      if (remaining >= segmentLength - 0.000001) {
+        ctx.lineTo(end[0] * radius, end[1] * radius);
+        remaining -= segmentLength;
+        continue;
+      }
+      if (remaining > 0 && segmentLength > 0) {
+        const progress = remaining / segmentLength;
+        ctx.lineTo(
+          (start[0] + (end[0] - start[0]) * progress) * radius,
+          (start[1] + (end[1] - start[1]) * progress) * radius
+        );
+      }
+      break;
+    }
+  }
+
+  function drawEnemyArmor(node, enemy, isHead) {
+    const layers = enemyArmorRenderLayers(node);
+    if (layers.length === 0) return;
+    const shape = enemyArmorShape(enemy, isHead);
+    const layerThickness = ENEMY_ARMOR_TUNING.layerThickness * arena.cellSize;
+    const coreRadiusCells = isHead ? ENEMY_ARMOR_TUNING.headCoreRadius : ENEMY_ARMOR_TUNING.bodyCoreRadius;
+    const lineWidth = Math.max(0.8, layerThickness * 0.68);
+    ctx.save();
+    ctx.translate(node.x, node.y);
+    applyBillboardCompensation();
+    ctx.rotate(projectedWorldAngle(node.angle || enemy.angle || 0));
+    ctx.lineCap = "butt";
+    ctx.lineJoin = "round";
+    ctx.lineWidth = lineWidth;
+    for (let layerIndex = 0; layerIndex < layers.length; layerIndex += 1) {
+      const layer = layers[layerIndex];
+      const radius = Math.max(
+        lineWidth,
+        (coreRadiusCells + layer.index * ENEMY_ARMOR_TUNING.layerThickness) * arena.cellSize - lineWidth / 2
+      );
+      const plateSpan = shape.perimeter * radius / Math.max(1, layer.plateCount);
+      const gap = Math.min(plateSpan * 0.28, Math.max(0.55, lineWidth * 0.72));
+      ctx.setLineDash([Math.max(0.5, plateSpan - gap), gap]);
+      ctx.lineDashOffset = 0;
+      if (layer.filledFraction < 0.9999) {
+        ctx.globalAlpha = 0.2;
+        ctx.strokeStyle = "#d8e2e5";
+        ctx.beginPath();
+        traceEnemyArmorShape(shape, radius);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = layerIndex === layers.length - 1 ? 0.96 : 0.72;
+      ctx.strokeStyle = layerIndex === layers.length - 1 ? "#f3f7f8" : enemy.color;
+      ctx.beginPath();
+      traceEnemyArmorShape(shape, radius, layer.filledFraction);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function enemyCoreSpriteScale(enemy, isHead, pieceScale) {
+    const shape = enemyArmorShape(enemy, isHead);
+    const coreRadius = (isHead ? ENEMY_ARMOR_TUNING.headCoreRadius : ENEMY_ARMOR_TUNING.bodyCoreRadius) * arena.cellSize;
+    return coreRadius / Math.max(0.001, shape.extent * pieceScale);
+  }
+
+  function drawEnemySegment(segment, pieceScale, sprite, enemy) {
+    drawEnemyArmor(segment, enemy, false);
     ctx.save();
     ctx.translate(segment.x, segment.y);
     applyBillboardCompensation();
-    ctx.scale(pieceScale, pieceScale);
+    const coreScale = enemyCoreSpriteScale(enemy, false, pieceScale);
+    ctx.scale(pieceScale * coreScale, pieceScale * coreScale);
     ctx.rotate(projectedWorldAngle(segment.angle));
     ctx.drawImage(sprite.canvas, -sprite.size / 2, -sprite.size / 2, sprite.size, sprite.size);
     ctx.restore();
@@ -9031,10 +9376,12 @@
       ? clamp((performance.now() - reform.startedAt) / (reform.duration * 1000), 0, 1)
       : 1;
     if (reform && reformProgress >= 1) delete enemy.headReform;
+    drawEnemyArmor(enemy, enemy, true);
     ctx.save();
     ctx.translate(enemy.x, enemy.y);
     applyBillboardCompensation();
-    ctx.scale(pieceScale, pieceScale);
+    const coreScale = enemyCoreSpriteScale(enemy, true, pieceScale);
+    ctx.scale(pieceScale * coreScale, pieceScale * coreScale);
     ctx.rotate(projectedWorldAngle(enemy.angle));
     if (reform && reformProgress < 1) {
       const eased = 1 - (1 - reformProgress) ** 3;
@@ -9074,9 +9421,11 @@
     ctx.globalCompositeOperation = "lighter";
     for (let index = 0; index <= enemy.segments.length; index += 1) {
       const node = index === 0 ? enemy : enemy.segments[index - 1];
-      if (renderWorldBounds.active && !pointIntersectsRenderBounds(node.x, node.y, 30 * pieceScale)) continue;
+      const isHead = index === 0;
+      const jointRadius = isHead ? enemyHeadRadiusPixels(enemy) : enemySegmentRadiusPixels(node);
+      if (renderWorldBounds.active && !pointIntersectsRenderBounds(node.x, node.y, jointRadius + 18 * pieceScale)) continue;
       if (frozen) {
-        const radius = (12 + (index % 3) * 2) * pieceScale;
+        const radius = jointRadius + (3 + (index % 3) * 2) * pieceScale;
         ctx.strokeStyle = "rgba(112,226,255,0.72)";
         ctx.shadowColor = MODULE_BY_ID.frost.color;
         ctx.shadowBlur = 8 * pieceScale * ENEMY_STATUS_PARTICLE_GLOW_SCALE;
@@ -9097,7 +9446,7 @@
         }
       }
       if (corroded) {
-        const radius = 10 + (index % 4) * 1.5;
+        const radius = jointRadius / Math.max(0.001, pieceScale) + 2 + (index % 4) * 1.5;
         const sprite = corrosionParticleSprite(enemy.corrosionColor || MODULE_BY_ID.venom.color, radius);
         ctx.save();
         ctx.translate(node.x, node.y);
@@ -9109,7 +9458,7 @@
         ctx.restore();
       }
       if (burning) {
-        const radius = (11 + index % 3) * pieceScale;
+        const radius = jointRadius + (2 + index % 3) * pieceScale;
         const flicker = 0.72 + Math.sin(gameTime * 12 + index) * 0.12;
         ctx.fillStyle = `rgba(255,86,35,${flicker * 0.24})`;
         ctx.shadowColor = MODULE_BY_ID.incendiary.color;
@@ -9136,7 +9485,7 @@
     ctx.restore();
   }
 
-  function drawEnemyJointHealthLabel(node, pieceScale) {
+  function drawEnemyJointHealthLabel(node, pieceScale, isHead = false) {
     const current = Math.max(0, Math.floor(Number(node.health) || 0));
     const maximum = Math.max(current, Math.floor(Number(node.maxHealth) || 0));
     const text = `${current}/${maximum}`;
@@ -9144,7 +9493,8 @@
     ctx.translate(node.x, node.y);
     applyBillboardCompensation();
     ctx.scale(pieceScale, pieceScale);
-    ctx.translate(0, -18);
+    const jointRadius = enemyJointRadiusPixels(node, isHead) / Math.max(0.001, pieceScale);
+    ctx.translate(0, -jointRadius - 9);
     ctx.font = "800 9px Bahnschrift, Arial Narrow, sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
@@ -9161,13 +9511,14 @@
 
   function drawEnemyJointHealth(enemy, pieceScale) {
     if (!ENEMY_JOINT_HEALTH_DEBUG) return;
-    drawEnemyJointHealthLabel(enemy, pieceScale);
-    for (const segment of enemy.segments) drawEnemyJointHealthLabel(segment, pieceScale);
+    drawEnemyJointHealthLabel(enemy, pieceScale, true);
+    for (const segment of enemy.segments) drawEnemyJointHealthLabel(segment, pieceScale, false);
   }
 
   function drawEnemy(enemy, time = gameTime, spawning = false) {
     const pieceScale = arenaPieceScale();
-    if (renderWorldBounds.active && !snakeIntersectsRenderBounds(enemy, enemy.segments, 48 * pieceScale)) return;
+    const maximumRadius = enemyMaximumRadiusPixels(enemy);
+    if (renderWorldBounds.active && !snakeIntersectsRenderBounds(enemy, enemy.segments, maximumRadius + 24 * pieceScale)) return;
     ctx.save();
     if (spawning) {
       const blink = 0.48 + Math.abs(Math.sin(time * 12)) * 0.52;
@@ -9178,9 +9529,11 @@
     const segmentSprite = enemy.segments.length > 0 ? enemySprite("segment", enemy) : null;
     for (let index = enemy.segments.length - 1; index >= 0; index -= 1) {
       const segment = enemy.segments[index];
-      if (!renderWorldBounds.active || pointIntersectsRenderBounds(segment.x, segment.y, 22 * pieceScale)) drawEnemySegment(segment, pieceScale, segmentSprite);
+      if (!renderWorldBounds.active || pointIntersectsRenderBounds(segment.x, segment.y, enemySegmentRadiusPixels(segment) + 10 * pieceScale)) {
+        drawEnemySegment(segment, pieceScale, segmentSprite, enemy);
+      }
     }
-    const headVisible = !renderWorldBounds.active || pointIntersectsRenderBounds(enemy.x, enemy.y, 42 * pieceScale);
+    const headVisible = !renderWorldBounds.active || pointIntersectsRenderBounds(enemy.x, enemy.y, enemyHeadRadiusPixels(enemy) + 20 * pieceScale);
     if (headVisible) drawEnemyHead(enemy, pieceScale, segmentSprite);
     if (!spawning) drawEnemyStatusParticles(enemy, pieceScale);
     if (!spawning) drawEnemyJointHealth(enemy, pieceScale);
@@ -9189,7 +9542,7 @@
       ctx.save();
       ctx.translate(enemy.x, enemy.y);
       applyBillboardCompensation();
-      ctx.translate(0, -25 * pieceScale);
+      ctx.translate(0, -enemyHeadRadiusPixels(enemy) - 7 * pieceScale);
       ctx.scale(pieceScale, pieceScale);
       ctx.fillStyle = "rgba(8, 10, 11, 0.94)";
       ctx.strokeStyle = enemy.color;
