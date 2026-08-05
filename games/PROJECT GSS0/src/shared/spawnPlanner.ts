@@ -1,89 +1,43 @@
-export interface SpawnPoint {
-  col: number;
-  row: number;
-}
+import '../../spawn-planner.js';
+import type { ArenaPoint } from './arenaGeometry';
+
+export type SpawnPoint = ArenaPoint;
 
 export interface SpawnPlayer extends SpawnPoint {
   angle: number;
 }
 
-export interface SerpentineSpawnOptions {
-  minimum: number;
-  maximum: number;
+export interface CircularSpawnOptions {
+  centerCol: number;
+  centerRow: number;
+  radius: number;
   bodySegmentCount: number;
   safetyDistance: number;
+  occupancyDistance: number;
   forwardPathHalfWidth: number;
-  occupiedCells: ReadonlySet<number>;
+  occupiedPoints: readonly SpawnPoint[];
   players: readonly SpawnPlayer[];
+  attempts: number;
   random: () => number;
 }
 
-export interface SerpentineSpawn {
+export interface CircularSpawn {
   head: SpawnPoint;
   body: SpawnPoint[];
   next: SpawnPoint;
 }
 
-interface SpawnCandidate {
-  path: readonly SpawnPoint[];
-  index: number;
+interface SpawnPlannerApi {
+  choose(options: CircularSpawnOptions): CircularSpawn | null;
+  spaceSpawnBody(head: SpawnPoint, bodyPath: readonly SpawnPoint[], spacing: number, segmentCount?: number): SpawnPoint[];
 }
 
-interface PlayerForwardPath extends SpawnPoint {
-  directionCol: number;
-  directionRow: number;
-}
+const api = (globalThis as typeof globalThis & { GSS0SpawnPlanner?: SpawnPlannerApi }).GSS0SpawnPlanner;
+if (!api) throw new Error('PROJECT GSS0 圆形出生规划器未加载');
+const spawnPlannerApi: SpawnPlannerApi = api;
 
-const PATH_CACHE_LIMIT = 16;
-const pathCache = new Map<string, readonly SpawnPoint[][]>();
-
-export function chooseSerpentineSpawn(options: SerpentineSpawnOptions): SerpentineSpawn | null {
-  const paths = serpentinePaths(options.minimum, options.maximum);
-  const gridWidth = Math.max(1, options.maximum - options.minimum + 1);
-  const visibleLength = Math.max(0, Math.min(options.bodySegmentCount, gridWidth * gridWidth - 2));
-  const windowLength = visibleLength + 2;
-  const candidatesByHead = new Map<number, SpawnCandidate[]>();
-  const playerPaths = options.players.map((player) => ({
-    col: player.col,
-    row: player.row,
-    directionCol: Math.cos(player.angle),
-    directionRow: Math.sin(player.angle),
-  }));
-
-  for (const path of paths) {
-    let occupiedCount = 0;
-    let forwardPathCount = 0;
-    for (let index = 0; index < windowLength; index += 1) {
-      if (options.occupiedCells.has(pointCode(path[index]))) occupiedCount += 1;
-      if (isInPlayerForwardPath(path[index], playerPaths, options.forwardPathHalfWidth)) forwardPathCount += 1;
-    }
-
-    for (let index = visibleLength; index < path.length - 1; index += 1) {
-      if (occupiedCount === 0 && forwardPathCount === 0) {
-        const head = path[index];
-        if (nearestPlayerDistance(head, options.players) >= options.safetyDistance) {
-          const headCode = pointCode(head);
-          const candidates = candidatesByHead.get(headCode) ?? [];
-          candidates.push({ path, index });
-          candidatesByHead.set(headCode, candidates);
-        }
-      }
-
-      if (index >= path.length - 2) continue;
-      const leaving = path[index - visibleLength];
-      const entering = path[index + 2];
-      if (options.occupiedCells.has(pointCode(leaving))) occupiedCount -= 1;
-      if (options.occupiedCells.has(pointCode(entering))) occupiedCount += 1;
-      if (isInPlayerForwardPath(leaving, playerPaths, options.forwardPathHalfWidth)) forwardPathCount -= 1;
-      if (isInPlayerForwardPath(entering, playerPaths, options.forwardPathHalfWidth)) forwardPathCount += 1;
-    }
-  }
-
-  const candidateLocations = [...candidatesByHead.values()];
-  if (candidateLocations.length === 0) return null;
-  const routes = candidateLocations[randomIndex(candidateLocations.length, options.random)];
-  const selected = routes[randomIndex(routes.length, options.random)];
-  return materializeCandidate(selected, visibleLength);
+export function chooseCircularSpawn(options: CircularSpawnOptions): CircularSpawn | null {
+  return spawnPlannerApi.choose(options);
 }
 
 export function spaceSpawnBody(
@@ -92,98 +46,5 @@ export function spaceSpawnBody(
   spacing: number,
   segmentCount = bodyPath.length,
 ): SpawnPoint[] {
-  if (bodyPath.length === 0) return [];
-  const count = Math.max(0, Math.floor(segmentCount));
-  const allowedDistance = Math.max(0, Number(spacing) || 0);
-  const body: SpawnPoint[] = [];
-  let previous = { col: head.col, row: head.row };
-  for (let index = 0; index < count; index += 1) {
-    const target = bodyPath[Math.min(index, bodyPath.length - 1)];
-    const deltaCol = previous.col - target.col;
-    const deltaRow = previous.row - target.row;
-    const distance = Math.hypot(deltaCol, deltaRow);
-    const point = distance > allowedDistance && distance > 0
-      ? {
-          col: previous.col - deltaCol / distance * allowedDistance,
-          row: previous.row - deltaRow / distance * allowedDistance,
-        }
-      : { col: target.col, row: target.row };
-    body.push(point);
-    previous = point;
-  }
-  return body;
-}
-
-function serpentinePaths(minimum: number, maximum: number): readonly SpawnPoint[][] {
-  const key = `${minimum},${maximum}`;
-  const cached = pathCache.get(key);
-  if (cached) return cached;
-
-  const base: SpawnPoint[] = [];
-  for (let row = minimum; row <= maximum; row += 1) {
-    for (let step = minimum; step <= maximum; step += 1) {
-      base.push({ col: (row - minimum) % 2 === 0 ? step : minimum + maximum - step, row });
-    }
-  }
-  const transforms = [
-    (cell: SpawnPoint) => ({ col: cell.col, row: cell.row }),
-    (cell: SpawnPoint) => ({ col: minimum + maximum - cell.col, row: cell.row }),
-    (cell: SpawnPoint) => ({ col: cell.col, row: minimum + maximum - cell.row }),
-    (cell: SpawnPoint) => ({ col: cell.row, row: cell.col }),
-    (cell: SpawnPoint) => ({ col: minimum + maximum - cell.row, row: cell.col }),
-    (cell: SpawnPoint) => ({ col: cell.row, row: minimum + maximum - cell.col }),
-  ];
-  const paths: SpawnPoint[][] = [];
-  for (const transform of transforms) {
-    const path = base.map(transform);
-    paths.push(path, [...path].reverse());
-  }
-  if (pathCache.size >= PATH_CACHE_LIMIT) {
-    pathCache.clear();
-  }
-  pathCache.set(key, paths);
-  return paths;
-}
-
-function nearestPlayerDistance(point: SpawnPoint, players: readonly SpawnPlayer[]): number {
-  if (players.length === 0) return Infinity;
-  let nearest = Infinity;
-  for (const player of players) nearest = Math.min(nearest, Math.hypot(point.col - player.col, point.row - player.row));
-  return nearest;
-}
-
-function isInPlayerForwardPath(point: SpawnPoint, paths: readonly PlayerForwardPath[], halfWidth: number): boolean {
-  if (halfWidth <= 0) return false;
-  for (const path of paths) {
-    const offsetCol = point.col - path.col;
-    const offsetRow = point.row - path.row;
-    const forwardDistance = offsetCol * path.directionCol + offsetRow * path.directionRow;
-    if (forwardDistance <= 0) continue;
-    const lateralDistance = Math.abs(offsetCol * path.directionRow - offsetRow * path.directionCol);
-    if (lateralDistance <= halfWidth) return true;
-  }
-  return false;
-}
-
-function randomIndex(length: number, random: () => number): number {
-  return Math.min(length - 1, Math.floor(Math.max(0, random()) * length));
-}
-
-function materializeCandidate(candidate: SpawnCandidate, visibleLength: number): SerpentineSpawn {
-  const head = candidate.path[candidate.index];
-  const next = candidate.path[candidate.index + 1];
-  const body: SpawnPoint[] = [];
-  for (let offset = 1; offset <= visibleLength; offset += 1) {
-    const point = candidate.path[candidate.index - offset];
-    body.push({ col: point.col, row: point.row });
-  }
-  return {
-    head: { col: head.col, row: head.row },
-    body,
-    next: { col: next.col, row: next.row },
-  };
-}
-
-function pointCode(point: SpawnPoint): number {
-  return (Math.round(point.row) & 0xffff) << 16 | (Math.round(point.col) & 0xffff);
+  return spawnPlannerApi.spaceSpawnBody(head, bodyPath, spacing, segmentCount);
 }

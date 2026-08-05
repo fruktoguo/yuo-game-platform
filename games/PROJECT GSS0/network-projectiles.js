@@ -1,4 +1,6 @@
 (function installProjectileRuntime(root) {
+  const arenaGeometry = root.GSS0ArenaGeometry;
+  if (!arenaGeometry) throw new Error("PROJECT GSS0 circular arena geometry is not loaded");
   const designerBalance = root.GSS0_DESIGNER_CONFIG?.balance || {};
   const bladeOrbitSpeed = Number.isFinite(designerBalance.moduleBladeOrbitSpeed) ? designerBalance.moduleBladeOrbitSpeed : 0.6;
   const bladeOrbitRadius = Number.isFinite(designerBalance.moduleBladeOrbitRadiusCells) ? designerBalance.moduleBladeOrbitRadiusCells : 2;
@@ -87,9 +89,11 @@
     update(delta, targetById, ownerById, arena, gameTime) {
       const dt = Math.max(0, Math.min(0.05, delta));
       const worldMinimum = Number.isFinite(arena.worldMin) ? arena.worldMin : 0;
-      const worldMaximum = Number.isFinite(arena.worldMax) ? arena.worldMax : this.gridSize - 1;
-      const minimum = worldMinimum - 0.5;
-      const maximum = worldMaximum + 0.5;
+      const centerCol = Number.isFinite(arena.centerCol) ? arena.centerCol : (this.gridSize - 1) * 0.5;
+      const centerRow = Number.isFinite(arena.centerRow) ? arena.centerRow : (this.gridSize - 1) * 0.5;
+      const radius = Number.isFinite(arena.boundaryRadius)
+        ? arena.boundaryRadius
+        : arenaGeometry.boundaryRadius(Number.isFinite(arena.worldSize) ? arena.worldSize : this.gridSize);
       for (const projectile of this.items) {
         if (projectile.kind === "blade") {
           const owner = ownerById(projectile.ownerEntityId);
@@ -126,13 +130,18 @@
 
           projectile.col += projectile.vxCells * dt;
           projectile.row += projectile.vyCells * dt;
-          const hitHorizontal = projectile.col < minimum || projectile.col > maximum;
-          const hitVertical = projectile.row < minimum || projectile.row > maximum;
-          if ((hitHorizontal || hitVertical) && projectile.bounces !== 0) {
-            projectile.col = Math.max(minimum, Math.min(maximum, projectile.col));
-            projectile.row = Math.max(minimum, Math.min(maximum, projectile.row));
-            if (hitHorizontal) projectile.vxCells *= -1;
-            if (hitVertical) projectile.vyCells *= -1;
+          const constrained = arenaGeometry.constrainPoint(projectile.col, projectile.row, centerCol, centerRow, radius);
+          if (constrained.collided && projectile.bounces !== 0) {
+            projectile.col = constrained.col;
+            projectile.row = constrained.row;
+            const reflected = arenaGeometry.reflectVector(
+              projectile.vxCells,
+              projectile.vyCells,
+              constrained.normalCol,
+              constrained.normalRow
+            );
+            projectile.vxCells = reflected.col;
+            projectile.vyCells = reflected.row;
             if (projectile.bounces > 0) projectile.bounces -= 1;
           }
         }

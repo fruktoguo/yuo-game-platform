@@ -36,7 +36,7 @@ import {
   ENEMY_TURN_RATE,
   FOOD_COLORS,
   FOOD_WALL_MARGIN,
-  FOODS_PER_PLAYER_PER_WAVE,
+  FOOD_SPAWN_SAFETY_DISTANCE,
   GRID_SIZE,
   GROWTH_NODE_DELAY,
   GROWTH_PULSE_DURATION,
@@ -79,10 +79,12 @@ import {
   RESPAWN_DELAY_MS,
   SNAKE_BODY_SIZE_SCALE,
   SNAKE_SEGMENT_SPACING,
+  SPAWN_PLACEMENT_ATTEMPTS,
   UPGRADE_INVULNERABILITY_DURATION,
   WAVE_BASE_INTERVAL,
 } from '../shared/constants';
 import { DESIGNER_BALANCE } from '../shared/designerConfig';
+import { ARENA_GEOMETRY } from '../shared/arenaGeometry';
 import { ENEMY_ARCHETYPES, type EnemyArchetypeDefinition } from '../shared/enemyArchetypes';
 import {
   INITIAL_UPGRADE_MODULES,
@@ -94,7 +96,7 @@ import {
 } from '../shared/modules';
 import { MODULE_PROGRESSION } from '../shared/moduleProgression';
 import type { PlayerMovementState } from '../shared/playerStateCodec';
-import { chooseSerpentineSpawn, spaceSpawnBody } from '../shared/spawnPlanner';
+import { chooseCircularSpawn, spaceSpawnBody } from '../shared/spawnPlanner';
 import { enemyWaveDirector } from '../shared/waveDirector';
 import type {
   ArenaEvent,
@@ -379,7 +381,7 @@ export class UltraWorld {
   private readonly foodSpatialBucketPool: FoodEntity[][] = [];
   private pulledFoods = new Set<FoodEntity>();
   private nextPulledFoods = new Set<FoodEntity>();
-  private spawnOccupiedCells: Set<string> | null = null;
+  private spawnOccupiedPoints: GridPoint[] | null = null;
   private readonly projectileTargetsById = new Map<number, EnemyEntity>();
   private readonly enemyBodyBuckets = new Map<number, EnemyBodyBucket>();
   private readonly enemyBodyBucketPool: EnemyBodyBucket[] = [];
@@ -407,7 +409,8 @@ export class UltraWorld {
   private readonly foodCollectionCandidatePool: FoodCollectionCandidate[] = [];
   private readonly orderedFoodCollectionCandidates: FoodCollectionCandidate[] = [];
   private networkSnapshotCache: UltraSnapshot | null = null;
-  private enemyWallDamageMultiplier = 1;
+  private enemyWallDamageMultiplier = 0;
+  private enemyCollisionDamageMultiplier = 1;
   private enemyWallKnockbackMultiplier = 1;
   private enemyFoodVisitToken = 0;
   private tick = 0;
@@ -587,10 +590,9 @@ export class UltraWorld {
     }
     player.lastInputSequence = payload.sequence;
     player.lastManualStateAt = now;
-    const arenaMinimum = this.arenaMinimum();
-    const arenaMaximum = this.arenaMaximum();
-    player.col = clamp(payload.col, arenaMinimum, arenaMaximum);
-    player.row = clamp(payload.row, arenaMinimum, arenaMaximum);
+    const constrainedHead = this.constrainArenaPoint(payload.col, payload.row);
+    player.col = constrainedHead.col;
+    player.row = constrainedHead.row;
     const boundaryShiftCol = player.col - payload.col;
     const boundaryShiftRow = player.row - payload.row;
     player.angle = normalizeAngle(payload.angle);
@@ -604,8 +606,9 @@ export class UltraWorld {
     for (let index = 0; index < player.segments.length; index += 1) {
       const source = payload.segments[index];
       const segment = player.segments[index];
-      segment.col = clamp(source.col + boundaryShiftCol, arenaMinimum, arenaMaximum);
-      segment.row = clamp(source.row + boundaryShiftRow, arenaMinimum, arenaMaximum);
+      const constrainedSegment = this.constrainArenaPoint(source.col + boundaryShiftCol, source.row + boundaryShiftRow);
+      segment.col = constrainedSegment.col;
+      segment.row = constrainedSegment.row;
       segment.angle = Math.atan2(previousNode.row - segment.row, previousNode.col - segment.col);
       previousNode = segment;
     }
@@ -618,13 +621,15 @@ export class UltraWorld {
     if (!player?.alive || player.ghost || player.autopilot || !claim || typeof claim !== 'object') return false;
     if (claim.kind === 'wall') {
       if (!Number.isFinite(claim.normalCol) || !Number.isFinite(claim.normalRow)) return false;
-      const nearWall = (
-        (claim.normalCol > 0 && player.col <= this.arenaMinimum() + 1.5)
-        || (claim.normalCol < 0 && player.col >= this.arenaMaximum() - 1.5)
-        || (claim.normalRow > 0 && player.row <= this.arenaMinimum() + 1.5)
-        || (claim.normalRow < 0 && player.row >= this.arenaMaximum() - 1.5)
-      );
-      if (!nearWall) return false;
+      const center = ARENA_GEOMETRY.centerForGrid(GRID_SIZE);
+      const distance = Math.hypot(player.col - center, player.row - center);
+      const normalLength = Math.hypot(claim.normalCol, claim.normalRow);
+      const expectedCol = distance > 0.001 ? (center - player.col) / distance : 0;
+      const expectedRow = distance > 0.001 ? (center - player.row) / distance : 0;
+      const alignment = normalLength > 0.001
+        ? (claim.normalCol * expectedCol + claim.normalRow * expectedRow) / normalLength
+        : -1;
+      if (distance < this.arenaPlayableRadius() - 1.5 || alignment < 0.5) return false;
       this.triggerCollisionEcho(player);
       this.damagePlayer(player, PLAYER_WALL_COLLISION_DAMAGE, now, '撞上墙壁');
       return true;
@@ -922,10 +927,8 @@ export class UltraWorld {
     if (!target) return null;
     const beforeCount = target.segments.length;
     const hitSegmentIndex = clamp(claim.targetSegmentIndex, -1, Math.max(-1, beforeCount - 1));
-    const point = {
-      col: clamp(claim.impactCol, this.projectileMinimum(), this.projectileMaximum()),
-      row: clamp(claim.impactRow, this.projectileMinimum(), this.projectileMaximum()),
-    };
+    const impact = this.constrainArenaPoint(claim.impactCol, claim.impactRow, 0, true);
+    const point = { col: impact.col, row: impact.row };
     const moduleColor = claim.moduleId && isModuleId(claim.moduleId)
       ? MODULE_BY_ID[claim.moduleId].color
       : PLAYER_COLORS[owner.colorIndex];
@@ -954,7 +957,7 @@ export class UltraWorld {
 
   step(deltaSeconds: number, now = Date.now()): void {
     const delta = clamp(deltaSeconds, 0, 0.05);
-    this.spawnOccupiedCells = null;
+    this.spawnOccupiedPoints = null;
     this.tick = (this.tick + 1) >>> 0;
     this.now = now;
     this.removeExpiredPlayers(now);
@@ -1042,7 +1045,8 @@ export class UltraWorld {
     this.updateEnemySpawnWarnings(worldDelta);
     this.updateSpawns(worldDelta, living, active);
     const wallbreaker = this.maximumModuleCount('wallbreaker', living);
-    this.enemyWallDamageMultiplier = 1 + MODULE_PROGRESSION.effects.enemyWallDamageBonus(wallbreaker);
+    this.enemyWallDamageMultiplier = MODULE_PROGRESSION.effects.enemyWallDamageBonus(wallbreaker);
+    this.enemyCollisionDamageMultiplier = 1 + this.enemyWallDamageMultiplier;
     this.enemyWallKnockbackMultiplier = 1 + MODULE_PROGRESSION.effects.enemyWallKnockbackBonus(wallbreaker);
     this.updateFood(worldDelta, active);
     for (const player of active) {
@@ -1051,7 +1055,7 @@ export class UltraWorld {
     this.updateTargetStatuses(worldDelta);
     this.ensureFoodSpatialBuckets();
     this.updateEnemies(worldDelta, living);
-    this.spawnOccupiedCells = null;
+    this.spawnOccupiedPoints = null;
     this.updateProjectiles(worldDelta);
     this.updateHazards(worldDelta);
     this.checkCollisions(now, active, living);
@@ -1372,25 +1376,42 @@ export class UltraWorld {
     this.arenaSize += (target - this.arenaSize) * amount;
     if (Math.abs(target - this.arenaSize) < 0.0001) this.arenaSize = target;
     if (this.arenaSize >= previousSize) return;
-    const minimum = this.arenaMinimum();
-    const maximum = this.arenaMaximum();
     let movedFood = false;
     for (const food of this.foods) {
-      const col = clamp(food.col, minimum, maximum);
-      const row = clamp(food.row, minimum, maximum);
-      if (col !== food.col || row !== food.row) {
+      const constrained = this.constrainArenaPoint(food.col, food.row, FOOD_WALL_MARGIN);
+      if (constrained.col !== food.col || constrained.row !== food.row) {
         food.networkMoving = true;
         this.networkMovedFoods.add(food);
         movedFood = true;
       }
-      food.col = col;
-      food.row = row;
+      food.col = constrained.col;
+      food.row = constrained.row;
     }
     if (movedFood) this.foodSpatialDirty = true;
     for (const hazard of this.hazards) {
-      hazard.col = clamp(hazard.col, minimum, maximum);
-      hazard.row = clamp(hazard.row, minimum, maximum);
+      const constrained = this.constrainArenaPoint(hazard.col, hazard.row);
+      hazard.col = constrained.col;
+      hazard.row = constrained.row;
     }
+  }
+
+  private arenaPlayableRadius(margin = 0): number {
+    return ARENA_GEOMETRY.playableRadius(this.arenaSize, margin);
+  }
+
+  private arenaBoundaryRadius(margin = 0): number {
+    return ARENA_GEOMETRY.boundaryRadius(this.arenaSize, margin);
+  }
+
+  private constrainArenaPoint(col: number, row: number, margin = 0, boundary = false) {
+    const center = ARENA_GEOMETRY.centerForGrid(GRID_SIZE);
+    return ARENA_GEOMETRY.constrainPoint(
+      col,
+      row,
+      center,
+      center,
+      boundary ? this.arenaBoundaryRadius(margin) : this.arenaPlayableRadius(margin),
+    );
   }
 
   private arenaMinimum(): number {
@@ -1401,26 +1422,15 @@ export class UltraWorld {
     return this.arenaMinimum() + this.arenaSize - 1;
   }
 
-  private arenaIntegerBounds(margin = 0): { minimum: number; maximum: number } {
-    return {
-      minimum: Math.ceil(this.arenaMinimum() + margin),
-      maximum: Math.floor(this.arenaMaximum() - margin),
-    };
-  }
-
-  private projectileMinimum(): number {
-    return this.arenaMinimum() - 0.5;
-  }
-
-  private projectileMaximum(): number {
-    return this.arenaMaximum() + 0.5;
-  }
-
   private isProjectileInside(projectile: ProjectileEntity): boolean {
-    return projectile.col >= this.projectileMinimum()
-      && projectile.col <= this.projectileMaximum()
-      && projectile.row >= this.projectileMinimum()
-      && projectile.row <= this.projectileMaximum();
+    const center = ARENA_GEOMETRY.centerForGrid(GRID_SIZE);
+    return ARENA_GEOMETRY.containsPoint(
+      projectile.col,
+      projectile.row,
+      center,
+      center,
+      this.arenaBoundaryRadius(),
+    );
   }
 
   private threatLevel(): number {
@@ -1550,7 +1560,8 @@ export class UltraWorld {
     let vectorCol = 0;
     let vectorRow = 0;
 
-    let target: GridPoint = nearestFood ?? { col: (this.arenaMinimum() + this.arenaMaximum()) / 2, row: (this.arenaMinimum() + this.arenaMaximum()) / 2 };
+    const arenaCenter = ARENA_GEOMETRY.centerForGrid(GRID_SIZE);
+    let target: GridPoint = nearestFood ?? { col: arenaCenter, row: arenaCenter };
     let nearestGhost: PlayerEntity | null = null;
     let nearestGhostDistance = Number.POSITIVE_INFINITY;
     for (const other of presentPlayers) {
@@ -1568,10 +1579,15 @@ export class UltraWorld {
     vectorRow += targetRow / targetLength;
 
     const wallMargin = 3.2;
-    if (player.col < this.arenaMinimum() + wallMargin) vectorCol += (this.arenaMinimum() + wallMargin - player.col) * 1.4;
-    if (player.col > this.arenaMaximum() + 1 - wallMargin) vectorCol -= (player.col - (this.arenaMaximum() + 1 - wallMargin)) * 1.4;
-    if (player.row < this.arenaMinimum() + wallMargin) vectorRow += (this.arenaMinimum() + wallMargin - player.row) * 1.4;
-    if (player.row > this.arenaMaximum() + 1 - wallMargin) vectorRow -= (player.row - (this.arenaMaximum() + 1 - wallMargin)) * 1.4;
+    const radialCol = player.col - arenaCenter;
+    const radialRow = player.row - arenaCenter;
+    const radialDistance = Math.hypot(radialCol, radialRow);
+    const safeRadius = this.arenaPlayableRadius(wallMargin);
+    if (radialDistance > safeRadius && radialDistance > 0.001) {
+      const correction = (radialDistance - safeRadius) * 1.4;
+      vectorCol -= radialCol / radialDistance * correction;
+      vectorRow -= radialRow / radialDistance * correction;
+    }
 
     const repel = (node: GridPoint, strength: number, range: number): void => {
       const awayCol = player.col - node.col;
@@ -1624,8 +1640,12 @@ export class UltraWorld {
       player.collisionCooldown = 0;
       player.knockbackX = 0;
       player.knockbackY = 0;
-      player.col = clamp(player.col + Math.cos(player.angle) * player.speed * delta, this.arenaMinimum(), this.arenaMaximum());
-      player.row = clamp(player.row + Math.sin(player.angle) * player.speed * delta, this.arenaMinimum(), this.arenaMaximum());
+      const constrained = this.constrainArenaPoint(
+        player.col + Math.cos(player.angle) * player.speed * delta,
+        player.row + Math.sin(player.angle) * player.speed * delta,
+      );
+      player.col = constrained.col;
+      player.row = constrained.row;
       followContinuousSegments(player.col, player.row, player.segments, this.playerSegmentSpacing(player));
       return;
     }
@@ -1637,8 +1657,14 @@ export class UltraWorld {
     const previousRow = player.row;
     const nextCol = player.col + (Math.cos(player.angle) * player.speed + player.knockbackX) * delta;
     const nextRow = player.row + (Math.sin(player.angle) * player.speed + player.knockbackY) * delta;
-    player.col = player.autopilot ? nextCol : clamp(nextCol, this.arenaMinimum(), this.arenaMaximum());
-    player.row = player.autopilot ? nextRow : clamp(nextRow, this.arenaMinimum(), this.arenaMaximum());
+    if (player.autopilot) {
+      player.col = nextCol;
+      player.row = nextRow;
+    } else {
+      const constrained = this.constrainArenaPoint(nextCol, nextRow);
+      player.col = constrained.col;
+      player.row = constrained.row;
+    }
     this.applyKnockbackDecay(player, delta);
     followContinuousSegments(player.col, player.row, player.segments, this.playerSegmentSpacing(player));
     this.updateCorrosionFieldTrail(player, previousCol, previousRow);
@@ -2080,8 +2106,12 @@ export class UltraWorld {
     return available[available.length - 1];
   }
 
-  private queueWaveEnemies(playerCount: number, occupied: Set<number>, players: readonly PlayerEntity[]): void {
-    const plan = enemyWaveDirector.plan(this.waveCount + 1);
+  private queueWaveEnemies(
+    plan: ReturnType<typeof enemyWaveDirector.plan>,
+    playerCount: number,
+    occupied: GridPoint[],
+    players: readonly PlayerEntity[],
+  ): void {
     const countMultiplier = players.reduce(
       (multiplier, player) => multiplier * MODULE_PROGRESSION.effects.beaconEnemyCountMultiplier(this.moduleCount(player, 'beacon')),
       1,
@@ -2098,7 +2128,7 @@ export class UltraWorld {
       () => this.random(),
     );
     for (let index = 0; index < archetypes.length; index += 1) {
-      if (!this.queueEnemySpawn(archetypes[index], allocation.health[index], occupied)) break;
+      this.queueEnemySpawn(archetypes[index], allocation.health[index], occupied);
     }
   }
 
@@ -2106,29 +2136,27 @@ export class UltraWorld {
     this.waveTimer -= delta * this.waveCountdownRate(activePlayers);
     if (this.waveTimer > 0) return;
     const playerCount = players.length;
-    const foodCells = this.freeCells(FOOD_WALL_MARGIN);
-    const occupied = this.occupiedCellCodes();
-    this.spawnWaveFoods(FOODS_PER_PLAYER_PER_WAVE * playerCount, foodCells, occupied);
-    this.queueWaveEnemies(playerCount, occupied, activePlayers);
+    const plan = enemyWaveDirector.plan(this.waveCount + 1);
+    const occupied = this.occupiedSpawnPoints();
+    this.spawnWaveFoods(plan.foodCount * playerCount, occupied);
+    this.queueWaveEnemies(plan, playerCount, occupied, activePlayers);
     this.waveCount += 1;
     this.waveTimer = WAVE_BASE_INTERVAL;
   }
 
-  private spawnFood(preferred?: GridPoint, special = false, occupied?: Set<string>): boolean {
-    const occupiedCells = occupied ?? this.spawnOccupiedCellKeys();
-    const cell = this.findFreeCell(preferred ?? null, FOOD_WALL_MARGIN, occupiedCells);
-    if (!cell) return false;
-    this.materializeFood(cell, special);
-    occupiedCells.add(cellKey(cell));
+  private spawnFood(preferred?: GridPoint, special = false, occupied?: GridPoint[]): boolean {
+    const occupiedPoints = occupied ?? this.spawnOccupiedPointList();
+    const point = this.chooseSpawnPoint(preferred ?? null, FOOD_WALL_MARGIN, occupiedPoints, FOOD_SPAWN_SAFETY_DISTANCE);
+    this.materializeFood(point, special);
+    occupiedPoints.push({ col: point.col, row: point.row });
     return true;
   }
 
-  private spawnWaveFoods(count: number, cells: GridPoint[], occupiedCodes: Set<number>): void {
-    for (let index = 0; index < count && cells.length > 0; index += 1) {
-      const selectedIndex = Math.floor(this.random() * cells.length);
-      const [cell] = cells.splice(selectedIndex, 1);
-      this.materializeFood(cell, false);
-      occupiedCodes.add(cellCode(cell));
+  private spawnWaveFoods(count: number, occupied: GridPoint[]): void {
+    for (let index = 0; index < count; index += 1) {
+      const point = this.chooseSpawnPoint(null, FOOD_WALL_MARGIN, occupied, FOOD_SPAWN_SAFETY_DISTANCE);
+      this.materializeFood(point, false);
+      occupied.push({ col: point.col, row: point.row });
     }
   }
 
@@ -2364,7 +2392,7 @@ export class UltraWorld {
     this.resetFoodSpatialBuckets();
     this.foodSpatialDirty = true;
     this.staleFoodSpatialEntries = 0;
-    this.spawnOccupiedCells = null;
+    this.spawnOccupiedPoints = null;
     this.foodResetPending = true;
   }
 
@@ -2380,12 +2408,14 @@ export class UltraWorld {
     }
   }
 
-  private queueEnemySpawn(archetype: EnemyArchetypeDefinition, assignedHealth: number, occupied: Set<number>): boolean {
+  private queueEnemySpawn(archetype: EnemyArchetypeDefinition, assignedHealth: number, occupied: GridPoint[]): boolean {
     const totalLength = Math.max(1, Math.round(assignedHealth));
     const placement = this.chooseEnemySpawn(totalLength - 1, occupied);
     if (!placement) return false;
     const direction = { col: placement.next.col - placement.head.col, row: placement.next.row - placement.head.row };
-    if (direction.col === 0 && direction.row === 0) direction.col = placement.head.col < this.arenaMaximum() ? 1 : -1;
+    if (direction.col === 0 && direction.row === 0) {
+      direction.col = placement.head.col < ARENA_GEOMETRY.centerForGrid(GRID_SIZE) ? 1 : -1;
+    }
     const color = ENEMY_COLORS[(this.nextEnemyId - 1) % ENEMY_COLORS.length];
     const angle = Math.atan2(direction.row, direction.col);
     const bodyCells = spaceSpawnBody(placement.head, placement.body, SNAKE_SEGMENT_SPACING, totalLength - 1);
@@ -2436,8 +2466,8 @@ export class UltraWorld {
       timer: ENEMY_SPAWN_WARNING_TIME,
       maxTimer: ENEMY_SPAWN_WARNING_TIME,
     });
-    occupied.add(cellCode(placement.head));
-    for (const cell of placement.body) occupied.add(cellCode(cell));
+    occupied.push({ col: placement.head.col, row: placement.head.row });
+    for (const cell of bodyCells) occupied.push({ col: cell.col, row: cell.row });
     this.effectSound('enemyWarning');
     return true;
   }
@@ -2451,183 +2481,74 @@ export class UltraWorld {
     this.effectSound('enemySpawn');
   }
 
-  private chooseEnemySpawn(bodySegmentCount: number, occupied: Set<number>): { head: GridPoint; body: GridPoint[]; next: GridPoint } | null {
-    const bounds = this.arenaIntegerBounds();
+  private chooseEnemySpawn(bodySegmentCount: number, occupied: GridPoint[]): { head: GridPoint; body: GridPoint[]; next: GridPoint } | null {
+    const center = ARENA_GEOMETRY.centerForGrid(GRID_SIZE);
     const players = this.livingPlayers();
-    return chooseSerpentineSpawn({
-      minimum: bounds.minimum,
-      maximum: bounds.maximum,
+    return chooseCircularSpawn({
+      centerCol: center,
+      centerRow: center,
+      radius: this.arenaPlayableRadius(),
       bodySegmentCount,
       safetyDistance: ENEMY_SPAWN_SAFETY_DISTANCE,
+      occupancyDistance: SNAKE_SEGMENT_SPACING,
       forwardPathHalfWidth: ENEMY_SPAWN_FORWARD_PATH_HALF_WIDTH,
-      occupiedCells: occupied,
+      occupiedPoints: occupied,
       players,
+      attempts: SPAWN_PLACEMENT_ATTEMPTS,
       random: () => this.random(),
     });
   }
 
-  private occupiedCellKeys(): Set<string> {
-    const occupied = new Set<string>();
+  private occupiedSpawnPoints(): GridPoint[] {
+    const occupied: GridPoint[] = [];
     for (const player of this.livingPlayers()) {
-      occupied.add(cellKey(player));
-      for (const segment of player.segments) occupied.add(cellKey(segment));
+      occupied.push({ col: player.col, row: player.row });
+      for (const segment of player.segments) occupied.push({ col: segment.col, row: segment.row });
     }
-    for (const food of this.foods) occupied.add(cellKey(food));
+    for (const food of this.foods) occupied.push({ col: food.col, row: food.row });
     for (const enemy of this.enemies) {
       if (enemy.dead) continue;
-      occupied.add(cellKey(enemy));
-      for (const segment of enemy.segments) occupied.add(cellKey(segment));
+      occupied.push({ col: enemy.col, row: enemy.row });
+      for (const segment of enemy.segments) occupied.push({ col: segment.col, row: segment.row });
     }
     for (const spawn of this.pendingSpawns) {
-      for (const cell of spawn.reservedCells) occupied.add(cellKey(cell));
+      for (const point of spawn.reservedCells) occupied.push({ col: point.col, row: point.row });
     }
+    for (const hazard of this.hazards) occupied.push({ col: hazard.col, row: hazard.row });
     return occupied;
   }
 
-  private spawnOccupiedCellKeys(): Set<string> {
-    return this.spawnOccupiedCells ??= this.occupiedCellKeys();
+  private spawnOccupiedPointList(): GridPoint[] {
+    return this.spawnOccupiedPoints ??= this.occupiedSpawnPoints();
   }
 
-  private occupiedCellCodes(): Set<number> {
-    const occupied = new Set<number>();
-    for (const player of this.livingPlayers()) {
-      occupied.add(cellCode(player));
-      for (const segment of player.segments) occupied.add(cellCode(segment));
-    }
-    for (const food of this.foods) occupied.add(cellCode(food));
-    for (const enemy of this.enemies) {
-      if (enemy.dead) continue;
-      occupied.add(cellCode(enemy));
-      for (const segment of enemy.segments) occupied.add(cellCode(segment));
-    }
-    for (const spawn of this.pendingSpawns) {
-      for (const cell of spawn.reservedCells) occupied.add(cellCode(cell));
-    }
-    return occupied;
-  }
-
-  private freeCells(wallMargin = 0, occupied = this.occupiedCellKeys()): GridPoint[] {
-    const cells: GridPoint[] = [];
-    const margin = clamp(Math.ceil(wallMargin), 0, Math.floor((this.arenaSize - 1) / 2));
-    const bounds = this.arenaIntegerBounds(margin);
-    for (let row = bounds.minimum; row <= bounds.maximum; row += 1) {
-      for (let col = bounds.minimum; col <= bounds.maximum; col += 1) {
-        if (!occupied.has(cellKey({ col, row }))) cells.push({ col, row });
-      }
-    }
-    return cells;
-  }
-
-  private findFreeCell(preferred: GridPoint | null, wallMargin = 0, occupied = this.spawnOccupiedCellKeys()): GridPoint | null {
-    const margin = clamp(Math.ceil(wallMargin), 0, Math.floor((this.arenaSize - 1) / 2));
-    const bounds = this.arenaIntegerBounds(margin);
-    if (preferred) {
-      const centerCol = clamp(Math.round(preferred.col), bounds.minimum, bounds.maximum);
-      const centerRow = clamp(Math.round(preferred.row), bounds.minimum, bounds.maximum);
-      const maximumRadius = Math.max(
-        centerCol - bounds.minimum,
-        bounds.maximum - centerCol,
-        centerRow - bounds.minimum,
-        bounds.maximum - centerRow,
-      );
-      let selected: GridPoint | null = null;
-      let bestDistance = Number.POSITIVE_INFINITY;
-      const intervalDistance = (value: number, minimum: number, maximum: number): number =>
-        value < minimum ? minimum - value : value > maximum ? value - maximum : 0;
-      for (let radius = 0; radius <= maximumRadius; radius += 1) {
-        const minimumCol = Math.max(bounds.minimum, centerCol - radius);
-        const maximumCol = Math.min(bounds.maximum, centerCol + radius);
-        const minimumRow = Math.max(bounds.minimum, centerRow - radius);
-        const maximumRow = Math.min(bounds.maximum, centerRow + radius);
-        for (let row = minimumRow; row <= maximumRow; row += 1) {
-          for (let col = minimumCol; col <= maximumCol; col += 1) {
-            if (Math.max(Math.abs(col - centerCol), Math.abs(row - centerRow)) !== radius) continue;
-            const point = { col, row };
-            if (occupied.has(cellKey(point))) continue;
-            const distance = manhattan(point, preferred);
-            if (distance < bestDistance || (distance === bestDistance && selected && (row < selected.row || (row === selected.row && col < selected.col)))) {
-              bestDistance = distance;
-              selected = point;
-            }
-          }
-        }
-        if (selected) {
-          let minimumFutureDistance = Number.POSITIVE_INFINITY;
-          const leftMaximum = centerCol - radius - 1;
-          if (leftMaximum >= bounds.minimum) {
-            minimumFutureDistance = Math.min(minimumFutureDistance,
-              intervalDistance(preferred.col, bounds.minimum, leftMaximum)
-              + intervalDistance(preferred.row, bounds.minimum, bounds.maximum));
-          }
-          const rightMinimum = centerCol + radius + 1;
-          if (rightMinimum <= bounds.maximum) {
-            minimumFutureDistance = Math.min(minimumFutureDistance,
-              intervalDistance(preferred.col, rightMinimum, bounds.maximum)
-              + intervalDistance(preferred.row, bounds.minimum, bounds.maximum));
-          }
-          const topMaximum = centerRow - radius - 1;
-          if (topMaximum >= bounds.minimum) {
-            minimumFutureDistance = Math.min(minimumFutureDistance,
-              intervalDistance(preferred.row, bounds.minimum, topMaximum)
-              + intervalDistance(preferred.col, bounds.minimum, bounds.maximum));
-          }
-          const bottomMinimum = centerRow + radius + 1;
-          if (bottomMinimum <= bounds.maximum) {
-            minimumFutureDistance = Math.min(minimumFutureDistance,
-              intervalDistance(preferred.row, bottomMinimum, bounds.maximum)
-              + intervalDistance(preferred.col, bounds.minimum, bounds.maximum));
-          }
-          if (bestDistance <= minimumFutureDistance) return selected;
-        }
-      }
-      return selected ?? (margin > 0 ? null : preferred);
-    }
-
-    let freeCount = 0;
-    for (let row = bounds.minimum; row <= bounds.maximum; row += 1) {
-      for (let col = bounds.minimum; col <= bounds.maximum; col += 1) {
-        const point = { col, row };
-        if (occupied.has(cellKey(point))) continue;
-        freeCount += 1;
-      }
-    }
-    if (freeCount === 0) return null;
-    let targetIndex = Math.floor(this.random() * freeCount);
-    for (let row = bounds.minimum; row <= bounds.maximum; row += 1) {
-      for (let col = bounds.minimum; col <= bounds.maximum; col += 1) {
-        const point = { col, row };
-        if (occupied.has(cellKey(point))) continue;
-        if (targetIndex === 0) return point;
-        targetIndex -= 1;
-      }
-    }
-    return null;
+  private chooseSpawnPoint(
+    preferred: GridPoint | null,
+    wallMargin: number,
+    occupied: readonly GridPoint[],
+    safetyDistance: number,
+  ): GridPoint {
+    const center = ARENA_GEOMETRY.centerForGrid(GRID_SIZE);
+    return ARENA_GEOMETRY.chooseSpawnPoint({
+      centerCol: center,
+      centerRow: center,
+      radius: this.arenaPlayableRadius(wallMargin),
+      preferred,
+      occupiedPoints: occupied,
+      safetyDistance,
+      attempts: SPAWN_PLACEMENT_ATTEMPTS,
+      random: () => this.random(),
+    });
   }
 
   private findPlayerSpawn(): GridPoint {
-    const center = { col: Math.floor(GRID_SIZE / 2), row: Math.floor(GRID_SIZE / 2) };
-    const alive = this.livingPlayers();
-    if (alive.length === 0) return this.findFreeCell(center, 2) ?? center;
-
-    const occupied = this.occupiedCellKeys();
-    const candidates: Array<GridPoint & { clearance: number }> = [];
-    const occupiedNodes: GridPoint[] = [
-      ...alive.flatMap((player) => [player, ...player.segments]),
-      ...this.enemies.filter((enemy) => !enemy.dead).flatMap((enemy) => [enemy, ...enemy.segments]),
-    ];
-    const bounds = this.arenaIntegerBounds(2);
-    for (let row = bounds.minimum; row <= bounds.maximum; row += 1) {
-      for (let col = bounds.minimum; col <= bounds.maximum; col += 1) {
-        const point = { col, row };
-        if (occupied.has(cellKey(point))) continue;
-        const clearance = occupiedNodes.length > 0
-          ? Math.min(...occupiedNodes.map((node) => Math.hypot(node.col - col, node.row - row)))
-          : this.arenaSize;
-        candidates.push({ ...point, clearance });
-      }
-    }
-    candidates.sort((left, right) => right.clearance - left.clearance || manhattan(left, center) - manhattan(right, center));
-    return candidates[0] ?? this.findFreeCell(center, 2) ?? center;
+    const centerCoordinate = ARENA_GEOMETRY.centerForGrid(GRID_SIZE);
+    return this.chooseSpawnPoint(
+      { col: centerCoordinate, row: centerCoordinate },
+      2,
+      this.occupiedSpawnPoints(),
+      ENEMY_SPAWN_SAFETY_DISTANCE,
+    );
   }
 
   private triggerCollisionEcho(player: PlayerEntity): void {
@@ -3319,15 +3240,14 @@ export class UltraWorld {
     const lookaheadDistance = Math.max(ENEMY_WALL_AVOIDANCE_DISTANCE, enemy.speed * ENEMY_THINK_INTERVAL_MAX);
     const projectedCol = enemy.col + Math.cos(enemy.angle) * lookaheadDistance;
     const projectedRow = enemy.row + Math.sin(enemy.angle) * lookaheadDistance;
-    const safeMinimum = this.arenaMinimum() + ENEMY_WALL_AVOIDANCE_DISTANCE;
-    const safeMaximum = this.arenaMaximum() - ENEMY_WALL_AVOIDANCE_DISTANCE;
-    let escapeCol = 0;
-    let escapeRow = 0;
-    if (projectedCol < safeMinimum) escapeCol += safeMinimum - projectedCol;
-    if (projectedCol > safeMaximum) escapeCol -= projectedCol - safeMaximum;
-    if (projectedRow < safeMinimum) escapeRow += safeMinimum - projectedRow;
-    if (projectedRow > safeMaximum) escapeRow -= projectedRow - safeMaximum;
-    if (Math.hypot(escapeCol, escapeRow) > 0.001) enemy.desiredAngle = Math.atan2(escapeRow, escapeCol);
+    const center = ARENA_GEOMETRY.centerForGrid(GRID_SIZE);
+    const radialCol = projectedCol - center;
+    const radialRow = projectedRow - center;
+    const radialDistance = Math.hypot(radialCol, radialRow);
+    const safeRadius = this.arenaPlayableRadius(ENEMY_WALL_AVOIDANCE_DISTANCE);
+    if (radialDistance > safeRadius && radialDistance > 0.001) {
+      enemy.desiredAngle = Math.atan2(-radialRow, -radialCol);
+    }
   }
 
   private updateEnemies(delta: number, presentPlayers: PlayerEntity[]): void {
@@ -3401,15 +3321,19 @@ export class UltraWorld {
         }
         continue;
       }
-      const wallNormal = wallBounceNormal(nextCol, nextRow, this.arenaMinimum(), this.arenaMaximum());
+      const center = ARENA_GEOMETRY.centerForGrid(GRID_SIZE);
+      const wallNormal = ARENA_GEOMETRY.wallNormal(nextCol, nextRow, center, center, this.arenaPlayableRadius());
       if (wallNormal) {
-        enemy.col = clamp(nextCol, this.arenaMinimum(), this.arenaMaximum());
-        enemy.row = clamp(nextRow, this.arenaMinimum(), this.arenaMaximum());
-        const wallDamage = MODULE_PROGRESSION.rollLinearRewards(
-          ENEMY_COLLISION_DAMAGE * this.enemyWallDamageMultiplier,
-          () => this.random(),
-        );
-        this.damageTarget(null, enemy, wallDamage, enemy, '#f3c600', -1);
+        const constrained = this.constrainArenaPoint(nextCol, nextRow);
+        enemy.col = constrained.col;
+        enemy.row = constrained.row;
+        if (this.enemyWallDamageMultiplier > 0) {
+          const wallDamage = MODULE_PROGRESSION.rollLinearRewards(
+            ENEMY_COLLISION_DAMAGE * this.enemyWallDamageMultiplier,
+            () => this.random(),
+          );
+          this.damageTarget(null, enemy, wallDamage, enemy, '#f3c600', -1);
+        }
         if (!enemy.dead) this.bounceEntity(enemy, wallNormal.col, wallNormal.row, enemy.color, this.enemyWallKnockbackMultiplier);
         continue;
       }
@@ -3476,7 +3400,7 @@ export class UltraWorld {
   }
 
   private resolveEnemyCollisions(): void {
-    const collisionDamageAmount = ENEMY_COLLISION_DAMAGE * this.enemyWallDamageMultiplier;
+    const collisionDamageAmount = ENEMY_COLLISION_DAMAGE * this.enemyCollisionDamageMultiplier;
     const collisionKnockback = this.enemyWallKnockbackMultiplier;
     const headRangeSquared = (ENEMY_HEAD_RADIUS_CELLS * 2) ** 2;
     for (let firstIndex = 0; firstIndex < this.enemies.length; firstIndex += 1) {
@@ -3676,16 +3600,19 @@ export class UltraWorld {
         }
         projectile.col += projectile.vx * delta;
         projectile.row += projectile.vy * delta;
-        const projectileMinimum = this.projectileMinimum();
-        const projectileMaximum = this.projectileMaximum();
-        const hitHorizontal = projectile.col < projectileMinimum || projectile.col > projectileMaximum;
-        const hitVertical = projectile.row < projectileMinimum || projectile.row > projectileMaximum;
-        if (hitHorizontal || hitVertical) {
+        const constrained = this.constrainArenaPoint(projectile.col, projectile.row, 0, true);
+        if (constrained.collided) {
           if (projectile.bounces !== 0) {
-            projectile.col = clamp(projectile.col, projectileMinimum, projectileMaximum);
-            projectile.row = clamp(projectile.row, projectileMinimum, projectileMaximum);
-            if (hitHorizontal) projectile.vx *= -1;
-            if (hitVertical) projectile.vy *= -1;
+            projectile.col = constrained.col;
+            projectile.row = constrained.row;
+            const reflected = ARENA_GEOMETRY.reflectVector(
+              projectile.vx,
+              projectile.vy,
+              constrained.normalCol,
+              constrained.normalRow,
+            );
+            projectile.vx = reflected.col;
+            projectile.vy = reflected.row;
             if (projectile.bounces > 0) projectile.bounces -= 1;
             this.pendingProjectileEvents.push({ type: 'update', projectile: toProjectileState(projectile) });
           } else projectile.life = 0;
@@ -3744,10 +3671,9 @@ export class UltraWorld {
   }
 
   private expireProjectile(owner: PlayerEntity, projectile: ProjectileEntity): void {
-    const col = clamp(projectile.col, this.projectileMinimum(), this.projectileMaximum());
-    const row = clamp(projectile.row, this.projectileMinimum(), this.projectileMaximum());
-    this.ring(col, row, projectile.color, 0.26, Math.max(2, projectile.size * 0.65), Math.max(9, projectile.size * 2.4), owner.entityId, 'pixels');
-    this.burst(col, row, projectile.color, 4, 55, owner.entityId);
+    const constrained = this.constrainArenaPoint(projectile.col, projectile.row, 0, true);
+    this.ring(constrained.col, constrained.row, projectile.color, 0.26, Math.max(2, projectile.size * 0.65), Math.max(9, projectile.size * 2.4), owner.entityId, 'pixels');
+    this.burst(constrained.col, constrained.row, projectile.color, 4, 55, owner.entityId);
   }
 
   private explodeProjectile(owner: PlayerEntity, projectile: ProjectileEntity): void {
@@ -3879,8 +3805,12 @@ export class UltraWorld {
     let bestMovementSquared = 0;
     for (const offset of MINE_KICK_DIRECTION_OFFSETS) {
       const angle = baseAngle + offset;
-      const candidateCol = clamp(hazard.col + Math.cos(angle) * DESIGNER_BALANCE.moduleMineKickDistanceCells, this.arenaMinimum(), this.arenaMaximum());
-      const candidateRow = clamp(hazard.row + Math.sin(angle) * DESIGNER_BALANCE.moduleMineKickDistanceCells, this.arenaMinimum(), this.arenaMaximum());
+      const constrained = this.constrainArenaPoint(
+        hazard.col + Math.cos(angle) * DESIGNER_BALANCE.moduleMineKickDistanceCells,
+        hazard.row + Math.sin(angle) * DESIGNER_BALANCE.moduleMineKickDistanceCells,
+      );
+      const candidateCol = constrained.col;
+      const candidateRow = constrained.row;
       const separationSquared = (candidateCol - owner.col) ** 2 + (candidateRow - owner.row) ** 2;
       const movementSquared = (candidateCol - hazard.col) ** 2 + (candidateRow - hazard.row) ** 2;
       if (
@@ -3961,10 +3891,12 @@ export class UltraWorld {
     players = players.filter((player) => player.autopilot);
     for (const player of players) {
       if (!player.alive) continue;
-      const wall = wallBounceNormal(player.col, player.row, this.arenaMinimum(), this.arenaMaximum());
+      const center = ARENA_GEOMETRY.centerForGrid(GRID_SIZE);
+      const wall = ARENA_GEOMETRY.wallNormal(player.col, player.row, center, center, this.arenaPlayableRadius());
       if (wall) {
-        player.col = clamp(player.col, this.arenaMinimum(), this.arenaMaximum());
-        player.row = clamp(player.row, this.arenaMinimum(), this.arenaMaximum());
+        const constrained = this.constrainArenaPoint(player.col, player.row);
+        player.col = constrained.col;
+        player.row = constrained.row;
         this.triggerCollisionEcho(player);
         this.damagePlayer(player, PLAYER_WALL_COLLISION_DAMAGE, now, '撞上墙壁');
         if (player.alive) this.bounceEntity(player, wall.col, wall.row, '#b8f53f');
@@ -4276,7 +4208,7 @@ export class UltraWorld {
       }
       if (shotCount > 0) this.effectSound('shoot', player.entityId);
     }
-    const dropOccupied = this.spawnOccupiedCellKeys();
+    const dropOccupied = this.spawnOccupiedPointList();
     if (owner) {
       owner.kills += 1;
       owner.botKills += 1;
@@ -4516,7 +4448,7 @@ export class UltraWorld {
   private eliminatePlayer(victim: PlayerEntity, killer: PlayerEntity | null, now: number, reason: string): void {
     if (!victim.alive) return;
     const result = this.createRunResult(victim);
-    const dropOccupied = this.spawnOccupiedCellKeys();
+    const dropOccupied = this.spawnOccupiedPointList();
     if (killer && killer !== victim && killer.alive) {
       killer.kills += 1;
       killer.pvpKills += 1;
@@ -5016,18 +4948,6 @@ function toPendingSpawnView(spawn: PendingSpawn): PendingSpawnView {
   return { id: spawn.id, archetype: spawn.archetype, color: spawn.color, angle: spawn.angle, headCell: { ...spawn.headCell }, bodyCells: spawn.bodyCells.map((cell) => ({ ...cell })), timer: spawn.timer, maxTimer: spawn.maxTimer };
 }
 
-function cellKey(point: GridPoint): string {
-  return `${Math.round(point.col)},${Math.round(point.row)}`;
-}
-
-function cellCode(point: GridPoint): number {
-  return (Math.round(point.row) & 0xffff) << 16 | (Math.round(point.col) & 0xffff);
-}
-
-function manhattan(left: GridPoint, right: GridPoint): number {
-  return Math.abs(left.col - right.col) + Math.abs(left.row - right.row);
-}
-
 function distanceSquared(left: GridPoint, right: GridPoint): number {
   const col = left.col - right.col;
   const row = left.row - right.row;
@@ -5151,16 +5071,6 @@ function bodyConnectionContact(
     }
   }
   return null;
-}
-
-function wallBounceNormal(col: number, row: number, minimum: number, maximum: number): GridPoint | null {
-  let normalCol = 0;
-  let normalRow = 0;
-  if (col < minimum) normalCol += 1;
-  else if (col > maximum) normalCol -= 1;
-  if (row < minimum) normalRow += 1;
-  else if (row > maximum) normalRow -= 1;
-  return normalCol || normalRow ? { col: normalCol, row: normalRow } : null;
 }
 
 function findSelfCollision(entity: { col: number; row: number; segments: GridPoint[] }, threshold: number): GridPoint | null {

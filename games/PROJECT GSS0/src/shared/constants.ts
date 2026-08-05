@@ -1,8 +1,9 @@
 import { DESIGNER_BALANCE } from './designerConfig';
+import { ARENA_GEOMETRY } from './arenaGeometry';
 
 export const GRID_SIZE = 24;
 export const ARENA_BASE_AREA = DESIGNER_BALANCE.arenaBaseArea;
-export const ARENA_BASE_SIZE = Math.sqrt(ARENA_BASE_AREA);
+export const ARENA_BASE_SIZE = ARENA_GEOMETRY.diameterFromArea(ARENA_BASE_AREA);
 export const ARENA_AREA_PER_LEVEL = DESIGNER_BALANCE.arenaAreaPerLevel;
 export const ARENA_RESIZE_RATE = DESIGNER_BALANCE.arenaResizeRate;
 export const FOOD_WALL_MARGIN = 2;
@@ -17,9 +18,9 @@ export const KNOCKBACK_STOP_SPEED = 0.04;
 export const BOUNCE_SLOW_TIME = 0.78;
 export const BOUNCE_LOCK_TIME = 0.34;
 export const WAVE_BASE_INTERVAL = DESIGNER_BALANCE.waveInterval;
-export const FOODS_PER_PLAYER_PER_WAVE = DESIGNER_BALANCE.foodsPerPlayerPerWave;
+export const FOOD_SPAWN_SAFETY_DISTANCE = DESIGNER_BALANCE.foodSpawnSafetyDistance;
+export const SPAWN_PLACEMENT_ATTEMPTS = DESIGNER_BALANCE.spawnPlacementAttempts;
 export const ENEMY_PRESSURE_WAVE_INTERVAL = DESIGNER_BALANCE.enemyPressureWaveInterval;
-export const ENEMY_PRESSURE_COUNT_MULTIPLIER = DESIGNER_BALANCE.enemyPressureEnemyCountMultiplier;
 export const ENEMY_PRESSURE_THREAT_MULTIPLIER = DESIGNER_BALANCE.enemyPressureThreatMultiplier;
 export const ENEMY_EXPECTED_DPS_INTERVAL = DESIGNER_BALANCE.enemyExpectedDpsInterval;
 export const ENEMY_THREAT_LEVEL_OFFSET = DESIGNER_BALANCE.enemyThreatLevelOffset;

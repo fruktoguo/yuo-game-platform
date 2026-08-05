@@ -9,6 +9,7 @@ const scripts = referencedClassicScripts(indexHtml);
 describe('生产客户端脚本资产', () => {
   it('自动收集 index.html 引用的全部本地经典脚本', () => {
     expect(scripts).toContain('wave-director.js');
+    expect(scripts).toContain('arena-geometry.js');
     expect(scripts).toContain('module-catalog.js');
     expect(scripts).toContain('game.js');
     expect(new Set(scripts).size).toBe(scripts.length);

@@ -1,6 +1,9 @@
 (function attachPlayerCollisions(root) {
   "use strict";
 
+  const arenaGeometry = root.GSS0ArenaGeometry;
+  if (!arenaGeometry) throw new Error("PROJECT GSS0 circular arena geometry is not loaded");
+
   function distanceSquared(left, right) {
     const dx = left.col - right.col;
     const dy = left.row - right.row;
@@ -54,11 +57,18 @@
 
   function detect(player, enemies, players, options) {
     if (!player) return null;
-    if (player.col < options.worldMin || player.col > options.worldMax || player.row < options.worldMin || player.row > options.worldMax) {
+    const wall = arenaGeometry.wallNormal(
+      player.col,
+      player.row,
+      options.centerCol,
+      options.centerRow,
+      options.arenaRadius
+    );
+    if (wall) {
       return {
         kind: "wall",
-        normalCol: player.col < options.worldMin ? 1 : player.col > options.worldMax ? -1 : 0,
-        normalRow: player.row < options.worldMin ? 1 : player.row > options.worldMax ? -1 : 0
+        normalCol: wall.col,
+        normalRow: wall.row
       };
     }
 

@@ -5,7 +5,7 @@ export type ModuleDesignState = 'normal' | 'tune' | 'rework' | 'disabled';
 interface DesignerConfigSource {
   schemaVersion?: unknown;
   balance?: Record<string, unknown>;
-  waveEnemyCountSchedule?: unknown;
+  waveSpawnSchedule?: unknown;
   moduleCooldownPercentages?: Record<string, unknown>;
   moduleNames?: Record<string, unknown>;
   moduleInitialUpgrades?: Record<string, unknown>;
@@ -13,7 +13,7 @@ interface DesignerConfigSource {
 }
 
 const source = (globalThis as typeof globalThis & { GSS0_DESIGNER_CONFIG?: DesignerConfigSource }).GSS0_DESIGNER_CONFIG;
-if (source?.schemaVersion !== 49) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 49');
+if (source?.schemaVersion !== 50) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 50');
 
 function numberSetting(key: string, fallback: number, minimum: number, maximum: number, integer = false): number {
   const candidate = source?.balance?.[key];
@@ -22,30 +22,32 @@ function numberSetting(key: string, fallback: number, minimum: number, maximum: 
   return integer ? Math.round(clamped) : clamped;
 }
 
-export interface WaveEnemyCountTier {
+export interface WaveSpawnTier {
   startWave: number;
+  foodCount: number;
   enemyCount: number;
 }
 
-function waveEnemyCountScheduleSetting(): readonly WaveEnemyCountTier[] {
-  if (!Array.isArray(source?.waveEnemyCountSchedule) || source.waveEnemyCountSchedule.length === 0) {
-    throw new Error('PROJECT GSS0 缺少波次敌人数计划');
+function waveSpawnScheduleSetting(): readonly WaveSpawnTier[] {
+  if (!Array.isArray(source?.waveSpawnSchedule) || source.waveSpawnSchedule.length === 0) {
+    throw new Error('PROJECT GSS0 缺少波次投放计划');
   }
-  const schedule = source.waveEnemyCountSchedule.map((entry, index) => {
-    const candidate = entry as { startWave?: unknown; enemyCount?: unknown };
+  const schedule = source.waveSpawnSchedule.map((entry, index) => {
+    const candidate = entry as { startWave?: unknown; foodCount?: unknown; enemyCount?: unknown };
     const startWave = Math.max(1, Math.round(Number(candidate?.startWave)));
+    const foodCount = Math.max(0, Math.round(Number(candidate?.foodCount)));
     const enemyCount = Math.max(1, Math.round(Number(candidate?.enemyCount)));
-    if (!Number.isFinite(startWave) || !Number.isFinite(enemyCount)) throw new Error(`PROJECT GSS0 第 ${index + 1} 段波次计划无效`);
-    return Object.freeze({ startWave, enemyCount });
+    if (!Number.isFinite(startWave) || !Number.isFinite(foodCount) || !Number.isFinite(enemyCount)) throw new Error(`PROJECT GSS0 第 ${index + 1} 段波次计划无效`);
+    return Object.freeze({ startWave, foodCount, enemyCount });
   });
-  if (schedule[0].startWave !== 1) throw new Error('PROJECT GSS0 波次敌人数计划必须从第 1 波开始');
+  if (schedule[0].startWave !== 1) throw new Error('PROJECT GSS0 波次投放计划必须从第 1 波开始');
   for (let index = 1; index < schedule.length; index += 1) {
-    if (schedule[index].startWave <= schedule[index - 1].startWave) throw new Error('PROJECT GSS0 波次敌人数计划必须严格递增');
+    if (schedule[index].startWave <= schedule[index - 1].startWave) throw new Error('PROJECT GSS0 波次投放计划必须严格递增');
   }
   return Object.freeze(schedule);
 }
 
-export const DESIGNER_WAVE_ENEMY_COUNT_SCHEDULE = waveEnemyCountScheduleSetting();
+export const DESIGNER_WAVE_SPAWN_SCHEDULE = waveSpawnScheduleSetting();
 
 export const DESIGNER_BALANCE = Object.freeze({
   playerBaseSpeed: numberSetting('playerBaseSpeed', 5, 1, 12),
@@ -82,7 +84,6 @@ export const DESIGNER_BALANCE = Object.freeze({
   enemySpeedMaxMultiplier: numberSetting('enemySpeedMaxMultiplier', 1.12, 1, 3),
   enemyTurnRate: numberSetting('enemyTurnRate', 2.4, 0.1, 12),
   enemyPressureWaveInterval: numberSetting('enemyPressureWaveInterval', 5, 0, 50, true),
-  enemyPressureEnemyCountMultiplier: numberSetting('enemyPressureEnemyCountMultiplier', 2, 1, 10, true),
   enemyPressureThreatMultiplier: numberSetting('enemyPressureThreatMultiplier', 2, 1, 10),
   enemyExpectedDpsInterval: numberSetting('enemyExpectedDpsInterval', 6, 0.1, 60),
   enemyThreatLevelOffset: numberSetting('enemyThreatLevelOffset', 3, 0, 100),
@@ -140,7 +141,8 @@ export const DESIGNER_BALANCE = Object.freeze({
   enemyWardenFoodRange: numberSetting('enemyWardenFoodRange', 6, 0, 30),
   enemyWardenKnockbackMultiplier: numberSetting('enemyWardenKnockbackMultiplier', 2, 1, 4),
   waveInterval: numberSetting('waveInterval', 6, 0.5, 120),
-  foodsPerPlayerPerWave: numberSetting('foodsPerPlayerPerWave', 2, 0, 20, true),
+  foodSpawnSafetyDistance: numberSetting('foodSpawnSafetyDistance', 0.8, 0, 5),
+  spawnPlacementAttempts: numberSetting('spawnPlacementAttempts', 96, 1, 1_000, true),
   enemySpawnWarning: numberSetting('enemySpawnWarning', 1.5, 0, 10),
   enemySpawnActivationDuration: numberSetting('enemySpawnActivationDuration', 0.38, 0.05, 3),
   enemySpawnActivationParticleCount: numberSetting('enemySpawnActivationParticleCount', 5, 0, 30, true),
@@ -229,11 +231,11 @@ export const DESIGNER_BALANCE = Object.freeze({
   moduleDeathBurstProjectilesPerLevel: numberSetting('moduleDeathBurstProjectilesPerLevel', 3, 0, 20, true),
   moduleCrisisHealthThreshold: numberSetting('moduleCrisisHealthThreshold', 0.5, 0, 1),
   moduleCrisisRegenPerLevel: numberSetting('moduleCrisisRegenPerLevel', 1, 0, 20),
-  arenaBaseArea: numberSetting('arenaBaseArea', 300, 64, 4_096),
+  arenaBaseArea: numberSetting('arenaBaseArea', 452.4, 64, 4_096),
   arenaAreaPerLevel: numberSetting('arenaAreaPerLevel', 0.03, 0, 0.5),
   arenaResizeRate: numberSetting('arenaResizeRate', 2.4, 0.1, 10),
   cameraFollowZoomMin: numberSetting('cameraFollowZoomMin', 0.75, 0.25, 5),
-  cameraFollowZoomDefault: numberSetting('cameraFollowZoomDefault', 1.5, 0.25, 5),
+  cameraFollowZoomDefault: numberSetting('cameraFollowZoomDefault', 1.25, 0.25, 5),
   cameraFollowZoomMax: numberSetting('cameraFollowZoomMax', 2.5, 0.25, 5),
   cameraPseudo3DStrengthMax: numberSetting('cameraPseudo3DStrengthMax', 1.5, 0.25, 1.5),
   cameraPseudo3DPitchForeshortening: numberSetting('cameraPseudo3DPitchForeshortening', 0.075, 0, 0.24),

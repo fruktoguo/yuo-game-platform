@@ -143,7 +143,7 @@
     .wave-panel > header span { color: var(--muted); font-size: 9px; font-weight: 900; }
     .wave-panel > header h3 { margin: 5px 0 0; font-size: 16px; }
     .wave-schedule-list { padding: 0 20px 10px; }
-    .wave-schedule-row { display: grid; grid-template-columns: 34px minmax(120px, 1fr) minmax(120px, 1fr); gap: 12px; align-items: end; min-height: 68px; border-bottom: 1px solid #293237; }
+    .wave-schedule-row { display: grid; grid-template-columns: 34px repeat(3, minmax(110px, 1fr)); gap: 12px; align-items: end; min-height: 68px; border-bottom: 1px solid #293237; }
     .wave-schedule-row:last-child { border-bottom: 0; }
     .wave-tier-index { display: grid; width: 28px; height: 28px; margin-bottom: 5px; place-items: center; background: var(--yellow); color: #0b0e10; font-size: 10px; font-weight: 1000; }
     .wave-schedule-field { display: grid; gap: 5px; padding-bottom: 9px; color: var(--muted); font-size: 9px; font-weight: 900; }
@@ -376,10 +376,10 @@
       </section>
 
       <section id="waves-view" class="view" hidden>
-        <header class="view-head"><div><span>DIFFICULTY DESIGN</span><h2>敌人全局与波次设计</h2></div><output id="wave-summary" class="view-count"></output></header>
+        <header class="view-head"><div><span>DIFFICULTY DESIGN</span><h2>敌人全局与联合投放</h2></div><output id="wave-summary" class="view-count"></output></header>
         <div class="wave-overview">
           <section class="wave-panel" aria-labelledby="wave-schedule-title">
-            <header><span>ENEMY COUNT SCHEDULE</span><h3 id="wave-schedule-title">基础敌人数计划</h3></header>
+            <header><span>WAVE SPAWN SCHEDULE</span><h3 id="wave-schedule-title">球与敌人联合投放表</h3></header>
             <div id="wave-schedule-list" class="wave-schedule-list"></div>
           </section>
           <section class="wave-panel is-cyan" aria-labelledby="wave-metrics-title">
@@ -395,7 +395,7 @@
           <header><div><span>CURVE VERIFICATION</span><h3 id="wave-preview-title">关键波次预览</h3></div><output id="wave-preview-note" class="view-count"></output></header>
           <div class="wave-table-wrap">
             <table class="wave-table">
-              <thead><tr><th>波次</th><th>类型</th><th>基础敌人数</th><th>实际敌人数</th><th>前置经验</th><th>预期等级</th><th>预期 DPS</th><th>威胁倍率</th><th>速度倍率</th><th>总威胁</th></tr></thead>
+              <thead><tr><th>波次</th><th>类型</th><th>每人球数</th><th>每人敌数</th><th>前置经验</th><th>预期等级</th><th>预期 DPS</th><th>威胁倍率</th><th>速度倍率</th><th>总威胁</th></tr></thead>
               <tbody id="wave-preview-body"></tbody>
             </table>
           </div>
@@ -404,12 +404,12 @@
     </div>
   </main>
 
-  <script src="enemy-codex.js?v=143"></script>
-  <script src="wave-director.js?v=143"></script>
-  <script src="designer-config.js?v=143"></script>
-  <script src="status-catalog.js?v=143"></script>
-  <script src="module-catalog.js?v=143"></script>
-  <script src="module-progression.js?v=143"></script>
+  <script src="enemy-codex.js?v=144"></script>
+  <script src="wave-director.js?v=144"></script>
+  <script src="designer-config.js?v=144"></script>
+  <script src="status-catalog.js?v=144"></script>
+  <script src="module-catalog.js?v=144"></script>
+  <script src="module-progression.js?v=144"></script>
   <script>
     (() => {
       "use strict";
@@ -491,17 +491,17 @@
         { key: "enemyBodyAvoidanceRange", group: "敌人全局", label: "敌蛇身体避障范围", hint: "所有敌人躲避其他敌蛇的检测距离；具备玩家避障特性的敌人也使用此范围", min: 0.5, max: 10, step: 0.05, unit: "格" },
         { key: "enemySpawnSafetyDistance", group: "敌人全局", label: "出生安全距离", hint: "敌蛇头部刷新时与最近玩家保持的最低距离；不受玩家移动速度影响", min: 0, max: 30, step: 0.25, unit: "格" },
         { key: "enemySpawnForwardPathHalfWidth", group: "敌人全局", label: "前进通道半宽", hint: "玩家朝向前方禁止刷新敌蛇预警轮廓的通道半宽；0 表示关闭路径规避", min: 0, max: 10, step: 0.25, unit: "格" },
-        { key: "enemyCollisionDamage", group: "敌人全局", label: "敌人碰撞伤害", hint: "敌蛇撞墙或撞上其他敌蛇时受到的伤害", min: 0, max: 1000, step: 1, unit: "点" },
+        { key: "enemyCollisionDamage", group: "敌人全局", label: "敌人碰撞伤害", hint: "敌蛇互撞时的基础伤害；撞竞技场边界仅由壁垒共振节额外赋予伤害", min: 0, max: 1000, step: 1, unit: "点" },
         { key: "waveInterval", group: "波次与投放", label: "基础波次间隔", hint: "不含增压信标时，相邻两波之间的固定倒计时", min: 0.5, max: 120, step: 0.1, unit: "秒" },
         { key: "enemyPressureWaveInterval", group: "波次与投放", label: "高压波周期", hint: "每隔多少波触发高压波；0 表示关闭", min: 0, max: 50, step: 1, unit: "波" },
-        { key: "enemyPressureEnemyCountMultiplier", group: "波次与投放", label: "高压波敌人数倍率", hint: "高压波相对当前区间基础敌人数的整数倍率", min: 1, max: 10, step: 1, unit: "倍" },
         { key: "enemyPressureThreatMultiplier", group: "波次与投放", label: "高压波总威胁倍率", hint: "高压波在常规总威胁基础上额外乘算的倍率", min: 1, max: 10, step: 0.05, unit: "倍" },
         { key: "enemyExpectedDpsInterval", group: "波次与投放", label: "预期 DPS 间隔", hint: "预期 DPS 公式中攻击档位的除数，缺省为 6 秒", min: 0.1, max: 60, step: 0.1, unit: "秒" },
         { key: "enemyThreatLevelOffset", group: "波次与投放", label: "威胁等级偏移", hint: "威胁期望使用玩家预期等级加上此值；默认 3 表示按（等级 + 3）计算", min: 0, max: 100, step: 0.1, unit: "级" },
         { key: "enemyThreatTimeCoefficient", group: "波次与投放", label: "威胁时间系数", hint: "将预期 DPS 换算为每波基础总生命预算的时间系数", min: 0, max: 120, step: 0.1, unit: "秒" },
         { key: "enemyThreatGrowthPerWave", group: "波次与投放", label: "每波威胁线性成长", hint: "每波增加的倍率百分点；0.02 表示每波增加 2 个百分点", min: 0, max: 1, step: 0.005, unit: "倍率/波" },
         { key: "enemyHealthWeightVariation", group: "波次与投放", label: "生命权重浮动", hint: "每只敌人独立抽取的生命权重上下浮动比例", min: 0, max: 1, step: 0.01, unit: "比例" },
-        { key: "foodsPerPlayerPerWave", group: "波次与投放", label: "每人每波球数", hint: "固定经验投放模型中，每名玩家每波贡献的普通球数量", min: 0, max: 20, step: 1, unit: "枚" },
+        { key: "foodSpawnSafetyDistance", group: "波次与投放", label: "球投放安全距离", hint: "圆内连续采样时，球与已有玩家、敌人、球及生成预警保持的最低中心距离", min: 0, max: 5, step: 0.05, unit: "格" },
+        { key: "spawnPlacementAttempts", group: "波次与投放", label: "投放采样次数", hint: "球与敌蛇寻找安全位置时最多比较的圆内候选数；耗尽后使用间距最大的候选，不形成数量上限", min: 1, max: 1000, step: 1, unit: "次" },
         { key: "enemySpawnWarning", group: "波次与投放", label: "敌人出生预警", hint: "预警轮廓出现到敌人实体生成的时间", min: 0, max: 10, step: 0.05, unit: "秒" },
         { key: "enemyScoutUnlockSeconds", group: "浮游体", label: "解锁时间", hint: "浮游体加入刷新池的游戏时间", min: 0, max: 3600, step: 5, unit: "秒" },
         { key: "enemyScoutSpawnWeight", group: "浮游体", label: "刷新权重", hint: "浮游体在可用敌人中的相对抽取权重", min: 0, max: 20, step: 0.05, unit: "权重" },
@@ -630,7 +630,7 @@
         { key: "moduleDeathBurstProjectilesPerLevel", moduleId: "deathburst", group: "猎杀齐射节", label: "每级死亡齐射弹数", hint: "任意敌蛇死亡时向随机方向发射的子弹数量", min: 0, max: 20, step: 1, unit: "枚/级" },
         { key: "moduleCrisisHealthThreshold", moduleId: "crisis", group: "危态代偿节", label: "生命阈值", hint: "低于该最大生命比例时获得正恢复，否则产生等量负恢复", min: 0, max: 1, step: 0.01, unit: "比例" },
         { key: "moduleCrisisRegenPerLevel", moduleId: "crisis", group: "危态代偿节", label: "每级代偿恢复", hint: "阈值两侧分别增加或减少的每秒生命恢复", min: 0, max: 20, step: 0.1, unit: "点/秒/级" },
-        { key: "arenaBaseArea", group: "场地", label: "基础场地面积", hint: "0级时场地的实际面积；运行时按平方根换算场地边长", min: 64, max: 4096, step: 0.1, unit: "格²" },
+        { key: "arenaBaseArea", group: "场地", label: "基础场地面积", hint: "0级时正圆竞技场的真实面积；运行时按圆面积公式换算半径与直径", min: 64, max: 4096, step: 0.1, unit: "格²" },
         { key: "arenaAreaPerLevel", group: "场地", label: "每级场地面积成长", hint: "单人按当前等级、多人按所有在场玩家总等级增加的场地面积倍率", min: 0, max: 0.5, step: 0.005, unit: "倍率/级" },
         { key: "arenaResizeRate", group: "场地", label: "场地缩放速度", hint: "场地面积目标变化后的平滑追随速度", min: 0.1, max: 10, step: 0.1, unit: "速率" },
         { key: "cameraFollowZoomMin", group: "摄像机", label: "跟随视角最小缩放", hint: "跟随蛇头模式使用滚轮缩小时允许达到的最低倍率", min: 0.25, max: 5, step: 0.05, unit: "倍" },
@@ -711,8 +711,8 @@
       const DEFAULT_MODULE_INITIAL_UPGRADES = Object.freeze({
         ...(globalThis.GSS0_DESIGNER_CONFIG?.moduleInitialUpgrades || {})
       });
-      const DEFAULT_WAVE_ENEMY_COUNT_SCHEDULE = Object.freeze(
-        (globalThis.GSS0_DESIGNER_CONFIG?.waveEnemyCountSchedule || []).map((tier) => Object.freeze({ ...tier }))
+      const DEFAULT_WAVE_SPAWN_SCHEDULE = Object.freeze(
+        (globalThis.GSS0_DESIGNER_CONFIG?.waveSpawnSchedule || []).map((tier) => Object.freeze({ ...tier }))
       );
       const STATUS_LABELS = { normal: "正常", tune: "需调数值", rework: "需大改", disabled: "禁用" };
       const CONFIG_FILE_NAME = "designer-config.js";
@@ -750,20 +750,22 @@
       const filePickerSupported = typeof window.showOpenFilePicker === "function";
 
       function normalizeConfig(value) {
-        const config = { schemaVersion: 49, balance: {}, waveEnemyCountSchedule: [], moduleCooldownPercentages: {}, moduleNames: {}, moduleInitialUpgrades: {}, moduleStates: {} };
+        const config = { schemaVersion: 50, balance: {}, waveSpawnSchedule: [], moduleCooldownPercentages: {}, moduleNames: {}, moduleInitialUpgrades: {}, moduleStates: {} };
         for (const definition of ALL_PARAMETER_DEFINITIONS) {
           const candidate = Number(value?.balance?.[definition.key]);
           config.balance[definition.key] = Number.isFinite(candidate) ? Math.max(definition.min, Math.min(definition.max, candidate)) : definition.min;
         }
         let previousStartWave = 0;
-        for (let index = 0; index < DEFAULT_WAVE_ENEMY_COUNT_SCHEDULE.length; index += 1) {
-          const fallback = DEFAULT_WAVE_ENEMY_COUNT_SCHEDULE[index];
-          const candidate = value?.waveEnemyCountSchedule?.[index];
+        for (let index = 0; index < DEFAULT_WAVE_SPAWN_SCHEDULE.length; index += 1) {
+          const fallback = DEFAULT_WAVE_SPAWN_SCHEDULE[index];
+          const candidate = value?.waveSpawnSchedule?.[index];
           const proposedStart = index === 0 ? 1 : Math.round(Number(candidate?.startWave));
           const startWave = index === 0 ? 1 : Math.max(previousStartWave + 1, Math.min(100000, Number.isFinite(proposedStart) ? proposedStart : fallback.startWave));
+          const proposedFoodCount = Math.round(Number(candidate?.foodCount));
+          const foodCount = Math.max(0, Number.isFinite(proposedFoodCount) ? proposedFoodCount : fallback.foodCount);
           const proposedCount = Math.round(Number(candidate?.enemyCount));
           const enemyCount = Math.max(1, Number.isFinite(proposedCount) ? proposedCount : fallback.enemyCount);
-          config.waveEnemyCountSchedule.push({ startWave, enemyCount });
+          config.waveSpawnSchedule.push({ startWave, foodCount, enemyCount });
           previousStartWave = startWave;
         }
         for (const moduleId of Object.keys(DEFAULT_MODULE_COOLDOWN_PERCENTAGES)) {
@@ -793,7 +795,7 @@
         const end = text.lastIndexOf("}");
         if (start < 0 || end <= start) throw new Error("配置内容不完整");
         const parsed = JSON.parse(text.slice(start, end + 1));
-        if (parsed?.schemaVersion !== 49) throw new Error("配置版本无效，需要 schemaVersion 49");
+        if (parsed?.schemaVersion !== 50) throw new Error("配置版本无效，需要 schemaVersion 50");
         return normalizeConfig(parsed);
       }
 
@@ -1045,9 +1047,8 @@
 
       function currentWaveDirector() {
         return waveDirectorApi.create({
-          schedule: draft.waveEnemyCountSchedule,
+          schedule: draft.waveSpawnSchedule,
           pressureWaveInterval: draft.balance.enemyPressureWaveInterval,
-          pressureEnemyCountMultiplier: draft.balance.enemyPressureEnemyCountMultiplier,
           pressureThreatMultiplier: draft.balance.enemyPressureThreatMultiplier,
           expectedDpsInterval: draft.balance.enemyExpectedDpsInterval,
           threatLevelOffset: draft.balance.enemyThreatLevelOffset,
@@ -1055,7 +1056,6 @@
           threatGrowthPerWave: draft.balance.enemyThreatGrowthPerWave,
           speedGrowthPerWave: draft.balance.enemySpeedPerWave,
           speedMaxMultiplier: draft.balance.enemySpeedMaxMultiplier,
-          foodExperiencePerWave: draft.balance.foodsPerPlayerPerWave,
           xpRequirementPerTargetLevel: draft.balance.xpRequirementPerTargetLevel,
           healthWeightVariation: draft.balance.enemyHealthWeightVariation
         });
@@ -1071,7 +1071,7 @@
       }
 
       function renderWaveSchedule() {
-        ui.waveScheduleList.replaceChildren(...draft.waveEnemyCountSchedule.map((tier, index, schedule) => {
+        ui.waveScheduleList.replaceChildren(...draft.waveSpawnSchedule.map((tier, index, schedule) => {
           const row = document.createElement("div");
           row.className = "wave-schedule-row";
           const badge = document.createElement("span");
@@ -1100,10 +1100,28 @@
           });
           startField.append(startLabel, startInput);
 
+          const foodField = document.createElement("label");
+          foodField.className = "wave-schedule-field";
+          const foodLabel = document.createElement("span");
+          foodLabel.textContent = "每人每波球数";
+          const foodInput = document.createElement("input");
+          foodInput.type = "number";
+          foodInput.min = "0";
+          foodInput.step = "1";
+          foodInput.value = String(tier.foodCount);
+          foodInput.setAttribute("aria-label", `第 ${index + 1} 段每波球数`);
+          foodInput.addEventListener("change", () => {
+            tier.foodCount = Math.max(0, Math.round(Number(foodInput.value)) || 0);
+            foodInput.value = String(tier.foodCount);
+            renderWavePreview();
+            scheduleAutoSave();
+          });
+          foodField.append(foodLabel, foodInput);
+
           const countField = document.createElement("label");
           countField.className = "wave-schedule-field";
           const countLabel = document.createElement("span");
-          countLabel.textContent = "每人基础敌人数";
+          countLabel.textContent = "每人每波敌人数";
           const countInput = document.createElement("input");
           countInput.type = "number";
           countInput.min = "1";
@@ -1117,7 +1135,7 @@
             scheduleAutoSave();
           });
           countField.append(countLabel, countInput);
-          row.append(badge, startField, countField);
+          row.append(badge, startField, foodField, countField);
           return row;
         }));
       }
@@ -1127,7 +1145,7 @@
         const wave100 = director.plan(100);
         const completionExperience = director.experienceBeforeWave(101);
         const metrics = [
-          ["100 波总投放经验", completionExperience, "包含敌人击破球与每波固定球"],
+          ["100 波总投放经验", completionExperience, "按联合表中的球数与敌人数计算"],
           ["第 100 波前置等级", `LV.${wave100.expectedLevel}`, `${wave100.expectedExperience} 经验对应内部等级`],
           ["第 100 波总威胁", formatWaveNumber(wave100.totalThreat), `${wave100.enemyCount} 条敌人共享生命预算`],
           ["100 波理论周期", formatWaveDuration(draft.balance.waveInterval * 100), `基础间隔 ${formatWaveNumber(draft.balance.waveInterval, 1)} 秒`]
@@ -1152,7 +1170,7 @@
           const values = [
             wave,
             plan.pressure ? "高压波" : "常规波",
-            plan.baseEnemyCount,
+            plan.foodCount,
             plan.enemyCount,
             plan.expectedExperience,
             plan.expectedLevel,
@@ -1169,8 +1187,8 @@
           return row;
         }));
         const pressureInterval = Math.round(draft.balance.enemyPressureWaveInterval);
-        ui.waveSummary.textContent = `${ENEMY_GLOBAL_PARAMETER_DEFINITIONS.length} 项敌人全局 · ${draft.waveEnemyCountSchedule.length} 段计划 · ${pressureInterval > 0 ? `每 ${pressureInterval} 波高压` : "高压波关闭"}`;
-        ui.wavePreviewNote.textContent = `前置经验只按固定投放计划计算 · 权重浮动 ±${formatWaveNumber(draft.balance.enemyHealthWeightVariation * 100, 0)}%`;
+        ui.waveSummary.textContent = `${ENEMY_GLOBAL_PARAMETER_DEFINITIONS.length} 项敌人全局 · ${draft.waveSpawnSchedule.length} 段联合投放 · ${pressureInterval > 0 ? `每 ${pressureInterval} 波高压` : "高压波关闭"}`;
+        ui.wavePreviewNote.textContent = `前置经验按每波球数 + 敌人数计算 · 权重浮动 ±${formatWaveNumber(draft.balance.enemyHealthWeightVariation * 100, 0)}%`;
       }
 
       function renderWaves() {

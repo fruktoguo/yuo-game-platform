@@ -2,7 +2,6 @@ import '../../wave-director.js';
 import {
   ENEMY_EXPECTED_DPS_INTERVAL,
   ENEMY_HEALTH_WEIGHT_VARIATION,
-  ENEMY_PRESSURE_COUNT_MULTIPLIER,
   ENEMY_PRESSURE_THREAT_MULTIPLIER,
   ENEMY_PRESSURE_WAVE_INTERVAL,
   ENEMY_SPEED_GROWTH_PER_WAVE,
@@ -10,15 +9,14 @@ import {
   ENEMY_THREAT_GROWTH_PER_WAVE,
   ENEMY_THREAT_LEVEL_OFFSET,
   ENEMY_THREAT_TIME_COEFFICIENT,
-  FOODS_PER_PLAYER_PER_WAVE,
   XP_REQUIREMENT_PER_TARGET_LEVEL,
 } from './constants';
-import { DESIGNER_WAVE_ENEMY_COUNT_SCHEDULE } from './designerConfig';
+import { DESIGNER_WAVE_SPAWN_SCHEDULE } from './designerConfig';
 
 export interface EnemyWavePlan {
   wave: number;
   pressure: boolean;
-  baseEnemyCount: number;
+  foodCount: number;
   enemyCount: number;
   expectedExperience: number;
   expectedLevel: number;
@@ -38,9 +36,9 @@ export interface EnemyHealthAllocation {
 }
 
 export interface EnemyWaveDirector {
-  readonly schedule: readonly { startWave: number; enemyCount: number }[];
-  baseEnemyCount(waveNumber: number): number;
+  readonly schedule: readonly { startWave: number; foodCount: number; enemyCount: number }[];
   isPressureWave(waveNumber: number): boolean;
+  foodCountForWave(waveNumber: number): number;
   enemyCountForWave(waveNumber: number): number;
   speedMultiplier(waveNumber: number): number;
   experienceFromWave(waveNumber: number): number;
@@ -58,9 +56,8 @@ const api = (globalThis as typeof globalThis & { GSS0WaveDirector?: EnemyWaveDir
 if (!api) throw new Error('PROJECT GSS0 波次导演未加载');
 
 export const enemyWaveDirector = api.create({
-  schedule: DESIGNER_WAVE_ENEMY_COUNT_SCHEDULE,
+  schedule: DESIGNER_WAVE_SPAWN_SCHEDULE,
   pressureWaveInterval: ENEMY_PRESSURE_WAVE_INTERVAL,
-  pressureEnemyCountMultiplier: ENEMY_PRESSURE_COUNT_MULTIPLIER,
   pressureThreatMultiplier: ENEMY_PRESSURE_THREAT_MULTIPLIER,
   expectedDpsInterval: ENEMY_EXPECTED_DPS_INTERVAL,
   threatLevelOffset: ENEMY_THREAT_LEVEL_OFFSET,
@@ -68,7 +65,6 @@ export const enemyWaveDirector = api.create({
   threatGrowthPerWave: ENEMY_THREAT_GROWTH_PER_WAVE,
   speedGrowthPerWave: ENEMY_SPEED_GROWTH_PER_WAVE,
   speedMaxMultiplier: ENEMY_SPEED_MAX_MULTIPLIER,
-  foodExperiencePerWave: FOODS_PER_PLAYER_PER_WAVE,
   xpRequirementPerTargetLevel: XP_REQUIREMENT_PER_TARGET_LEVEL,
   healthWeightVariation: ENEMY_HEALTH_WEIGHT_VARIATION,
 });

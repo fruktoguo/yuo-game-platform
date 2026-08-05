@@ -8,6 +8,7 @@ import { encodeUltraSnapshot } from '../src/shared/snapshotCodec';
 
 const FLOAT32_DECIMAL_PRECISION = 5;
 
+runInThisContext(readFileSync(new URL('../arena-geometry.js', import.meta.url), 'utf8'));
 runInThisContext(readFileSync(new URL('../network-codec.js', import.meta.url), 'utf8'));
 runInThisContext(readFileSync(new URL('../network-player-prediction.js', import.meta.url), 'utf8'));
 runInThisContext(readFileSync(new URL('../network-player-state-codec.js', import.meta.url), 'utf8'));
@@ -78,7 +79,7 @@ interface ClientProjectileRuntime {
     delta: number,
     targetById: (id: number) => { col: number; row: number } | null,
     ownerById: (id: number) => { col: number; row: number } | null,
-    arena: { left: number; top: number; cellSize: number; worldMin?: number; worldMax?: number },
+    arena: { left: number; top: number; cellSize: number; worldMin?: number; worldSize?: number; centerCol?: number; centerRow?: number; boundaryRadius?: number },
     gameTime: number,
   ): void;
 }
@@ -176,7 +177,7 @@ describe('客户端网络模块', () => {
     expect(decoded.segments[0].col).toBeCloseTo(player.segments[0].col, 2);
     expect(decoded.segments[0].row).toBeCloseTo(player.segments[0].row, 2);
 
-    const options = { worldMin: 0, worldMax: 23, selfRange: 0.5, bodyRange: 0.42, playerHeadRange: 1.05, enemyHeadRange: 0.81 };
+    const options = { centerCol: 11.5, centerRow: 11.5, arenaRadius: 11.5, selfRange: 0.5, bodyRange: 0.42, playerHeadRange: 1.05, enemyHeadRange: 0.81 };
     const far = clientGlobals.GSS0PlayerCollisions.detect(player, [{ id: 2, col: 5.9, row: 5, angle: Math.PI, segments: [], dead: false }], [player], options);
     const touching = clientGlobals.GSS0PlayerCollisions.detect(player, [{ id: 2, col: 5.7, row: 5, angle: Math.PI, segments: [], dead: false }], [player], options);
     expect(far).toBeNull();
@@ -216,25 +217,25 @@ describe('客户端网络模块', () => {
 
   it('本地推进直线、追踪和反弹，并接受可靠生命周期更新', () => {
     const runtime = clientGlobals.GSS0ProjectileRuntime.create(24);
-    const state = { id: 1, ownerEntityId: 7, kind: 'shot', col: 2, row: 2, vx: 4, vy: 0, color: '#ff9f43', size: 4, homing: 4, targetId: 9, targetSegmentIndex: -1, bounces: 0 };
+    const state = { id: 1, ownerEntityId: 7, kind: 'shot', col: 6, row: 6, vx: 4, vy: 0, color: '#ff9f43', size: 4, homing: 4, targetId: 9, targetSegmentIndex: -1, bounces: 0 };
     runtime.reset([state]);
-    runtime.update(0.05, () => ({ col: 2, row: 8 }), () => null, { left: 10, top: 20, cellSize: 30 }, 0);
+    runtime.update(0.05, () => ({ col: 6, row: 12 }), () => null, { left: 10, top: 20, cellSize: 30, worldSize: 24 }, 0);
 
-    expect(runtime.items[0].col).toBeGreaterThan(2);
-    expect(runtime.items[0].row).toBeGreaterThan(2);
+    expect(runtime.items[0].col).toBeGreaterThan(6);
+    expect(runtime.items[0].row).toBeGreaterThan(6);
     expect(runtime.items[0].x).toBeCloseTo(10 + (Number(runtime.items[0].col) + 0.5) * 30, 5);
 
     runtime.applyEvents([{ type: 'update', projectile: { ...state, col: 10, row: 10, targetId: null } }]);
     expect(runtime.items[0]).toMatchObject({ col: 10, row: 10, targetId: null });
     runtime.applyEvents([{ type: 'update', projectile: { ...state, col: 23.49, row: 12, vx: 4, homing: 0, targetId: null, bounces: 1 } }]);
-    runtime.update(0.05, () => null, () => null, { left: 10, top: 20, cellSize: 30 }, 0);
+    runtime.update(0.05, () => null, () => null, { left: 10, top: 20, cellSize: 30, worldSize: 24 }, 0);
     expect(runtime.items[0]).toMatchObject({ bounces: 0, targetId: null });
     expect(runtime.items[0].vxCells).toBeLessThan(0);
     runtime.applyEvents([{ type: 'destroy', id: 1, col: 10, row: 10 }]);
     expect(runtime.items).toHaveLength(0);
 
     runtime.applyEvents([{ type: 'spawn', projectile: { ...state, id: 2, col: -2, row: 4, vx: 0, vy: 0, homing: 0, targetId: null } }]);
-    runtime.update(0, () => null, () => null, { left: 10, top: 20, cellSize: 18, worldMin: -5, worldMax: 28 }, 0);
+    runtime.update(0, () => null, () => null, { left: 10, top: 20, cellSize: 18, worldMin: -5, worldSize: 34 }, 0);
     expect(runtime.items[0].x).toBeCloseTo(10 + (-2 + 5 + 0.5) * 18, 5);
   });
 

@@ -1,5 +1,5 @@
 globalThis.GSS0_DESIGNER_CONFIG = {
-  "schemaVersion": 49,
+  "schemaVersion": 50,
   "balance": {
     "playerBaseSpeed": 5,
     "snakeBodySizeScale": 0.775,
@@ -66,14 +66,14 @@ globalThis.GSS0_DESIGNER_CONFIG = {
     "enemyCollisionDamage": 1,
     "waveInterval": 6,
     "enemyPressureWaveInterval": 5,
-    "enemyPressureEnemyCountMultiplier": 2,
     "enemyPressureThreatMultiplier": 2,
     "enemyExpectedDpsInterval": 6,
     "enemyThreatLevelOffset": 3,
     "enemyThreatTimeCoefficient": 4.5,
     "enemyThreatGrowthPerWave": 0.01,
     "enemyHealthWeightVariation": 0.25,
-    "foodsPerPlayerPerWave": 2,
+    "foodSpawnSafetyDistance": 0.8,
+    "spawnPlacementAttempts": 96,
     "enemySpawnWarning": 1.5,
     "enemyScoutUnlockSeconds": 0,
     "enemyScoutSpawnWeight": 10,
@@ -202,11 +202,11 @@ globalThis.GSS0_DESIGNER_CONFIG = {
     "moduleDeathBurstProjectilesPerLevel": 2,
     "moduleCrisisHealthThreshold": 0.5,
     "moduleCrisisRegenPerLevel": 0.2,
-    "arenaBaseArea": 300,
+    "arenaBaseArea": 452.4,
     "arenaAreaPerLevel": 0.1,
     "arenaResizeRate": 2.4,
     "cameraFollowZoomMin": 0.75,
-    "cameraFollowZoomDefault": 1.5,
+    "cameraFollowZoomDefault": 1.25,
     "cameraFollowZoomMax": 2.5,
     "cameraPseudo3DStrengthMax": 1.5,
     "cameraPseudo3DPitchForeshortening": 0.075,
@@ -257,30 +257,36 @@ globalThis.GSS0_DESIGNER_CONFIG = {
     "enemyHeadReformDuration": 0.42,
     "profileSaveDelaySeconds": 30
   },
-  "waveEnemyCountSchedule": [
+  "waveSpawnSchedule": [
     {
       "startWave": 1,
-      "enemyCount": 1
-    },
-    {
-      "startWave": 11,
-      "enemyCount": 2
-    },
-    {
-      "startWave": 31,
+      "foodCount": 3,
       "enemyCount": 3
     },
     {
-      "startWave": 61,
+      "startWave": 11,
+      "foodCount": 4,
       "enemyCount": 4
     },
     {
-      "startWave": 101,
+      "startWave": 31,
+      "foodCount": 5,
       "enemyCount": 5
     },
     {
-      "startWave": 301,
+      "startWave": 61,
+      "foodCount": 6,
       "enemyCount": 6
+    },
+    {
+      "startWave": 101,
+      "foodCount": 7,
+      "enemyCount": 7
+    },
+    {
+      "startWave": 301,
+      "foodCount": 8,
+      "enemyCount": 8
     }
   ],
   "moduleCooldownPercentages": {

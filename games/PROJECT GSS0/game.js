@@ -137,9 +137,11 @@
   const TAU = Math.PI * 2;
   const P2P_TOAST_DURATION_MS = 2800;
   const DESIGNER_CONFIG = globalThis.GSS0_DESIGNER_CONFIG || {};
-  if (DESIGNER_CONFIG.schemaVersion !== 49) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 49");
+  if (DESIGNER_CONFIG.schemaVersion !== 50) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 50");
   const DESIGNER_BALANCE = DESIGNER_CONFIG.balance || {};
   const MODULE_DESIGN_STATES = DESIGNER_CONFIG.moduleStates || {};
+  const arenaGeometry = globalThis.GSS0ArenaGeometry;
+  if (!arenaGeometry) throw new Error("PROJECT GSS0 圆形场地几何未加载");
 
   function designerNumber(key, fallback, minimum, maximum, integer = false) {
     const candidate = DESIGNER_BALANCE[key];
@@ -216,6 +218,7 @@
   const FOOD_COLORS = ["#b8f53f", "#36dcff", "#ff4d96", "#ffd166", "#a98cff", "#54e1a6"];
   const ENEMY_COLORS = ["#ff5c62", "#ff8a4c", "#d95cff", "#ff477e", "#f4c542"];
   const GRID_SIZE = 24;
+  const ARENA_CENTER_COORDINATE = arenaGeometry.centerForGrid(GRID_SIZE);
   const SNAKE_BODY_SIZE_SCALE = designerNumber("snakeBodySizeScale", 0.775, 0.25, 2);
   const SNAKE_SEGMENT_SPACING = designerNumber("snakeSegmentSpacing", 0.45, 0.1, 1.5);
   const ENEMY_HEAD_RADIUS_CELLS = 0.28 * SNAKE_BODY_SIZE_SCALE;
@@ -223,7 +226,7 @@
   const ENEMY_BODY_CONTACT_RANGE = 0.46 * SNAKE_BODY_SIZE_SCALE;
   const PLAYER_SELF_COLLISION_RANGE = 0.5 * SNAKE_BODY_SIZE_SCALE;
   const ENEMY_SELF_COLLISION_RANGE = 0.48 * SNAKE_BODY_SIZE_SCALE;
-  const ARENA_BASE_SIZE = Math.sqrt(designerNumber("arenaBaseArea", 300, 64, 4096));
+  const ARENA_BASE_SIZE = arenaGeometry.diameterFromArea(designerNumber("arenaBaseArea", 452.4, 64, 4096));
   const ARENA_AREA_PER_LEVEL = designerNumber("arenaAreaPerLevel", 0.03, 0, 0.5);
   const ARENA_RESIZE_RATE = designerNumber("arenaResizeRate", 2.4, 0.1, 10);
   const cameraFollowZoomFirst = designerNumber("cameraFollowZoomMin", 0.75, 0.25, 5);
@@ -231,7 +234,7 @@
   const CAMERA_FOLLOW_ZOOM_MIN = Math.min(cameraFollowZoomFirst, cameraFollowZoomLast);
   const CAMERA_FOLLOW_ZOOM_MAX = Math.max(cameraFollowZoomFirst, cameraFollowZoomLast);
   const CAMERA_FOLLOW_ZOOM_DEFAULT = clamp(
-    designerNumber("cameraFollowZoomDefault", 1.5, 0.25, 5),
+    designerNumber("cameraFollowZoomDefault", 1.25, 0.25, 5),
     CAMERA_FOLLOW_ZOOM_MIN,
     CAMERA_FOLLOW_ZOOM_MAX
   );
@@ -271,9 +274,9 @@
   const BOUNCE_SLOW_TIME = 0.78;
   const BOUNCE_LOCK_TIME = 0.34;
   const WAVE_BASE_INTERVAL = designerNumber("waveInterval", 6, 0.5, 120);
-  const FOODS_PER_PLAYER_PER_WAVE = designerNumber("foodsPerPlayerPerWave", 2, 0, 20, true);
+  const FOOD_SPAWN_SAFETY_DISTANCE = designerNumber("foodSpawnSafetyDistance", 0.8, 0, 5);
+  const SPAWN_PLACEMENT_ATTEMPTS = designerNumber("spawnPlacementAttempts", 96, 1, 1000, true);
   const ENEMY_PRESSURE_WAVE_INTERVAL = designerNumber("enemyPressureWaveInterval", 5, 0, 50, true);
-  const ENEMY_PRESSURE_COUNT_MULTIPLIER = designerNumber("enemyPressureEnemyCountMultiplier", 2, 1, 10, true);
   const ENEMY_PRESSURE_THREAT_MULTIPLIER = designerNumber("enemyPressureThreatMultiplier", 2, 1, 10);
   const ENEMY_EXPECTED_DPS_INTERVAL = designerNumber("enemyExpectedDpsInterval", 6, 0.1, 60);
   const ENEMY_THREAT_LEVEL_OFFSET = designerNumber("enemyThreatLevelOffset", 3, 0, 100);
@@ -314,9 +317,8 @@
   const waveDirectorApi = globalThis.GSS0WaveDirector;
   if (!waveDirectorApi) throw new Error("PROJECT GSS0 波次导演未加载");
   const enemyWaveDirector = waveDirectorApi.create({
-    schedule: DESIGNER_CONFIG.waveEnemyCountSchedule,
+    schedule: DESIGNER_CONFIG.waveSpawnSchedule,
     pressureWaveInterval: ENEMY_PRESSURE_WAVE_INTERVAL,
-    pressureEnemyCountMultiplier: ENEMY_PRESSURE_COUNT_MULTIPLIER,
     pressureThreatMultiplier: ENEMY_PRESSURE_THREAT_MULTIPLIER,
     expectedDpsInterval: ENEMY_EXPECTED_DPS_INTERVAL,
     threatLevelOffset: ENEMY_THREAT_LEVEL_OFFSET,
@@ -324,7 +326,6 @@
     threatGrowthPerWave: ENEMY_THREAT_GROWTH_PER_WAVE,
     speedGrowthPerWave: ENEMY_SPEED_GROWTH_PER_WAVE,
     speedMaxMultiplier: ENEMY_SPEED_MAX_MULTIPLIER,
-    foodExperiencePerWave: FOODS_PER_PLAYER_PER_WAVE,
     xpRequirementPerTargetLevel: XP_REQUIREMENT_PER_TARGET_LEVEL,
     healthWeightVariation: ENEMY_HEALTH_WEIGHT_VARIATION
   });
@@ -436,7 +437,7 @@
   let dpr = 1;
   let arenaWorldSize = ARENA_BASE_SIZE;
   let arenaResizeElapsed = 0;
-  let arena = { left: 16, top: 80, right: 241, bottom: 305, width: 225, height: 225, centerX: 128.5, centerY: 192.5, baseCellSize: 225 / ARENA_BASE_SIZE, cellSize: 225 / ARENA_BASE_SIZE, worldMin: (GRID_SIZE - ARENA_BASE_SIZE) / 2, worldMax: (GRID_SIZE + ARENA_BASE_SIZE) / 2 - 1, worldSize: ARENA_BASE_SIZE };
+  let arena = { left: 16, top: 80, right: 241, bottom: 305, width: 225, height: 225, centerX: 128.5, centerY: 192.5, centerCol: ARENA_CENTER_COORDINATE, centerRow: ARENA_CENTER_COORDINATE, boundaryRadius: arenaGeometry.boundaryRadius(ARENA_BASE_SIZE), baseCellSize: 225 / ARENA_BASE_SIZE, cellSize: 225 / ARENA_BASE_SIZE, worldMin: (GRID_SIZE - ARENA_BASE_SIZE) / 2, worldMax: (GRID_SIZE + ARENA_BASE_SIZE) / 2 - 1, worldSize: ARENA_BASE_SIZE };
   let state = "menu";
   let lastFrame = performance.now();
   let lastCanvasRender = 0;
@@ -1317,7 +1318,9 @@
     fieldGradient.addColorStop(0.52, "#0d1113");
     fieldGradient.addColorStop(1, "#14181b");
     arenaTextureCtx.fillStyle = fieldGradient;
-    arenaTextureCtx.fillRect(0, 0, size, size);
+    arenaTextureCtx.beginPath();
+    arenaTextureCtx.arc(size / 2, size / 2, size / 2, 0, TAU);
+    arenaTextureCtx.fill();
 
     const shadowSize = size + ARENA_SHADOW_PADDING * 2;
     arenaShadowCanvas.width = Math.max(1, Math.round(shadowSize * dpr));
@@ -1328,7 +1331,15 @@
     arenaShadowCtx.shadowColor = "rgba(0, 0, 0, 0.72)";
     arenaShadowCtx.shadowBlur = 28;
     arenaShadowCtx.shadowOffsetY = 16;
-    arenaShadowCtx.fillRect(ARENA_SHADOW_PADDING, ARENA_SHADOW_PADDING, size, size);
+    arenaShadowCtx.beginPath();
+    arenaShadowCtx.arc(
+      ARENA_SHADOW_PADDING + size / 2,
+      ARENA_SHADOW_PADDING + size / 2,
+      size / 2,
+      0,
+      TAU
+    );
+    arenaShadowCtx.fill();
     arenaShadowCtx.shadowColor = "transparent";
     arenaShadowCtx.shadowBlur = 0;
     arenaShadowCtx.shadowOffsetY = 0;
@@ -1386,12 +1397,33 @@
       height: arenaSize,
       centerX: left + arenaSize / 2,
       centerY: top + arenaSize / 2,
+      centerCol: ARENA_CENTER_COORDINATE,
+      centerRow: ARENA_CENTER_COORDINATE,
+      boundaryRadius: arenaGeometry.boundaryRadius(arenaWorldSize),
       baseCellSize: arenaSize / ARENA_BASE_SIZE,
       cellSize: arenaSize / arenaWorldSize,
       worldMin,
       worldMax: worldMin + arenaWorldSize - 1,
       worldSize: arenaWorldSize
     };
+  }
+
+  function arenaPlayableRadius(margin = 0) {
+    return arenaGeometry.playableRadius(arena.worldSize, margin);
+  }
+
+  function arenaBoundaryRadius(margin = 0) {
+    return arenaGeometry.boundaryRadius(arena.worldSize, margin);
+  }
+
+  function constrainArenaPoint(col, row, margin = 0, boundary = false) {
+    return arenaGeometry.constrainPoint(
+      col,
+      row,
+      ARENA_CENTER_COORDINATE,
+      ARENA_CENTER_COORDINATE,
+      boundary ? arenaBoundaryRadius(margin) : arenaPlayableRadius(margin)
+    );
   }
 
   function transformArenaVisuals(previous) {
@@ -1442,16 +1474,18 @@
       for (const food of foods) {
         const previousCol = food.col;
         const previousRow = food.row;
-        food.col = clamp(food.col, arena.worldMin, arena.worldMax);
-        food.row = clamp(food.row, arena.worldMin, arena.worldMax);
+        const constrained = constrainArenaPoint(food.col, food.row, FOOD_WALL_MARGIN);
+        food.col = constrained.col;
+        food.row = constrained.row;
         if (!network.enabled && (food.col !== previousCol || food.row !== previousRow)) localFoodSpatialRuntime.trackFood(food);
       }
     }
     if ((constrainContents && shrinking) || network.enabled) {
       for (const hazard of hazards) {
         if (!Number.isFinite(hazard.col) || !Number.isFinite(hazard.row)) continue;
-        hazard.col = clamp(hazard.col, arena.worldMin, arena.worldMax);
-        hazard.row = clamp(hazard.row, arena.worldMin, arena.worldMax);
+        const constrained = constrainArenaPoint(hazard.col, hazard.row);
+        hazard.col = constrained.col;
+        hazard.row = constrained.row;
       }
     }
     if (network.enabled) {
@@ -1679,10 +1713,18 @@
   }
 
   function pixelToCell(x, y) {
-    return {
-      col: clamp(Math.floor(arena.worldMin + (x - arena.left) / arena.cellSize), Math.ceil(arena.worldMin), Math.floor(arena.worldMax)),
-      row: clamp(Math.floor(arena.worldMin + (y - arena.top) / arena.cellSize), Math.ceil(arena.worldMin), Math.floor(arena.worldMax))
-    };
+    const col = arena.worldMin + (x - arena.left) / arena.cellSize - 0.5;
+    const row = arena.worldMin + (y - arena.top) / arena.cellSize - 0.5;
+    const constrained = constrainArenaPoint(col, row);
+    return { col: constrained.col, row: constrained.row };
+  }
+
+  function constrainArenaPixel(x, y, boundary = false) {
+    const col = arena.worldMin + (x - arena.left) / arena.cellSize - 0.5;
+    const row = arena.worldMin + (y - arena.top) / arena.cellSize - 0.5;
+    const constrained = constrainArenaPoint(col, row, 0, boundary);
+    const point = cellCenter(constrained.col, constrained.row);
+    return { ...constrained, x: point.x, y: point.y };
   }
 
   function syncNodePosition(node) {
@@ -3780,8 +3822,9 @@
         networkPlayerPredictionRuntime.update(dt, network.localDesiredAngle, turnRate, moveSpeed);
         applyNetworkSelfPrediction(player);
         if (player.ghost) {
-          player.col = clamp(player.col, arena.worldMin, arena.worldMax);
-          player.row = clamp(player.row, arena.worldMin, arena.worldMax);
+          const constrained = constrainArenaPoint(player.col, player.row);
+          player.col = constrained.col;
+          player.row = constrained.row;
           networkPlayerPredictionRuntime.adoptLocal(player);
           applyNetworkSelfPrediction(player);
         } else {
@@ -3858,8 +3901,9 @@
   function checkNetworkPlayerCollisions() {
     if (!player?.alive || player.ghost || !networkPlayerPredictionRuntime.state.initialized || checkNetworkMineCollision()) return;
     const collision = networkPlayerCollisions.detect(player, enemies, visiblePlayers, {
-      worldMin: arena.worldMin,
-      worldMax: arena.worldMax,
+      centerCol: ARENA_CENTER_COORDINATE,
+      centerRow: ARENA_CENTER_COORDINATE,
+      arenaRadius: arenaPlayableRadius(),
       selfRange: PLAYER_SELF_COLLISION_RANGE,
       bodyRange: SNAKE_BODY_CONTACT_RANGE,
       enemyBodyRange: ENEMY_BODY_CONTACT_RANGE,
@@ -3868,8 +3912,9 @@
     });
     if (!collision) return;
     if (collision.kind === "wall") {
-      player.col = clamp(player.col, arena.worldMin, arena.worldMax);
-      player.row = clamp(player.row, arena.worldMin, arena.worldMax);
+      const constrained = constrainArenaPoint(player.col, player.row);
+      player.col = constrained.col;
+      player.row = constrained.row;
       const claimed = reportNetworkCollision(
         { kind: "wall", normalCol: collision.normalCol, normalRow: collision.normalRow },
         "wall"
@@ -4156,8 +4201,8 @@
     ui.levelUpBanner.classList.remove("is-active");
     ui.shell.classList.remove("is-leveling");
 
-    const startCol = Math.floor(GRID_SIZE / 2);
-    const startRow = Math.floor(GRID_SIZE / 2);
+    const startCol = ARENA_CENTER_COORDINATE;
+    const startRow = ARENA_CENTER_COORDINATE;
     const startPoint = cellCenter(startCol, startRow);
     const initialModule = MODULE_BY_ID[selectedInitialModuleId] || INITIAL_UPGRADE_MODULES[0];
     const initialModuleSegment = makeSegmentAtCell(startCol - SNAKE_SEGMENT_SPACING, startRow, {
@@ -4200,13 +4245,9 @@
     updateHud(true);
   }
 
-  function cellCode(col, row) {
-    return (Math.round(row) & 0xffff) << 16 | (Math.round(col) & 0xffff);
-  }
-
-  function occupiedCellCodes() {
-    const occupied = new Set();
-    const occupyNode = (node) => occupied.add(cellCode(node.col, node.row));
+  function occupiedSpawnPoints() {
+    const occupied = [];
+    const occupyNode = (node) => occupied.push({ col: node.col, row: node.row });
     if (player) {
       occupyNode(player);
       for (const segment of player.segments) occupyNode(segment);
@@ -4225,57 +4266,41 @@
         for (const cell of spawn.bodyCells) occupyNode(cell);
       }
     }
+    for (const hazard of hazards) {
+      if (Number.isFinite(hazard.col) && Number.isFinite(hazard.row)) occupyNode(hazard);
+    }
     return occupied;
   }
 
-  function findFreeCell(preferred = null, wallMargin = 0, occupied = occupiedCellCodes()) {
-    const margin = clamp(Math.ceil(wallMargin), 0, Math.floor((arena.worldSize - 1) / 2));
-    const minimum = Math.ceil(arena.worldMin + margin);
-    const maximum = Math.floor(arena.worldMax - margin);
-    let selected = null;
-    let bestDistance = Infinity;
-    let freeCount = 0;
-    for (let row = minimum; row <= maximum; row += 1) {
-      for (let col = minimum; col <= maximum; col += 1) {
-        if (occupied.has(cellCode(col, row))) continue;
-        freeCount += 1;
-        if (!preferred) continue;
-        const distance = Math.abs(col - preferred.col) + Math.abs(row - preferred.row);
-        if (distance < bestDistance) {
-          bestDistance = distance;
-          selected = { col, row };
-        }
-      }
-    }
-    if (!freeCount) return margin > 0 ? null : preferred;
-    if (preferred) return selected;
-    let targetIndex = Math.floor(Math.random() * freeCount);
-    for (let row = minimum; row <= maximum; row += 1) {
-      for (let col = minimum; col <= maximum; col += 1) {
-        if (occupied.has(cellCode(col, row))) continue;
-        if (targetIndex === 0) return { col, row };
-        targetIndex -= 1;
-      }
-    }
-    return null;
+  function findSpawnPoint(preferred = null, wallMargin = 0, occupied = occupiedSpawnPoints(), safetyDistance = FOOD_SPAWN_SAFETY_DISTANCE) {
+    return arenaGeometry.chooseSpawnPoint({
+      centerCol: ARENA_CENTER_COORDINATE,
+      centerRow: ARENA_CENTER_COORDINATE,
+      radius: arenaPlayableRadius(wallMargin),
+      preferred,
+      occupiedPoints: occupied,
+      safetyDistance,
+      attempts: SPAWN_PLACEMENT_ATTEMPTS,
+      random: Math.random
+    });
   }
 
   function spawnFood(x, y, special = false, occupied = null) {
     const preferred = x == null || y == null ? null : pixelToCell(x, y);
-    const cell = findFreeCell(preferred, FOOD_WALL_MARGIN, occupied || undefined);
+    const spawnOccupied = occupied || occupiedSpawnPoints();
+    const cell = findSpawnPoint(preferred, FOOD_WALL_MARGIN, spawnOccupied);
     if (!cell) return false;
     materializeFood(cell, special);
-    occupied?.add(cellCode(cell.col, cell.row));
+    spawnOccupied.push({ col: cell.col, row: cell.row });
     return true;
   }
 
-  function spawnWaveFoods(count) {
-    const occupied = occupiedCellCodes();
+  function spawnWaveFoods(count, occupied = occupiedSpawnPoints()) {
     for (let index = 0; index < count; index += 1) {
-      const cell = findFreeCell(null, FOOD_WALL_MARGIN, occupied);
+      const cell = findSpawnPoint(null, FOOD_WALL_MARGIN, occupied);
       if (!cell) break;
       materializeFood(cell, false);
-      occupied.add(cellCode(cell.col, cell.row));
+      occupied.push({ col: cell.col, row: cell.row });
     }
   }
 
@@ -4302,20 +4327,23 @@
     sound("foodSpawn");
   }
 
-  function chooseEnemySpawn(bodySegmentCount, occupied = occupiedCellCodes()) {
+  function chooseEnemySpawn(bodySegmentCount, occupied = occupiedSpawnPoints()) {
     return spawnPlanner.choose({
-      minimum: Math.ceil(arena.worldMin),
-      maximum: Math.floor(arena.worldMax),
+      centerCol: ARENA_CENTER_COORDINATE,
+      centerRow: ARENA_CENTER_COORDINATE,
+      radius: arenaPlayableRadius(),
       bodySegmentCount,
       safetyDistance: ENEMY_SPAWN_SAFETY_DISTANCE,
+      occupancyDistance: SNAKE_SEGMENT_SPACING,
       forwardPathHalfWidth: ENEMY_SPAWN_FORWARD_PATH_HALF_WIDTH,
-      occupiedCells: occupied,
+      occupiedPoints: occupied,
       players: player ? [player] : [],
+      attempts: SPAWN_PLACEMENT_ATTEMPTS,
       random: Math.random
     });
   }
 
-  function queueEnemySpawn(archetype, assignedHealth, occupied = occupiedCellCodes()) {
+  function queueEnemySpawn(archetype, assignedHealth, occupied = occupiedSpawnPoints()) {
     if (!player) return;
     const totalLength = Math.max(1, Math.round(assignedHealth));
     const bodySegmentCount = totalLength - 1;
@@ -4324,7 +4352,7 @@
     const headCell = placement.head;
     const nextCell = placement.next;
     const direction = { dx: nextCell.col - headCell.col, dy: nextCell.row - headCell.row };
-    if (direction.dx === 0 && direction.dy === 0) direction.dx = headCell.col < arena.worldMax ? 1 : -1;
+    if (direction.dx === 0 && direction.dy === 0) direction.dx = headCell.col < ARENA_CENTER_COORDINATE ? 1 : -1;
     const color = ENEMY_COLORS[(nextEnemyId - 1) % ENEMY_COLORS.length];
     const bodyCells = spawnPlanner.spaceSpawnBody(headCell, placement.body, SNAKE_SEGMENT_SPACING, bodySegmentCount);
     const headPoint = cellCenter(headCell.col, headCell.row);
@@ -4367,7 +4395,7 @@
       hitBounds: null,
       totalLength,
       headCell: { ...headCell },
-      reservedCells: [headCell, ...placement.body].map((cell) => ({ ...cell })),
+      reservedCells: [headCell, ...bodyCells].map((cell) => ({ ...cell })),
       nextCell: { ...nextCell },
       timer: ENEMY_SPAWN_WARNING_TIME,
       maxTimer: ENEMY_SPAWN_WARNING_TIME
@@ -4380,8 +4408,8 @@
     }
     updateEnemyHitBounds(enemy);
     pendingEnemySpawns.push(enemy);
-    occupied.add(cellCode(headCell.col, headCell.row));
-    for (const cell of placement.body) occupied.add(cellCode(cell.col, cell.row));
+    occupied.push({ col: headCell.col, row: headCell.row });
+    for (const cell of bodyCells) occupied.push({ col: cell.col, row: cell.row });
     sound("enemyWarning");
     return true;
   }
@@ -4441,8 +4469,7 @@
     return available[available.length - 1];
   }
 
-  function queueWaveEnemies(occupied) {
-    const plan = enemyWaveDirector.plan(waveCount + 1);
+  function queueWaveEnemies(plan, occupied) {
     const countMultiplier = MODULE_EFFECTS.beaconEnemyCountMultiplier(moduleCount("beacon"));
     const archetypes = [];
     for (let index = 0; index < Math.ceil(plan.enemyCount * countMultiplier); index += 1) {
@@ -4463,9 +4490,10 @@
   function updateSpawns(dt) {
     waveTimer -= dt * waveCountdownRate();
     if (waveTimer <= 0) {
-      spawnWaveFoods(FOODS_PER_PLAYER_PER_WAVE);
-      const occupied = occupiedCellCodes();
-      queueWaveEnemies(occupied);
+      const plan = enemyWaveDirector.plan(waveCount + 1);
+      const occupied = occupiedSpawnPoints();
+      spawnWaveFoods(plan.foodCount, occupied);
+      queueWaveEnemies(plan, occupied);
       waveCount += 1;
       waveTimer = WAVE_BASE_INTERVAL;
     }
@@ -4843,8 +4871,12 @@
     let bestMovementSquared = 0;
     for (const offset of MINE_KICK_DIRECTION_OFFSETS) {
       const angle = baseAngle + offset;
-      const candidateCol = clamp(hazard.col + Math.cos(angle) * MODULE_MINE_KICK_DISTANCE_CELLS, arena.worldMin, arena.worldMax);
-      const candidateRow = clamp(hazard.row + Math.sin(angle) * MODULE_MINE_KICK_DISTANCE_CELLS, arena.worldMin, arena.worldMax);
+      const constrained = constrainArenaPoint(
+        hazard.col + Math.cos(angle) * MODULE_MINE_KICK_DISTANCE_CELLS,
+        hazard.row + Math.sin(angle) * MODULE_MINE_KICK_DISTANCE_CELLS
+      );
+      const candidateCol = constrained.col;
+      const candidateRow = constrained.row;
       const separationSquared = (candidateCol - kicker.col) ** 2 + (candidateRow - kicker.row) ** 2;
       const movementSquared = (candidateCol - hazard.col) ** 2 + (candidateRow - hazard.row) ** 2;
       if (
@@ -5508,10 +5540,15 @@
     }
 
     const wallMargin = 3.2;
-    if (player.col < arena.worldMin + wallMargin) vectorX += (arena.worldMin + wallMargin - player.col) * 1.4;
-    if (player.col > arena.worldMax + 1 - wallMargin) vectorX -= (player.col - (arena.worldMax + 1 - wallMargin)) * 1.4;
-    if (player.row < arena.worldMin + wallMargin) vectorY += (arena.worldMin + wallMargin - player.row) * 1.4;
-    if (player.row > arena.worldMax + 1 - wallMargin) vectorY -= (player.row - (arena.worldMax + 1 - wallMargin)) * 1.4;
+    const radialCol = player.col - ARENA_CENTER_COORDINATE;
+    const radialRow = player.row - ARENA_CENTER_COORDINATE;
+    const radialDistance = Math.hypot(radialCol, radialRow);
+    const safeRadius = arenaPlayableRadius(wallMargin);
+    if (radialDistance > safeRadius && radialDistance > 0.001) {
+      const correction = (radialDistance - safeRadius) * 1.4;
+      vectorX -= radialCol / radialDistance * correction;
+      vectorY -= radialRow / radialDistance * correction;
+    }
 
     const repel = (node, strength, range) => {
       const awayX = player.col - node.col;
@@ -5710,13 +5747,14 @@
   }
 
   function wallBounceNormal(col, row) {
-    let x = 0;
-    let y = 0;
-    if (col < arena.worldMin) x += 1;
-    else if (col > arena.worldMax) x -= 1;
-    if (row < arena.worldMin) y += 1;
-    else if (row > arena.worldMax) y -= 1;
-    return x || y ? { x, y } : null;
+    const normal = arenaGeometry.wallNormal(
+      col,
+      row,
+      ARENA_CENTER_COORDINATE,
+      ARENA_CENTER_COORDINATE,
+      arenaPlayableRadius()
+    );
+    return normal ? { x: normal.col, y: normal.row } : null;
   }
 
   function findSelfCollision(entity, threshold) {
@@ -6871,15 +6909,12 @@
     const lookaheadDistance = Math.max(ENEMY_WALL_AVOIDANCE_DISTANCE, enemy.speed * ENEMY_THINK_INTERVAL_MAX);
     const projectedCol = enemy.col + Math.cos(enemy.angle) * lookaheadDistance;
     const projectedRow = enemy.row + Math.sin(enemy.angle) * lookaheadDistance;
-    const safeMinimum = arena.worldMin + ENEMY_WALL_AVOIDANCE_DISTANCE;
-    const safeMaximum = arena.worldMax - ENEMY_WALL_AVOIDANCE_DISTANCE;
-    let escapeCol = 0;
-    let escapeRow = 0;
-    if (projectedCol < safeMinimum) escapeCol += safeMinimum - projectedCol;
-    if (projectedCol > safeMaximum) escapeCol -= projectedCol - safeMaximum;
-    if (projectedRow < safeMinimum) escapeRow += safeMinimum - projectedRow;
-    if (projectedRow > safeMaximum) escapeRow -= projectedRow - safeMaximum;
-    if (Math.hypot(escapeCol, escapeRow) > 0.001) enemy.desiredAngle = Math.atan2(escapeRow, escapeCol);
+    const radialCol = projectedCol - ARENA_CENTER_COORDINATE;
+    const radialRow = projectedRow - ARENA_CENTER_COORDINATE;
+    const radialDistance = Math.hypot(radialCol, radialRow);
+    if (radialDistance > arenaPlayableRadius(ENEMY_WALL_AVOIDANCE_DISTANCE) && radialDistance > 0.001) {
+      enemy.desiredAngle = Math.atan2(-radialRow, -radialCol);
+    }
   }
 
   function updateEnemies(dt) {
@@ -7011,14 +7046,15 @@
       }
       const wallNormal = wallBounceNormal(nextCol, nextRow);
       if (wallNormal) {
-        enemy.col = clamp(nextCol, arena.worldMin, arena.worldMax);
-        enemy.row = clamp(nextRow, arena.worldMin, arena.worldMax);
+        const constrained = constrainArenaPoint(nextCol, nextRow);
+        enemy.col = constrained.col;
+        enemy.row = constrained.row;
         syncNodePosition(enemy);
-        const wallDamage = MODULE_PROGRESSION.rollLinearRewards(
-          ENEMY_COLLISION_DAMAGE * (1 + MODULE_EFFECTS.enemyWallDamageBonus(moduleCount("wallbreaker"))),
-          Math.random
-        );
-        damageEnemy(enemy, wallDamage, enemy.x, enemy.y, "#f3c600", { rewardSelf: false, hitSegmentIndex: -1 });
+        const wallDamageBonus = MODULE_EFFECTS.enemyWallDamageBonus(moduleCount("wallbreaker"));
+        if (wallDamageBonus > 0) {
+          const wallDamage = MODULE_PROGRESSION.rollLinearRewards(ENEMY_COLLISION_DAMAGE * wallDamageBonus, Math.random);
+          damageEnemy(enemy, wallDamage, enemy.x, enemy.y, "#f3c600", { rewardSelf: false, hitSegmentIndex: -1 });
+        }
         if (!enemy.dead) bounceEntity(enemy, wallNormal.x, wallNormal.y, enemy.color, 1 + MODULE_EFFECTS.enemyWallKnockbackBonus(moduleCount("wallbreaker")));
         continue;
       }
@@ -7107,8 +7143,9 @@
   }
 
   function expireProjectile(projectile) {
-    const x = clamp(projectile.x, arena.left, arena.right);
-    const y = clamp(projectile.y, arena.top, arena.bottom);
+    const point = constrainArenaPixel(projectile.x, projectile.y, true);
+    const x = point.x;
+    const y = point.y;
     effects.push({
       type: "ring",
       x,
@@ -7200,14 +7237,19 @@
         projectile.x += projectile.vx * dt;
         projectile.y += projectile.vy * dt;
 
-        const hitHorizontalWall = projectile.x < arena.left || projectile.x > arena.right;
-        const hitVerticalWall = projectile.y < arena.top || projectile.y > arena.bottom;
-        if (hitHorizontalWall || hitVerticalWall) {
+        const constrained = constrainArenaPixel(projectile.x, projectile.y, true);
+        if (constrained.collided) {
           if (projectile.bounces !== 0) {
-            projectile.x = clamp(projectile.x, arena.left, arena.right);
-            projectile.y = clamp(projectile.y, arena.top, arena.bottom);
-            if (hitHorizontalWall) projectile.vx *= -1;
-            if (hitVerticalWall) projectile.vy *= -1;
+            projectile.x = constrained.x;
+            projectile.y = constrained.y;
+            const reflected = arenaGeometry.reflectVector(
+              projectile.vx,
+              projectile.vy,
+              constrained.normalCol,
+              constrained.normalRow
+            );
+            projectile.vx = reflected.col;
+            projectile.vy = reflected.row;
             if (projectile.bounces > 0) projectile.bounces -= 1;
           } else {
             projectile.life = 0;
@@ -7282,7 +7324,7 @@
     }
     retainInPlace(projectiles, (projectile) => projectile.life > 0 && (
       projectile.kind === "blade"
-      || (projectile.x >= arena.left && projectile.x <= arena.right && projectile.y >= arena.top && projectile.y <= arena.bottom)
+      || !constrainArenaPixel(projectile.x, projectile.y, true).collided
     ));
   }
 
@@ -7461,7 +7503,7 @@
     const salvageExpectedDrops = causedByPlayer
       ? MODULE_EFFECTS.salvageExpectedDrops(moduleCount("salvage"))
       : 0;
-    const salvageOccupied = salvageExpectedDrops > 0 ? occupiedCellCodes() : null;
+    const salvageOccupied = salvageExpectedDrops > 0 ? occupiedSpawnPoints() : null;
     if (promotedHead) {
       presentDestroyedEnemyNode(oldHeadX, oldHeadY, impactColor, salvageExpectedDrops, salvageOccupied);
       for (let index = 0; index < removed.length - 1; index += 1) {
@@ -7515,7 +7557,7 @@
       }
       if (shotCount > 0) sound("shoot");
     }
-    const dropOccupied = occupiedCellCodes();
+    const dropOccupied = occupiedSpawnPoints();
     if (rewardSelf) {
       kills += 1;
       score += 100 + enemy.captured * 25;
@@ -7644,8 +7686,9 @@
     if (state !== "running") return;
     const wallNormal = wallBounceNormal(player.col, player.row);
     if (wallNormal) {
-      player.col = clamp(player.col, arena.worldMin, arena.worldMax);
-      player.row = clamp(player.row, arena.worldMin, arena.worldMax);
+      const constrained = constrainArenaPoint(player.col, player.row);
+      player.col = constrained.col;
+      player.row = constrained.row;
       triggerCollisionEcho();
       damagePlayer(PLAYER_WALL_COLLISION_DAMAGE);
       if (state === "running") bounceEntity(player, wallNormal.x, wallNormal.y, "#b8f53f");
@@ -7904,10 +7947,17 @@
 
   function cameraViewTouchesArenaBorder(padding = 0) {
     if (!renderWorldBounds.active) return true;
-    return rectIntersectsRenderBounds(arena.left - padding, arena.top - padding, arena.left + padding, arena.bottom + padding)
-      || rectIntersectsRenderBounds(arena.right - padding, arena.top - padding, arena.right + padding, arena.bottom + padding)
-      || rectIntersectsRenderBounds(arena.left - padding, arena.top - padding, arena.right + padding, arena.top + padding)
-      || rectIntersectsRenderBounds(arena.left - padding, arena.bottom - padding, arena.right + padding, arena.bottom + padding);
+    const nearestX = clamp(arena.centerX, renderWorldBounds.left, renderWorldBounds.right);
+    const nearestY = clamp(arena.centerY, renderWorldBounds.top, renderWorldBounds.bottom);
+    const nearestDistance = Math.hypot(nearestX - arena.centerX, nearestY - arena.centerY);
+    const farthestDistance = Math.max(
+      Math.hypot(renderWorldBounds.left - arena.centerX, renderWorldBounds.top - arena.centerY),
+      Math.hypot(renderWorldBounds.right - arena.centerX, renderWorldBounds.top - arena.centerY),
+      Math.hypot(renderWorldBounds.left - arena.centerX, renderWorldBounds.bottom - arena.centerY),
+      Math.hypot(renderWorldBounds.right - arena.centerX, renderWorldBounds.bottom - arena.centerY)
+    );
+    const radius = arena.width / 2;
+    return nearestDistance <= radius + padding && farthestDistance >= Math.max(0, radius - padding);
   }
 
   function drawVisibleArenaTexture() {
@@ -7941,49 +7991,41 @@
     const strength = Math.min(CAMERA_PSEUDO_3D_STRENGTH_MAX, Math.max(0, worldCamera.projectionStrength));
     if (strength <= 0.001 || ARENA_PLATFORM_DEPTH_PIXELS <= 0 || !cameraViewTouchesArenaBorder(ARENA_SHADOW_PADDING)) return;
 
-    const topLeft = worldToViewport(arena.left, arena.top, arenaPlatformCorners[0]);
-    const topRight = worldToViewport(arena.right, arena.top, arenaPlatformCorners[1]);
-    const bottomRight = worldToViewport(arena.right, arena.bottom, arenaPlatformCorners[2]);
-    const bottomLeft = worldToViewport(arena.left, arena.bottom, arenaPlatformCorners[3]);
     const depth = ARENA_PLATFORM_DEPTH_PIXELS * strength;
     const opacity = ARENA_PLATFORM_SIDE_OPACITY * Math.min(1, strength);
+    const arcPoints = [];
+    const sampleCount = 36;
+    for (let index = 0; index <= sampleCount; index += 1) {
+      const angle = index / sampleCount * Math.PI;
+      arcPoints.push(worldToViewport(
+        arena.centerX + Math.cos(angle) * arena.width / 2,
+        arena.centerY + Math.sin(angle) * arena.height / 2,
+        arenaPlatformCorners[index] ||= { x: 0, y: 0 }
+      ));
+    }
 
     ctx.save();
     applyCameraViewportClip();
     ctx.globalAlpha = opacity;
-    const bottomGradient = ctx.createLinearGradient(0, Math.min(bottomLeft.y, bottomRight.y), 0, Math.max(bottomLeft.y, bottomRight.y) + depth);
+    const minimumArcY = Math.min(...arcPoints.map((point) => point.y));
+    const maximumArcY = Math.max(...arcPoints.map((point) => point.y));
+    const bottomGradient = ctx.createLinearGradient(0, minimumArcY, 0, maximumArcY + depth);
     bottomGradient.addColorStop(0, "#11171b");
     bottomGradient.addColorStop(1, "#030607");
     ctx.fillStyle = bottomGradient;
     ctx.beginPath();
-    ctx.moveTo(bottomLeft.x, bottomLeft.y);
-    ctx.lineTo(bottomRight.x, bottomRight.y);
-    ctx.lineTo(bottomRight.x, bottomRight.y + depth);
-    ctx.lineTo(bottomLeft.x, bottomLeft.y + depth);
-    ctx.closePath();
-    ctx.fill();
-
-    const showLeftSide = worldCamera.axisX < -0.08;
-    const sideTop = showLeftSide ? topLeft : topRight;
-    const sideBottom = showLeftSide ? bottomLeft : bottomRight;
-    const sideOffsetX = (showLeftSide ? -1 : 1) * depth * 0.34;
-    const sideOffsetY = depth * 0.58;
-    ctx.globalAlpha = opacity * 0.82;
-    ctx.fillStyle = showLeftSide ? "#071013" : "#0b0d12";
-    ctx.beginPath();
-    ctx.moveTo(sideTop.x, sideTop.y);
-    ctx.lineTo(sideBottom.x, sideBottom.y);
-    ctx.lineTo(sideBottom.x + sideOffsetX, sideBottom.y + sideOffsetY);
-    ctx.lineTo(sideTop.x + sideOffsetX, sideTop.y + sideOffsetY);
+    ctx.moveTo(arcPoints[0].x, arcPoints[0].y);
+    for (let index = 1; index < arcPoints.length; index += 1) ctx.lineTo(arcPoints[index].x, arcPoints[index].y);
+    for (let index = arcPoints.length - 1; index >= 0; index -= 1) ctx.lineTo(arcPoints[index].x, arcPoints[index].y + depth);
     ctx.closePath();
     ctx.fill();
 
     ctx.globalAlpha = opacity * 0.78;
-    ctx.strokeStyle = showLeftSide ? "#f3c600" : "#08c7dc";
+    ctx.strokeStyle = worldCamera.axisX < -0.08 ? "#f3c600" : "#08c7dc";
     ctx.lineWidth = Math.max(1, depth * 0.08);
     ctx.beginPath();
-    ctx.moveTo(bottomLeft.x, bottomLeft.y + depth);
-    ctx.lineTo(bottomRight.x, bottomRight.y + depth);
+    ctx.moveTo(arcPoints[arcPoints.length - 1].x, arcPoints[arcPoints.length - 1].y + depth);
+    for (let index = arcPoints.length - 2; index >= 0; index -= 1) ctx.lineTo(arcPoints[index].x, arcPoints[index].y + depth);
     ctx.stroke();
     ctx.restore();
   }
@@ -8014,6 +8056,10 @@
       applyCameraViewportClip();
       applyCameraTransform();
     }
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(arena.centerX, arena.centerY, arena.width / 2, 0, TAU);
+    ctx.clip();
     drawVisibleArenaTexture();
 
     drawArenaFloorPattern();
@@ -8049,6 +8095,7 @@
     }
 
     ctx.restore();
+    ctx.restore();
     drawArenaPlatformDepth();
 
     const mark = Math.max(16, arena.cellSize * 0.8);
@@ -8060,35 +8107,33 @@
     ctx.shadowBlur = 8;
     ctx.strokeStyle = "rgba(239, 242, 242, 0.6)";
     ctx.lineWidth = 1 / cameraZoom();
-    ctx.strokeRect(arena.left + 0.5, arena.top + 0.5, arena.width - 1, arena.height - 1);
-    ctx.shadowBlur = 0;
-    ctx.strokeStyle = "#f3c600";
-    ctx.lineWidth = 3 / cameraZoom();
     ctx.beginPath();
-    ctx.moveTo(arena.left, arena.top + mark);
-    ctx.lineTo(arena.left, arena.top);
-    ctx.lineTo(arena.left + mark, arena.top);
-    ctx.moveTo(arena.right - mark, arena.top);
-    ctx.lineTo(arena.right, arena.top);
-    ctx.lineTo(arena.right, arena.top + mark * 0.45);
-    ctx.moveTo(arena.left, arena.bottom - mark * 0.45);
-    ctx.lineTo(arena.left, arena.bottom);
-    ctx.lineTo(arena.left + mark, arena.bottom);
-    ctx.moveTo(arena.right - mark, arena.bottom);
-    ctx.lineTo(arena.right, arena.bottom);
-    ctx.lineTo(arena.right, arena.bottom - mark);
+    ctx.arc(arena.centerX, arena.centerY, arena.width / 2 - 0.5, 0, TAU);
     ctx.stroke();
-
-    ctx.fillStyle = "#f3c600";
-    ctx.fillRect(arena.left, arena.top, mark * 0.58, 4);
-    ctx.fillStyle = "#08c7dc";
-    ctx.fillRect(arena.right - mark * 0.45, arena.bottom - 4, mark * 0.45, 4);
-    ctx.fillStyle = "rgba(239, 242, 242, 0.82)";
-    ctx.fillRect(arena.left, arena.bottom - 3, arena.width, 3);
-    ctx.fillStyle = "#f3c600";
-    ctx.fillRect(arena.left, arena.bottom - 3, arena.width * 0.28, 3);
-    ctx.fillStyle = "#08c7dc";
-    ctx.fillRect(arena.right - arena.width * 0.16, arena.bottom - 3, arena.width * 0.16, 3);
+    ctx.shadowBlur = 0;
+    const borderRadius = arena.width / 2;
+    ctx.lineWidth = 3 / cameraZoom();
+    for (const [start, end, color] of [
+      [-Math.PI * 0.9, -Math.PI * 0.58, "#f3c600"],
+      [Math.PI * 0.08, Math.PI * 0.36, "#08c7dc"],
+      [Math.PI * 0.58, Math.PI * 0.9, "rgba(239, 242, 242, 0.82)"]
+    ]) {
+      ctx.strokeStyle = color;
+      ctx.beginPath();
+      ctx.arc(arena.centerX, arena.centerY, borderRadius, start, end);
+      ctx.stroke();
+    }
+    const tickLength = Math.min(mark * 0.42, arena.cellSize * 0.45);
+    for (let index = 0; index < 24; index += 1) {
+      const angle = index / 24 * TAU;
+      const innerRadius = borderRadius - (index % 6 === 0 ? tickLength : tickLength * 0.45);
+      ctx.strokeStyle = index % 2 === 0 ? "rgba(243, 198, 0, 0.7)" : "rgba(8, 199, 220, 0.7)";
+      ctx.lineWidth = (index % 6 === 0 ? 2 : 1) / cameraZoom();
+      ctx.beginPath();
+      ctx.moveTo(arena.centerX + Math.cos(angle) * innerRadius, arena.centerY + Math.sin(angle) * innerRadius);
+      ctx.lineTo(arena.centerX + Math.cos(angle) * borderRadius, arena.centerY + Math.sin(angle) * borderRadius);
+      ctx.stroke();
+    }
     ctx.restore();
   }
 

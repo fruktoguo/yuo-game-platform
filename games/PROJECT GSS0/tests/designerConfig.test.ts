@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { DESIGNER_BALANCE, DESIGNER_WAVE_ENEMY_COUNT_SCHEDULE, moduleCooldownPercent, moduleCooldownSeconds, moduleDesignState } from '../src/shared/designerConfig';
+import { DESIGNER_BALANCE, DESIGNER_WAVE_SPAWN_SCHEDULE, moduleCooldownPercent, moduleCooldownSeconds, moduleDesignState } from '../src/shared/designerConfig';
 import { experienceRequiredForLevel } from '../src/shared/constants';
 import { ACTIVE_SKILL_MODULES, INITIAL_UPGRADE_MODULES, MODULES, UPGRADE_MODULES } from '../src/shared/modules';
 
@@ -60,7 +60,6 @@ describe('设计配置', () => {
       enemySpeedMaxMultiplier: 2,
       enemyTurnRate: 2.4,
       enemyPressureWaveInterval: 5,
-      enemyPressureEnemyCountMultiplier: 2,
       enemyPressureThreatMultiplier: 2,
       enemyExpectedDpsInterval: 6,
       enemyThreatLevelOffset: 3,
@@ -85,7 +84,8 @@ describe('设计配置', () => {
       enemyCoilerUnlockSeconds: 180,
       enemyWardenUnlockSeconds: 240,
       waveInterval: 6,
-      foodsPerPlayerPerWave: 2,
+      foodSpawnSafetyDistance: 0.8,
+      spawnPlacementAttempts: 96,
       projectileSpeedScale: 3,
       projectileSizeScale: 2,
       frostSlowPerStack: 0.2,
@@ -134,10 +134,10 @@ describe('设计配置', () => {
       moduleHealingReceivedPerLevel: 0.1,
       moduleCacheKillsPerTrigger: 5,
       moduleCrisisRegenPerLevel: 0.2,
-      arenaBaseArea: 300,
+      arenaBaseArea: 452.4,
       arenaAreaPerLevel: 0.1,
       cameraFollowZoomMin: 0.75,
-      cameraFollowZoomDefault: 1.5,
+      cameraFollowZoomDefault: 1.25,
       cameraFollowZoomMax: 2.5,
       cameraFollowRenderOverscanPixels: 120,
       cameraFollowFoodIndicatorLimit: 6,
@@ -197,13 +197,13 @@ describe('设计配置', () => {
       enemyHeadReformDuration: 0.42,
       profileSaveDelaySeconds: 30,
     });
-    expect(DESIGNER_WAVE_ENEMY_COUNT_SCHEDULE).toEqual([
-      { startWave: 1, enemyCount: 1 },
-      { startWave: 11, enemyCount: 2 },
-      { startWave: 31, enemyCount: 3 },
-      { startWave: 61, enemyCount: 4 },
-      { startWave: 101, enemyCount: 5 },
-      { startWave: 301, enemyCount: 6 },
+    expect(DESIGNER_WAVE_SPAWN_SCHEDULE).toEqual([
+      { startWave: 1, foodCount: 3, enemyCount: 3 },
+      { startWave: 11, foodCount: 4, enemyCount: 4 },
+      { startWave: 31, foodCount: 5, enemyCount: 5 },
+      { startWave: 61, foodCount: 6, enemyCount: 6 },
+      { startWave: 101, foodCount: 7, enemyCount: 7 },
+      { startWave: 301, foodCount: 8, enemyCount: 8 },
     ]);
   });
 
@@ -272,7 +272,7 @@ describe('设计配置', () => {
 
     expect(parameterKeys.sort()).toEqual(Object.keys(DESIGNER_BALANCE).sort());
     expect(moduleIds.sort()).toEqual(MODULES.map((module) => module.id).sort());
-    expect(moduleProgressionSource).toContain('config?.schemaVersion !== 49');
+    expect(moduleProgressionSource).toContain('config?.schemaVersion !== 50');
     expect(new Set(parameterKeys).size).toBe(255);
     expect(parameterKeys).not.toContain('playerSpeedPerLevel');
     expect(parameterKeys).not.toContain('moduleEffectReductionMaximum');
@@ -312,8 +312,8 @@ describe('设计配置', () => {
     expect(MODULES.some((module) => ['输出', '进攻', '防御', '恢复'].includes(module.category as string))).toBe(false);
     expect(MODULES.every((module) => ['攻击', '生存', '辅助', '发育'].includes(module.category))).toBe(true);
     expect(MODULES.filter((module) => module.category === '发育')).toHaveLength(9);
-    expect(editorHtml).toContain('src="module-catalog.js?v=143"');
-    expect(editorHtml).toContain('src="module-progression.js?v=143"');
+    expect(editorHtml).toContain('src="module-catalog.js?v=144"');
+    expect(editorHtml).toContain('src="module-progression.js?v=144"');
     expect(editorHtml).toContain('const MODULES = moduleCatalog;');
     expect(editorHtml).toContain('descriptionText.textContent = describeModule(module.id, draft.balance);');
     expect(editorHtml).toContain('descriptionNote.textContent = describeModuleNote(module.id, draft.balance);');

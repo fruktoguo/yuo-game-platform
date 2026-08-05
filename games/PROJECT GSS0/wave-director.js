@@ -11,23 +11,27 @@
     return Math.round(finiteNumber(value, fallback, 1, maximum));
   }
 
+  function nonNegativeInteger(value, fallback, maximum = Infinity) {
+    return Math.round(finiteNumber(value, fallback, 0, maximum));
+  }
+
   function normalizeSchedule(value) {
     const entries = Array.isArray(value) ? value : [];
     const normalized = entries
       .map((entry) => ({
         startWave: positiveInteger(entry?.startWave, 1),
-        enemyCount: positiveInteger(entry?.enemyCount, 1)
+        foodCount: nonNegativeInteger(entry?.foodCount, 3),
+        enemyCount: positiveInteger(entry?.enemyCount, 3)
       }))
       .sort((left, right) => left.startWave - right.startWave);
-    if (normalized.length === 0) normalized.push({ startWave: 1, enemyCount: 1 });
-    if (normalized[0].startWave !== 1) normalized.unshift({ startWave: 1, enemyCount: normalized[0].enemyCount });
+    if (normalized.length === 0) normalized.push({ startWave: 1, foodCount: 3, enemyCount: 3 });
+    if (normalized[0].startWave !== 1) normalized.unshift({ startWave: 1, foodCount: normalized[0].foodCount, enemyCount: normalized[0].enemyCount });
     return Object.freeze(normalized.filter((entry, index) => index === 0 || entry.startWave !== normalized[index - 1].startWave));
   }
 
   function create(options = {}) {
     const schedule = normalizeSchedule(options.schedule);
     const pressureWaveInterval = Math.round(finiteNumber(options.pressureWaveInterval, 5, 0, 1000));
-    const pressureEnemyCountMultiplier = positiveInteger(options.pressureEnemyCountMultiplier, 2, 100);
     const pressureThreatMultiplier = finiteNumber(options.pressureThreatMultiplier, 2, 1, 100);
     const expectedDpsInterval = finiteNumber(options.expectedDpsInterval, 6, 0.01, 1000);
     const threatLevelOffset = finiteNumber(options.threatLevelOffset, 3, 0, 1000);
@@ -35,21 +39,20 @@
     const threatGrowthPerWave = finiteNumber(options.threatGrowthPerWave, 0.02, 0, 10);
     const speedGrowthPerWave = finiteNumber(options.speedGrowthPerWave, 0.01, 0, 0.1);
     const speedMaxMultiplier = finiteNumber(options.speedMaxMultiplier, 2, 1, 100);
-    const foodExperiencePerWave = Math.round(finiteNumber(options.foodExperiencePerWave, 2, 0, 1000));
     const xpRequirementPerTargetLevel = positiveInteger(options.xpRequirementPerTargetLevel, 5, 100000);
     const healthWeightVariation = finiteNumber(options.healthWeightVariation, 0.25, 0, 1);
     const experienceBeforeWaveCache = [0, 0];
     let cachedThroughWave = 0;
     let cachedExperience = 0;
 
-    function baseEnemyCount(waveNumber) {
+    function tierForWave(waveNumber) {
       const wave = positiveInteger(waveNumber, 1);
-      let count = schedule[0].enemyCount;
+      let tier = schedule[0];
       for (let index = 1; index < schedule.length; index += 1) {
         if (wave < schedule[index].startWave) break;
-        count = schedule[index].enemyCount;
+        tier = schedule[index];
       }
-      return count;
+      return tier;
     }
 
     function isPressureWave(waveNumber) {
@@ -57,8 +60,12 @@
       return pressureWaveInterval > 0 && wave % pressureWaveInterval === 0;
     }
 
+    function foodCountForWave(waveNumber) {
+      return tierForWave(waveNumber).foodCount;
+    }
+
     function enemyCountForWave(waveNumber) {
-      return baseEnemyCount(waveNumber) * (isPressureWave(waveNumber) ? pressureEnemyCountMultiplier : 1);
+      return tierForWave(waveNumber).enemyCount;
     }
 
     function speedMultiplier(waveNumber) {
@@ -67,7 +74,7 @@
     }
 
     function experienceFromWave(waveNumber) {
-      return enemyCountForWave(waveNumber) + foodExperiencePerWave;
+      return enemyCountForWave(waveNumber) + foodCountForWave(waveNumber);
     }
 
     function experienceBeforeWave(waveNumber) {
@@ -104,7 +111,7 @@
       return Object.freeze({
         wave,
         pressure,
-        baseEnemyCount: baseEnemyCount(wave),
+        foodCount: foodCountForWave(wave),
         enemyCount: enemyCountForWave(wave),
         expectedExperience,
         expectedLevel,
@@ -145,8 +152,8 @@
 
     return Object.freeze({
       schedule,
-      baseEnemyCount,
       isPressureWave,
+      foodCountForWave,
       enemyCountForWave,
       speedMultiplier,
       experienceFromWave,
