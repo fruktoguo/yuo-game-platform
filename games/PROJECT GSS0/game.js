@@ -142,6 +142,8 @@
   const MODULE_DESIGN_STATES = DESIGNER_CONFIG.moduleStates || {};
   const arenaGeometry = globalThis.GSS0ArenaGeometry;
   if (!arenaGeometry) throw new Error("PROJECT GSS0 圆形场地几何未加载");
+  const playerBodyPathApi = globalThis.GSS0PlayerBodyPath;
+  if (!playerBodyPathApi) throw new Error("PROJECT GSS0 玩家历史轨迹未加载");
 
   function designerNumber(key, fallback, minimum, maximum, integer = false) {
     const candidate = DESIGNER_BALANCE[key];
@@ -3764,7 +3766,7 @@
       moved = true;
     }
     if (!moved) return;
-    networkPlayerPredictionRuntime.adoptLocal(player);
+    networkPlayerPredictionRuntime.correctHead(player.col, player.row);
     applyNetworkSelfPrediction(player);
   }
 
@@ -3825,7 +3827,7 @@
           const constrained = constrainArenaPoint(player.col, player.row);
           player.col = constrained.col;
           player.row = constrained.row;
-          networkPlayerPredictionRuntime.adoptLocal(player);
+          networkPlayerPredictionRuntime.correctHead(player.col, player.row);
           applyNetworkSelfPrediction(player);
         } else {
           stabilizeNetworkPlayerHeadSeparation(dt, now);
@@ -3915,6 +3917,8 @@
       const constrained = constrainArenaPoint(player.col, player.row);
       player.col = constrained.col;
       player.row = constrained.row;
+      networkPlayerPredictionRuntime.correctHead(player.col, player.row);
+      applyNetworkSelfPrediction(player);
       const claimed = reportNetworkCollision(
         { kind: "wall", normalCol: collision.normalCol, normalRow: collision.normalRow },
         "wall"
@@ -4232,12 +4236,14 @@
       thornsCooldown: 0,
       bloomCooldown: 0,
       cacheKills: 0,
+      bodyPath: playerBodyPathApi.create(),
       segments: [initialModuleSegment, storageSegment]
     };
     localModuleCountCache.clear();
     refreshActiveModuleCooldown(initialModule.id, initialModuleSegment);
     syncPlayerMaximumHealth(PLAYER_MAX_HEALTH);
     syncTailGuardSegments();
+    playerBodyPathApi.reset(player.bodyPath, player, player.segments, playerSegmentSpacing());
     visiblePlayers = [];
     startRespawnLocator();
 
@@ -5174,6 +5180,7 @@
       const tail = energyStorageSegment() || player.segments[player.segments.length - 1] || player;
       insertBeforeEnergyStorage(player, makeSegmentAtCell(tail.col, tail.row, { tailGuard: true, birthAge: 0 }));
     }
+    resamplePlayerBodyPath(player);
   }
 
   function syncPlayerMaximumHealth(previousMaximum) {
@@ -5606,22 +5613,26 @@
     if (applyTurn) player.angle = rotateToward(player.angle, player.desiredAngle, turnRate * dt);
   }
 
-  function followContinuousSegments(headCol, headRow, segments, spacing) {
-    let previousCol = headCol;
-    let previousRow = headRow;
-    for (const segment of segments) {
-      const dx = previousCol - segment.col;
-      const dy = previousRow - segment.row;
-      const distance = Math.hypot(dx, dy) || 1;
-      segment.angle = Math.atan2(dy, dx);
-      if (distance > spacing) {
-        segment.col = previousCol - dx / distance * spacing;
-        segment.row = previousRow - dy / distance * spacing;
-        syncNodePosition(segment);
-      }
-      previousCol = segment.col;
-      previousRow = segment.row;
-    }
+  function syncPlayerBodyPixels(target) {
+    for (const segment of target.segments) syncNodePosition(segment);
+  }
+
+  function advancePlayerBodyPath(target = player) {
+    if (!target?.bodyPath) return;
+    playerBodyPathApi.advance(target.bodyPath, target, target.segments, playerSegmentSpacing());
+    syncPlayerBodyPixels(target);
+  }
+
+  function correctPlayerBodyPath(target = player) {
+    if (!target?.bodyPath) return;
+    playerBodyPathApi.correct(target.bodyPath, target, target.segments, playerSegmentSpacing());
+    syncPlayerBodyPixels(target);
+  }
+
+  function resamplePlayerBodyPath(target = player) {
+    if (!target?.bodyPath) return;
+    playerBodyPathApi.resample(target.bodyPath, target, target.segments, playerSegmentSpacing());
+    syncPlayerBodyPixels(target);
   }
 
   function startEnemyReconnect(enemy, index, startedAt = null) {
@@ -5716,8 +5727,9 @@
     entity.slow = Math.max(entity.slow || 0, slowDuration);
     entity.collisionCooldown = Math.max(0.06, lockDuration);
     syncNodePosition(entity);
-    if (entity === player) followContinuousSegments(entity.col, entity.row, entity.segments, playerSegmentSpacing());
-    else followEnemySegments(entity, 0);
+    if (entity === player) {
+      if (!network.enabled) resamplePlayerBodyPath(entity);
+    } else followEnemySegments(entity, 0);
     if (entity !== player) updateEnemyHitBounds(entity);
     burst(entity.x, entity.y, color, 13, 135);
     effects.push({ type: "ring", x: entity.x, y: entity.y, color, life: 0.38, maxLife: 0.38, radius: 5, endRadius: arena.cellSize * 0.85 });
@@ -5776,7 +5788,7 @@
     player.row += (Math.sin(player.angle) * player.speed + player.knockbackY) * dt;
     applyKnockbackDecay(player, dt);
     syncNodePosition(player);
-    followContinuousSegments(player.col, player.row, player.segments, playerSegmentSpacing());
+    advancePlayerBodyPath(player);
     updateCorrosionFieldTrail(previousCol, previousRow);
   }
 
@@ -7689,6 +7701,7 @@
       const constrained = constrainArenaPoint(player.col, player.row);
       player.col = constrained.col;
       player.row = constrained.row;
+      correctPlayerBodyPath(player);
       triggerCollisionEcho();
       damagePlayer(PLAYER_WALL_COLLISION_DAMAGE);
       if (state === "running") bounceEntity(player, wallNormal.x, wallNormal.y, "#b8f53f");

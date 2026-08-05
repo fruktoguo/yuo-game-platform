@@ -95,6 +95,7 @@ import {
   type ModuleId,
 } from '../shared/modules';
 import { MODULE_PROGRESSION } from '../shared/moduleProgression';
+import { PLAYER_BODY_PATH, type PlayerBodyPathState } from '../shared/playerBodyPath';
 import type { PlayerMovementState } from '../shared/playerStateCodec';
 import { chooseCircularSpawn, spaceSpawnBody } from '../shared/spawnPlanner';
 import { enemyWaveDirector } from '../shared/waveDirector';
@@ -164,6 +165,7 @@ interface PlayerEntity extends UltraPlayerView {
   lastInputSequence: number;
   lastManualStateAt: number;
   movementHistory: PlayerMovementSample[];
+  bodyPath: PlayerBodyPathState;
   recentPicks: ModuleId[];
   growthQueue: Array<{ color: string; special: boolean }>;
   upgradePending: boolean;
@@ -612,6 +614,7 @@ export class UltraWorld {
       segment.angle = Math.atan2(previousNode.row - segment.row, previousNode.col - segment.col);
       previousNode = segment;
     }
+    PLAYER_BODY_PATH.reconcile(player.bodyPath, player, player.segments, this.playerSegmentSpacing(player));
     this.recordPlayerMovement(player, now);
     return true;
   }
@@ -1233,6 +1236,7 @@ export class UltraWorld {
       lastInputSequence: -1,
       lastManualStateAt: this.now,
       movementHistory: [],
+      bodyPath: PLAYER_BODY_PATH.create(),
       score: 0,
       kills: 0,
       botKills: 0,
@@ -1316,6 +1320,7 @@ export class UltraWorld {
     this.refreshActiveModuleCooldown(player, initialModule.id, initialModuleSegment);
     this.syncPlayerMaximumHealth(player, PLAYER_MAX_HEALTH);
     this.syncTailGuardSegments(player);
+    PLAYER_BODY_PATH.reset(player.bodyPath, player, player.segments, this.playerSegmentSpacing(player));
     player.recentPicks = [];
     player.growth = null;
     player.growthQueue = [];
@@ -1646,7 +1651,7 @@ export class UltraWorld {
       );
       player.col = constrained.col;
       player.row = constrained.row;
-      followContinuousSegments(player.col, player.row, player.segments, this.playerSegmentSpacing(player));
+      PLAYER_BODY_PATH.advance(player.bodyPath, player, player.segments, this.playerSegmentSpacing(player));
       return;
     }
     if (player.collisionCooldown > 0) player.desiredAngle = player.angle;
@@ -1666,7 +1671,7 @@ export class UltraWorld {
       player.row = constrained.row;
     }
     this.applyKnockbackDecay(player, delta);
-    followContinuousSegments(player.col, player.row, player.segments, this.playerSegmentSpacing(player));
+    PLAYER_BODY_PATH.advance(player.bodyPath, player, player.segments, this.playerSegmentSpacing(player));
     this.updateCorrosionFieldTrail(player, previousCol, previousRow);
   }
 
@@ -1913,6 +1918,7 @@ export class UltraWorld {
       const tail = energyStorageSegment(player) ?? (player.segments.at(-1) ?? player);
       insertBeforeEnergyStorage(player, makeSegment(tail.col, tail.row, { tailGuard: true, birthAge: 0 }, this.randomSource));
     }
+    PLAYER_BODY_PATH.resample(player.bodyPath, player, player.segments, this.playerSegmentSpacing(player));
   }
 
   private collectFood(player: PlayerEntity, foodIndex: number, collector: GridPoint): void {
@@ -3897,6 +3903,7 @@ export class UltraWorld {
         const constrained = this.constrainArenaPoint(player.col, player.row);
         player.col = constrained.col;
         player.row = constrained.row;
+        PLAYER_BODY_PATH.correct(player.bodyPath, player, player.segments, this.playerSegmentSpacing(player));
         this.triggerCollisionEcho(player);
         this.damagePlayer(player, PLAYER_WALL_COLLISION_DAMAGE, now, '撞上墙壁');
         if (player.alive) this.bounceEntity(player, wall.col, wall.row, '#b8f53f');
@@ -4550,7 +4557,7 @@ export class UltraWorld {
     const stabilization = isPlayer ? this.moduleCount(entity, 'stabilizer') : 0;
     entity.slow = Math.max(entity.slow, BOUNCE_SLOW_TIME * (1 - MODULE_PROGRESSION.effects.stabilizerSlowReduction(stabilization)) * (1 - collisionReduction));
     entity.collisionCooldown = Math.max(0.06, BOUNCE_LOCK_TIME * (1 - MODULE_PROGRESSION.effects.stabilizerLockReduction(stabilization)) * (1 - collisionReduction));
-    if (isPlayer) followContinuousSegments(entity.col, entity.row, entity.segments, this.playerSegmentSpacing(entity));
+    if (isPlayer) PLAYER_BODY_PATH.resample(entity.bodyPath, entity, entity.segments, this.playerSegmentSpacing(entity));
     else followEnemySegments(entity, 0, SNAKE_SEGMENT_SPACING);
     const anchor: UltraEffectAnchor = isPlayer
       ? { anchorKind: 'player', anchorId: entity.entityId }
@@ -4748,21 +4755,6 @@ function energyStorageSegment(player: { segments: UltraSegment[] }): UltraSegmen
 function insertBeforeEnergyStorage(player: { segments: UltraSegment[] }, segment: UltraSegment): void {
   const storageIndex = player.segments.findIndex((candidate) => candidate.storage);
   player.segments.splice(storageIndex < 0 ? player.segments.length : storageIndex, 0, segment);
-}
-
-function followContinuousSegments(headCol: number, headRow: number, segments: GridPoint[], spacing: number): void {
-  let previous = { col: headCol, row: headRow };
-  for (const segment of segments) {
-    const dx = previous.col - segment.col;
-    const dy = previous.row - segment.row;
-    const distance = Math.hypot(dx, dy) || 1;
-    if ('angle' in segment) (segment as GridPoint & { angle: number }).angle = Math.atan2(dy, dx);
-    if (distance > spacing) {
-      segment.col = previous.col - dx / distance * spacing;
-      segment.row = previous.row - dy / distance * spacing;
-    }
-    previous = segment;
-  }
 }
 
 function nearestEnemySegmentIndex(enemy: EnemyEntity, point: GridPoint): number {

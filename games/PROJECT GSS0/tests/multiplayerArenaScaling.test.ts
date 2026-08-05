@@ -34,9 +34,10 @@ describe('多人场地等级缩放', () => {
     expect(SNAKE_SEGMENT_SPACING).toBeGreaterThan(0);
     expect(clientSource).toContain('segmentSpacing: playerSegmentSpacing');
     expect(clientSource).toContain('return SNAKE_SEGMENT_SPACING * (1 + MODULE_EFFECTS.segmentSpacingBonus(moduleCount("linkage")));');
-    expect(clientSource).toContain('followContinuousSegments(player.col, player.row, player.segments, playerSegmentSpacing());');
+    expect(clientSource).toContain('playerBodyPathApi.advance(target.bodyPath, target, target.segments, playerSegmentSpacing());');
     expect(serverSource).toContain("return SNAKE_SEGMENT_SPACING * (1 + MODULE_PROGRESSION.effects.segmentSpacingBonus(this.moduleCount(player, 'linkage')));");
-    expect(serverSource).toContain('followContinuousSegments(player.col, player.row, player.segments, this.playerSegmentSpacing(player));');
+    expect(serverSource).toContain('PLAYER_BODY_PATH.advance(player.bodyPath, player, player.segments, this.playerSegmentSpacing(player));');
+    expect(serverSource).toContain('PLAYER_BODY_PATH.correct(player.bodyPath, player, player.segments, this.playerSegmentSpacing(player));');
     expect(serverSource).toContain('followEnemySegments(enemy, delta, SNAKE_SEGMENT_SPACING);');
     expect(serverSource).toContain('return 18 / CANONICAL_CELL_SIZE * SNAKE_BODY_SIZE_SCALE;');
     expect(editorSource).toContain('{ key: "snakeBodySizeScale", group: "表现", label: "蛇体大小"');

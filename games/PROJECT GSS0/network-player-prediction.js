@@ -2,6 +2,8 @@
   "use strict";
 
   const TAU = Math.PI * 2;
+  const bodyPathApi = root.GSS0PlayerBodyPath;
+  if (!bodyPathApi) throw new Error("PROJECT GSS0 玩家历史轨迹未加载");
 
   function normalizeAngle(value) {
     return (value % TAU + TAU) % TAU;
@@ -20,6 +22,7 @@
     const knockbackDecay = Math.max(0, Number(options.knockbackDecay) || 8);
     const knockbackStopSpeed = Math.max(0, Number(options.knockbackStopSpeed) || 0.04);
     const segmentSpacingOption = options.segmentSpacing;
+    const bodyPath = bodyPathApi.create();
     const state = {
       initialized: false,
       ghost: false,
@@ -40,6 +43,15 @@
     function clear() {
       state.initialized = false;
       state.segments.length = 0;
+      bodyPath.points.length = 0;
+      bodyPath.initialized = false;
+      bodyPath.lastAdvance = null;
+    }
+
+    function segmentSpacing() {
+      return Math.max(0.05, Number(
+        typeof segmentSpacingOption === "function" ? segmentSpacingOption() : segmentSpacingOption
+      ) || 0.58);
     }
 
     function copyAuthoritative(authoritative) {
@@ -65,6 +77,7 @@
         segment.angle = Number(source.angle) || 0;
       }
       state.segments.length = authoritativeSegments.length;
+      bodyPathApi.reconcile(bodyPath, state, state.segments, segmentSpacing());
     }
 
     function syncAuthoritative(authoritative) {
@@ -80,6 +93,7 @@
         state.segments.push({ col: source.col, row: source.row, angle: Number(source.angle) || 0 });
       }
       if (state.segments.length > authoritativeSegments.length) state.segments.length = authoritativeSegments.length;
+      bodyPathApi.resample(bodyPath, state, state.segments, segmentSpacing());
     }
 
     function adoptLocal(local) {
@@ -89,23 +103,14 @@
     }
 
     function followSegments() {
-      const segmentSpacing = Math.max(0.05, Number(
-        typeof segmentSpacingOption === "function" ? segmentSpacingOption() : segmentSpacingOption
-      ) || 0.58);
-      let previousCol = state.col;
-      let previousRow = state.row;
-      for (const segment of state.segments) {
-        const dx = previousCol - segment.col;
-        const dy = previousRow - segment.row;
-        const distance = Math.hypot(dx, dy) || 1;
-        segment.angle = Math.atan2(dy, dx);
-        if (distance > segmentSpacing) {
-          segment.col = previousCol - dx / distance * segmentSpacing;
-          segment.row = previousRow - dy / distance * segmentSpacing;
-        }
-        previousCol = segment.col;
-        previousRow = segment.row;
-      }
+      bodyPathApi.advance(bodyPath, state, state.segments, segmentSpacing());
+    }
+
+    function correctHead(col, row) {
+      if (!state.initialized) return;
+      state.col = Number.isFinite(col) ? col : state.col;
+      state.row = Number.isFinite(row) ? row : state.row;
+      bodyPathApi.correct(bodyPath, state, state.segments, segmentSpacing());
     }
 
     function simulate(duration, desiredAngle, turnRate, speed) {
@@ -139,7 +144,7 @@
       simulate(duration, desiredAngle, turnRate, speed);
     }
 
-    return Object.freeze({ state, clear, reconcile, syncAuthoritative, adoptLocal, update });
+    return Object.freeze({ state, clear, reconcile, syncAuthoritative, adoptLocal, correctHead, update });
   }
 
   root.GSS0PlayerPrediction = Object.freeze({ create });

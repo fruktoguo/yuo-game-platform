@@ -9,6 +9,7 @@ import { encodeUltraSnapshot } from '../src/shared/snapshotCodec';
 const FLOAT32_DECIMAL_PRECISION = 5;
 
 runInThisContext(readFileSync(new URL('../arena-geometry.js', import.meta.url), 'utf8'));
+runInThisContext(readFileSync(new URL('../player-body-path.js', import.meta.url), 'utf8'));
 runInThisContext(readFileSync(new URL('../network-codec.js', import.meta.url), 'utf8'));
 runInThisContext(readFileSync(new URL('../network-player-prediction.js', import.meta.url), 'utf8'));
 runInThisContext(readFileSync(new URL('../network-player-state-codec.js', import.meta.url), 'utf8'));
@@ -58,6 +59,7 @@ interface ClientPlayerPredictionRuntime {
   clear(): void;
   reconcile(authoritative: UltraSnapshot['players'][number]): void;
   syncAuthoritative(authoritative: UltraSnapshot['players'][number]): void;
+  correctHead(col: number, row: number): void;
   update(duration: number, desiredAngle: number, turnRate: number, speed: number): void;
 }
 
@@ -155,6 +157,33 @@ describe('客户端网络模块', () => {
     runtime.syncAuthoritative({ ...authoritative, col: 2, row: 2 });
     expect(runtime.state.col).toBe(predictedCol);
     expect(runtime.state.row).toBe(predictedRow);
+  });
+
+  it('联机预测身体按累计路径距离通过转角并可回写墙面修正', () => {
+    const runtime = clientGlobals.GSS0PlayerPrediction.create({ segmentSpacing: 1 });
+    const authoritative = snapshotAt(21, 0).players[0];
+    authoritative.row = 0;
+    authoritative.angle = 0;
+    authoritative.desiredAngle = 0;
+    authoritative.segments = [
+      { ...authoritative.segments[0], col: -1, row: 0 },
+      { ...authoritative.segments[0], col: -2, row: 0 },
+    ];
+    runtime.reconcile(authoritative);
+
+    runtime.update(0.1, 0, 100, 10);
+    runtime.update(0.1, Math.PI / 2, 100, 10);
+    runtime.update(0.1, Math.PI / 2, 100, 10);
+
+    expect(runtime.state.col).toBeCloseTo(1, 8);
+    expect(runtime.state.row).toBeCloseTo(2, 8);
+    expect(runtime.state.segments[0].col).toBeCloseTo(1, 8);
+    expect(runtime.state.segments[0].row).toBeCloseTo(1, 8);
+    expect(runtime.state.segments[1].col).toBeCloseTo(1, 8);
+    expect(runtime.state.segments[1].row).toBeCloseTo(0, 8);
+
+    runtime.correctHead(0.75, 1.75);
+    expect(runtime.state.segments.every((segment) => segment.col <= 1.0000001)).toBe(true);
   });
 
   it('完整蛇身状态使用紧凑定点坐标包往返，碰撞只按客户端可见距离触发', () => {
