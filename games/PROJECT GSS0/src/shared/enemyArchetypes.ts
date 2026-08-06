@@ -95,6 +95,13 @@ export const ENEMY_ARCHETYPES: readonly EnemyArchetypeDefinition[] = Object.free
     speedMultiplier: DESIGNER_BALANCE.enemyEngineerSpeedMultiplier,
     turnMultiplier: DESIGNER_BALANCE.enemyEngineerTurnMultiplier,
   }),
+  definition('bombardier', {
+    unlockSeconds: DESIGNER_BALANCE.enemyBombardierUnlockSeconds,
+    spawnWeight: DESIGNER_BALANCE.enemyBombardierSpawnWeight,
+    healthWeight: DESIGNER_BALANCE.enemyBombardierHealthWeight,
+    speedMultiplier: DESIGNER_BALANCE.enemyBombardierSpeedMultiplier,
+    turnMultiplier: DESIGNER_BALANCE.enemyBombardierTurnMultiplier,
+  }),
 ]);
 
 if (ENEMY_ARCHETYPES.length !== ENEMY_ARCHETYPE_IDS.length) {

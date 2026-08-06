@@ -13,7 +13,7 @@ interface DesignerConfigSource {
 }
 
 const source = (globalThis as typeof globalThis & { GSS0_DESIGNER_CONFIG?: DesignerConfigSource }).GSS0_DESIGNER_CONFIG;
-if (source?.schemaVersion !== 54) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 54');
+if (source?.schemaVersion !== 55) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 55');
 
 function numberSetting(key: string, fallback: number, minimum: number, maximum: number, integer = false): number {
   const candidate = source?.balance?.[key];
@@ -188,6 +188,21 @@ export const DESIGNER_BALANCE = Object.freeze({
   enemyEngineerDetachInterval: numberSetting('enemyEngineerDetachInterval', 6, 0.1, 60),
   enemyEngineerDetachWarningDuration: numberSetting('enemyEngineerDetachWarningDuration', 0.9, 0, 10),
   enemyEngineerJointActivationDuration: numberSetting('enemyEngineerJointActivationDuration', 0.55, 0.05, 10),
+  enemyBombardierUnlockSeconds: numberSetting('enemyBombardierUnlockSeconds', 180, 0, 3_600),
+  enemyBombardierSpawnWeight: numberSetting('enemyBombardierSpawnWeight', 1.25, 0, 20),
+  enemyBombardierHealthWeight: numberSetting('enemyBombardierHealthWeight', 3, 0.01, 20),
+  enemyBombardierSpeedMultiplier: numberSetting('enemyBombardierSpeedMultiplier', 0.7, 0.1, 3),
+  enemyBombardierTurnMultiplier: numberSetting('enemyBombardierTurnMultiplier', 0.85, 0.1, 3),
+  enemyBombardierFireInterval: numberSetting('enemyBombardierFireInterval', 5.5, 0.1, 60),
+  enemyBombardierAimDuration: numberSetting('enemyBombardierAimDuration', 1.1, 0.05, 10),
+  enemyBombardierLockDuration: numberSetting('enemyBombardierLockDuration', 0.45, 0.05, 10),
+  enemyBombardierProjectileSpeed: numberSetting('enemyBombardierProjectileSpeed', 5.2, 0.1, 30),
+  enemyBombardierProjectileRadiusCells: numberSetting('enemyBombardierProjectileRadiusCells', 0.34, 0.1, 2),
+  enemyBombardierProjectileSpawnGapCells: numberSetting('enemyBombardierProjectileSpawnGapCells', 0.15, 0, 2),
+  enemyBombardierWarningLengthCells: numberSetting('enemyBombardierWarningLengthCells', 3.2, 0.5, 10),
+  enemyBombardierWarningWidthCells: numberSetting('enemyBombardierWarningWidthCells', 0.09, 0.02, 1),
+  enemyBombardierWarningGapCells: numberSetting('enemyBombardierWarningGapCells', 0.35, 0, 5),
+  enemyBombardierWarningPulseRate: numberSetting('enemyBombardierWarningPulseRate', 3.2, 0, 12),
   waveInterval: numberSetting('waveInterval', 6, 0.5, 120),
   foodSpawnSafetyDistance: numberSetting('foodSpawnSafetyDistance', 0.8, 0, 5),
   spawnPlacementAttempts: numberSetting('spawnPlacementAttempts', 96, 1, 1_000, true),

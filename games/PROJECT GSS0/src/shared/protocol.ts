@@ -1,9 +1,9 @@
 import type { ModuleId } from './modules';
 
-export const ENEMY_ARCHETYPE_IDS = ['scout', 'forager', 'courier', 'charger', 'cutter', 'coiler', 'warden', 'liner', 'skitter', 'headhunter', 'engineer'] as const;
+export const ENEMY_ARCHETYPE_IDS = ['scout', 'forager', 'courier', 'charger', 'cutter', 'coiler', 'warden', 'liner', 'skitter', 'headhunter', 'engineer', 'bombardier'] as const;
 export type EnemyArchetypeId = typeof ENEMY_ARCHETYPE_IDS[number];
 
-export const ENEMY_BEHAVIOR_STATES = ['roam', 'forage', 'intercept', 'orbit', 'escort', 'straight', 'scramble', 'aim', 'lock', 'rush', 'deploy', 'activate', 'static'] as const;
+export const ENEMY_BEHAVIOR_STATES = ['roam', 'forage', 'intercept', 'orbit', 'escort', 'straight', 'scramble', 'aim', 'lock', 'rush', 'deploy', 'activate', 'static', 'munition'] as const;
 export type EnemyBehaviorState = typeof ENEMY_BEHAVIOR_STATES[number];
 
 export interface GridPoint {

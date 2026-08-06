@@ -145,7 +145,7 @@
   const TAU = Math.PI * 2;
   const P2P_TOAST_DURATION_MS = 2800;
   const DESIGNER_CONFIG = globalThis.GSS0_DESIGNER_CONFIG || {};
-  if (DESIGNER_CONFIG.schemaVersion !== 54) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 54");
+  if (DESIGNER_CONFIG.schemaVersion !== 55) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 55");
   const DESIGNER_BALANCE = DESIGNER_CONFIG.balance || {};
   const MODULE_DESIGN_STATES = DESIGNER_CONFIG.moduleStates || {};
   const arenaGeometry = globalThis.GSS0ArenaGeometry;
@@ -282,6 +282,7 @@
     skitter: createEnemyArmorPolygon([[18, 0], [6, 14], [-8, 10], [-15, 0], [-8, -10], [6, -14]]),
     headhunter: createEnemyArmorPolygon([[23, 0], [4, 13], [-13, 8], [-13, -8], [4, -13]]),
     engineer: createEnemyArmorPolygon([[17, 0], [10, 13], [-11, 13], [-16, 7], [-16, -7], [-11, -13], [10, -13]]),
+    bombardier: createEnemyArmorPolygon([[20, 0], [9, 12], [-8, 14], [-16, 7], [-16, -7], [-8, -14], [9, -12]]),
     default: createEnemyArmorPolygon([[18, 0], [8, 12], [-7, 11], [-15, 5], [-12, 0], [-15, -5], [-7, -11], [8, -12]])
   });
   const ENEMY_BODY_ARMOR_SHAPES = Object.freeze({
@@ -295,6 +296,7 @@
     skitter: createEnemyArmorPolygon([[8, -8], [11, 0], [8, 8], [-8, 8], [-11, 0], [-8, -8]]),
     headhunter: createEnemyArmorPolygon([[11, 0], [3, 9], [-9, 6], [-9, -6], [3, -9]]),
     engineer: createEnemyArmorPolygon([[9, -9], [9, 9], [-9, 9], [-9, -9]]),
+    bombardier: createEnemyArmorPolygon([[11, 0], [5, 9], [-7, 9], [-11, 0], [-7, -9], [5, -9]]),
     default: createEnemyArmorPolygon([[10, 0], [4, 9], [-8, 7], [-11, 0], [-8, -7], [4, -9]])
   });
   const SNAKE_BODY_CONTACT_RANGE = 0.42 * SNAKE_BODY_SIZE_SCALE;
@@ -436,7 +438,8 @@
     enemyArchetype("liner", "Liner", { unlockSeconds: 0, spawnWeight: 6, healthWeight: 1, speedMultiplier: 1.2, turnMultiplier: 1 }),
     enemyArchetype("skitter", "Skitter", { unlockSeconds: 120, spawnWeight: 2, healthWeight: 2, speedMultiplier: 1.5, turnMultiplier: 1.5 }),
     enemyArchetype("headhunter", "HeadHunter", { unlockSeconds: 60, spawnWeight: 3, healthWeight: 1, speedMultiplier: 1.8, turnMultiplier: 3 }),
-    enemyArchetype("engineer", "Engineer", { unlockSeconds: 120, spawnWeight: 1.5, healthWeight: 4, speedMultiplier: 0.75, turnMultiplier: 0.9 })
+    enemyArchetype("engineer", "Engineer", { unlockSeconds: 120, spawnWeight: 1.5, healthWeight: 4, speedMultiplier: 0.75, turnMultiplier: 0.9 }),
+    enemyArchetype("bombardier", "Bombardier", { unlockSeconds: 180, spawnWeight: 1.25, healthWeight: 3, speedMultiplier: 0.7, turnMultiplier: 0.85 })
   ]);
   const DEBUG_ENEMY_ARCHETYPE = DEBUG_ENEMY_ARCHETYPE_ID
     ? ENEMY_ARCHETYPES.find((entry) => entry.id === DEBUG_ENEMY_ARCHETYPE_ID) || null
@@ -465,7 +468,17 @@
     headHunterLockSpeedMultiplier: designerNumber("enemyHeadHunterLockSpeedMultiplier", 0, 0, 1),
     engineerDetachInterval: designerNumber("enemyEngineerDetachInterval", 6, 0.1, 60),
     engineerDetachWarningDuration: designerNumber("enemyEngineerDetachWarningDuration", 0.9, 0, 10),
-    engineerJointActivationDuration: designerNumber("enemyEngineerJointActivationDuration", 0.55, 0.05, 10)
+    engineerJointActivationDuration: designerNumber("enemyEngineerJointActivationDuration", 0.55, 0.05, 10),
+    bombardierFireInterval: designerNumber("enemyBombardierFireInterval", 5.5, 0.1, 60),
+    bombardierAimDuration: designerNumber("enemyBombardierAimDuration", 1.1, 0.05, 10),
+    bombardierLockDuration: designerNumber("enemyBombardierLockDuration", 0.45, 0.05, 10),
+    bombardierProjectileSpeed: designerNumber("enemyBombardierProjectileSpeed", 5.2, 0.1, 30),
+    bombardierProjectileRadiusCells: designerNumber("enemyBombardierProjectileRadiusCells", 0.34, 0.1, 2),
+    bombardierProjectileSpawnGapCells: designerNumber("enemyBombardierProjectileSpawnGapCells", 0.15, 0, 2),
+    bombardierWarningLengthCells: designerNumber("enemyBombardierWarningLengthCells", 3.2, 0.5, 10),
+    bombardierWarningWidthCells: designerNumber("enemyBombardierWarningWidthCells", 0.09, 0.02, 1),
+    bombardierWarningGapCells: designerNumber("enemyBombardierWarningGapCells", 0.35, 0, 5),
+    bombardierWarningPulseRate: designerNumber("enemyBombardierWarningPulseRate", 3.2, 0, 12)
   });
   const UPGRADE_INVULNERABILITY_DURATION = designerNumber("upgradeInvulnerabilityDuration", 0.5, 0, 10);
   const RESPAWN_LOCATOR_CONVERGE_DURATION = designerNumber("respawnLocatorConvergeDuration", 1, 0.1, 10);
@@ -1881,6 +1894,10 @@
     return enemy?.archetype === "engineer" && (enemy.behaviorState === "activate" || enemy.behaviorState === "static");
   }
 
+  function isBombardierProjectile(enemy) {
+    return enemy?.archetype === "bombardier" && enemy.behaviorState === "munition";
+  }
+
   function staticEngineerActivationScale(enemy) {
     if (enemy?.behaviorState === "static") return 1;
     const progress = clamp(Number(enemy?.behaviorPhase) || 0, 0, 1);
@@ -1893,6 +1910,7 @@
   }
 
   function enemyHeadRadiusPixels(enemy) {
+    if (isBombardierProjectile(enemy)) return ENEMY_BEHAVIOR_TUNING.bombardierProjectileRadiusCells * arena.cellSize;
     if (isStaticEngineerJoint(enemy)) {
       return Number.isFinite(enemy?.radius)
         ? Math.max(0, enemy.radius)
@@ -1902,9 +1920,11 @@
   }
 
   function syncEnemyJointRadii(enemy) {
-    enemy.radius = isStaticEngineerJoint(enemy)
-      ? enemyJointRadiusPixels(enemy, false) * staticEngineerActivationScale(enemy)
-      : enemyJointRadiusPixels(enemy, true);
+    enemy.radius = isBombardierProjectile(enemy)
+      ? ENEMY_BEHAVIOR_TUNING.bombardierProjectileRadiusCells * arena.cellSize
+      : isStaticEngineerJoint(enemy)
+        ? enemyJointRadiusPixels(enemy, false) * staticEngineerActivationScale(enemy)
+        : enemyJointRadiusPixels(enemy, true);
     for (const segment of enemy.segments || []) segment.radius = enemyJointRadiusPixels(segment, false);
   }
 
@@ -6077,6 +6097,11 @@
       if (!network.enabled) resamplePlayerBodyPath(entity);
     } else {
       followEnemySegments(entity, 0);
+      if (isBombardierProjectile(entity)) {
+        entity.lockedAngle = entity.angle;
+        entity.knockbackX = 0;
+        entity.knockbackY = 0;
+      }
       if (entity.archetype === "skitter") entity.behaviorTimer = 0;
       if (entity.archetype === "headhunter") {
         entity.needsReacquire = true;
@@ -6431,10 +6456,12 @@
     triggerCollisionEcho();
     if (player.dashing) {
       applyPlayerDashCollisionAttack(enemy, node, hitHead);
+      if (isBombardierProjectile(enemy) && !enemy.dead) killEnemy(enemy, false);
       return;
     }
     const defended = consumeDefense();
     if (!defended) damagePlayerFromCollision(PLAYER_ENEMY_BODY_COLLISION_DAMAGE);
+    if (isBombardierProjectile(enemy) && !enemy.dead) killEnemy(enemy, false);
   }
 
   function localStatusEffectMultiplier() {
@@ -7243,6 +7270,11 @@
       if (enemy.behaviorState !== "deploy") enemy.behaviorState = "roam";
       return;
     }
+    if (enemy.archetype === "bombardier") {
+      enemy.target = null;
+      if (!["aim", "lock", "munition"].includes(enemy.behaviorState)) enemy.behaviorState = "roam";
+      return;
+    }
     if (enemy.archetype === "liner") {
       enemy.target = null;
       enemy.behaviorState = "straight";
@@ -7318,6 +7350,18 @@
       }
       return;
     }
+    if (enemy.archetype === "bombardier") {
+      enemy.target = null;
+      if (isBombardierProjectile(enemy)) {
+        enemy.desiredAngle = enemy.angle;
+        return;
+      }
+      if (enemy.behaviorState === "aim" || enemy.behaviorState === "lock") return;
+      enemy.behaviorState = "roam";
+      enemy.behaviorPhase = 0;
+      enemy.desiredAngle += Math.sin(gameTime + enemy.wobble) * 0.05;
+      return;
+    }
     if (enemy.archetype === "liner") {
       enemy.desiredAngle = enemy.angle;
       enemy.behaviorState = "straight";
@@ -7384,6 +7428,13 @@
       enemy.behaviorPhase = 0;
       enemy.behaviorDuration = ENEMY_BEHAVIOR_TUNING.engineerDetachInterval;
       enemy.behaviorTimer = enemy.segments.length > 0 ? enemy.behaviorDuration : 0;
+      return;
+    }
+    if (enemy.archetype === "bombardier") {
+      enemy.behaviorState = "roam";
+      enemy.behaviorPhase = 0;
+      enemy.behaviorDuration = ENEMY_BEHAVIOR_TUNING.bombardierFireInterval;
+      enemy.behaviorTimer = enemy.behaviorDuration;
       return;
     }
     if (enemy.archetype === "liner") {
@@ -7518,7 +7569,133 @@
     enemy.needsReacquire = false;
   }
 
+  function spawnBombardierProjectile(enemy) {
+    if (!enemy || enemy.dead || enemy.archetype !== "bombardier" || isBombardierProjectile(enemy)) return null;
+    const angle = enemy.lockedAngle;
+    const projectileRadius = ENEMY_BEHAVIOR_TUNING.bombardierProjectileRadiusCells;
+    const spawnDistance = enemyHeadRadiusCells(enemy)
+      + projectileRadius
+      + ENEMY_BEHAVIOR_TUNING.bombardierProjectileSpawnGapCells;
+    const col = enemy.col + Math.cos(angle) * spawnDistance;
+    const row = enemy.row + Math.sin(angle) * spawnDistance;
+    const projectile = {
+      id: nextEnemyId++,
+      archetype: "bombardier",
+      behaviorState: "munition",
+      behaviorPhase: 1,
+      color: enemy.color,
+      x: 0,
+      y: 0,
+      col,
+      row,
+      angle,
+      desiredAngle: angle,
+      birthLength: 1,
+      totalHealth: 1,
+      health: 1,
+      maxHealth: 1,
+      speed: ENEMY_BEHAVIOR_TUNING.bombardierProjectileSpeed,
+      turnRate: 0,
+      radius: projectileRadius * arena.cellSize,
+      segments: [],
+      captured: 0,
+      target: null,
+      think: Number.POSITIVE_INFINITY,
+      wobble: enemy.wobble,
+      behaviorTimer: 0,
+      behaviorDuration: 0,
+      targetCol: col,
+      targetRow: row,
+      lockedAngle: angle,
+      needsReacquire: false,
+      slow: 0,
+      frostStacks: 0,
+      frostPotency: 0,
+      knockbackX: 0,
+      knockbackY: 0,
+      corrosionStacks: 0,
+      corrosionPotency: 0,
+      corrosionTimer: 0,
+      corrosionColor: null,
+      corrosionFieldTimers: new Map(),
+      burnStacks: 0,
+      burningApplications: [],
+      sawCooldown: 0,
+      collisionCooldown: 0,
+      dead: false,
+      hitBounds: null
+    };
+    syncNodePosition(projectile);
+    syncEnemyJointRadii(projectile);
+    updateEnemyHitBounds(projectile);
+    enemies.push(projectile);
+    burst(projectile.x, projectile.y, enemy.color, ENEMY_SPAWN_ACTIVATION_PARTICLE_COUNT, ENEMY_SPAWN_ACTIVATION_PARTICLE_SPEED);
+    effects.push({
+      type: "ring",
+      x: projectile.x,
+      y: projectile.y,
+      color: "#ffffff",
+      life: ENEMY_SPAWN_ACTIVATION_DURATION,
+      maxLife: ENEMY_SPAWN_ACTIVATION_DURATION,
+      radius: 0,
+      endRadius: arena.cellSize * ENEMY_SPAWN_ACTIVATION_RADIUS_CELLS
+    });
+    sound("shoot");
+    return projectile;
+  }
+
+  function advanceBombardierBehavior(enemy, dt) {
+    if (isBombardierProjectile(enemy)) {
+      enemy.angle = enemy.lockedAngle;
+      enemy.desiredAngle = enemy.lockedAngle;
+      enemy.behaviorPhase = 1;
+      return;
+    }
+    if (enemy.behaviorState === "aim") {
+      const targetAngle = player
+        ? Math.atan2(player.row - enemy.row, player.col - enemy.col)
+        : enemy.angle;
+      enemy.desiredAngle = targetAngle;
+      enemy.behaviorTimer -= dt;
+      enemy.behaviorPhase = clamp(1 - enemy.behaviorTimer / Math.max(0.001, enemy.behaviorDuration), 0, 1);
+      if (enemy.behaviorTimer > 0) return;
+      enemy.lockedAngle = enemy.angle;
+      enemy.desiredAngle = enemy.lockedAngle;
+      enemy.behaviorDuration = ENEMY_BEHAVIOR_TUNING.bombardierLockDuration;
+      enemy.behaviorTimer = enemy.behaviorDuration;
+      enemy.behaviorState = "lock";
+      enemy.behaviorPhase = 0;
+      return;
+    }
+    if (enemy.behaviorState === "lock") {
+      enemy.angle = enemy.lockedAngle;
+      enemy.desiredAngle = enemy.lockedAngle;
+      enemy.behaviorTimer -= dt;
+      enemy.behaviorPhase = clamp(1 - enemy.behaviorTimer / Math.max(0.001, enemy.behaviorDuration), 0, 1);
+      if (enemy.behaviorTimer > 0) return;
+      spawnBombardierProjectile(enemy);
+      enemy.behaviorState = "roam";
+      enemy.behaviorPhase = 0;
+      enemy.behaviorDuration = ENEMY_BEHAVIOR_TUNING.bombardierFireInterval;
+      enemy.behaviorTimer = enemy.behaviorDuration;
+      return;
+    }
+    const interval = Math.max(0.1, ENEMY_BEHAVIOR_TUNING.bombardierFireInterval);
+    enemy.behaviorDuration = interval;
+    enemy.behaviorTimer = Number.isFinite(enemy.behaviorTimer) ? enemy.behaviorTimer - dt : interval - dt;
+    enemy.behaviorState = "roam";
+    enemy.behaviorPhase = 0;
+    if (enemy.behaviorTimer > 0) return;
+    enemy.behaviorState = "aim";
+    enemy.behaviorDuration = ENEMY_BEHAVIOR_TUNING.bombardierAimDuration;
+    enemy.behaviorTimer = enemy.behaviorDuration;
+  }
+
   function advanceEnemyBehaviorState(enemy, dt) {
+    if (enemy.archetype === "bombardier") {
+      advanceBombardierBehavior(enemy, dt);
+      return;
+    }
     if (enemy.archetype === "engineer") {
       if (enemy.behaviorState === "activate") {
         enemy.behaviorTimer -= dt;
@@ -7629,22 +7806,28 @@
       if (enemy.dead) continue;
       const staticJoint = isStaticEngineerJoint(enemy);
       const engineerBehavior = enemy.archetype === "engineer";
+      const bombardierBehavior = enemy.archetype === "bombardier";
+      const bombardierProjectile = isBombardierProjectile(enemy);
       enemy.collisionCooldown = Math.max(0, enemy.collisionCooldown - dt);
-      if (staticJoint || engineerBehavior) {
+      if (staticJoint || engineerBehavior || bombardierBehavior) {
         advanceEnemyBehaviorState(enemy, dt);
       }
       if (staticJoint) {
         enemy.knockbackX = 0;
         enemy.knockbackY = 0;
+      } else if (bombardierProjectile) {
+        enemy.angle = enemy.lockedAngle;
+        enemy.desiredAngle = enemy.lockedAngle;
       } else if (enemy.collisionCooldown <= 0) {
-        if (!engineerBehavior) advanceEnemyBehaviorState(enemy, dt);
+        if (!engineerBehavior && !bombardierBehavior) advanceEnemyBehaviorState(enemy, dt);
         enemy.think -= dt;
         if (enemy.think <= 0) {
           enemy.think = random(Math.min(ENEMY_THINK_INTERVAL_MIN, ENEMY_THINK_INTERVAL_MAX), Math.max(ENEMY_THINK_INTERVAL_MIN, ENEMY_THINK_INTERVAL_MAX));
           chooseEnemyIntent(enemy);
         }
         steerEnemy(enemy, activeEnemyFoods);
-        const independentCourse = enemyBehaviorApi.usesIndependentCourse(enemy.archetype);
+        const independentCourse = enemyBehaviorApi.usesIndependentCourse(enemy.archetype)
+          || (bombardierBehavior && (enemy.behaviorState === "aim" || enemy.behaviorState === "lock"));
 
         const avoidance = ENEMY_PLAYER_BODY_AVOIDANCE.has(enemy.archetype) ? playerBodyAvoidance(enemy) : null;
         if (avoidance) {
@@ -7686,7 +7869,9 @@
             : 1;
       const speed = staticJoint
         ? 0
-        : enemy.speed * waveSpeedMultiplier * chronosMultiplier * statusMultiplier * behaviorSpeedMultiplier;
+        : bombardierProjectile
+          ? enemy.speed
+          : enemy.speed * waveSpeedMultiplier * chronosMultiplier * statusMultiplier * behaviorSpeedMultiplier;
       enemyMovementStart.col = enemy.col;
       enemyMovementStart.row = enemy.row;
       const nextCol = enemy.col + (Math.cos(enemy.angle) * speed + enemy.knockbackX) * dt;
@@ -7734,12 +7919,15 @@
         syncNodePosition(enemy);
         updateEnemyHitBounds(enemy);
         if (playerCollision.kind === "protected") {
-          bounceEntity(
-            enemy,
-            enemy.col - playerCollision.point.col,
-            enemy.row - playerCollision.point.row,
-            player.playerColor || "#f3c600"
-          );
+          if (bombardierProjectile) killEnemy(enemy, false);
+          else {
+            bounceEntity(
+              enemy,
+              enemy.col - playerCollision.point.col,
+              enemy.row - playerCollision.point.row,
+              player.playerColor || "#f3c600"
+            );
+          }
         } else if (playerCollision.kind === "body") {
           resolveBodyIntercept(enemy, playerCollision.point);
         } else {
@@ -7767,6 +7955,10 @@
         enemy.col = constrained.col;
         enemy.row = constrained.row;
         syncNodePosition(enemy);
+        if (bombardierProjectile) {
+          killEnemy(enemy, false);
+          continue;
+        }
         const wallDamageBonus = MODULE_EFFECTS.enemyWallDamageBonus(moduleCount("wallbreaker"));
         if (wallDamageBonus > 0) {
           const wallDamage = MODULE_PROGRESSION.rollLinearRewards(ENEMY_COLLISION_DAMAGE * wallDamageBonus, Math.random);
@@ -8214,7 +8406,7 @@
       ? clamp(options.hitSegmentIndex, -1, Math.max(-1, beforeCount - 1))
       : nearestEnemySegmentIndex(enemy, impactX, impactY);
     const hitsHead = hitSegmentIndex < 0;
-    const usesHeadArmor = hitsHead && !isStaticEngineerJoint(enemy);
+    const usesHeadArmor = hitsHead && !isStaticEngineerJoint(enemy) && !isBombardierProjectile(enemy);
     const oldHeadX = enemy.x;
     const oldHeadY = enemy.y;
     const hitJoint = hitsHead ? enemy : enemy.segments[hitSegmentIndex];
@@ -8276,6 +8468,12 @@
   function killEnemy(enemy, rewardSelf = true) {
     if (!enemy || enemy.dead) return;
     enemy.dead = true;
+    if (isBombardierProjectile(enemy)) {
+      burst(enemy.x, enemy.y, enemy.color, ENEMY_SPAWN_ACTIVATION_PARTICLE_COUNT, ENEMY_SPAWN_ACTIVATION_PARTICLE_SPEED);
+      effects.push({ type: "ring", x: enemy.x, y: enemy.y, color: "#ffffff", life: ENEMY_SPAWN_ACTIVATION_DURATION, maxLife: ENEMY_SPAWN_ACTIVATION_DURATION, radius: 0, endRadius: arena.cellSize * ENEMY_SPAWN_ACTIVATION_RADIUS_CELLS });
+      if (rewardSelf) sound("kill");
+      return;
+    }
     if (isStaticEngineerJoint(enemy)) {
       burst(enemy.x, enemy.y, enemy.color, 10, 115);
       effects.push({ type: "ring", x: enemy.x, y: enemy.y, color: "#ffffff", life: 0.42, maxLife: 0.42, radius: 3, endRadius: enemyJointRadiusPixels(enemy, false) * 1.8 });
@@ -9014,6 +9212,9 @@
       case "engineer":
         context.rect(-13, -13, 26, 26);
         break;
+      case "bombardier":
+        context.moveTo(20, 0); context.lineTo(9, 12); context.lineTo(-8, 14); context.lineTo(-16, 7); context.lineTo(-16, -7); context.lineTo(-8, -14); context.lineTo(9, -12); context.closePath();
+        break;
       default:
         context.moveTo(18, 0); context.lineTo(8, 12); context.lineTo(-7, 11); context.lineTo(-15, 5); context.lineTo(-12, 0); context.lineTo(-15, -5); context.lineTo(-7, -11); context.lineTo(8, -12); context.closePath();
         break;
@@ -9026,6 +9227,12 @@
   }
 
   function paintMineShadow(context, _hazard, shapeSize) {
+    context.beginPath();
+    context.arc(0, 0, shapeSize, 0, TAU);
+    context.fill();
+  }
+
+  function paintBombardierProjectileShadow(context, _enemy, shapeSize) {
     context.beginPath();
     context.arc(0, 0, shapeSize, 0, TAU);
     context.fill();
@@ -9058,6 +9265,7 @@
   function entityShadowShapeSize(paintShadow, source) {
     if (paintShadow === paintFoodShadow) return quantizedEntityShadowSize(source.radius * 1.52);
     if (paintShadow === paintMineShadow) return quantizedEntityShadowSize(mineVisualRadius(source));
+    if (paintShadow === paintBombardierProjectileShadow) return quantizedEntityShadowSize(enemyHeadRadiusPixels(source));
     if (paintShadow === paintProjectileShadow && source.kind !== "blade") {
       return quantizedEntityShadowSize(Math.max(3, source.size || 3) * 1.15);
     }
@@ -9069,13 +9277,14 @@
     if (paintShadow === paintEnemyHeadShadow) return `enemy-head:${source.archetype || "default"}`;
     if (paintShadow === paintFoodShadow) return `food:${shapeSize}`;
     if (paintShadow === paintMineShadow) return `mine:${shapeSize}`;
+    if (paintShadow === paintBombardierProjectileShadow) return `enemy-munition:${shapeSize}`;
     return source.kind === "blade" ? "projectile:blade" : `projectile:shot:${shapeSize}`;
   }
 
   function entityShadowSpriteExtent(paintShadow, source, shapeSize) {
     if (paintShadow === paintPlayerHeadShadow) return 22;
     if (paintShadow === paintEnemyHeadShadow) return 24;
-    if (paintShadow === paintFoodShadow || paintShadow === paintMineShadow) return shapeSize + 1;
+    if (paintShadow === paintFoodShadow || paintShadow === paintMineShadow || paintShadow === paintBombardierProjectileShadow) return shapeSize + 1;
     if (paintShadow === paintProjectileShadow && source.kind !== "blade") return shapeSize + 1;
     return 12;
   }
@@ -9221,6 +9430,20 @@
   function drawEnemyShadow(enemy, pieceScale, alpha = 1) {
     const maximumRadius = enemy ? enemyMaximumRadiusPixels(enemy) : 0;
     if (!enemy || (renderWorldBounds.active && !snakeIntersectsRenderBounds(enemy, enemy.segments, maximumRadius + 24 * pieceScale))) return;
+    if (isBombardierProjectile(enemy)) {
+      drawEntityShadowSilhouette(
+        enemy.x,
+        enemy.y,
+        0.82,
+        alpha,
+        0,
+        1,
+        1,
+        paintBombardierProjectileShadow,
+        enemy
+      );
+      return;
+    }
     const bodyCoreRadius = ENEMY_ARMOR_TUNING.bodyCoreRadius * arena.cellSize;
     const bodyWidthScale = enemyMaximumBodyRadiusCells(enemy) * arena.cellSize / Math.max(0.001, bodyCoreRadius);
     drawSnakeBodyShadow(enemy, enemy.segments, pieceScale, alpha, bodyWidthScale);
@@ -9566,6 +9789,9 @@
       case "engineer":
         context.moveTo(9, -9); context.lineTo(9, 9); context.lineTo(-9, 9); context.lineTo(-9, -9); context.closePath();
         break;
+      case "bombardier":
+        context.moveTo(11, 0); context.lineTo(5, 9); context.lineTo(-7, 9); context.lineTo(-11, 0); context.lineTo(-7, -9); context.lineTo(5, -9); context.closePath();
+        break;
       default:
         context.moveTo(10, 0); context.lineTo(4, 9); context.lineTo(-8, 7); context.lineTo(-11, 0); context.lineTo(-8, -7); context.lineTo(4, -9); context.closePath();
         break;
@@ -9602,6 +9828,18 @@
       context.strokeRect(-6.5, -6.5, 13, 13);
       context.strokeStyle = "#7d898e";
       context.strokeRect(-3.5, -3.5, 7, 7);
+    } else if (enemy.archetype === "bombardier") {
+      context.globalAlpha = 1;
+      context.strokeStyle = "#ffffff";
+      context.lineWidth = 1.4;
+      context.beginPath();
+      context.arc(0, 0, 5.8, 0, TAU);
+      context.stroke();
+      context.strokeStyle = enemy.color;
+      context.lineWidth = 2;
+      context.beginPath();
+      context.arc(0, 0, 2.4, 0, TAU);
+      context.stroke();
     } else {
       context.fillRect(-7, -2, 11, 4);
     }
@@ -9645,6 +9883,9 @@
       case "engineer":
         context.moveTo(17, 0); context.lineTo(10, 13); context.lineTo(-11, 13); context.lineTo(-16, 7); context.lineTo(-16, -7); context.lineTo(-11, -13); context.lineTo(10, -13); context.closePath();
         break;
+      case "bombardier":
+        context.moveTo(20, 0); context.lineTo(9, 12); context.lineTo(-8, 14); context.lineTo(-16, 7); context.lineTo(-16, -7); context.lineTo(-8, -14); context.lineTo(9, -12); context.closePath();
+        break;
       default:
         context.moveTo(18, 0); context.lineTo(8, 12); context.lineTo(-7, 11); context.lineTo(-15, 5); context.lineTo(-12, 0); context.lineTo(-15, -5); context.lineTo(-7, -11); context.lineTo(8, -12); context.closePath();
         break;
@@ -9682,6 +9923,15 @@
       context.lineWidth = 2;
       context.strokeRect(-9, -9, 18, 18);
       context.fillRect(8, -5, 6, 10);
+    } else if (enemy.archetype === "bombardier") {
+      context.strokeStyle = "#ffffff";
+      context.lineWidth = 2;
+      context.arc(-1, 0, 8.2, 0, TAU);
+      context.stroke();
+      context.fillStyle = enemy.color;
+      context.fillRect(7, -4, 9, 8);
+      context.fillStyle = "#101416";
+      context.fillRect(10, -2, 6, 4);
     } else {
       context.moveTo(enemy.archetype === "charger" ? 21 : 18, 0);
       context.lineTo(7, 6);
@@ -9984,6 +10234,36 @@
     ctx.restore();
   }
 
+  function drawBombardierProjectile(enemy, pieceScale, time) {
+    const radius = enemyHeadRadiusPixels(enemy);
+    const lineWidth = Math.max(1.2, radius * 0.13);
+    const pulse = 0.92 + Math.sin(time * TAU * ENEMY_BEHAVIOR_TUNING.bombardierWarningPulseRate) * 0.08;
+    ctx.save();
+    ctx.translate(enemy.x, enemy.y);
+    applyBillboardCompensation();
+    ctx.scale(pulse, pulse);
+    ctx.shadowColor = enemy.color;
+    ctx.shadowBlur = 12 * pieceScale;
+    ctx.fillStyle = "rgba(7, 11, 13, 0.96)";
+    ctx.beginPath();
+    ctx.arc(0, 0, Math.max(0, radius - lineWidth / 2), 0, TAU);
+    ctx.fill();
+    ctx.strokeStyle = "#f4f7f7";
+    ctx.lineWidth = lineWidth;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = enemy.color;
+    ctx.lineWidth = Math.max(1, lineWidth * 0.78);
+    ctx.beginPath();
+    ctx.arc(0, 0, radius * 0.56, 0, TAU);
+    ctx.stroke();
+    ctx.fillStyle = enemy.color;
+    ctx.beginPath();
+    ctx.arc(radius * 0.18, 0, Math.max(1.2, radius * 0.1), 0, TAU);
+    ctx.fill();
+    ctx.restore();
+  }
+
   function drawEnemyStatusParticles(enemy, pieceScale) {
     const frozen = enemy.frostStacks > 0;
     const corroded = enemy.corrosionStacks > 0;
@@ -10065,7 +10345,7 @@
     ctx.translate(node.x, node.y);
     applyBillboardCompensation();
     ctx.scale(pieceScale, pieceScale);
-    const jointRadius = enemyJointRadiusPixels(node, isHead) / Math.max(0.001, pieceScale);
+    const jointRadius = (isBombardierProjectile(node) ? enemyHeadRadiusPixels(node) : enemyJointRadiusPixels(node, isHead)) / Math.max(0.001, pieceScale);
     ctx.translate(0, -jointRadius - 9);
     ctx.font = "800 9px Bahnschrift, Arial Narrow, sans-serif";
     ctx.textAlign = "center";
@@ -10141,6 +10421,59 @@
     ctx.restore();
   }
 
+  function drawBombardierFireWarning(enemy, time, pieceScale) {
+    if (enemy.archetype !== "bombardier" || !["aim", "lock"].includes(enemy.behaviorState)) return;
+    const locked = enemy.behaviorState === "lock";
+    const angle = locked && Number.isFinite(enemy.lockedAngle) ? enemy.lockedAngle : enemy.angle;
+    const pulseWave = (Math.sin(time * TAU * ENEMY_BEHAVIOR_TUNING.bombardierWarningPulseRate) + 1) * 0.5;
+    const pulse = locked ? 0.9 + pulseWave * 0.1 : 0.46 + pulseWave * 0.28;
+    const widthValue = Math.max(1, arena.cellSize * ENEMY_BEHAVIOR_TUNING.bombardierWarningWidthCells);
+    const startDistance = enemyHeadRadiusPixels(enemy) + arena.cellSize * ENEMY_BEHAVIOR_TUNING.bombardierWarningGapCells;
+    const length = arena.cellSize * ENEMY_BEHAVIOR_TUNING.bombardierWarningLengthCells;
+    const projectileRadius = arena.cellSize * ENEMY_BEHAVIOR_TUNING.bombardierProjectileRadiusCells;
+    const symbolRadius = Math.max(widthValue * 2.2, projectileRadius * 0.42);
+    const symbolDistance = startDistance + symbolRadius;
+    const shaftStart = symbolDistance + symbolRadius + widthValue * 1.8;
+    const tipDistance = startDistance + length;
+    const arrowLength = Math.max(widthValue * 4.8, projectileRadius * 0.72);
+    const arrowBase = Math.max(shaftStart + widthValue * 2, tipDistance - arrowLength);
+    const arrowHalfWidth = Math.max(widthValue * 2.6, projectileRadius * 0.54);
+    ctx.save();
+    ctx.translate(enemy.x, enemy.y);
+    ctx.rotate(angle);
+    ctx.globalAlpha *= pulse;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    if (!locked) ctx.setLineDash([widthValue * 2.4, widthValue * 1.65]);
+    const traceWarning = () => {
+      ctx.beginPath();
+      ctx.arc(symbolDistance, 0, symbolRadius, 0, TAU);
+      ctx.moveTo(shaftStart, widthValue);
+      ctx.lineTo(arrowBase, widthValue);
+      ctx.lineTo(arrowBase, arrowHalfWidth);
+      ctx.lineTo(tipDistance, 0);
+      ctx.lineTo(arrowBase, -arrowHalfWidth);
+      ctx.lineTo(arrowBase, -widthValue);
+      ctx.lineTo(shaftStart, -widthValue);
+      ctx.closePath();
+      ctx.stroke();
+    };
+    ctx.strokeStyle = "rgba(3, 6, 8, 0.94)";
+    ctx.lineWidth = widthValue + 4 * pieceScale;
+    traceWarning();
+    ctx.strokeStyle = locked ? "#f4f7f7" : enemy.color;
+    ctx.lineWidth = widthValue;
+    traceWarning();
+    if (locked) {
+      ctx.globalAlpha *= 0.78;
+      ctx.strokeStyle = enemy.color;
+      ctx.lineWidth = Math.max(1, widthValue * 0.42);
+      ctx.setLineDash([]);
+      traceWarning();
+    }
+    ctx.restore();
+  }
+
   function drawEnemy(enemy, time = gameTime, spawning = false) {
     const pieceScale = arenaPieceScale();
     const maximumRadius = enemyMaximumRadiusPixels(enemy);
@@ -10157,7 +10490,15 @@
       ctx.restore();
       return;
     }
+    if (isBombardierProjectile(enemy)) {
+      drawBombardierProjectile(enemy, pieceScale, time);
+      if (!spawning) drawEnemyStatusParticles(enemy, pieceScale);
+      if (!spawning) drawEnemyJointHealth(enemy, pieceScale);
+      ctx.restore();
+      return;
+    }
     drawLinerCourseWarning(enemy, time, pieceScale);
+    drawBombardierFireWarning(enemy, time, pieceScale);
     drawLinkedPath(enemy, enemy.segments, "rgba(4, 6, 7, 0.92)", (enemy.archetype === "warden" ? 14 : 11) * pieceScale);
     drawLinkedPath(enemy, enemy.segments, enemy.color, (enemy.archetype === "cutter" ? 3.4 : 2.2) * pieceScale, 0.72);
     const segmentSprite = enemy.segments.length > 0 ? enemySprite("segment", enemy) : null;

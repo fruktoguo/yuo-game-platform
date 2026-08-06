@@ -107,6 +107,16 @@ export const ENEMY_ACTIVE_BEHAVIOR_TUNING = Object.freeze({
   engineerDetachInterval: DESIGNER_BALANCE.enemyEngineerDetachInterval,
   engineerDetachWarningDuration: DESIGNER_BALANCE.enemyEngineerDetachWarningDuration,
   engineerJointActivationDuration: DESIGNER_BALANCE.enemyEngineerJointActivationDuration,
+  bombardierFireInterval: DESIGNER_BALANCE.enemyBombardierFireInterval,
+  bombardierAimDuration: DESIGNER_BALANCE.enemyBombardierAimDuration,
+  bombardierLockDuration: DESIGNER_BALANCE.enemyBombardierLockDuration,
+  bombardierProjectileSpeed: DESIGNER_BALANCE.enemyBombardierProjectileSpeed,
+  bombardierProjectileRadiusCells: DESIGNER_BALANCE.enemyBombardierProjectileRadiusCells,
+  bombardierProjectileSpawnGapCells: DESIGNER_BALANCE.enemyBombardierProjectileSpawnGapCells,
+  bombardierWarningLengthCells: DESIGNER_BALANCE.enemyBombardierWarningLengthCells,
+  bombardierWarningWidthCells: DESIGNER_BALANCE.enemyBombardierWarningWidthCells,
+  bombardierWarningGapCells: DESIGNER_BALANCE.enemyBombardierWarningGapCells,
+  bombardierWarningPulseRate: DESIGNER_BALANCE.enemyBombardierWarningPulseRate,
 });
 export const FROST_SLOW_PER_STACK = DESIGNER_BALANCE.frostSlowPerStack;
 export const FROST_MINIMUM_SPEED_RATIO = DESIGNER_BALANCE.frostMinimumSpeedRatio;

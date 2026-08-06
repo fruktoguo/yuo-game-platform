@@ -122,6 +122,21 @@ describe('设计配置', () => {
       enemyEngineerDetachInterval: 6,
       enemyEngineerDetachWarningDuration: 0.9,
       enemyEngineerJointActivationDuration: 0.55,
+      enemyBombardierUnlockSeconds: 180,
+      enemyBombardierSpawnWeight: 1.25,
+      enemyBombardierHealthWeight: 3,
+      enemyBombardierSpeedMultiplier: 0.7,
+      enemyBombardierTurnMultiplier: 0.85,
+      enemyBombardierFireInterval: 5.5,
+      enemyBombardierAimDuration: 1.1,
+      enemyBombardierLockDuration: 0.45,
+      enemyBombardierProjectileSpeed: 5.2,
+      enemyBombardierProjectileRadiusCells: 0.34,
+      enemyBombardierProjectileSpawnGapCells: 0.15,
+      enemyBombardierWarningLengthCells: 3.2,
+      enemyBombardierWarningWidthCells: 0.09,
+      enemyBombardierWarningGapCells: 0.35,
+      enemyBombardierWarningPulseRate: 3.2,
       waveInterval: 6,
       foodSpawnSafetyDistance: 0.8,
       spawnPlacementAttempts: 96,
@@ -311,8 +326,8 @@ describe('设计配置', () => {
 
     expect(parameterKeys.sort()).toEqual(Object.keys(DESIGNER_BALANCE).sort());
     expect(moduleIds.sort()).toEqual(MODULES.map((module) => module.id).sort());
-    expect(moduleProgressionSource).toContain('config?.schemaVersion !== 54');
-    expect(new Set(parameterKeys).size).toBe(303);
+    expect(moduleProgressionSource).toContain('config?.schemaVersion !== 55');
+    expect(new Set(parameterKeys).size).toBe(318);
     expect(parameterKeys).not.toContain('playerSpeedPerLevel');
     expect(parameterKeys).not.toContain('moduleEffectReductionMaximum');
     expect(parameterKeys).not.toContain('newModuleOfferChance');
@@ -351,8 +366,8 @@ describe('设计配置', () => {
     expect(MODULES.some((module) => ['输出', '进攻', '防御', '恢复'].includes(module.category as string))).toBe(false);
     expect(MODULES.every((module) => ['攻击', '生存', '辅助', '发育'].includes(module.category))).toBe(true);
     expect(MODULES.filter((module) => module.category === '发育')).toHaveLength(9);
-    expect(editorHtml).toContain('src="module-catalog.js?v=151"');
-    expect(editorHtml).toContain('src="module-progression.js?v=151"');
+    expect(editorHtml).toContain('src="module-catalog.js?v=152"');
+    expect(editorHtml).toContain('src="module-progression.js?v=152"');
     expect(editorHtml).toContain('const MODULES = moduleCatalog;');
     expect(editorHtml).toContain('descriptionText.textContent = describeModule(module.id, draft.balance);');
     expect(editorHtml).toContain('descriptionNote.textContent = describeModuleNote(module.id, draft.balance);');

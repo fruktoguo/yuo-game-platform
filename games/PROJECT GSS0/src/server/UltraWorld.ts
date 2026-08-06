@@ -685,6 +685,7 @@ export class UltraWorld {
       if (claim.kind === 'enemy-head') {
         if (!this.isPlayerProtected(player)) this.resolvePlayerEnemyContact(player, enemy, enemy, -1, !isStaticEngineerJoint(enemy), now);
       }
+      if (isBombardierProjectile(enemy) && !enemy.dead) this.killEnemy(enemy, null);
       if (!enemy.dead) this.bounceEntity(enemy, -claim.normalCol, -claim.normalRow, enemy.color, 1 + MODULE_PROGRESSION.effects.momentumKnockbackBonus(this.moduleCount(player, 'momentum')));
       return true;
     }
@@ -2680,10 +2681,12 @@ export class UltraWorld {
     this.triggerCollisionEcho(player);
     if (player.dashing) {
       this.applyPlayerDashCollisionAttack(player, enemy, point, segmentIndex, hitHead);
+      if (isBombardierProjectile(enemy) && !enemy.dead) this.killEnemy(enemy, null);
       return;
     }
     const defended = this.consumeDefense(player);
     if (!defended) this.damagePlayerFromCollision(player, PLAYER_ENEMY_BODY_COLLISION_DAMAGE, now, '被敌蛇重创');
+    if (isBombardierProjectile(enemy) && !enemy.dead) this.killEnemy(enemy, null);
   }
 
   private resolveBodyIntercept(player: PlayerEntity, enemy: EnemyEntity, collisionPoint: GridPoint): void {
@@ -3274,6 +3277,11 @@ export class UltraWorld {
       if (enemy.behaviorState !== 'deploy') enemy.behaviorState = 'roam';
       return;
     }
+    if (enemy.archetype === 'bombardier') {
+      enemy.targetFoodId = null;
+      if (!['aim', 'lock', 'munition'].includes(enemy.behaviorState)) enemy.behaviorState = 'roam';
+      return;
+    }
     if (enemy.archetype === 'liner') {
       enemy.targetFoodId = null;
       enemy.behaviorState = 'straight';
@@ -3349,6 +3357,18 @@ export class UltraWorld {
       }
       return;
     }
+    if (enemy.archetype === 'bombardier') {
+      enemy.targetFoodId = null;
+      if (isBombardierProjectile(enemy)) {
+        enemy.desiredAngle = enemy.angle;
+        return;
+      }
+      if (enemy.behaviorState === 'aim' || enemy.behaviorState === 'lock') return;
+      enemy.behaviorState = 'roam';
+      enemy.behaviorPhase = 0;
+      enemy.desiredAngle += Math.sin(this.gameTime + enemy.wobble) * 0.05;
+      return;
+    }
     if (enemy.archetype === 'liner') {
       enemy.desiredAngle = enemy.angle;
       enemy.behaviorState = 'straight';
@@ -3420,6 +3440,13 @@ export class UltraWorld {
       enemy.behaviorPhase = 0;
       enemy.behaviorDuration = ENEMY_ACTIVE_BEHAVIOR_TUNING.engineerDetachInterval;
       enemy.behaviorTimer = enemy.segments.length > 0 ? enemy.behaviorDuration : 0;
+      return;
+    }
+    if (enemy.archetype === 'bombardier') {
+      enemy.behaviorState = 'roam';
+      enemy.behaviorPhase = 0;
+      enemy.behaviorDuration = ENEMY_ACTIVE_BEHAVIOR_TUNING.bombardierFireInterval;
+      enemy.behaviorTimer = enemy.behaviorDuration;
       return;
     }
     if (enemy.archetype === 'liner') {
@@ -3559,7 +3586,126 @@ export class UltraWorld {
     enemy.needsReacquire = false;
   }
 
+  private spawnBombardierProjectile(enemy: EnemyEntity): EnemyEntity | null {
+    if (enemy.dead || enemy.archetype !== 'bombardier' || isBombardierProjectile(enemy)) return null;
+    const angle = enemy.lockedAngle;
+    const projectileRadius = ENEMY_ACTIVE_BEHAVIOR_TUNING.bombardierProjectileRadiusCells;
+    const spawnDistance = this.enemyHeadRadiusCells(enemy)
+      + projectileRadius
+      + ENEMY_ACTIVE_BEHAVIOR_TUNING.bombardierProjectileSpawnGapCells;
+    const col = enemy.col + Math.cos(angle) * spawnDistance;
+    const row = enemy.row + Math.sin(angle) * spawnDistance;
+    const projectile: EnemyEntity = {
+      id: this.nextEnemyId++,
+      archetype: 'bombardier',
+      behaviorState: 'munition',
+      behaviorPhase: 1,
+      col,
+      row,
+      angle,
+      health: 1,
+      maxHealth: 1,
+      color: enemy.color,
+      captured: 0,
+      frostStacks: 0,
+      corrosionStacks: 0,
+      burnStacks: 0,
+      segments: [],
+      radius: projectileRadius,
+      birthLength: 1,
+      totalHealth: 1,
+      speed: ENEMY_ACTIVE_BEHAVIOR_TUNING.bombardierProjectileSpeed,
+      turnRate: 0,
+      desiredAngle: angle,
+      targetFoodId: null,
+      think: Number.POSITIVE_INFINITY,
+      wobble: enemy.wobble,
+      behaviorTimer: 0,
+      behaviorDuration: 0,
+      targetCol: col,
+      targetRow: row,
+      lockedAngle: angle,
+      needsReacquire: false,
+      slow: 0,
+      frostPotency: 0,
+      knockbackX: 0,
+      knockbackY: 0,
+      corrosionPotency: 0,
+      corrosionTimer: 0,
+      corrosionColor: null,
+      corrosionOwnerEntityId: null,
+      corrosionFieldTimers: new Map(),
+      burningApplications: [],
+      sawCooldownsByPlayer: new Map(),
+      collisionCooldown: 0,
+      projectileMinCol: col,
+      projectileMaxCol: col,
+      projectileMinRow: row,
+      projectileMaxRow: row,
+      dead: false,
+    };
+    syncEnemyJointRadii(projectile);
+    this.refreshSingleEnemyProjectileBounds(projectile);
+    this.enemies.push(projectile);
+    const anchor: UltraEffectAnchor = { anchorKind: 'enemy', anchorId: projectile.id };
+    this.burst(col, row, enemy.color, ENEMY_SPAWN_ACTIVATION_PARTICLE_COUNT, ENEMY_SPAWN_ACTIVATION_PARTICLE_SPEED, undefined, anchor);
+    this.ring(col, row, '#ffffff', ENEMY_SPAWN_ACTIVATION_DURATION, 0, ENEMY_SPAWN_ACTIVATION_RADIUS_CELLS, undefined, 'cells', anchor);
+    this.effectSound('shoot');
+    return projectile;
+  }
+
+  private advanceBombardierBehavior(enemy: EnemyEntity, delta: number, players: readonly PlayerEntity[]): void {
+    if (isBombardierProjectile(enemy)) {
+      enemy.angle = enemy.lockedAngle;
+      enemy.desiredAngle = enemy.lockedAngle;
+      enemy.behaviorPhase = 1;
+      return;
+    }
+    if (enemy.behaviorState === 'aim') {
+      const target = this.nearestPlayer(enemy, players);
+      enemy.desiredAngle = target
+        ? Math.atan2(target.row - enemy.row, target.col - enemy.col)
+        : enemy.angle;
+      enemy.behaviorTimer -= delta;
+      enemy.behaviorPhase = clamp(1 - enemy.behaviorTimer / Math.max(0.001, enemy.behaviorDuration), 0, 1);
+      if (enemy.behaviorTimer > 0) return;
+      enemy.lockedAngle = enemy.angle;
+      enemy.desiredAngle = enemy.lockedAngle;
+      enemy.behaviorDuration = ENEMY_ACTIVE_BEHAVIOR_TUNING.bombardierLockDuration;
+      enemy.behaviorTimer = enemy.behaviorDuration;
+      enemy.behaviorState = 'lock';
+      enemy.behaviorPhase = 0;
+      return;
+    }
+    if (enemy.behaviorState === 'lock') {
+      enemy.angle = enemy.lockedAngle;
+      enemy.desiredAngle = enemy.lockedAngle;
+      enemy.behaviorTimer -= delta;
+      enemy.behaviorPhase = clamp(1 - enemy.behaviorTimer / Math.max(0.001, enemy.behaviorDuration), 0, 1);
+      if (enemy.behaviorTimer > 0) return;
+      this.spawnBombardierProjectile(enemy);
+      enemy.behaviorState = 'roam';
+      enemy.behaviorPhase = 0;
+      enemy.behaviorDuration = ENEMY_ACTIVE_BEHAVIOR_TUNING.bombardierFireInterval;
+      enemy.behaviorTimer = enemy.behaviorDuration;
+      return;
+    }
+    const interval = Math.max(0.1, ENEMY_ACTIVE_BEHAVIOR_TUNING.bombardierFireInterval);
+    enemy.behaviorDuration = interval;
+    enemy.behaviorTimer = Number.isFinite(enemy.behaviorTimer) ? enemy.behaviorTimer - delta : interval - delta;
+    enemy.behaviorState = 'roam';
+    enemy.behaviorPhase = 0;
+    if (enemy.behaviorTimer > 0) return;
+    enemy.behaviorState = 'aim';
+    enemy.behaviorDuration = ENEMY_ACTIVE_BEHAVIOR_TUNING.bombardierAimDuration;
+    enemy.behaviorTimer = enemy.behaviorDuration;
+  }
+
   private advanceEnemyBehaviorState(enemy: EnemyEntity, delta: number, players: readonly PlayerEntity[]): void {
+    if (enemy.archetype === 'bombardier') {
+      this.advanceBombardierBehavior(enemy, delta, players);
+      return;
+    }
     if (enemy.archetype === 'engineer') {
       if (enemy.behaviorState === 'activate') {
         enemy.behaviorTimer -= delta;
@@ -3670,22 +3816,28 @@ export class UltraWorld {
       if (enemy.dead) continue;
       const staticJoint = isStaticEngineerJoint(enemy);
       const engineerBehavior = enemy.archetype === 'engineer';
+      const bombardierBehavior = enemy.archetype === 'bombardier';
+      const bombardierProjectile = isBombardierProjectile(enemy);
       enemy.collisionCooldown = Math.max(0, enemy.collisionCooldown - delta);
-      if (staticJoint || engineerBehavior) {
+      if (staticJoint || engineerBehavior || bombardierBehavior) {
         this.advanceEnemyBehaviorState(enemy, delta, presentPlayers);
       }
       if (staticJoint) {
         enemy.knockbackX = 0;
         enemy.knockbackY = 0;
+      } else if (bombardierProjectile) {
+        enemy.angle = enemy.lockedAngle;
+        enemy.desiredAngle = enemy.lockedAngle;
       } else if (enemy.collisionCooldown <= 0) {
-        if (!engineerBehavior) this.advanceEnemyBehaviorState(enemy, delta, presentPlayers);
+        if (!engineerBehavior && !bombardierBehavior) this.advanceEnemyBehaviorState(enemy, delta, presentPlayers);
         enemy.think -= delta;
         if (enemy.think <= 0) {
           enemy.think = this.randomBetween(ENEMY_THINK_INTERVAL_MIN, ENEMY_THINK_INTERVAL_MAX);
           this.chooseEnemyIntent(enemy);
         }
         this.steerEnemy(enemy, presentPlayers);
-        const independentCourse = ENEMY_BEHAVIOR.usesIndependentCourse(enemy.archetype);
+        const independentCourse = ENEMY_BEHAVIOR.usesIndependentCourse(enemy.archetype)
+          || (bombardierBehavior && (enemy.behaviorState === 'aim' || enemy.behaviorState === 'lock'));
         const avoidance = ENEMY_PLAYER_BODY_AVOIDANCE.has(enemy.archetype)
           ? this.playerBodyAvoidance(enemy, presentPlayers)
           : null;
@@ -3714,7 +3866,9 @@ export class UltraWorld {
             : 1;
       const speed = staticJoint
         ? 0
-        : enemy.speed * waveSpeedMultiplier * chronosMultiplier * (enemy.slow > 0 ? 0.55 : 1) * frostMultiplier * behaviorSpeedMultiplier;
+        : bombardierProjectile
+          ? enemy.speed
+          : enemy.speed * waveSpeedMultiplier * chronosMultiplier * (enemy.slow > 0 ? 0.55 : 1) * frostMultiplier * behaviorSpeedMultiplier;
       const previousPosition = this.enemyMovementStart;
       previousPosition.col = enemy.col;
       previousPosition.row = enemy.row;
@@ -3728,12 +3882,15 @@ export class UltraWorld {
         enemy.col = previousPosition.col + (nextCol - previousPosition.col) * playerCollision.progress;
         enemy.row = previousPosition.row + (nextRow - previousPosition.row) * playerCollision.progress;
         if (playerCollision.kind === 'protected') {
-          this.bounceEntity(
-            enemy,
-            enemy.col - playerCollision.point.col,
-            enemy.row - playerCollision.point.row,
-            PLAYER_COLORS[playerCollision.player.colorIndex],
-          );
+          if (bombardierProjectile) this.killEnemy(enemy, null);
+          else {
+            this.bounceEntity(
+              enemy,
+              enemy.col - playerCollision.point.col,
+              enemy.row - playerCollision.point.row,
+              PLAYER_COLORS[playerCollision.player.colorIndex],
+            );
+          }
         } else if (playerCollision.kind === 'body') {
           this.resolveBodyIntercept(playerCollision.player, enemy, playerCollision.point);
         } else {
@@ -3757,6 +3914,10 @@ export class UltraWorld {
         const constrained = this.constrainArenaPoint(nextCol, nextRow, this.enemyHeadRadiusCells(enemy));
         enemy.col = constrained.col;
         enemy.row = constrained.row;
+        if (bombardierProjectile) {
+          this.killEnemy(enemy, null);
+          continue;
+        }
         if (this.enemyWallDamageMultiplier > 0) {
           const wallDamage = MODULE_PROGRESSION.rollLinearRewards(
             ENEMY_COLLISION_DAMAGE * this.enemyWallDamageMultiplier,
@@ -4586,7 +4747,7 @@ export class UltraWorld {
       return;
     }
     const hitsHead = resolvedHitIndex < 0;
-    const usesHeadArmor = hitsHead && !isStaticEngineerJoint(target);
+    const usesHeadArmor = hitsHead && !isStaticEngineerJoint(target) && !isBombardierProjectile(target);
     const oldHead = { col: target.col, row: target.row };
     const hitJoint = hitsHead ? target : target.segments[resolvedHitIndex];
     if (!hitJoint) return;
@@ -4601,7 +4762,9 @@ export class UltraWorld {
       damageResult.after,
       usesHeadArmor,
     );
-    hitJoint.radius = enemyJointRadiusCells(hitJoint, usesHeadArmor) * (isStaticEngineerJoint(target) ? staticEngineerActivationScale(target) : 1);
+    hitJoint.radius = isBombardierProjectile(target)
+      ? ENEMY_ACTIVE_BEHAVIOR_TUNING.bombardierProjectileRadiusCells
+      : enemyJointRadiusCells(hitJoint, usesHeadArmor) * (isStaticEngineerJoint(target) ? staticEngineerActivationScale(target) : 1);
     const removed: EnemySegment[] = [];
     let reconnectIndex = -1;
     let promotedHead: EnemySegment | null = null;
@@ -4673,6 +4836,12 @@ export class UltraWorld {
   private killEnemy(enemy: EnemyEntity, owner: PlayerEntity | null): void {
     if (enemy.dead) return;
     enemy.dead = true;
+    if (isBombardierProjectile(enemy)) {
+      this.burst(enemy.col, enemy.row, enemy.color, ENEMY_SPAWN_ACTIVATION_PARTICLE_COUNT, ENEMY_SPAWN_ACTIVATION_PARTICLE_SPEED, owner?.entityId);
+      this.ring(enemy.col, enemy.row, '#ffffff', ENEMY_SPAWN_ACTIVATION_DURATION, 0, ENEMY_SPAWN_ACTIVATION_RADIUS_CELLS, owner?.entityId, 'cells');
+      if (owner) this.effectSound('kill', owner.entityId);
+      return;
+    }
     if (isStaticEngineerJoint(enemy)) {
       this.burst(enemy.col, enemy.row, enemy.color, 10, 115, owner?.entityId);
       this.ring(enemy.col, enemy.row, '#ffffff', 0.42, 0.08, this.enemySegmentRadiusCells(enemy) * 1.8, owner?.entityId);
@@ -4889,6 +5058,7 @@ export class UltraWorld {
   }
 
   private enemyHeadRadiusCells(enemy: EnemyJointView & { radius?: number; archetype?: string; behaviorState?: string }): number {
+    if (isBombardierProjectile(enemy)) return ENEMY_ACTIVE_BEHAVIOR_TUNING.bombardierProjectileRadiusCells;
     if (isStaticEngineerJoint(enemy)) {
       return Number.isFinite(enemy.radius) ? Math.max(0, enemy.radius!) : enemyJointRadiusCells(enemy, false) * staticEngineerActivationScale(enemy);
     }
@@ -5084,6 +5254,11 @@ export class UltraWorld {
     if (isPlayer) PLAYER_BODY_PATH.resample(entity.bodyPath, entity, entity.segments, this.playerSegmentSpacing(entity));
     else {
       followEnemySegments(entity, 0);
+      if (isBombardierProjectile(entity)) {
+        entity.lockedAngle = entity.angle;
+        entity.knockbackX = 0;
+        entity.knockbackY = 0;
+      }
       if (entity.archetype === 'skitter') entity.behaviorTimer = 0;
       if (entity.archetype === 'headhunter') {
         entity.needsReacquire = true;
@@ -5342,6 +5517,10 @@ function isStaticEngineerJoint(enemy: { archetype?: string; behaviorState?: stri
   return enemy?.archetype === 'engineer' && (enemy.behaviorState === 'activate' || enemy.behaviorState === 'static');
 }
 
+function isBombardierProjectile(enemy: { archetype?: string; behaviorState?: string } | null | undefined): boolean {
+  return enemy?.archetype === 'bombardier' && enemy.behaviorState === 'munition';
+}
+
 function staticEngineerActivationScale(enemy: { behaviorState?: string; behaviorPhase?: number }): number {
   if (enemy.behaviorState === 'static') return 1;
   const progress = clamp(Number(enemy.behaviorPhase) || 0, 0, 1);
@@ -5349,9 +5528,11 @@ function staticEngineerActivationScale(enemy: { behaviorState?: string; behavior
 }
 
 function syncEnemyJointRadii(enemy: EnemyEntity): void {
-  enemy.radius = isStaticEngineerJoint(enemy)
-    ? enemyJointRadiusCells(enemy, false) * staticEngineerActivationScale(enemy)
-    : enemyJointRadiusCells(enemy, true);
+  enemy.radius = isBombardierProjectile(enemy)
+    ? ENEMY_ACTIVE_BEHAVIOR_TUNING.bombardierProjectileRadiusCells
+    : isStaticEngineerJoint(enemy)
+      ? enemyJointRadiusCells(enemy, false) * staticEngineerActivationScale(enemy)
+      : enemyJointRadiusCells(enemy, true);
   for (const segment of enemy.segments) segment.radius = enemyJointRadiusCells(segment, false);
 }
 

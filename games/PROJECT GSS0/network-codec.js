@@ -2,12 +2,12 @@
   "use strict";
 
   const MAGIC = 0x55534e50;
-  const VERSION = 26;
+  const VERSION = 27;
   const GRID_SIZE = 24;
   const COORDINATE_PADDING = 2;
   const TAU = Math.PI * 2;
-  const ENEMY_ARCHETYPE_IDS = ["scout", "forager", "courier", "charger", "cutter", "coiler", "warden", "liner", "skitter", "headhunter", "engineer"];
-  const ENEMY_BEHAVIOR_STATES = ["roam", "forage", "intercept", "orbit", "escort", "straight", "scramble", "aim", "lock", "rush", "deploy", "activate", "static"];
+  const ENEMY_ARCHETYPE_IDS = ["scout", "forager", "courier", "charger", "cutter", "coiler", "warden", "liner", "skitter", "headhunter", "engineer", "bombardier"];
+  const ENEMY_BEHAVIOR_STATES = ["roam", "forage", "intercept", "orbit", "escort", "straight", "scramble", "aim", "lock", "rush", "deploy", "activate", "static", "munition"];
   const textDecoder = new TextDecoder("utf-8", { fatal: true });
   const colorCache = new Map();
   let reusableReader = null;

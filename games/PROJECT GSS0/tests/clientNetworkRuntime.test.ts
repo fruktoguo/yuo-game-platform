@@ -20,7 +20,7 @@ runInThisContext(readFileSync(new URL('../network-food-claims.js', import.meta.u
 runInThisContext(readFileSync(new URL('../network-projectiles.js', import.meta.url), 'utf8'));
 
 const clientGlobals = globalThis as typeof globalThis & {
-  GSS0NetworkCodec: { decode: (payload: ArrayBuffer | ArrayBufferView, modules: typeof MODULES, target?: UltraSnapshot) => UltraSnapshot };
+  GSS0NetworkCodec: { version: number; decode: (payload: ArrayBuffer | ArrayBufferView, modules: typeof MODULES, target?: UltraSnapshot) => UltraSnapshot };
   GSS0PlayerPrediction: { create: (options?: Record<string, unknown>) => ClientPlayerPredictionRuntime };
   GSS0PlayerStateCodec: { version: number; encode: (sequence: number, player: Record<string, unknown>) => Uint8Array };
   GSS0PlayerCollisions: { detect: (...args: unknown[]) => Record<string, unknown> | null };
@@ -93,7 +93,7 @@ interface ClientProjectileRuntime {
 }
 
 describe('客户端网络模块', () => {
-  it('独立解码器与服务端 V26 工兵及静态关节快照格式一致', () => {
+  it('独立解码器与服务端 V27 轰击体及移动障碍弹快照格式一致', () => {
     const snapshot: UltraSnapshot = {
       tick: 7, serverTime: 700, gameTime: 3, waveCount: 2, waveTimer: 4, threatLevel: 1, arenaSize: 24, worldObjectRevision: 0, worldObjectsComplete: true,
       players: [{
@@ -109,12 +109,14 @@ describe('客户端网络模块', () => {
       enemies: [
         { id: 2, archetype: 'charger', behaviorState: 'roam', behaviorPhase: 0, col: 8, row: 9, angle: 1, health: 2, maxHealth: 5, color: '#ff5c62', captured: 0, frostStacks: 2, corrosionStacks: 2, burnStacks: 5, segments: [{ col: 7.5, row: 9, health: 3, maxHealth: 3 }] },
         { id: 4, archetype: 'engineer', behaviorState: 'static', behaviorPhase: 1, col: 10, row: 11, angle: 0.2, health: 13, maxHealth: 21, color: '#c4d0d4', captured: 0, frostStacks: 1, corrosionStacks: 0, burnStacks: 0, segments: [] },
+        { id: 5, archetype: 'bombardier', behaviorState: 'munition', behaviorPhase: 1, col: 12, row: 11, angle: -0.4, health: 1, maxHealth: 1, color: '#ff6f91', captured: 0, frostStacks: 0, corrosionStacks: 0, burnStacks: 0, segments: [] },
       ],
       foods: [], projectiles: [], hazards: [],
       pendingSpawns: [{ id: 3, archetype: 'warden', color: '#d95cff', angle: Math.PI / 2, headCell: { col: 18, row: 4, health: 13, maxHealth: 13 }, bodyCells: [{ col: 17, row: 4, health: 8, maxHealth: 8 }], timer: 1, maxTimer: 1.5 }],
     };
 
     const decoded = clientGlobals.GSS0NetworkCodec.decode(encodeUltraSnapshot(snapshot), MODULES);
+    expect(clientGlobals.GSS0NetworkCodec.version).toBe(27);
     expect(decoded).toMatchObject({ tick: 7, players: [{ name: '玩家甲' }] });
     expect(decoded.players[0]).toMatchObject({ lastInputSequence: 7, speed: 10, energy: 72.5, dashing: true, knockbackX: 0.5, knockbackY: -0.25, health: 18.5, maxHealth: 30 });
     expect(decoded.players[0].dashElapsed).toBeCloseTo(0.9, 5);
@@ -128,6 +130,7 @@ describe('客户端网络模块', () => {
     expect(decoded.enemies[0]).toMatchObject({ archetype: 'charger', behaviorState: 'roam', behaviorPhase: 0, health: 2, maxHealth: 5, frostStacks: 2, corrosionStacks: 2, burnStacks: 5 });
     expect(decoded.enemies[0].segments[0]).toMatchObject({ health: 3, maxHealth: 3 });
     expect(decoded.enemies[1]).toMatchObject({ archetype: 'engineer', behaviorState: 'static', behaviorPhase: 1, health: 13, maxHealth: 21, segments: [] });
+    expect(decoded.enemies[2]).toMatchObject({ archetype: 'bombardier', behaviorState: 'munition', behaviorPhase: 1, health: 1, maxHealth: 1, segments: [] });
     expect(decoded.pendingSpawns[0]).toMatchObject({ id: 3, archetype: 'warden', color: '#d95cff' });
     expect(decoded.pendingSpawns[0].angle).toBeCloseTo(Math.PI / 2, 3);
   });

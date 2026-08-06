@@ -112,6 +112,16 @@
       parameterPrefix: "enemyEngineer",
       description: "至少以两节机体出生，周期性将最后一个真实尾节连同生命、装甲与异常状态转移为永久静止的独立关节；仅剩头部后停止投放。",
       traits: Object.freeze(["至少双节出生", "尾节生命原样转移", "独立关节永久布防"])
+    }),
+    Object.freeze({
+      id: "bombardier",
+      code: "BOMBARDIER",
+      name: "轰击体",
+      role: "锁向投弹",
+      color: "#ff6f91",
+      parameterPrefix: "enemyBombardier",
+      description: "周期性跟踪玩家蛇头完成瞄准，随后锁死方向并发射不消耗本体关节的独立移动障碍弹；双层圆弹沿直线前进，命中玩家或圆形边界后自毁。",
+      traits: Object.freeze(["跟踪瞄准后锁向", "发射独立双层圆弹", "分离式空心预警"])
     })
   ]);
   const byId = Object.freeze(Object.fromEntries(entries.map((entry) => [entry.id, entry])));
@@ -167,6 +177,18 @@
       Object.freeze({ label: "脱落间隔", key: "enemyEngineerDetachInterval", format: "time" }),
       Object.freeze({ label: "脱落预警", key: "enemyEngineerDetachWarningDuration", format: "time" }),
       Object.freeze({ label: "关节激活", key: "enemyEngineerJointActivationDuration", format: "time" })
+    ]),
+    bombardier: Object.freeze([
+      Object.freeze({ label: "射击间隔", key: "enemyBombardierFireInterval", format: "time" }),
+      Object.freeze({ label: "瞄准时长", key: "enemyBombardierAimDuration", format: "time" }),
+      Object.freeze({ label: "锁定时长", key: "enemyBombardierLockDuration", format: "time" }),
+      Object.freeze({ label: "障碍弹速度", key: "enemyBombardierProjectileSpeed", format: "cellsPerSecond" }),
+      Object.freeze({ label: "障碍弹半径", key: "enemyBombardierProjectileRadiusCells", format: "cells" }),
+      Object.freeze({ label: "出膛间隔", key: "enemyBombardierProjectileSpawnGapCells", format: "cells" }),
+      Object.freeze({ label: "预警长度", key: "enemyBombardierWarningLengthCells", format: "cells" }),
+      Object.freeze({ label: "预警宽度", key: "enemyBombardierWarningWidthCells", format: "cells" }),
+      Object.freeze({ label: "预警分离", key: "enemyBombardierWarningGapCells", format: "cells" }),
+      Object.freeze({ label: "预警脉冲", key: "enemyBombardierWarningPulseRate", format: "frequency" })
     ])
   });
 
@@ -187,6 +209,7 @@
     if (format === "time") return `${number}秒`;
     if (format === "multiplier") return `${number}×`;
     if (format === "cells") return `${number}格`;
+    if (format === "cellsPerSecond") return `${number}格/秒`;
     if (format === "radians") return `${number}弧度`;
     if (format === "frequency") return `${number}次/秒`;
     return number;
@@ -200,7 +223,7 @@
         ...definition,
         key: `${entry.parameterPrefix}${definition.suffix}`
       })),
-      ...(!["liner", "headhunter"].includes(enemyId) ? sharedParameterDefinitions : []),
+      ...(!["liner", "headhunter", "bombardier"].includes(enemyId) ? sharedParameterDefinitions : []),
       ...(specialParameterDefinitions[enemyId] || [])
     ];
     return definitions.map((definition) => Object.freeze({
@@ -254,6 +277,9 @@
       case "engineer":
         context.moveTo(9, -9); context.lineTo(9, 9); context.lineTo(-9, 9); context.lineTo(-9, -9); context.closePath();
         break;
+      case "bombardier":
+        context.moveTo(11, 0); context.lineTo(5, 9); context.lineTo(-7, 9); context.lineTo(-11, 0); context.lineTo(-7, -9); context.lineTo(5, -9); context.closePath();
+        break;
       default:
         context.moveTo(10, 0); context.lineTo(4, 9); context.lineTo(-8, 7); context.lineTo(-11, 0); context.lineTo(-8, -7); context.lineTo(4, -9); context.closePath();
     }
@@ -290,6 +316,9 @@
         break;
       case "engineer":
         context.moveTo(17, 0); context.lineTo(10, 13); context.lineTo(-11, 13); context.lineTo(-16, 7); context.lineTo(-16, -7); context.lineTo(-11, -13); context.lineTo(10, -13); context.closePath();
+        break;
+      case "bombardier":
+        context.moveTo(20, 0); context.lineTo(9, 12); context.lineTo(-8, 14); context.lineTo(-16, 7); context.lineTo(-16, -7); context.lineTo(-8, -14); context.lineTo(9, -12); context.closePath();
         break;
       default:
         context.moveTo(18, 0); context.lineTo(8, 12); context.lineTo(-7, 11); context.lineTo(-15, 5); context.lineTo(-12, 0); context.lineTo(-15, -5); context.lineTo(-7, -11); context.lineTo(8, -12); context.closePath();
@@ -336,6 +365,14 @@
       context.strokeRect(-6.5, -6.5, 13, 13);
       context.strokeStyle = "#7d898e";
       context.strokeRect(-3.5, -3.5, 7, 7);
+    } else if (entry.id === "bombardier") {
+      context.globalAlpha = 1;
+      context.strokeStyle = "#ffffff";
+      context.lineWidth = 1.4;
+      context.beginPath(); context.arc(0, 0, 5.8, 0, TAU); context.stroke();
+      context.strokeStyle = entry.color;
+      context.lineWidth = 2;
+      context.beginPath(); context.arc(0, 0, 2.4, 0, TAU); context.stroke();
     } else {
       context.fillRect(-7, -2, 11, 4);
     }
@@ -386,6 +423,15 @@
       context.lineWidth = 2;
       context.strokeRect(-9, -9, 18, 18);
       context.fillRect(8, -5, 6, 10);
+    } else if (entry.id === "bombardier") {
+      context.strokeStyle = "#ffffff";
+      context.lineWidth = 2;
+      context.arc(-1, 0, 8.2, 0, TAU);
+      context.stroke();
+      context.fillStyle = entry.color;
+      context.fillRect(7, -4, 9, 8);
+      context.fillStyle = "#101416";
+      context.fillRect(10, -2, 6, 4);
     } else {
       context.moveTo(entry.id === "charger" ? 21 : 18, 0);
       context.lineTo(7, 6);
@@ -419,6 +465,48 @@
     context.strokeRect(-7, -7, 14, 14);
     context.fillStyle = entry.color;
     context.fillRect(-2, -2, 4, 4);
+    context.restore();
+  }
+
+  function drawBombardierWarning(context, entry, head) {
+    context.save();
+    context.translate(head.x, head.y);
+    context.rotate(head.angle);
+    context.strokeStyle = "rgba(3,6,8,0.96)";
+    context.lineWidth = 7;
+    context.beginPath();
+    context.arc(31, 0, 7, 0, TAU);
+    context.moveTo(43, 3);
+    context.lineTo(71, 3);
+    context.lineTo(71, 10);
+    context.lineTo(94, 0);
+    context.lineTo(71, -10);
+    context.lineTo(71, -3);
+    context.lineTo(43, -3);
+    context.closePath();
+    context.stroke();
+    context.strokeStyle = entry.color;
+    context.lineWidth = 2.5;
+    context.stroke();
+    context.restore();
+  }
+
+  function drawBombardierProjectile(context, entry) {
+    context.save();
+    context.translate(116, 132);
+    context.shadowColor = entry.color;
+    context.shadowBlur = 15;
+    context.fillStyle = "rgba(8,12,14,0.96)";
+    context.beginPath(); context.arc(0, 0, 14, 0, TAU); context.fill();
+    context.strokeStyle = "#ffffff";
+    context.lineWidth = 3;
+    context.stroke();
+    context.shadowBlur = 0;
+    context.strokeStyle = entry.color;
+    context.lineWidth = 2;
+    context.beginPath(); context.arc(0, 0, 7.5, 0, TAU); context.stroke();
+    context.fillStyle = entry.color;
+    context.beginPath(); context.arc(2.5, 0, 2, 0, TAU); context.fill();
     context.restore();
   }
 
@@ -485,9 +573,11 @@
       context.beginPath(); context.moveTo(head.x + 12, head.y); context.lineTo(endX, endY); context.stroke();
       context.save(); context.translate(endX, endY); context.rotate(head.angle); context.beginPath(); context.moveTo(12, 0); context.lineTo(-10, 9); context.lineTo(-10, -9); context.closePath(); context.fill(); context.restore();
     }
+    if (entry.id === "bombardier") drawBombardierWarning(context, entry, pieces[0]);
     for (let index = pieces.length - 1; index >= 1; index -= 1) drawSegment(context, entry, pieces[index]);
     drawHead(context, entry, pieces[0]);
     if (entry.id === "engineer") drawEngineerIndependentJoint(context, entry);
+    if (entry.id === "bombardier") drawBombardierProjectile(context, entry);
 
     context.fillStyle = entry.color;
     context.font = "900 11px Bahnschrift, Arial, sans-serif";

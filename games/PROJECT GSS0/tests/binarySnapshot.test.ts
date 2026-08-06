@@ -45,6 +45,23 @@ describe('Ultra 二进制快照', () => {
       burnStacks: 3,
       segments: [],
     });
+    snapshot.enemies.push({
+      id: 12,
+      archetype: 'bombardier',
+      behaviorState: 'munition',
+      behaviorPhase: 1,
+      col: 14,
+      row: 13,
+      angle: -0.4,
+      health: 1,
+      maxHealth: 1,
+      color: '#ff6f91',
+      captured: 0,
+      frostStacks: 0,
+      corrosionStacks: 0,
+      burnStacks: 0,
+      segments: [],
+    });
 
     const encoded = encodeUltraSnapshot(snapshot);
     const later = encodeUltraSnapshot(snapshotAt(43, 9.5));
@@ -69,6 +86,7 @@ describe('Ultra 二进制快照', () => {
     expect(decoded.enemies[0].segments[0]).toMatchObject({ health: 456_789, maxHealth: 1_000_000 });
     expect(decoded.enemies[1]).toMatchObject({ archetype: 'engineer', behaviorState: 'activate', health: 21, maxHealth: 34, segments: [] });
     expect(decoded.enemies[1].behaviorPhase).toBeCloseTo(0.42, 2);
+    expect(decoded.enemies[2]).toMatchObject({ archetype: 'bombardier', behaviorState: 'munition', behaviorPhase: 1, health: 1, maxHealth: 1, segments: [] });
     const decodedLater = decodeUltraSnapshot(later);
     expect(decodedLater).toMatchObject({ tick: 43 });
     expect(decodedLater.players[0].col).toBeCloseTo(9.5, 3);
