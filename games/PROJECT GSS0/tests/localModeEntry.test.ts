@@ -10,7 +10,8 @@ describe('纯单机模式入口', () => {
     expect(gameSource).toContain('localModeButton: document.querySelector("#local-mode-button")');
     expect(gameSource).toContain('localModeForced = true;');
     expect(gameSource).toContain('network.enabled = false;');
-    expect(gameSource).toContain('socket?.disconnect?.();');
+    expect(gameSource).toContain('const client = network.p2pClient;');
+    expect(gameSource).toContain('client?.close?.();');
     expect(gameSource).toContain('ui.localModeButton.addEventListener("click", startPureLocalGame);');
     expect(gameSource).toContain('startGame();');
   });

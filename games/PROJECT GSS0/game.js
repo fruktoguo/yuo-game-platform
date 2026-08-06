@@ -145,13 +145,14 @@
   const TAU = Math.PI * 2;
   const P2P_TOAST_DURATION_MS = 2800;
   const DESIGNER_CONFIG = globalThis.GSS0_DESIGNER_CONFIG || {};
-  if (DESIGNER_CONFIG.schemaVersion !== 52) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 52");
+  if (DESIGNER_CONFIG.schemaVersion !== 53) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 53");
   const DESIGNER_BALANCE = DESIGNER_CONFIG.balance || {};
   const MODULE_DESIGN_STATES = DESIGNER_CONFIG.moduleStates || {};
   const arenaGeometry = globalThis.GSS0ArenaGeometry;
   if (!arenaGeometry) throw new Error("PROJECT GSS0 圆形场地几何未加载");
   const playerBodyPathApi = globalThis.GSS0PlayerBodyPath;
   const playerDashApi = globalThis.GSS0PlayerDash;
+  const enemyBehaviorApi = globalThis.GSS0EnemyBehavior;
   const enemyVitalityApi = globalThis.GSS0EnemyVitality;
   const enemyArmorApi = globalThis.GSS0EnemyArmor;
   if (!enemyVitalityApi) throw new Error("PROJECT GSS0 敌人关节生命运行时未加载");
@@ -160,8 +161,10 @@
   const ENEMY_ARMOR_SHOWCASE = DEBUG_QUERY.get("debug-armor-showcase") === "1";
   const ENEMY_ARMOR_SHOWCASE_HEALTHS = Object.freeze([1, 2, 3, 4, 5, 8, 13, 100]);
   const ENEMY_JOINT_HEALTH_DEBUG = DEBUG_QUERY.get("debug-joint-health") === "1" || ENEMY_ARMOR_SHOWCASE;
+  const DEBUG_ENEMY_ARCHETYPE_ID = DEBUG_QUERY.get("debug-enemy");
   if (!playerBodyPathApi) throw new Error("PROJECT GSS0 玩家历史轨迹未加载");
   if (!playerDashApi) throw new Error("PROJECT GSS0 玩家能量与突进运行时未加载");
+  if (!enemyBehaviorApi) throw new Error("PROJECT GSS0 主动敌群行为运行时未加载");
 
   function designerNumber(key, fallback, minimum, maximum, integer = false) {
     const candidate = DESIGNER_BALANCE[key];
@@ -275,6 +278,9 @@
     cutter: createEnemyArmorPolygon([[18, 0], [2, 15], [-3, 9], [-15, 5], [-11, 0], [-15, -5], [-3, -9], [2, -15]]),
     coiler: createEnemyArmorCircle(14),
     warden: createEnemyArmorPolygon([[16, 0], [10, 13], [-8, 15], [-17, 8], [-17, -8], [-8, -15], [10, -13]]),
+    liner: createEnemyArmorPolygon([[22, 0], [2, 11], [-13, 7], [-13, -7], [2, -11]]),
+    skitter: createEnemyArmorPolygon([[18, 0], [6, 14], [-8, 10], [-15, 0], [-8, -10], [6, -14]]),
+    headhunter: createEnemyArmorPolygon([[23, 0], [4, 13], [-13, 8], [-13, -8], [4, -13]]),
     default: createEnemyArmorPolygon([[18, 0], [8, 12], [-7, 11], [-15, 5], [-12, 0], [-15, -5], [-7, -11], [8, -12]])
   });
   const ENEMY_BODY_ARMOR_SHAPES = Object.freeze({
@@ -284,6 +290,9 @@
     cutter: createEnemyArmorPolygon([[10, 0], [0, 11], [-5, 4], [-11, 0], [-5, -4], [0, -11]]),
     coiler: createEnemyArmorCircle(9),
     warden: createEnemyArmorPolygon([[8, -9], [11, -4], [11, 4], [8, 9], [-8, 9], [-11, 4], [-11, -4], [-8, -9]]),
+    liner: createEnemyArmorPolygon([[12, 0], [0, 5], [-12, 0], [0, -5]]),
+    skitter: createEnemyArmorPolygon([[8, -8], [11, 0], [8, 8], [-8, 8], [-11, 0], [-8, -8]]),
+    headhunter: createEnemyArmorPolygon([[11, 0], [3, 9], [-9, 6], [-9, -6], [3, -9]]),
     default: createEnemyArmorPolygon([[10, 0], [4, 9], [-8, 7], [-11, 0], [-8, -7], [4, -9]])
   });
   const SNAKE_BODY_CONTACT_RANGE = 0.42 * SNAKE_BODY_SIZE_SCALE;
@@ -421,19 +430,36 @@
     enemyArchetype("charger", "Charger", { unlockSeconds: 60, spawnWeight: 3, healthWeight: 1, speedMultiplier: 1.5, turnMultiplier: 0.5 }),
     enemyArchetype("cutter", "Cutter", { unlockSeconds: 120, spawnWeight: 1.5, healthWeight: 2, speedMultiplier: 1.8, turnMultiplier: 1.8 }),
     enemyArchetype("coiler", "Coiler", { unlockSeconds: 180, spawnWeight: 2, healthWeight: 2, speedMultiplier: 1.5, turnMultiplier: 2 }),
-    enemyArchetype("warden", "Warden", { unlockSeconds: 240, spawnWeight: 1, healthWeight: 8, speedMultiplier: 0.6, turnMultiplier: 0.9 })
+    enemyArchetype("warden", "Warden", { unlockSeconds: 240, spawnWeight: 1, healthWeight: 8, speedMultiplier: 0.6, turnMultiplier: 0.9 }),
+    enemyArchetype("liner", "Liner", { unlockSeconds: 0, spawnWeight: 6, healthWeight: 1, speedMultiplier: 1.2, turnMultiplier: 1 }),
+    enemyArchetype("skitter", "Skitter", { unlockSeconds: 120, spawnWeight: 2, healthWeight: 2, speedMultiplier: 1.5, turnMultiplier: 1.5 }),
+    enemyArchetype("headhunter", "HeadHunter", { unlockSeconds: 60, spawnWeight: 3, healthWeight: 1, speedMultiplier: 1.8, turnMultiplier: 3 })
   ]);
-  const ENEMY_PLAYER_BODY_AVOIDANCE = new Set(["courier", "charger", "cutter", "coiler", "warden"]);
+  const DEBUG_ENEMY_ARCHETYPE = DEBUG_ENEMY_ARCHETYPE_ID
+    ? ENEMY_ARCHETYPES.find((entry) => entry.id === DEBUG_ENEMY_ARCHETYPE_ID) || null
+    : null;
+  const ENEMY_PLAYER_BODY_AVOIDANCE = new Set(["courier", "cutter", "coiler", "warden"]);
   const ENEMY_BEHAVIOR_TUNING = Object.freeze({
     bodyAvoidanceRange: designerNumber("enemyBodyAvoidanceRange", 3.2, 0.5, 10),
-    scoutFoodRange: designerNumber("enemyScoutFoodRange", 6, 0, 30),
     courierFoodClusterRadius: designerNumber("enemyCourierFoodClusterRadius", 2.5, 0.5, 10),
     chargerTrackingWobble: designerNumber("enemyChargerTrackingWobble", 0.16, 0, 0.6),
+    chargerInterceptMaxSeconds: designerNumber("enemyChargerInterceptMaxSeconds", 2.25, 0, 10),
     cutterLeadDistance: designerNumber("enemyCutterLeadDistance", 3.2, 0.5, 12),
     cutterLateralDistance: designerNumber("enemyCutterLateralDistance", 2.4, 0.5, 12),
     coilerFoodRange: designerNumber("enemyCoilerFoodRange", 6, 0, 30),
     wardenFoodRange: designerNumber("enemyWardenFoodRange", 6, 0, 30),
-    wardenKnockbackMultiplier: designerNumber("enemyWardenKnockbackMultiplier", 2, 1, 4)
+    wardenKnockbackMultiplier: designerNumber("enemyWardenKnockbackMultiplier", 2, 1, 4),
+    linerWarningLengthCells: designerNumber("enemyLinerWarningLengthCells", 2.8, 0.5, 10),
+    linerWarningWidthCells: designerNumber("enemyLinerWarningWidthCells", 0.18, 0.03, 1),
+    linerWarningPulseRate: designerNumber("enemyLinerWarningPulseRate", 2.4, 0, 12),
+    skitterRetargetMinSeconds: designerNumber("enemySkitterRetargetMinSeconds", 1, 0.1, 10),
+    skitterRetargetMaxSeconds: designerNumber("enemySkitterRetargetMaxSeconds", 3, 0.1, 10),
+    skitterTargetMinimumDistance: designerNumber("enemySkitterTargetMinimumDistance", 4, 0, 20),
+    skitterArrivalDistance: designerNumber("enemySkitterArrivalDistance", 0.75, 0.1, 5),
+    headHunterAimDuration: designerNumber("enemyHeadHunterAimDuration", 0.55, 0.05, 5),
+    headHunterLockDuration: designerNumber("enemyHeadHunterLockDuration", 0.22, 0, 3),
+    headHunterAimSpeedMultiplier: designerNumber("enemyHeadHunterAimSpeedMultiplier", 0.35, 0, 1),
+    headHunterLockSpeedMultiplier: designerNumber("enemyHeadHunterLockSpeedMultiplier", 0, 0, 1)
   });
   const UPGRADE_INVULNERABILITY_DURATION = designerNumber("upgradeInvulnerabilityDuration", 0.5, 0, 10);
   const RESPAWN_LOCATOR_CONVERGE_DURATION = designerNumber("respawnLocatorConvergeDuration", 1, 0.1, 10);
@@ -4617,6 +4643,12 @@
       target: null,
       think: random(0.1, 0.5),
       wobble: random(0, TAU),
+      behaviorTimer: 0,
+      behaviorDuration: 0,
+      targetCol: headCell.col,
+      targetRow: headCell.row,
+      lockedAngle: directionAngle(direction),
+      needsReacquire: archetype.id === "headhunter",
       slow: 0,
       frostStacks: 0,
       frostPotency: 0,
@@ -4641,6 +4673,7 @@
       maxTimer: ENEMY_SPAWN_WARNING_TIME
     };
     enemy.bodyCells = enemy.segments;
+    initializeQueuedEnemyBehavior(enemy);
     initializeEnemySegmentSpacing(enemy);
     enemy.reservedCells = [enemy, ...enemy.segments].map((cell) => ({ col: cell.col, row: cell.row }));
     let previous = enemy;
@@ -4673,6 +4706,7 @@
   }
 
   function materializeEnemySpawn(spawn) {
+    if (spawn.archetype === "headhunter") beginHeadHunterAim(spawn);
     enemies.push(spawn);
     presentEnemySpawnNode(spawn, spawn);
     for (const segment of spawn.segments) presentEnemySpawnNode(spawn, segment);
@@ -4699,6 +4733,7 @@
   }
 
   function chooseEnemyArchetype() {
+    if (DEBUG_ENEMY_ARCHETYPE) return DEBUG_ENEMY_ARCHETYPE;
     const available = ENEMY_ARCHETYPES.filter((entry) => (
       entry.unlockSeconds <= gameTime
       && entry.spawnWeight > 0
@@ -6003,7 +6038,18 @@
     syncNodePosition(entity);
     if (entity === player) {
       if (!network.enabled) resamplePlayerBodyPath(entity);
-    } else followEnemySegments(entity, 0);
+    } else {
+      followEnemySegments(entity, 0);
+      if (entity.archetype === "skitter") entity.behaviorTimer = 0;
+      if (entity.archetype === "headhunter") {
+        entity.needsReacquire = true;
+        entity.behaviorDuration = 0;
+        entity.behaviorTimer = 0;
+        entity.behaviorState = "aim";
+        entity.behaviorPhase = 0;
+        entity.think = 0;
+      }
+    }
     if (entity !== player) updateEnemyHitBounds(entity);
     burst(entity.x, entity.y, color, 13, 135);
     effects.push({ type: "ring", x: entity.x, y: entity.y, color, life: 0.38, maxLife: 0.38, radius: 5, endRadius: arena.cellSize * 0.85 });
@@ -7157,6 +7203,22 @@
 
   function chooseEnemyIntent(enemy) {
     enemy.wobble += random(-1.2, 1.2);
+    if (enemy.archetype === "liner") {
+      enemy.target = null;
+      enemy.behaviorState = "straight";
+      enemy.desiredAngle = enemy.angle;
+      enemy.behaviorPhase = 1;
+      return;
+    }
+    if (enemy.archetype === "skitter") {
+      enemy.target = null;
+      if (enemy.behaviorTimer <= 0) assignSkitterTarget(enemy);
+      return;
+    }
+    if (enemy.archetype === "headhunter") {
+      enemy.target = null;
+      return;
+    }
     if (enemy.archetype === "charger") {
       enemy.target = null;
       enemy.behaviorState = "roam";
@@ -7167,14 +7229,16 @@
       enemy.behaviorState = "intercept";
       return;
     }
+    if (enemy.archetype === "scout") {
+      enemy.target = null;
+      enemy.behaviorState = "roam";
+      return;
+    }
     const candidates = nearestFoodsForEnemy(enemy, ENEMY_FOOD_SEARCH_LIMIT);
     switch (enemy.archetype) {
-      case "scout":
       case "warden": {
         const target = candidates[0];
-        const foodRange = enemy.archetype === "warden"
-          ? ENEMY_BEHAVIOR_TUNING.wardenFoodRange
-          : ENEMY_BEHAVIOR_TUNING.scoutFoodRange;
+        const foodRange = ENEMY_BEHAVIOR_TUNING.wardenFoodRange;
         enemy.target = target && distanceSquared(enemy, target) <= foodRange ** 2 ? target : null;
         enemy.behaviorState = enemy.target ? "forage" : "roam";
         break;
@@ -7203,8 +7267,33 @@
   }
 
   function steerEnemy(enemy, activeFoods) {
+    if (enemy.archetype === "liner") {
+      enemy.desiredAngle = enemy.angle;
+      enemy.behaviorState = "straight";
+      enemy.behaviorPhase = 1;
+      return;
+    }
+    if (enemy.archetype === "skitter") {
+      enemy.desiredAngle = Math.atan2(enemy.targetRow - enemy.row, enemy.targetCol - enemy.col);
+      enemy.behaviorState = "scramble";
+      return;
+    }
+    if (enemy.archetype === "headhunter") {
+      enemy.desiredAngle = enemy.lockedAngle;
+      return;
+    }
     if (enemy.archetype === "charger") {
-      const ideal = Math.atan2(player.row - enemy.row, player.col - enemy.col);
+      const playerSpeed = player.speed * (player.dashMovementMultiplier || (player.dashing ? PLAYER_DASH_SPEED_MULTIPLIER : 1));
+      const ideal = enemyBehaviorApi.interceptAngle(
+        enemy.col,
+        enemy.row,
+        player.col,
+        player.row,
+        Math.cos(player.angle) * playerSpeed + (player.knockbackX || 0),
+        Math.sin(player.angle) * playerSpeed + (player.knockbackY || 0),
+        enemy.speed,
+        ENEMY_BEHAVIOR_TUNING.chargerInterceptMaxSeconds
+      );
       const sway = (
         Math.sin(gameTime * 1.7 + enemy.wobble) * 0.72
         + Math.sin(gameTime * 0.47 + enemy.id) * 0.28
@@ -7238,6 +7327,103 @@
     enemy.desiredAngle += Math.sin(gameTime + enemy.wobble) * 0.05;
   }
 
+  function initializeQueuedEnemyBehavior(enemy) {
+    if (enemy.archetype === "liner") {
+      const angle = enemyBehaviorApi.randomAngle(Math.random);
+      enemy.angle = angle;
+      enemy.desiredAngle = angle;
+      enemy.lockedAngle = angle;
+      enemy.behaviorState = "straight";
+      enemy.behaviorPhase = 1;
+      return;
+    }
+    if (enemy.archetype === "skitter") {
+      assignSkitterTarget(enemy);
+      return;
+    }
+    if (enemy.archetype === "headhunter") {
+      enemy.behaviorState = "aim";
+      enemy.behaviorPhase = 0;
+      enemy.needsReacquire = true;
+    }
+  }
+
+  function assignSkitterTarget(enemy) {
+    const target = enemyBehaviorApi.sampleCircleTarget(
+      enemy.col,
+      enemy.row,
+      ARENA_CENTER_COORDINATE,
+      ARENA_CENTER_COORDINATE,
+      arenaPlayableRadius(enemyHeadRadiusCells(enemy) + ENEMY_BEHAVIOR_TUNING.skitterArrivalDistance),
+      ENEMY_BEHAVIOR_TUNING.skitterTargetMinimumDistance,
+      Math.random
+    );
+    enemy.targetCol = target.col;
+    enemy.targetRow = target.row;
+    enemy.behaviorDuration = enemyBehaviorApi.randomBetween(
+      ENEMY_BEHAVIOR_TUNING.skitterRetargetMinSeconds,
+      ENEMY_BEHAVIOR_TUNING.skitterRetargetMaxSeconds,
+      Math.random
+    );
+    enemy.behaviorTimer = enemy.behaviorDuration;
+    enemy.behaviorState = "scramble";
+    enemy.behaviorPhase = 0;
+  }
+
+  function beginHeadHunterAim(enemy) {
+    const targetAngle = player
+      ? Math.atan2(player.row - enemy.row, player.col - enemy.col)
+      : enemy.angle;
+    enemy.lockedAngle = targetAngle;
+    enemy.desiredAngle = targetAngle;
+    enemy.behaviorDuration = ENEMY_BEHAVIOR_TUNING.headHunterAimDuration;
+    enemy.behaviorTimer = enemy.behaviorDuration;
+    enemy.behaviorState = "aim";
+    enemy.behaviorPhase = 0;
+    enemy.needsReacquire = false;
+  }
+
+  function advanceEnemyBehaviorState(enemy, dt) {
+    if (enemy.archetype === "skitter") {
+      enemy.behaviorTimer -= dt;
+      const deltaCol = enemy.targetCol - enemy.col;
+      const deltaRow = enemy.targetRow - enemy.row;
+      if (
+        enemy.behaviorTimer <= 0
+        || deltaCol * deltaCol + deltaRow * deltaRow <= ENEMY_BEHAVIOR_TUNING.skitterArrivalDistance ** 2
+      ) assignSkitterTarget(enemy);
+      enemy.behaviorPhase = enemy.behaviorDuration > 0
+        ? clamp(1 - enemy.behaviorTimer / enemy.behaviorDuration, 0, 1)
+        : 1;
+      return;
+    }
+    if (enemy.archetype !== "headhunter") return;
+    if (enemy.needsReacquire) beginHeadHunterAim(enemy);
+    if (enemy.behaviorState === "aim") {
+      enemy.behaviorTimer -= dt;
+      enemy.behaviorPhase = clamp(1 - enemy.behaviorTimer / Math.max(0.001, enemy.behaviorDuration), 0, 1);
+      if (enemy.behaviorTimer > 0) return;
+      enemy.angle = enemy.lockedAngle;
+      enemy.desiredAngle = enemy.lockedAngle;
+      enemy.behaviorDuration = ENEMY_BEHAVIOR_TUNING.headHunterLockDuration;
+      enemy.behaviorTimer = enemy.behaviorDuration;
+      enemy.behaviorState = "lock";
+      enemy.behaviorPhase = 0;
+      return;
+    }
+    if (enemy.behaviorState === "lock") {
+      enemy.behaviorTimer -= dt;
+      enemy.angle = enemy.lockedAngle;
+      enemy.desiredAngle = enemy.lockedAngle;
+      enemy.behaviorPhase = enemy.behaviorDuration > 0
+        ? clamp(1 - enemy.behaviorTimer / enemy.behaviorDuration, 0, 1)
+        : 1;
+      if (enemy.behaviorTimer > 0) return;
+      enemy.behaviorState = "rush";
+      enemy.behaviorPhase = 1;
+    }
+  }
+
   function steerEnemyAwayFromWalls(enemy) {
     const lookaheadDistance = Math.max(ENEMY_WALL_AVOIDANCE_DISTANCE, enemy.speed * ENEMY_THINK_INTERVAL_MAX);
     const projectedCol = enemy.col + Math.cos(enemy.angle) * lookaheadDistance;
@@ -7261,26 +7447,30 @@
       if (enemy.dead) continue;
       enemy.collisionCooldown = Math.max(0, enemy.collisionCooldown - dt);
       if (enemy.collisionCooldown <= 0) {
+        advanceEnemyBehaviorState(enemy, dt);
         enemy.think -= dt;
         if (enemy.think <= 0) {
           enemy.think = random(Math.min(ENEMY_THINK_INTERVAL_MIN, ENEMY_THINK_INTERVAL_MAX), Math.max(ENEMY_THINK_INTERVAL_MIN, ENEMY_THINK_INTERVAL_MAX));
           chooseEnemyIntent(enemy);
         }
         steerEnemy(enemy, activeEnemyFoods);
+        const independentCourse = enemyBehaviorApi.usesIndependentCourse(enemy.archetype);
 
         const avoidance = ENEMY_PLAYER_BODY_AVOIDANCE.has(enemy.archetype) ? playerBodyAvoidance(enemy) : null;
         if (avoidance) {
-          const priorityStrength = enemy.archetype === "courier" || enemy.archetype === "charger"
+          const priorityStrength = enemy.archetype === "courier"
             ? avoidance.priorityStrength
             : avoidance.strength;
           enemy.desiredAngle += angleDelta(enemy.desiredAngle, avoidance.angle) * priorityStrength;
         }
-        const enemyAvoidance = enemyBodyAvoidance(enemy);
-        if (enemyAvoidance) {
-          enemy.desiredAngle += angleDelta(enemy.desiredAngle, enemyAvoidance.angle) * enemyAvoidance.strength;
+        if (!independentCourse) {
+          const enemyAvoidance = enemyBodyAvoidance(enemy);
+          if (enemyAvoidance) {
+            enemy.desiredAngle += angleDelta(enemy.desiredAngle, enemyAvoidance.angle) * enemyAvoidance.strength;
+          }
         }
 
-        if (repulseRange > 0) {
+        if (!independentCourse && repulseRange > 0) {
           const distance = Math.sqrt(distanceSquared(player, enemy));
           if (distance < repulseRange) {
             const awayAngle = distance > 0.001
@@ -7292,12 +7482,19 @@
           }
         }
 
-        steerEnemyAwayFromWalls(enemy);
+        if (!independentCourse) steerEnemyAwayFromWalls(enemy);
         enemy.angle = rotateToward(enemy.angle, enemy.desiredAngle, dt * enemy.turnRate * waveSpeedMultiplier);
       }
       const frostMultiplier = Math.max(FROST_MINIMUM_SPEED_RATIO, 1 - (enemy.frostPotency || enemy.frostStacks || 0) * FROST_SLOW_PER_STACK);
       const statusMultiplier = (enemy.slow > 0 ? 0.55 : 1) * frostMultiplier;
-      const speed = enemy.speed * waveSpeedMultiplier * chronosMultiplier * statusMultiplier;
+      const behaviorSpeedMultiplier = enemy.archetype !== "headhunter"
+        ? 1
+        : enemy.behaviorState === "aim"
+          ? ENEMY_BEHAVIOR_TUNING.headHunterAimSpeedMultiplier
+          : enemy.behaviorState === "lock"
+            ? ENEMY_BEHAVIOR_TUNING.headHunterLockSpeedMultiplier
+            : 1;
+      const speed = enemy.speed * waveSpeedMultiplier * chronosMultiplier * statusMultiplier * behaviorSpeedMultiplier;
       enemyMovementStart.col = enemy.col;
       enemyMovementStart.row = enemy.row;
       const nextCol = enemy.col + (Math.cos(enemy.angle) * speed + enemy.knockbackX) * dt;
@@ -7401,7 +7598,9 @@
         }
       }
 
-      const foodContact = findLocalEnemyFoodContact(enemy);
+      const foodContact = enemyBehaviorApi.canCollectFood(enemy.archetype)
+        ? findLocalEnemyFoodContact(enemy)
+        : null;
       if (foodContact) {
         const { food, collector, index } = foodContact;
         localFoodSpatialRuntime.untrackFood(food.id);
@@ -8603,6 +8802,15 @@
       case "warden":
         context.moveTo(16, 0); context.lineTo(10, 13); context.lineTo(-8, 15); context.lineTo(-17, 8); context.lineTo(-17, -8); context.lineTo(-8, -15); context.lineTo(10, -13); context.closePath();
         break;
+      case "liner":
+        context.moveTo(22, 0); context.lineTo(2, 11); context.lineTo(-13, 7); context.lineTo(-13, -7); context.lineTo(2, -11); context.closePath();
+        break;
+      case "skitter":
+        context.moveTo(18, 0); context.lineTo(6, 14); context.lineTo(-8, 10); context.lineTo(-15, 0); context.lineTo(-8, -10); context.lineTo(6, -14); context.closePath();
+        break;
+      case "headhunter":
+        context.moveTo(23, 0); context.lineTo(4, 13); context.lineTo(-13, 8); context.lineTo(-13, -8); context.lineTo(4, -13); context.closePath();
+        break;
       default:
         context.moveTo(18, 0); context.lineTo(8, 12); context.lineTo(-7, 11); context.lineTo(-15, 5); context.lineTo(-12, 0); context.lineTo(-15, -5); context.lineTo(-7, -11); context.lineTo(8, -12); context.closePath();
         break;
@@ -9142,6 +9350,15 @@
       case "warden":
         context.moveTo(8, -9); context.lineTo(11, -4); context.lineTo(11, 4); context.lineTo(8, 9); context.lineTo(-8, 9); context.lineTo(-11, 4); context.lineTo(-11, -4); context.lineTo(-8, -9); context.closePath();
         break;
+      case "liner":
+        context.moveTo(12, 0); context.lineTo(0, 5); context.lineTo(-12, 0); context.lineTo(0, -5); context.closePath();
+        break;
+      case "skitter":
+        context.moveTo(8, -8); context.lineTo(11, 0); context.lineTo(8, 8); context.lineTo(-8, 8); context.lineTo(-11, 0); context.lineTo(-8, -8); context.closePath();
+        break;
+      case "headhunter":
+        context.moveTo(11, 0); context.lineTo(3, 9); context.lineTo(-9, 6); context.lineTo(-9, -6); context.lineTo(3, -9); context.closePath();
+        break;
       default:
         context.moveTo(10, 0); context.lineTo(4, 9); context.lineTo(-8, 7); context.lineTo(-11, 0); context.lineTo(-8, -7); context.lineTo(4, -9); context.closePath();
         break;
@@ -9166,6 +9383,11 @@
       context.strokeStyle = "#ffffff";
       context.lineWidth = 1;
       context.strokeRect(-6, -5, 12, 10);
+    } else if (enemy.archetype === "skitter") {
+      context.fillRect(-7, -1.5, 14, 3);
+      context.fillRect(-1.5, -7, 3, 14);
+    } else if (enemy.archetype === "liner" || enemy.archetype === "headhunter") {
+      context.fillRect(-8, -1.5, 16, 3);
     } else {
       context.fillRect(-7, -2, 11, 4);
     }
@@ -9197,6 +9419,15 @@
       case "warden":
         context.moveTo(16, 0); context.lineTo(10, 13); context.lineTo(-8, 15); context.lineTo(-17, 8); context.lineTo(-17, -8); context.lineTo(-8, -15); context.lineTo(10, -13); context.closePath();
         break;
+      case "liner":
+        context.moveTo(22, 0); context.lineTo(2, 11); context.lineTo(-13, 7); context.lineTo(-13, -7); context.lineTo(2, -11); context.closePath();
+        break;
+      case "skitter":
+        context.moveTo(18, 0); context.lineTo(6, 14); context.lineTo(-8, 10); context.lineTo(-15, 0); context.lineTo(-8, -10); context.lineTo(6, -14); context.closePath();
+        break;
+      case "headhunter":
+        context.moveTo(23, 0); context.lineTo(4, 13); context.lineTo(-13, 8); context.lineTo(-13, -8); context.lineTo(4, -13); context.closePath();
+        break;
       default:
         context.moveTo(18, 0); context.lineTo(8, 12); context.lineTo(-7, 11); context.lineTo(-15, 5); context.lineTo(-12, 0); context.lineTo(-15, -5); context.lineTo(-7, -11); context.lineTo(8, -12); context.closePath();
         break;
@@ -9222,6 +9453,13 @@
       context.fillRect(-12, -6, 10, 12);
       context.fillStyle = "#ffffff";
       context.fillRect(-8, -5, 2, 10);
+    } else if (enemy.archetype === "liner") {
+      context.moveTo(20, 0); context.lineTo(6, 7); context.lineTo(9, 0); context.lineTo(6, -7); context.closePath(); context.fill();
+    } else if (enemy.archetype === "skitter") {
+      context.fillRect(-6, -2, 20, 4);
+      context.fillRect(0, -8, 4, 16);
+    } else if (enemy.archetype === "headhunter") {
+      context.moveTo(21, 0); context.lineTo(7, 7); context.lineTo(10, 0); context.lineTo(7, -7); context.closePath(); context.fill();
     } else {
       context.moveTo(enemy.archetype === "charger" ? 21 : 18, 0);
       context.lineTo(7, 6);
@@ -9591,6 +9829,36 @@
     for (const segment of enemy.segments) drawEnemyJointHealthLabel(segment, pieceScale, false);
   }
 
+  function drawLinerCourseWarning(enemy, time, pieceScale) {
+    if (enemy.archetype !== "liner") return;
+    const pulse = 0.72 + (Math.sin(time * TAU * ENEMY_BEHAVIOR_TUNING.linerWarningPulseRate) + 1) * 0.1;
+    const startDistance = enemyHeadRadiusPixels(enemy) * 0.48;
+    const length = arena.cellSize * ENEMY_BEHAVIOR_TUNING.linerWarningLengthCells;
+    const widthValue = Math.max(1, arena.cellSize * ENEMY_BEHAVIOR_TUNING.linerWarningWidthCells);
+    const startX = enemy.x + Math.cos(enemy.angle) * startDistance;
+    const startY = enemy.y + Math.sin(enemy.angle) * startDistance;
+    const endX = enemy.x + Math.cos(enemy.angle) * (startDistance + length);
+    const endY = enemy.y + Math.sin(enemy.angle) * (startDistance + length);
+    const arrowLength = widthValue * 2.8;
+    const arrowWidth = widthValue * 1.8;
+    ctx.save();
+    ctx.globalAlpha *= pulse;
+    ctx.lineCap = "round";
+    ctx.strokeStyle = "rgba(3, 6, 8, 0.88)";
+    ctx.lineWidth = widthValue + 4 * pieceScale;
+    ctx.beginPath(); ctx.moveTo(startX, startY); ctx.lineTo(endX, endY); ctx.stroke();
+    ctx.strokeStyle = enemy.color;
+    ctx.lineWidth = widthValue;
+    ctx.beginPath(); ctx.moveTo(startX, startY); ctx.lineTo(endX, endY); ctx.stroke();
+    ctx.translate(endX, endY);
+    ctx.rotate(enemy.angle);
+    ctx.fillStyle = "rgba(3, 6, 8, 0.94)";
+    ctx.beginPath(); ctx.moveTo(arrowLength + 3 * pieceScale, 0); ctx.lineTo(-arrowLength, arrowWidth + 3 * pieceScale); ctx.lineTo(-arrowLength, -arrowWidth - 3 * pieceScale); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = enemy.color;
+    ctx.beginPath(); ctx.moveTo(arrowLength, 0); ctx.lineTo(-arrowLength, arrowWidth); ctx.lineTo(-arrowLength, -arrowWidth); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+
   function drawEnemy(enemy, time = gameTime, spawning = false) {
     const pieceScale = arenaPieceScale();
     const maximumRadius = enemyMaximumRadiusPixels(enemy);
@@ -9600,6 +9868,7 @@
       const blink = 0.48 + Math.abs(Math.sin(time * 12)) * 0.52;
       ctx.globalAlpha *= 0.2 + blink * 0.48;
     }
+    drawLinerCourseWarning(enemy, time, pieceScale);
     drawLinkedPath(enemy, enemy.segments, "rgba(4, 6, 7, 0.92)", (enemy.archetype === "warden" ? 14 : 11) * pieceScale);
     drawLinkedPath(enemy, enemy.segments, enemy.color, (enemy.archetype === "cutter" ? 3.4 : 2.2) * pieceScale, 0.72);
     const segmentSprite = enemy.segments.length > 0 ? enemySprite("segment", enemy) : null;

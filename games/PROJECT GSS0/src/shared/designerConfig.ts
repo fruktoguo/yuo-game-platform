@@ -13,7 +13,7 @@ interface DesignerConfigSource {
 }
 
 const source = (globalThis as typeof globalThis & { GSS0_DESIGNER_CONFIG?: DesignerConfigSource }).GSS0_DESIGNER_CONFIG;
-if (source?.schemaVersion !== 52) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 52');
+if (source?.schemaVersion !== 53) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 53');
 
 function numberSetting(key: string, fallback: number, minimum: number, maximum: number, integer = false): number {
   const candidate = source?.balance?.[key];
@@ -116,7 +116,6 @@ export const DESIGNER_BALANCE = Object.freeze({
   enemyScoutHealthWeight: numberSetting('enemyScoutHealthWeight', 1, 0.01, 20),
   enemyScoutSpeedMultiplier: numberSetting('enemyScoutSpeedMultiplier', 1, 0.1, 3),
   enemyScoutTurnMultiplier: numberSetting('enemyScoutTurnMultiplier', 1, 0.1, 3),
-  enemyScoutFoodRange: numberSetting('enemyScoutFoodRange', 6, 0, 30),
   enemyForagerUnlockSeconds: numberSetting('enemyForagerUnlockSeconds', 0, 0, 3_600),
   enemyForagerSpawnWeight: numberSetting('enemyForagerSpawnWeight', 5, 0, 20),
   enemyForagerHealthWeight: numberSetting('enemyForagerHealthWeight', 2, 0.01, 20),
@@ -134,6 +133,7 @@ export const DESIGNER_BALANCE = Object.freeze({
   enemyChargerSpeedMultiplier: numberSetting('enemyChargerSpeedMultiplier', 1.5, 0.1, 3),
   enemyChargerTurnMultiplier: numberSetting('enemyChargerTurnMultiplier', 0.5, 0.1, 3),
   enemyChargerTrackingWobble: numberSetting('enemyChargerTrackingWobble', 0.16, 0, 0.6),
+  enemyChargerInterceptMaxSeconds: numberSetting('enemyChargerInterceptMaxSeconds', 2.25, 0, 10),
   enemyCutterUnlockSeconds: numberSetting('enemyCutterUnlockSeconds', 120, 0, 3_600),
   enemyCutterSpawnWeight: numberSetting('enemyCutterSpawnWeight', 1.5, 0, 20),
   enemyCutterHealthWeight: numberSetting('enemyCutterHealthWeight', 2, 0.01, 20),
@@ -154,6 +154,32 @@ export const DESIGNER_BALANCE = Object.freeze({
   enemyWardenTurnMultiplier: numberSetting('enemyWardenTurnMultiplier', 0.9, 0.1, 3),
   enemyWardenFoodRange: numberSetting('enemyWardenFoodRange', 6, 0, 30),
   enemyWardenKnockbackMultiplier: numberSetting('enemyWardenKnockbackMultiplier', 2, 1, 4),
+  enemyLinerUnlockSeconds: numberSetting('enemyLinerUnlockSeconds', 0, 0, 3_600),
+  enemyLinerSpawnWeight: numberSetting('enemyLinerSpawnWeight', 6, 0, 20),
+  enemyLinerHealthWeight: numberSetting('enemyLinerHealthWeight', 1, 0.01, 20),
+  enemyLinerSpeedMultiplier: numberSetting('enemyLinerSpeedMultiplier', 1.2, 0.1, 3),
+  enemyLinerTurnMultiplier: numberSetting('enemyLinerTurnMultiplier', 1, 0.1, 3),
+  enemyLinerWarningLengthCells: numberSetting('enemyLinerWarningLengthCells', 2.8, 0.5, 10),
+  enemyLinerWarningWidthCells: numberSetting('enemyLinerWarningWidthCells', 0.18, 0.03, 1),
+  enemyLinerWarningPulseRate: numberSetting('enemyLinerWarningPulseRate', 2.4, 0, 12),
+  enemySkitterUnlockSeconds: numberSetting('enemySkitterUnlockSeconds', 120, 0, 3_600),
+  enemySkitterSpawnWeight: numberSetting('enemySkitterSpawnWeight', 2, 0, 20),
+  enemySkitterHealthWeight: numberSetting('enemySkitterHealthWeight', 2, 0.01, 20),
+  enemySkitterSpeedMultiplier: numberSetting('enemySkitterSpeedMultiplier', 1.5, 0.1, 3),
+  enemySkitterTurnMultiplier: numberSetting('enemySkitterTurnMultiplier', 1.5, 0.1, 3),
+  enemySkitterRetargetMinSeconds: numberSetting('enemySkitterRetargetMinSeconds', 1, 0.1, 10),
+  enemySkitterRetargetMaxSeconds: numberSetting('enemySkitterRetargetMaxSeconds', 3, 0.1, 10),
+  enemySkitterTargetMinimumDistance: numberSetting('enemySkitterTargetMinimumDistance', 4, 0, 20),
+  enemySkitterArrivalDistance: numberSetting('enemySkitterArrivalDistance', 0.75, 0.1, 5),
+  enemyHeadHunterUnlockSeconds: numberSetting('enemyHeadHunterUnlockSeconds', 60, 0, 3_600),
+  enemyHeadHunterSpawnWeight: numberSetting('enemyHeadHunterSpawnWeight', 3, 0, 20),
+  enemyHeadHunterHealthWeight: numberSetting('enemyHeadHunterHealthWeight', 1, 0.01, 20),
+  enemyHeadHunterSpeedMultiplier: numberSetting('enemyHeadHunterSpeedMultiplier', 1.8, 0.1, 3),
+  enemyHeadHunterTurnMultiplier: numberSetting('enemyHeadHunterTurnMultiplier', 3, 0.1, 3),
+  enemyHeadHunterAimDuration: numberSetting('enemyHeadHunterAimDuration', 0.55, 0.05, 5),
+  enemyHeadHunterLockDuration: numberSetting('enemyHeadHunterLockDuration', 0.22, 0, 3),
+  enemyHeadHunterAimSpeedMultiplier: numberSetting('enemyHeadHunterAimSpeedMultiplier', 0.35, 0, 1),
+  enemyHeadHunterLockSpeedMultiplier: numberSetting('enemyHeadHunterLockSpeedMultiplier', 0, 0, 1),
   waveInterval: numberSetting('waveInterval', 6, 0.5, 120),
   foodSpawnSafetyDistance: numberSetting('foodSpawnSafetyDistance', 0.8, 0, 5),
   spawnPlacementAttempts: numberSetting('spawnPlacementAttempts', 96, 1, 1_000, true),

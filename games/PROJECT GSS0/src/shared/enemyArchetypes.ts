@@ -67,6 +67,27 @@ export const ENEMY_ARCHETYPES: readonly EnemyArchetypeDefinition[] = Object.free
     speedMultiplier: DESIGNER_BALANCE.enemyWardenSpeedMultiplier,
     turnMultiplier: DESIGNER_BALANCE.enemyWardenTurnMultiplier,
   }),
+  definition('liner', {
+    unlockSeconds: DESIGNER_BALANCE.enemyLinerUnlockSeconds,
+    spawnWeight: DESIGNER_BALANCE.enemyLinerSpawnWeight,
+    healthWeight: DESIGNER_BALANCE.enemyLinerHealthWeight,
+    speedMultiplier: DESIGNER_BALANCE.enemyLinerSpeedMultiplier,
+    turnMultiplier: DESIGNER_BALANCE.enemyLinerTurnMultiplier,
+  }),
+  definition('skitter', {
+    unlockSeconds: DESIGNER_BALANCE.enemySkitterUnlockSeconds,
+    spawnWeight: DESIGNER_BALANCE.enemySkitterSpawnWeight,
+    healthWeight: DESIGNER_BALANCE.enemySkitterHealthWeight,
+    speedMultiplier: DESIGNER_BALANCE.enemySkitterSpeedMultiplier,
+    turnMultiplier: DESIGNER_BALANCE.enemySkitterTurnMultiplier,
+  }),
+  definition('headhunter', {
+    unlockSeconds: DESIGNER_BALANCE.enemyHeadHunterUnlockSeconds,
+    spawnWeight: DESIGNER_BALANCE.enemyHeadHunterSpawnWeight,
+    healthWeight: DESIGNER_BALANCE.enemyHeadHunterHealthWeight,
+    speedMultiplier: DESIGNER_BALANCE.enemyHeadHunterSpeedMultiplier,
+    turnMultiplier: DESIGNER_BALANCE.enemyHeadHunterTurnMultiplier,
+  }),
 ]);
 
 if (ENEMY_ARCHETYPES.length !== ENEMY_ARCHETYPE_IDS.length) {

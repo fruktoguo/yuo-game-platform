@@ -7,11 +7,11 @@
       id: "scout",
       code: "SCOUT",
       name: "浮游体",
-      role: "游荡抢球",
+      role: "基础游荡",
       color: "#ff5c62",
       parameterPrefix: "enemyScout",
-      description: "在场地中随机游荡。只有球进入抢球范围后才会转向追逐，不会主动避开玩家身体。",
-      traits: Object.freeze(["随机游荡", "范围内优先抢球", "不避玩家身体"])
+      description: "在场地中随机游荡，不再追逐或拾取球。它保留平缓转向与基础硬碰撞，是敌群中的稳定背景压力。",
+      traits: Object.freeze(["随机游荡", "不再拾取球", "不避玩家身体"])
     }),
     Object.freeze({
       id: "forager",
@@ -37,11 +37,11 @@
       id: "charger",
       code: "CHARGER",
       name: "冲角者",
-      role: "追头压迫",
+      role: "延滞截击",
       color: "#ff477e",
       parameterPrefix: "enemyCharger",
-      description: "持续朝最近玩家的蛇头移动，以渐进转向和左右摆动追踪目标；接近玩家机体时优先避开。",
-      traits: Object.freeze(["持续追踪蛇头", "保留摆动与渐进转向", "会主动避障"])
+      description: "根据双方位置与速度持续计算预计交汇方向，再以低转向率和左右摆动逐步逼近。它不再绕开玩家身体，延滞的截击路线可以被反向利用。",
+      traits: Object.freeze(["预测预计交汇点", "低转向延滞截击", "不避玩家身体"])
     }),
     Object.freeze({
       id: "cutter",
@@ -72,11 +72,41 @@
       parameterPrefix: "enemyWarden",
       description: "在场地中随机游荡，只有球进入抢球范围后才顺手追逐；会主动避开玩家身体，厚重头部仍能造成更强击退。",
       traits: Object.freeze(["随机游荡", "范围内顺手抢球", "会主动避障"])
+    }),
+    Object.freeze({
+      id: "liner",
+      code: "LINER",
+      name: "直行体",
+      role: "直线冲撞",
+      color: "#ffd166",
+      parameterPrefix: "enemyLiner",
+      description: "出生时随机选择一个方向，此后绝不主动转向；只有撞到实体或圆形边界时才按硬碰撞结果反弹。头部前方的连接式实心箭头始终标明本体路线。",
+      traits: Object.freeze(["随机初始方向", "全程不主动转向", "实心连接式预警"])
+    }),
+    Object.freeze({
+      id: "skitter",
+      code: "SKITTER",
+      name: "乱窜体",
+      role: "高速换点",
+      color: "#a98cff",
+      parameterPrefix: "enemySkitter",
+      description: "每隔1至3秒在圆形场地内选择一个足够远的新目标，凭借强化速度与转向连续换线；抵达目标或发生反弹时会立即重新选点。",
+      traits: Object.freeze(["圆内随机远目标", "持续平滑转向", "计时或反弹换点"])
+    }),
+    Object.freeze({
+      id: "headhunter",
+      code: "HEADHUNTER",
+      name: "猎头体",
+      role: "锁向追头",
+      color: "#54e1a6",
+      parameterPrefix: "enemyHeadHunter",
+      description: "捕获当时玩家蛇头方向后完成瞄准与短暂锁定，再沿锁死方向高速直行，不会途中追踪；撞到任意物体反弹后才重新捕获目标。",
+      traits: Object.freeze(["捕获蛇头方向", "瞄准后锁向直行", "反弹后重新锁定"])
     })
   ]);
   const byId = Object.freeze(Object.fromEntries(entries.map((entry) => [entry.id, entry])));
   const commonParameterDefinitions = Object.freeze([
-    Object.freeze({ label: "首次出现", suffix: "UnlockSeconds", format: "time" }),
+    Object.freeze({ label: "首次出现", suffix: "UnlockSeconds", format: "unlockTime" }),
     Object.freeze({ label: "刷新权重", suffix: "SpawnWeight", format: "number" }),
     Object.freeze({ label: "生命权重", suffix: "HealthWeight", format: "number" }),
     Object.freeze({ label: "速度倍率", suffix: "SpeedMultiplier", format: "multiplier" }),
@@ -86,15 +116,14 @@
     Object.freeze({ label: "敌群避障", key: "enemyBodyAvoidanceRange", format: "cells" })
   ]);
   const specialParameterDefinitions = Object.freeze({
-    scout: Object.freeze([
-      Object.freeze({ label: "抢球范围", key: "enemyScoutFoodRange", format: "cells" })
-    ]),
+    scout: Object.freeze([]),
     forager: Object.freeze([]),
     courier: Object.freeze([
       Object.freeze({ label: "球团识别", key: "enemyCourierFoodClusterRadius", format: "cells" })
     ]),
     charger: Object.freeze([
-      Object.freeze({ label: "追头摆幅", key: "enemyChargerTrackingWobble", format: "radians" })
+      Object.freeze({ label: "截击摆幅", key: "enemyChargerTrackingWobble", format: "radians" }),
+      Object.freeze({ label: "预测上限", key: "enemyChargerInterceptMaxSeconds", format: "time" })
     ]),
     cutter: Object.freeze([
       Object.freeze({ label: "前方预测", key: "enemyCutterLeadDistance", format: "cells" }),
@@ -106,6 +135,23 @@
     warden: Object.freeze([
       Object.freeze({ label: "抢球范围", key: "enemyWardenFoodRange", format: "cells" }),
       Object.freeze({ label: "头撞击退", key: "enemyWardenKnockbackMultiplier", format: "multiplier" })
+    ]),
+    liner: Object.freeze([
+      Object.freeze({ label: "预警长度", key: "enemyLinerWarningLengthCells", format: "cells" }),
+      Object.freeze({ label: "预警宽度", key: "enemyLinerWarningWidthCells", format: "cells" }),
+      Object.freeze({ label: "预警脉冲", key: "enemyLinerWarningPulseRate", format: "frequency" })
+    ]),
+    skitter: Object.freeze([
+      Object.freeze({ label: "最短换向", key: "enemySkitterRetargetMinSeconds", format: "time" }),
+      Object.freeze({ label: "最长换向", key: "enemySkitterRetargetMaxSeconds", format: "time" }),
+      Object.freeze({ label: "目标最短距离", key: "enemySkitterTargetMinimumDistance", format: "cells" }),
+      Object.freeze({ label: "抵达判定", key: "enemySkitterArrivalDistance", format: "cells" })
+    ]),
+    headhunter: Object.freeze([
+      Object.freeze({ label: "瞄准时长", key: "enemyHeadHunterAimDuration", format: "time" }),
+      Object.freeze({ label: "锁定时长", key: "enemyHeadHunterLockDuration", format: "time" }),
+      Object.freeze({ label: "瞄准速度", key: "enemyHeadHunterAimSpeedMultiplier", format: "multiplier" }),
+      Object.freeze({ label: "锁定速度", key: "enemyHeadHunterLockSpeedMultiplier", format: "multiplier" })
     ])
   });
 
@@ -115,7 +161,7 @@
 
   function formatParameterValue(value, format) {
     if (!Number.isFinite(value)) return "—";
-    if (format === "time") {
+    if (format === "unlockTime") {
       if (value <= 0) return "开局";
       const totalSeconds = Math.round(value);
       const minutes = Math.floor(totalSeconds / 60);
@@ -123,9 +169,11 @@
       return minutes > 0 ? `${minutes}:${String(seconds).padStart(2, "0")}` : `${seconds}秒`;
     }
     const number = conciseNumber(value);
+    if (format === "time") return `${number}秒`;
     if (format === "multiplier") return `${number}×`;
     if (format === "cells") return `${number}格`;
     if (format === "radians") return `${number}弧度`;
+    if (format === "frequency") return `${number}次/秒`;
     return number;
   }
 
@@ -137,7 +185,7 @@
         ...definition,
         key: `${entry.parameterPrefix}${definition.suffix}`
       })),
-      ...sharedParameterDefinitions,
+      ...(!["liner", "headhunter"].includes(enemyId) ? sharedParameterDefinitions : []),
       ...(specialParameterDefinitions[enemyId] || [])
     ];
     return definitions.map((definition) => Object.freeze({
@@ -179,6 +227,15 @@
       case "warden":
         context.moveTo(8, -9); context.lineTo(11, -4); context.lineTo(11, 4); context.lineTo(8, 9); context.lineTo(-8, 9); context.lineTo(-11, 4); context.lineTo(-11, -4); context.lineTo(-8, -9); context.closePath();
         break;
+      case "liner":
+        context.moveTo(12, 0); context.lineTo(0, 5); context.lineTo(-12, 0); context.lineTo(0, -5); context.closePath();
+        break;
+      case "skitter":
+        context.moveTo(8, -8); context.lineTo(11, 0); context.lineTo(8, 8); context.lineTo(-8, 8); context.lineTo(-11, 0); context.lineTo(-8, -8); context.closePath();
+        break;
+      case "headhunter":
+        context.moveTo(11, 0); context.lineTo(3, 9); context.lineTo(-9, 6); context.lineTo(-9, -6); context.lineTo(3, -9); context.closePath();
+        break;
       default:
         context.moveTo(10, 0); context.lineTo(4, 9); context.lineTo(-8, 7); context.lineTo(-11, 0); context.lineTo(-8, -7); context.lineTo(4, -9); context.closePath();
     }
@@ -203,6 +260,15 @@
         break;
       case "warden":
         context.moveTo(16, 0); context.lineTo(10, 13); context.lineTo(-8, 15); context.lineTo(-17, 8); context.lineTo(-17, -8); context.lineTo(-8, -15); context.lineTo(10, -13); context.closePath();
+        break;
+      case "liner":
+        context.moveTo(22, 0); context.lineTo(2, 11); context.lineTo(-13, 7); context.lineTo(-13, -7); context.lineTo(2, -11); context.closePath();
+        break;
+      case "skitter":
+        context.moveTo(18, 0); context.lineTo(6, 14); context.lineTo(-8, 10); context.lineTo(-15, 0); context.lineTo(-8, -10); context.lineTo(6, -14); context.closePath();
+        break;
+      case "headhunter":
+        context.moveTo(23, 0); context.lineTo(4, 13); context.lineTo(-13, 8); context.lineTo(-13, -8); context.lineTo(4, -13); context.closePath();
         break;
       default:
         context.moveTo(18, 0); context.lineTo(8, 12); context.lineTo(-7, 11); context.lineTo(-15, 5); context.lineTo(-12, 0); context.lineTo(-15, -5); context.lineTo(-7, -11); context.lineTo(8, -12); context.closePath();
@@ -237,6 +303,11 @@
       context.strokeStyle = "#ffffff";
       context.lineWidth = 1;
       context.strokeRect(-6, -5, 12, 10);
+    } else if (entry.id === "skitter") {
+      context.fillRect(-7, -1.5, 14, 3);
+      context.fillRect(-1.5, -7, 3, 14);
+    } else if (entry.id === "liner" || entry.id === "headhunter") {
+      context.fillRect(-8, -1.5, 16, 3);
     } else {
       context.fillRect(-7, -2, 11, 4);
     }
@@ -275,6 +346,13 @@
       context.fillRect(-12, -6, 10, 12);
       context.fillStyle = "#ffffff";
       context.fillRect(-8, -5, 2, 10);
+    } else if (entry.id === "liner") {
+      context.moveTo(20, 0); context.lineTo(6, 7); context.lineTo(9, 0); context.lineTo(6, -7); context.closePath(); context.fill();
+    } else if (entry.id === "skitter") {
+      context.fillRect(-6, -2, 20, 4);
+      context.fillRect(0, -8, 4, 16);
+    } else if (entry.id === "headhunter") {
+      context.moveTo(21, 0); context.lineTo(7, 7); context.lineTo(10, 0); context.lineTo(7, -7); context.closePath(); context.fill();
     } else {
       context.moveTo(entry.id === "charger" ? 21 : 18, 0);
       context.lineTo(7, 6);
@@ -344,6 +422,16 @@
     context.lineWidth = entry.id === "cutter" ? 3.8 : 2.4;
     context.stroke();
     context.globalAlpha = 1;
+    if (entry.id === "liner") {
+      const head = pieces[0];
+      const endX = head.x + Math.cos(head.angle) * 88;
+      const endY = head.y + Math.sin(head.angle) * 88;
+      context.strokeStyle = entry.color;
+      context.fillStyle = entry.color;
+      context.lineWidth = 7;
+      context.beginPath(); context.moveTo(head.x + 12, head.y); context.lineTo(endX, endY); context.stroke();
+      context.save(); context.translate(endX, endY); context.rotate(head.angle); context.beginPath(); context.moveTo(12, 0); context.lineTo(-10, 9); context.lineTo(-10, -9); context.closePath(); context.fill(); context.restore();
+    }
     for (let index = pieces.length - 1; index >= 1; index -= 1) drawSegment(context, entry, pieces[index]);
     drawHead(context, entry, pieces[0]);
 

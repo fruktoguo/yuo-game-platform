@@ -93,7 +93,7 @@ interface ClientProjectileRuntime {
 }
 
 describe('客户端网络模块', () => {
-  it('独立解码器与服务端 V24 能量突进快照格式一致', () => {
+  it('独立解码器与服务端 V25 主动敌群快照格式一致', () => {
     const snapshot: UltraSnapshot = {
       tick: 7, serverTime: 700, gameTime: 3, waveCount: 2, waveTimer: 4, threatLevel: 1, arenaSize: 24, worldObjectRevision: 0, worldObjectsComplete: true,
       players: [{
@@ -113,7 +113,8 @@ describe('客户端网络模块', () => {
 
     const decoded = clientGlobals.GSS0NetworkCodec.decode(encodeUltraSnapshot(snapshot), MODULES);
     expect(decoded).toMatchObject({ tick: 7, players: [{ name: '玩家甲' }] });
-    expect(decoded.players[0]).toMatchObject({ lastInputSequence: 7, speed: 10, energy: 72.5, dashing: true, dashElapsed: 0.9, knockbackX: 0.5, knockbackY: -0.25, health: 18.5, maxHealth: 30 });
+    expect(decoded.players[0]).toMatchObject({ lastInputSequence: 7, speed: 10, energy: 72.5, dashing: true, knockbackX: 0.5, knockbackY: -0.25, health: 18.5, maxHealth: 30 });
+    expect(decoded.players[0].dashElapsed).toBeCloseTo(0.9, 5);
     expect(decoded.players[0].shieldCharges).toBe(4);
     expect(decoded.players[0].col).toBeCloseTo(4.25, 3);
     expect(decoded.players[0].segments).toHaveLength(2);
@@ -121,7 +122,7 @@ describe('客户端网络模块', () => {
     expect(decoded.players[0].segments[0]).toMatchObject({ angle: 0, timer: 0, orbit: 0 });
     expect(decoded.players[0].segments[1]).toMatchObject({ module: 'blade', angle: 0, timer: 0 });
     expect(decoded.players[0].segments[1].orbit).toBe(0);
-    expect(decoded.enemies[0]).toMatchObject({ health: 2, maxHealth: 5, frostStacks: 2, corrosionStacks: 2, burnStacks: 5 });
+    expect(decoded.enemies[0]).toMatchObject({ archetype: 'charger', behaviorState: 'roam', behaviorPhase: 0, health: 2, maxHealth: 5, frostStacks: 2, corrosionStacks: 2, burnStacks: 5 });
     expect(decoded.enemies[0].segments[0]).toMatchObject({ health: 3, maxHealth: 3 });
     expect(decoded.pendingSpawns[0]).toMatchObject({ id: 3, archetype: 'warden', color: '#d95cff' });
     expect(decoded.pendingSpawns[0].angle).toBeCloseTo(Math.PI / 2, 3);

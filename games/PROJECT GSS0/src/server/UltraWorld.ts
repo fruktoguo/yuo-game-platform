@@ -20,6 +20,7 @@ import {
   ENEMY_BASE_SPEED,
   ENEMY_ARMOR_BREAK_CASCADE_INTERVAL,
   ENEMY_ARMOR_TUNING,
+  ENEMY_ACTIVE_BEHAVIOR_TUNING,
   ENEMY_BODY_RECONNECT_DURATION,
   ENEMY_HEAD_REFORM_DURATION,
   ENEMY_COLORS,
@@ -102,6 +103,7 @@ import {
 import { MODULE_PROGRESSION } from '../shared/moduleProgression';
 import { PLAYER_BODY_PATH, type PlayerBodyPathState } from '../shared/playerBodyPath';
 import { PLAYER_DASH } from '../shared/playerDash';
+import { ENEMY_BEHAVIOR } from '../shared/enemyBehavior';
 import { ENEMY_ARMOR, type EnemyArmorJoint } from '../shared/enemyArmor';
 import { ENEMY_VITALITY } from '../shared/enemyVitality';
 import type { PlayerMovementState } from '../shared/playerStateCodec';
@@ -145,7 +147,7 @@ const TARGET_REQUIRED_MODULES = new Set<ModuleId>([
   'sniper', 'flak', 'fork', 'anchor', 'flare', 'scatter', 'lance', 'execute',
   'crossfire', 'phasebolt', 'incendiary',
 ]);
-const ENEMY_PLAYER_BODY_AVOIDANCE = new Set<EnemyArchetypeId>(['courier', 'charger', 'cutter', 'coiler', 'warden']);
+const ENEMY_PLAYER_BODY_AVOIDANCE = new Set<EnemyArchetypeId>(['courier', 'cutter', 'coiler', 'warden']);
 const CORROSION_FIELD_POINT_SPACING_FACTOR = 1.25;
 const CORROSION_FIELD_MIN_POINT_SPACING = 0.18;
 const PERSONAL_SOUND_KINDS = new Set<Extract<UltraEffect, { type: 'sound' }>['kind']>([
@@ -202,6 +204,12 @@ interface EnemyEntity extends UltraEnemyView {
   targetFoodId: number | null;
   think: number;
   wobble: number;
+  behaviorTimer: number;
+  behaviorDuration: number;
+  targetCol: number;
+  targetRow: number;
+  lockedAngle: number;
+  needsReacquire: boolean;
   slow: number;
   frostPotency: number;
   knockbackX: number;
@@ -2443,7 +2451,7 @@ export class UltraWorld {
     }
   }
 
-  private queueEnemySpawn(archetype: EnemyArchetypeDefinition, assignedHealth: number, occupied: GridPoint[]): boolean {
+  private queueEnemySpawn(archetype: EnemyArchetypeDefinition, assignedHealth: number, occupied: GridPoint[] = []): boolean {
     const vitality = ENEMY_VITALITY.allocate(assignedHealth, () => this.random());
     const totalLength = vitality.jointCount;
     let spawnWallMargin = ENEMY_ARMOR.radius(vitality.joints[0].health, vitality.joints[0].maxHealth, true, ENEMY_ARMOR_TUNING);
@@ -2496,6 +2504,12 @@ export class UltraWorld {
       targetFoodId: null,
       think: this.randomBetween(0.1, 0.5),
       wobble: this.randomBetween(0, TAU),
+      behaviorTimer: 0,
+      behaviorDuration: 0,
+      targetCol: placement.head.col,
+      targetRow: placement.head.row,
+      lockedAngle: angle,
+      needsReacquire: archetype.id === 'headhunter',
       slow: 0,
       frostStacks: 0,
       frostPotency: 0,
@@ -2524,6 +2538,7 @@ export class UltraWorld {
       timer: ENEMY_SPAWN_WARNING_TIME,
       maxTimer: ENEMY_SPAWN_WARNING_TIME,
     };
+    this.initializeQueuedEnemyBehavior(spawn);
     initializeEnemySegmentSpacing(spawn);
     spawn.headCell.col = spawn.col;
     spawn.headCell.row = spawn.row;
@@ -2536,6 +2551,7 @@ export class UltraWorld {
   }
 
   private materializeEnemySpawn(spawn: PendingSpawn): void {
+    if (spawn.archetype === 'headhunter') this.beginHeadHunterAim(spawn, this.alivePlayers());
     this.enemies.push(spawn);
     for (const node of [spawn, ...spawn.segments]) {
       this.burst(node.col, node.row, spawn.color, ENEMY_SPAWN_ACTIVATION_PARTICLE_COUNT, ENEMY_SPAWN_ACTIVATION_PARTICLE_SPEED);
@@ -3252,6 +3268,22 @@ export class UltraWorld {
 
   private chooseEnemyIntent(enemy: EnemyEntity): void {
     enemy.wobble += this.randomBetween(-1.2, 1.2);
+    if (enemy.archetype === 'liner') {
+      enemy.targetFoodId = null;
+      enemy.behaviorState = 'straight';
+      enemy.desiredAngle = enemy.angle;
+      enemy.behaviorPhase = 1;
+      return;
+    }
+    if (enemy.archetype === 'skitter') {
+      enemy.targetFoodId = null;
+      if (enemy.behaviorTimer <= 0) this.assignSkitterTarget(enemy);
+      return;
+    }
+    if (enemy.archetype === 'headhunter') {
+      enemy.targetFoodId = null;
+      return;
+    }
     if (enemy.archetype === 'charger') {
       enemy.targetFoodId = null;
       enemy.behaviorState = 'roam';
@@ -3262,14 +3294,16 @@ export class UltraWorld {
       enemy.behaviorState = 'intercept';
       return;
     }
+    if (enemy.archetype === 'scout') {
+      enemy.targetFoodId = null;
+      enemy.behaviorState = 'roam';
+      return;
+    }
     const candidates = this.nearestFoods(enemy, ENEMY_FOOD_SEARCH_LIMIT);
     switch (enemy.archetype) {
-      case 'scout':
       case 'warden': {
         const target = candidates[0];
-        const foodRange = enemy.archetype === 'warden'
-          ? DESIGNER_BALANCE.enemyWardenFoodRange
-          : DESIGNER_BALANCE.enemyScoutFoodRange;
+        const foodRange = DESIGNER_BALANCE.enemyWardenFoodRange;
         enemy.targetFoodId = target && distanceSquared(enemy, target) <= foodRange ** 2 ? target.id : null;
         enemy.behaviorState = enemy.targetFoodId === null ? 'roam' : 'forage';
         break;
@@ -3300,14 +3334,39 @@ export class UltraWorld {
 
   private steerEnemy(enemy: EnemyEntity, players: readonly PlayerEntity[]): void {
     const targetFood = enemy.targetFoodId === null ? null : this.foodsById.get(enemy.targetFoodId) ?? null;
+    if (enemy.archetype === 'liner') {
+      enemy.desiredAngle = enemy.angle;
+      enemy.behaviorState = 'straight';
+      enemy.behaviorPhase = 1;
+      return;
+    }
+    if (enemy.archetype === 'skitter') {
+      enemy.desiredAngle = Math.atan2(enemy.targetRow - enemy.row, enemy.targetCol - enemy.col);
+      enemy.behaviorState = 'scramble';
+      return;
+    }
+    if (enemy.archetype === 'headhunter') {
+      enemy.desiredAngle = enemy.lockedAngle;
+      return;
+    }
     if (enemy.archetype === 'charger') {
       const target = this.nearestPlayer(enemy, players);
       if (target) {
-        const ideal = Math.atan2(target.row - enemy.row, target.col - enemy.col);
+        const playerSpeed = target.speed * target.dashMovementMultiplier;
+        const ideal = ENEMY_BEHAVIOR.interceptAngle(
+          enemy.col,
+          enemy.row,
+          target.col,
+          target.row,
+          Math.cos(target.angle) * playerSpeed + target.knockbackX,
+          Math.sin(target.angle) * playerSpeed + target.knockbackY,
+          enemy.speed,
+          ENEMY_ACTIVE_BEHAVIOR_TUNING.chargerInterceptMaxSeconds,
+        );
         const sway = (
           Math.sin(this.gameTime * 1.7 + enemy.wobble) * 0.72
           + Math.sin(this.gameTime * 0.47 + enemy.id) * 0.28
-        ) * DESIGNER_BALANCE.enemyChargerTrackingWobble;
+        ) * ENEMY_ACTIVE_BEHAVIOR_TUNING.chargerTrackingWobble;
         enemy.desiredAngle = ideal + sway;
       }
       enemy.behaviorPhase = 0;
@@ -3340,6 +3399,105 @@ export class UltraWorld {
     enemy.desiredAngle += Math.sin(this.gameTime + enemy.wobble) * 0.05;
   }
 
+  private initializeQueuedEnemyBehavior(enemy: EnemyEntity): void {
+    if (enemy.archetype === 'liner') {
+      const angle = ENEMY_BEHAVIOR.randomAngle(() => this.random());
+      enemy.angle = angle;
+      enemy.desiredAngle = angle;
+      enemy.lockedAngle = angle;
+      enemy.behaviorState = 'straight';
+      enemy.behaviorPhase = 1;
+      return;
+    }
+    if (enemy.archetype === 'skitter') {
+      this.assignSkitterTarget(enemy);
+      return;
+    }
+    if (enemy.archetype === 'headhunter') {
+      enemy.behaviorState = 'aim';
+      enemy.behaviorPhase = 0;
+      enemy.needsReacquire = true;
+    }
+  }
+
+  private assignSkitterTarget(enemy: EnemyEntity): void {
+    const center = ARENA_GEOMETRY.centerForGrid(GRID_SIZE);
+    const target = ENEMY_BEHAVIOR.sampleCircleTarget(
+      enemy.col,
+      enemy.row,
+      center,
+      center,
+      this.arenaPlayableRadius(this.enemyHeadRadiusCells(enemy) + ENEMY_ACTIVE_BEHAVIOR_TUNING.skitterArrivalDistance),
+      ENEMY_ACTIVE_BEHAVIOR_TUNING.skitterTargetMinimumDistance,
+      () => this.random(),
+    );
+    enemy.targetCol = target.col;
+    enemy.targetRow = target.row;
+    enemy.behaviorDuration = ENEMY_BEHAVIOR.randomBetween(
+      ENEMY_ACTIVE_BEHAVIOR_TUNING.skitterRetargetMinSeconds,
+      ENEMY_ACTIVE_BEHAVIOR_TUNING.skitterRetargetMaxSeconds,
+      () => this.random(),
+    );
+    enemy.behaviorTimer = enemy.behaviorDuration;
+    enemy.behaviorState = 'scramble';
+    enemy.behaviorPhase = 0;
+  }
+
+  private beginHeadHunterAim(enemy: EnemyEntity, players: readonly PlayerEntity[]): void {
+    const target = this.nearestPlayer(enemy, players);
+    const targetAngle = target
+      ? Math.atan2(target.row - enemy.row, target.col - enemy.col)
+      : enemy.angle;
+    enemy.lockedAngle = targetAngle;
+    enemy.desiredAngle = targetAngle;
+    enemy.behaviorDuration = ENEMY_ACTIVE_BEHAVIOR_TUNING.headHunterAimDuration;
+    enemy.behaviorTimer = enemy.behaviorDuration;
+    enemy.behaviorState = 'aim';
+    enemy.behaviorPhase = 0;
+    enemy.needsReacquire = false;
+  }
+
+  private advanceEnemyBehaviorState(enemy: EnemyEntity, delta: number, players: readonly PlayerEntity[]): void {
+    if (enemy.archetype === 'skitter') {
+      enemy.behaviorTimer -= delta;
+      const deltaCol = enemy.targetCol - enemy.col;
+      const deltaRow = enemy.targetRow - enemy.row;
+      if (
+        enemy.behaviorTimer <= 0
+        || deltaCol * deltaCol + deltaRow * deltaRow <= ENEMY_ACTIVE_BEHAVIOR_TUNING.skitterArrivalDistance ** 2
+      ) this.assignSkitterTarget(enemy);
+      enemy.behaviorPhase = enemy.behaviorDuration > 0
+        ? clamp(1 - enemy.behaviorTimer / enemy.behaviorDuration, 0, 1)
+        : 1;
+      return;
+    }
+    if (enemy.archetype !== 'headhunter') return;
+    if (enemy.needsReacquire) this.beginHeadHunterAim(enemy, players);
+    if (enemy.behaviorState === 'aim') {
+      enemy.behaviorTimer -= delta;
+      enemy.behaviorPhase = clamp(1 - enemy.behaviorTimer / Math.max(0.001, enemy.behaviorDuration), 0, 1);
+      if (enemy.behaviorTimer > 0) return;
+      enemy.angle = enemy.lockedAngle;
+      enemy.desiredAngle = enemy.lockedAngle;
+      enemy.behaviorDuration = ENEMY_ACTIVE_BEHAVIOR_TUNING.headHunterLockDuration;
+      enemy.behaviorTimer = enemy.behaviorDuration;
+      enemy.behaviorState = 'lock';
+      enemy.behaviorPhase = 0;
+      return;
+    }
+    if (enemy.behaviorState === 'lock') {
+      enemy.behaviorTimer -= delta;
+      enemy.angle = enemy.lockedAngle;
+      enemy.desiredAngle = enemy.lockedAngle;
+      enemy.behaviorPhase = enemy.behaviorDuration > 0
+        ? clamp(1 - enemy.behaviorTimer / enemy.behaviorDuration, 0, 1)
+        : 1;
+      if (enemy.behaviorTimer > 0) return;
+      enemy.behaviorState = 'rush';
+      enemy.behaviorPhase = 1;
+    }
+  }
+
   private steerEnemyAwayFromWalls(enemy: EnemyEntity): void {
     const lookaheadDistance = Math.max(ENEMY_WALL_AVOIDANCE_DISTANCE, enemy.speed * ENEMY_THINK_INTERVAL_MAX);
     const projectedCol = enemy.col + Math.cos(enemy.angle) * lookaheadDistance;
@@ -3365,30 +3523,41 @@ export class UltraWorld {
       if (enemy.dead) continue;
       enemy.collisionCooldown = Math.max(0, enemy.collisionCooldown - delta);
       if (enemy.collisionCooldown <= 0) {
+        this.advanceEnemyBehaviorState(enemy, delta, presentPlayers);
         enemy.think -= delta;
         if (enemy.think <= 0) {
           enemy.think = this.randomBetween(ENEMY_THINK_INTERVAL_MIN, ENEMY_THINK_INTERVAL_MAX);
           this.chooseEnemyIntent(enemy);
         }
         this.steerEnemy(enemy, presentPlayers);
+        const independentCourse = ENEMY_BEHAVIOR.usesIndependentCourse(enemy.archetype);
         const avoidance = ENEMY_PLAYER_BODY_AVOIDANCE.has(enemy.archetype)
           ? this.playerBodyAvoidance(enemy, presentPlayers)
           : null;
         if (avoidance) {
-          const priorityStrength = enemy.archetype === 'courier' || enemy.archetype === 'charger'
+          const priorityStrength = enemy.archetype === 'courier'
             ? avoidance.priorityStrength
             : avoidance.strength;
           enemy.desiredAngle += angleDifference(enemy.desiredAngle, avoidance.angle) * priorityStrength;
         }
-        const enemyAvoidance = this.enemyBodyAvoidance(enemy);
-        if (enemyAvoidance) {
-          enemy.desiredAngle += angleDifference(enemy.desiredAngle, enemyAvoidance.angle) * enemyAvoidance.strength;
+        if (!independentCourse) {
+          const enemyAvoidance = this.enemyBodyAvoidance(enemy);
+          if (enemyAvoidance) {
+            enemy.desiredAngle += angleDifference(enemy.desiredAngle, enemyAvoidance.angle) * enemyAvoidance.strength;
+          }
         }
-        this.steerEnemyAwayFromWalls(enemy);
+        if (!independentCourse) this.steerEnemyAwayFromWalls(enemy);
         enemy.angle = rotateToward(enemy.angle, enemy.desiredAngle, delta * enemy.turnRate * waveSpeedMultiplier);
       }
       const frostMultiplier = Math.max(FROST_MINIMUM_SPEED_RATIO, 1 - enemy.frostPotency * FROST_SLOW_PER_STACK);
-      const speed = enemy.speed * waveSpeedMultiplier * chronosMultiplier * (enemy.slow > 0 ? 0.55 : 1) * frostMultiplier;
+      const behaviorSpeedMultiplier = enemy.archetype !== 'headhunter'
+        ? 1
+        : enemy.behaviorState === 'aim'
+          ? ENEMY_ACTIVE_BEHAVIOR_TUNING.headHunterAimSpeedMultiplier
+          : enemy.behaviorState === 'lock'
+            ? ENEMY_ACTIVE_BEHAVIOR_TUNING.headHunterLockSpeedMultiplier
+            : 1;
+      const speed = enemy.speed * waveSpeedMultiplier * chronosMultiplier * (enemy.slow > 0 ? 0.55 : 1) * frostMultiplier * behaviorSpeedMultiplier;
       const previousPosition = this.enemyMovementStart;
       previousPosition.col = enemy.col;
       previousPosition.row = enemy.row;
@@ -3452,7 +3621,9 @@ export class UltraWorld {
           continue;
         }
       }
-      const foodContact = this.enemyFoodContact(enemy);
+      const foodContact = ENEMY_BEHAVIOR.canCollectFood(enemy.archetype)
+        ? this.enemyFoodContact(enemy)
+        : null;
       if (foodContact) {
         this.removeFoodAt(foodContact.index);
         enemy.captured += 1;
@@ -4729,7 +4900,18 @@ export class UltraWorld {
     entity.slow = Math.max(entity.slow, BOUNCE_SLOW_TIME * (1 - MODULE_PROGRESSION.effects.stabilizerSlowReduction(stabilization)) * (1 - collisionReduction));
     entity.collisionCooldown = Math.max(0.06, BOUNCE_LOCK_TIME * (1 - MODULE_PROGRESSION.effects.stabilizerLockReduction(stabilization)) * (1 - collisionReduction));
     if (isPlayer) PLAYER_BODY_PATH.resample(entity.bodyPath, entity, entity.segments, this.playerSegmentSpacing(entity));
-    else followEnemySegments(entity, 0);
+    else {
+      followEnemySegments(entity, 0);
+      if (entity.archetype === 'skitter') entity.behaviorTimer = 0;
+      if (entity.archetype === 'headhunter') {
+        entity.needsReacquire = true;
+        entity.behaviorDuration = 0;
+        entity.behaviorTimer = 0;
+        entity.behaviorState = 'aim';
+        entity.behaviorPhase = 0;
+        entity.think = 0;
+      }
+    }
     const anchor: UltraEffectAnchor = isPlayer
       ? { anchorKind: 'player', anchorId: entity.entityId }
       : { anchorKind: 'enemy', anchorId: entity.id };

@@ -3,14 +3,13 @@ import { UltraWorld } from '../src/server/UltraWorld';
 import {
   ENEMY_SPAWN_ACTIVATION_PARTICLE_COUNT,
   ENEMY_SPAWN_WARNING_TIME,
-  SNAKE_SEGMENT_SPACING,
 } from '../src/shared/constants';
 import { ENEMY_ARCHETYPES, type EnemyArchetypeDefinition } from '../src/shared/enemyArchetypes';
 import type { GridPoint, UltraEffect } from '../src/shared/protocol';
 
 interface TestPendingSpawn extends GridPoint {
   id: number;
-  segments: GridPoint[];
+  segments: Array<GridPoint & { spacing: number }>;
   bodyCells: GridPoint[];
   timer: number;
 }
@@ -32,7 +31,7 @@ describe('敌蛇预生成表现', () => {
     expect(pending.bodyCells).toBe(pending.segments);
     let previous: GridPoint = pending;
     for (const segment of pending.segments) {
-      expect(Math.hypot(previous.col - segment.col, previous.row - segment.row)).toBeCloseTo(SNAKE_SEGMENT_SPACING, 8);
+      expect(Math.hypot(previous.col - segment.col, previous.row - segment.row)).toBeCloseTo(segment.spacing, 8);
       previous = segment;
     }
 

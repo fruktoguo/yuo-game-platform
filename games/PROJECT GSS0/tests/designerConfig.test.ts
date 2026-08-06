@@ -85,11 +85,11 @@ describe('设计配置', () => {
       enemySpawnForwardPathHalfWidth: 1.5,
       enemyScoutSpawnWeight: 10,
       enemyScoutHealthWeight: 1,
-      enemyScoutFoodRange: 6,
       enemyForagerHealthWeight: 2,
       enemyCourierHealthWeight: 4,
       enemyChargerHealthWeight: 1,
       enemyChargerTrackingWobble: 0.16,
+      enemyChargerInterceptMaxSeconds: 2.25,
       enemyCutterHealthWeight: 2,
       enemyCoilerHealthWeight: 2,
       enemyWardenHealthWeight: 8,
@@ -97,6 +97,23 @@ describe('设计配置', () => {
       enemyCutterUnlockSeconds: 120,
       enemyCoilerUnlockSeconds: 180,
       enemyWardenUnlockSeconds: 240,
+      enemyLinerUnlockSeconds: 0,
+      enemyLinerSpawnWeight: 6,
+      enemyLinerHealthWeight: 1,
+      enemyLinerSpeedMultiplier: 1.2,
+      enemyLinerWarningLengthCells: 2.8,
+      enemySkitterUnlockSeconds: 120,
+      enemySkitterSpawnWeight: 2,
+      enemySkitterSpeedMultiplier: 1.5,
+      enemySkitterTurnMultiplier: 1.5,
+      enemySkitterRetargetMinSeconds: 1,
+      enemySkitterRetargetMaxSeconds: 3,
+      enemyHeadHunterUnlockSeconds: 60,
+      enemyHeadHunterSpawnWeight: 3,
+      enemyHeadHunterSpeedMultiplier: 1.8,
+      enemyHeadHunterTurnMultiplier: 3,
+      enemyHeadHunterAimDuration: 0.55,
+      enemyHeadHunterLockDuration: 0.22,
       waveInterval: 6,
       foodSpawnSafetyDistance: 0.8,
       spawnPlacementAttempts: 96,
@@ -286,8 +303,8 @@ describe('设计配置', () => {
 
     expect(parameterKeys.sort()).toEqual(Object.keys(DESIGNER_BALANCE).sort());
     expect(moduleIds.sort()).toEqual(MODULES.map((module) => module.id).sort());
-    expect(moduleProgressionSource).toContain('config?.schemaVersion !== 52');
-    expect(new Set(parameterKeys).size).toBe(269);
+    expect(moduleProgressionSource).toContain('config?.schemaVersion !== 53');
+    expect(new Set(parameterKeys).size).toBe(295);
     expect(parameterKeys).not.toContain('playerSpeedPerLevel');
     expect(parameterKeys).not.toContain('moduleEffectReductionMaximum');
     expect(parameterKeys).not.toContain('newModuleOfferChance');
@@ -326,8 +343,8 @@ describe('设计配置', () => {
     expect(MODULES.some((module) => ['输出', '进攻', '防御', '恢复'].includes(module.category as string))).toBe(false);
     expect(MODULES.every((module) => ['攻击', '生存', '辅助', '发育'].includes(module.category))).toBe(true);
     expect(MODULES.filter((module) => module.category === '发育')).toHaveLength(9);
-    expect(editorHtml).toContain('src="module-catalog.js?v=149"');
-    expect(editorHtml).toContain('src="module-progression.js?v=149"');
+    expect(editorHtml).toContain('src="module-catalog.js?v=150"');
+    expect(editorHtml).toContain('src="module-progression.js?v=150"');
     expect(editorHtml).toContain('const MODULES = moduleCatalog;');
     expect(editorHtml).toContain('descriptionText.textContent = describeModule(module.id, draft.balance);');
     expect(editorHtml).toContain('descriptionNote.textContent = describeModuleNote(module.id, draft.balance);');

@@ -23,6 +23,9 @@ describe('Ultra 二进制快照', () => {
     snapshot.pendingSpawns.push({ id: 5, archetype: 'charger', color: '#ff5c62', angle: Math.PI / 2, headCell: { col: 20, row: 2, health: 13, maxHealth: 13 }, bodyCells: [{ col: 19, row: 2, health: 35, maxHealth: 36 }], timer: 1.1, maxTimer: 1.5 });
     snapshot.enemies[0].health = 3;
     snapshot.enemies[0].maxHealth = 13;
+    snapshot.enemies[0].archetype = 'headhunter';
+    snapshot.enemies[0].behaviorState = 'rush';
+    snapshot.enemies[0].behaviorPhase = 1;
     snapshot.enemies[0].segments[0].health = 456_789;
     snapshot.enemies[0].segments[0].maxHealth = 1_000_000;
 
@@ -45,7 +48,7 @@ describe('Ultra 二进制快照', () => {
     expect(decoded.pendingSpawns[0].angle).toBeCloseTo(Math.PI / 2, 3);
     expect(decoded.pendingSpawns[0].headCell).toMatchObject({ health: 13, maxHealth: 13 });
     expect(decoded.pendingSpawns[0].bodyCells[0]).toMatchObject({ health: 35, maxHealth: 36 });
-    expect(decoded.enemies[0]).toMatchObject({ health: 3, maxHealth: 13 });
+    expect(decoded.enemies[0]).toMatchObject({ archetype: 'headhunter', behaviorState: 'rush', behaviorPhase: 1, health: 3, maxHealth: 13 });
     expect(decoded.enemies[0].segments[0]).toMatchObject({ health: 456_789, maxHealth: 1_000_000 });
     const decodedLater = decodeUltraSnapshot(later);
     expect(decodedLater).toMatchObject({ tick: 43 });

@@ -93,6 +93,18 @@ export const ENEMY_FOOD_SEARCH_LIMIT = DESIGNER_BALANCE.enemyFoodSearchLimit;
 export const ENEMY_WALL_AVOIDANCE_DISTANCE = DESIGNER_BALANCE.enemyWallAvoidanceDistance;
 export const ENEMY_SPAWN_SAFETY_DISTANCE = DESIGNER_BALANCE.enemySpawnSafetyDistance;
 export const ENEMY_SPAWN_FORWARD_PATH_HALF_WIDTH = DESIGNER_BALANCE.enemySpawnForwardPathHalfWidth;
+export const ENEMY_ACTIVE_BEHAVIOR_TUNING = Object.freeze({
+  chargerTrackingWobble: DESIGNER_BALANCE.enemyChargerTrackingWobble,
+  chargerInterceptMaxSeconds: DESIGNER_BALANCE.enemyChargerInterceptMaxSeconds,
+  skitterRetargetMinSeconds: DESIGNER_BALANCE.enemySkitterRetargetMinSeconds,
+  skitterRetargetMaxSeconds: DESIGNER_BALANCE.enemySkitterRetargetMaxSeconds,
+  skitterTargetMinimumDistance: DESIGNER_BALANCE.enemySkitterTargetMinimumDistance,
+  skitterArrivalDistance: DESIGNER_BALANCE.enemySkitterArrivalDistance,
+  headHunterAimDuration: DESIGNER_BALANCE.enemyHeadHunterAimDuration,
+  headHunterLockDuration: DESIGNER_BALANCE.enemyHeadHunterLockDuration,
+  headHunterAimSpeedMultiplier: DESIGNER_BALANCE.enemyHeadHunterAimSpeedMultiplier,
+  headHunterLockSpeedMultiplier: DESIGNER_BALANCE.enemyHeadHunterLockSpeedMultiplier,
+});
 export const FROST_SLOW_PER_STACK = DESIGNER_BALANCE.frostSlowPerStack;
 export const FROST_MINIMUM_SPEED_RATIO = DESIGNER_BALANCE.frostMinimumSpeedRatio;
 export const BURN_TICK_INTERVAL = DESIGNER_BALANCE.burnTickInterval;
