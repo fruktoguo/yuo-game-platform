@@ -43,4 +43,20 @@ describe('敌人伤害数字反馈', () => {
     expect(localDamageSource.indexOf('if (destroysHead) killEnemy')).toBeLessThan(localDamageSource.indexOf('text: `-${damageResult.applied}`'));
     expect(serverDamageSource.indexOf('if (destroysHead) this.killEnemy')).toBeLessThan(serverDamageSource.indexOf('this.textEffect('));
   });
+
+  it('轰击障碍弹受击后在本地与联机权威中都保持固定弹体半径', () => {
+    const localDamageSource = gameSource.slice(
+      gameSource.indexOf('function damageEnemy('),
+      gameSource.indexOf('function killEnemy('),
+    );
+    const serverDamageSource = serverSource.slice(
+      serverSource.indexOf('private damageTarget('),
+      serverSource.indexOf('private killEnemy('),
+    );
+
+    expect(localDamageSource).toContain('hitJoint.radius = isBombardierProjectile(enemy)');
+    expect(localDamageSource).toContain('ENEMY_BEHAVIOR_TUNING.bombardierProjectileRadiusCells * arena.cellSize');
+    expect(serverDamageSource).toContain('hitJoint.radius = isBombardierProjectile(target)');
+    expect(serverDamageSource).toContain('ENEMY_ACTIVE_BEHAVIOR_TUNING.bombardierProjectileRadiusCells');
+  });
 });

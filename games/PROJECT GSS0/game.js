@@ -8414,7 +8414,9 @@
     const damageResult = enemyVitalityApi.damage(hitJoint, safeAmount);
     if (damageResult.applied <= 0) return;
     presentArmorDamage(hitJoint, impactColor, damageResult.before, damageResult.after, usesHeadArmor);
-    hitJoint.radius = enemyJointRadiusPixels(hitJoint, usesHeadArmor) * (isStaticEngineerJoint(enemy) ? staticEngineerActivationScale(enemy) : 1);
+    hitJoint.radius = isBombardierProjectile(enemy)
+      ? ENEMY_BEHAVIOR_TUNING.bombardierProjectileRadiusCells * arena.cellSize
+      : enemyJointRadiusPixels(hitJoint, usesHeadArmor) * (isStaticEngineerJoint(enemy) ? staticEngineerActivationScale(enemy) : 1);
     const removed = [];
     let reconnectIndex = -1;
     let promotedHead = null;

@@ -135,6 +135,7 @@
   const sharedParameterDefinitions = Object.freeze([
     Object.freeze({ label: "敌群避障", key: "enemyBodyAvoidanceRange", format: "cells" })
   ]);
+  const bodyAvoidanceEnemyIds = new Set(["courier", "cutter", "coiler", "warden"]);
   const specialParameterDefinitions = Object.freeze({
     scout: Object.freeze([]),
     forager: Object.freeze([]),
@@ -223,7 +224,7 @@
         ...definition,
         key: `${entry.parameterPrefix}${definition.suffix}`
       })),
-      ...(!["liner", "headhunter", "bombardier"].includes(enemyId) ? sharedParameterDefinitions : []),
+      ...(bodyAvoidanceEnemyIds.has(enemyId) ? sharedParameterDefinitions : []),
       ...(specialParameterDefinitions[enemyId] || [])
     ];
     return definitions.map((definition) => Object.freeze({
