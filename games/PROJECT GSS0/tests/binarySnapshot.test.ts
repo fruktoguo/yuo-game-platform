@@ -28,6 +28,23 @@ describe('Ultra 二进制快照', () => {
     snapshot.enemies[0].behaviorPhase = 1;
     snapshot.enemies[0].segments[0].health = 456_789;
     snapshot.enemies[0].segments[0].maxHealth = 1_000_000;
+    snapshot.enemies.push({
+      id: 11,
+      archetype: 'engineer',
+      behaviorState: 'activate',
+      behaviorPhase: 0.42,
+      col: 12,
+      row: 13,
+      angle: 0.3,
+      health: 21,
+      maxHealth: 34,
+      color: '#c4d0d4',
+      captured: 0,
+      frostStacks: 2,
+      corrosionStacks: 1,
+      burnStacks: 3,
+      segments: [],
+    });
 
     const encoded = encodeUltraSnapshot(snapshot);
     const later = encodeUltraSnapshot(snapshotAt(43, 9.5));
@@ -50,6 +67,8 @@ describe('Ultra 二进制快照', () => {
     expect(decoded.pendingSpawns[0].bodyCells[0]).toMatchObject({ health: 35, maxHealth: 36 });
     expect(decoded.enemies[0]).toMatchObject({ archetype: 'headhunter', behaviorState: 'rush', behaviorPhase: 1, health: 3, maxHealth: 13 });
     expect(decoded.enemies[0].segments[0]).toMatchObject({ health: 456_789, maxHealth: 1_000_000 });
+    expect(decoded.enemies[1]).toMatchObject({ archetype: 'engineer', behaviorState: 'activate', health: 21, maxHealth: 34, segments: [] });
+    expect(decoded.enemies[1].behaviorPhase).toBeCloseTo(0.42, 2);
     const decodedLater = decodeUltraSnapshot(later);
     expect(decodedLater).toMatchObject({ tick: 43 });
     expect(decodedLater.players[0].col).toBeCloseTo(9.5, 3);

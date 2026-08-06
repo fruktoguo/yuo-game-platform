@@ -104,6 +104,9 @@ export const ENEMY_ACTIVE_BEHAVIOR_TUNING = Object.freeze({
   headHunterLockDuration: DESIGNER_BALANCE.enemyHeadHunterLockDuration,
   headHunterAimSpeedMultiplier: DESIGNER_BALANCE.enemyHeadHunterAimSpeedMultiplier,
   headHunterLockSpeedMultiplier: DESIGNER_BALANCE.enemyHeadHunterLockSpeedMultiplier,
+  engineerDetachInterval: DESIGNER_BALANCE.enemyEngineerDetachInterval,
+  engineerDetachWarningDuration: DESIGNER_BALANCE.enemyEngineerDetachWarningDuration,
+  engineerJointActivationDuration: DESIGNER_BALANCE.enemyEngineerJointActivationDuration,
 });
 export const FROST_SLOW_PER_STACK = DESIGNER_BALANCE.frostSlowPerStack;
 export const FROST_MINIMUM_SPEED_RATIO = DESIGNER_BALANCE.frostMinimumSpeedRatio;

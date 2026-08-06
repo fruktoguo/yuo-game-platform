@@ -88,6 +88,13 @@ export const ENEMY_ARCHETYPES: readonly EnemyArchetypeDefinition[] = Object.free
     speedMultiplier: DESIGNER_BALANCE.enemyHeadHunterSpeedMultiplier,
     turnMultiplier: DESIGNER_BALANCE.enemyHeadHunterTurnMultiplier,
   }),
+  definition('engineer', {
+    unlockSeconds: DESIGNER_BALANCE.enemyEngineerUnlockSeconds,
+    spawnWeight: DESIGNER_BALANCE.enemyEngineerSpawnWeight,
+    healthWeight: DESIGNER_BALANCE.enemyEngineerHealthWeight,
+    speedMultiplier: DESIGNER_BALANCE.enemyEngineerSpeedMultiplier,
+    turnMultiplier: DESIGNER_BALANCE.enemyEngineerTurnMultiplier,
+  }),
 ]);
 
 if (ENEMY_ARCHETYPES.length !== ENEMY_ARCHETYPE_IDS.length) {

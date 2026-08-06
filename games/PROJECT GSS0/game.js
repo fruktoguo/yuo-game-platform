@@ -145,7 +145,7 @@
   const TAU = Math.PI * 2;
   const P2P_TOAST_DURATION_MS = 2800;
   const DESIGNER_CONFIG = globalThis.GSS0_DESIGNER_CONFIG || {};
-  if (DESIGNER_CONFIG.schemaVersion !== 53) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 53");
+  if (DESIGNER_CONFIG.schemaVersion !== 54) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 54");
   const DESIGNER_BALANCE = DESIGNER_CONFIG.balance || {};
   const MODULE_DESIGN_STATES = DESIGNER_CONFIG.moduleStates || {};
   const arenaGeometry = globalThis.GSS0ArenaGeometry;
@@ -281,6 +281,7 @@
     liner: createEnemyArmorPolygon([[22, 0], [2, 11], [-13, 7], [-13, -7], [2, -11]]),
     skitter: createEnemyArmorPolygon([[18, 0], [6, 14], [-8, 10], [-15, 0], [-8, -10], [6, -14]]),
     headhunter: createEnemyArmorPolygon([[23, 0], [4, 13], [-13, 8], [-13, -8], [4, -13]]),
+    engineer: createEnemyArmorPolygon([[17, 0], [10, 13], [-11, 13], [-16, 7], [-16, -7], [-11, -13], [10, -13]]),
     default: createEnemyArmorPolygon([[18, 0], [8, 12], [-7, 11], [-15, 5], [-12, 0], [-15, -5], [-7, -11], [8, -12]])
   });
   const ENEMY_BODY_ARMOR_SHAPES = Object.freeze({
@@ -293,6 +294,7 @@
     liner: createEnemyArmorPolygon([[12, 0], [0, 5], [-12, 0], [0, -5]]),
     skitter: createEnemyArmorPolygon([[8, -8], [11, 0], [8, 8], [-8, 8], [-11, 0], [-8, -8]]),
     headhunter: createEnemyArmorPolygon([[11, 0], [3, 9], [-9, 6], [-9, -6], [3, -9]]),
+    engineer: createEnemyArmorPolygon([[9, -9], [9, 9], [-9, 9], [-9, -9]]),
     default: createEnemyArmorPolygon([[10, 0], [4, 9], [-8, 7], [-11, 0], [-8, -7], [4, -9]])
   });
   const SNAKE_BODY_CONTACT_RANGE = 0.42 * SNAKE_BODY_SIZE_SCALE;
@@ -433,7 +435,8 @@
     enemyArchetype("warden", "Warden", { unlockSeconds: 240, spawnWeight: 1, healthWeight: 8, speedMultiplier: 0.6, turnMultiplier: 0.9 }),
     enemyArchetype("liner", "Liner", { unlockSeconds: 0, spawnWeight: 6, healthWeight: 1, speedMultiplier: 1.2, turnMultiplier: 1 }),
     enemyArchetype("skitter", "Skitter", { unlockSeconds: 120, spawnWeight: 2, healthWeight: 2, speedMultiplier: 1.5, turnMultiplier: 1.5 }),
-    enemyArchetype("headhunter", "HeadHunter", { unlockSeconds: 60, spawnWeight: 3, healthWeight: 1, speedMultiplier: 1.8, turnMultiplier: 3 })
+    enemyArchetype("headhunter", "HeadHunter", { unlockSeconds: 60, spawnWeight: 3, healthWeight: 1, speedMultiplier: 1.8, turnMultiplier: 3 }),
+    enemyArchetype("engineer", "Engineer", { unlockSeconds: 120, spawnWeight: 1.5, healthWeight: 4, speedMultiplier: 0.75, turnMultiplier: 0.9 })
   ]);
   const DEBUG_ENEMY_ARCHETYPE = DEBUG_ENEMY_ARCHETYPE_ID
     ? ENEMY_ARCHETYPES.find((entry) => entry.id === DEBUG_ENEMY_ARCHETYPE_ID) || null
@@ -459,7 +462,10 @@
     headHunterAimDuration: designerNumber("enemyHeadHunterAimDuration", 0.55, 0.05, 5),
     headHunterLockDuration: designerNumber("enemyHeadHunterLockDuration", 0.22, 0, 3),
     headHunterAimSpeedMultiplier: designerNumber("enemyHeadHunterAimSpeedMultiplier", 0.35, 0, 1),
-    headHunterLockSpeedMultiplier: designerNumber("enemyHeadHunterLockSpeedMultiplier", 0, 0, 1)
+    headHunterLockSpeedMultiplier: designerNumber("enemyHeadHunterLockSpeedMultiplier", 0, 0, 1),
+    engineerDetachInterval: designerNumber("enemyEngineerDetachInterval", 6, 0.1, 60),
+    engineerDetachWarningDuration: designerNumber("enemyEngineerDetachWarningDuration", 0.9, 0, 10),
+    engineerJointActivationDuration: designerNumber("enemyEngineerJointActivationDuration", 0.55, 0.05, 10)
   });
   const UPGRADE_INVULNERABILITY_DURATION = designerNumber("upgradeInvulnerabilityDuration", 0.5, 0, 10);
   const RESPAWN_LOCATOR_CONVERGE_DURATION = designerNumber("respawnLocatorConvergeDuration", 1, 0.1, 10);
@@ -1871,16 +1877,34 @@
     return enemyJointRadiusCells(node, isHead) * arena.cellSize;
   }
 
+  function isStaticEngineerJoint(enemy) {
+    return enemy?.archetype === "engineer" && (enemy.behaviorState === "activate" || enemy.behaviorState === "static");
+  }
+
+  function staticEngineerActivationScale(enemy) {
+    if (enemy?.behaviorState === "static") return 1;
+    const progress = clamp(Number(enemy?.behaviorPhase) || 0, 0, 1);
+    return progress * progress * (3 - 2 * progress);
+  }
+
   function enemySegmentRadiusPixels(segment = null) {
+    if (isStaticEngineerJoint(segment)) return enemyHeadRadiusPixels(segment);
     return segment ? (segment.radius || enemyJointRadiusPixels(segment, false)) : ENEMY_ARMOR_TUNING.bodyCoreRadius * arena.cellSize;
   }
 
   function enemyHeadRadiusPixels(enemy) {
+    if (isStaticEngineerJoint(enemy)) {
+      return Number.isFinite(enemy?.radius)
+        ? Math.max(0, enemy.radius)
+        : enemyJointRadiusPixels(enemy, false) * staticEngineerActivationScale(enemy);
+    }
     return enemy?.radius || enemyJointRadiusPixels(enemy, true);
   }
 
   function syncEnemyJointRadii(enemy) {
-    enemy.radius = enemyJointRadiusPixels(enemy, true);
+    enemy.radius = isStaticEngineerJoint(enemy)
+      ? enemyJointRadiusPixels(enemy, false) * staticEngineerActivationScale(enemy)
+      : enemyJointRadiusPixels(enemy, true);
     for (const segment of enemy.segments || []) segment.radius = enemyJointRadiusPixels(segment, false);
   }
 
@@ -4591,9 +4615,11 @@
     const showcaseHealth = ENEMY_ARMOR_SHOWCASE
       ? ENEMY_ARMOR_SHOWCASE_HEALTHS[enemyArmorShowcaseIndex % ENEMY_ARMOR_SHOWCASE_HEALTHS.length]
       : null;
-    const vitality = showcaseHealth == null
-      ? enemyVitalityApi.allocate(assignedHealth, Math.random)
-      : enemyVitalityApi.allocateForJointCount(showcaseHealth, 1, Math.random);
+    const vitality = archetype.id === "engineer"
+      ? enemyVitalityApi.allocateWithMinimumJointCount(showcaseHealth ?? assignedHealth, 2, Math.random)
+      : showcaseHealth == null
+        ? enemyVitalityApi.allocate(assignedHealth, Math.random)
+        : enemyVitalityApi.allocateForJointCount(showcaseHealth, 1, Math.random);
     const totalLength = vitality.jointCount;
     const bodySegmentCount = totalLength - 1;
     let spawnWallMargin = enemyArmorApi.radius(vitality.joints[0].health, vitality.joints[0].maxHealth, true, ENEMY_ARMOR_TUNING);
@@ -6006,6 +6032,17 @@
     }
     let nx = normalX / normalLength;
     let ny = normalY / normalLength;
+    if (entity !== player && isStaticEngineerJoint(entity)) {
+      entity.knockbackX = 0;
+      entity.knockbackY = 0;
+      entity.slow = Math.max(entity.slow || 0, BOUNCE_SLOW_TIME);
+      entity.collisionCooldown = Math.max(0.06, BOUNCE_LOCK_TIME);
+      burst(entity.x, entity.y, color, 13, 135);
+      effects.push({ type: "ring", x: entity.x, y: entity.y, color, life: 0.38, maxLife: 0.38, radius: 5, endRadius: Math.max(5, enemyHeadRadiusPixels(entity) * 1.35) });
+      sound("bounce");
+      triggerScreenShake(4.5);
+      return;
+    }
     if (entity === player) ({ x: nx, y: ny } = correctPlayerKnockbackNormal(entity.angle, nx, ny));
     const velocityX = Math.cos(entity.angle);
     const velocityY = Math.sin(entity.angle);
@@ -6744,11 +6781,9 @@
         for (const application of enemy.burningApplications) {
           application.timer -= dt;
           while (application.remaining > 0 && application.timer <= 0 && !enemy.dead) {
-            if (enemy.segments.length > 0) {
-              const hitSegmentIndex = Math.floor(Math.random() * enemy.segments.length);
-              const target = enemy.segments[hitSegmentIndex];
-              damageEnemy(enemy, BURN_DAMAGE_PER_TICK, target.x, target.y, application.color, { hitSegmentIndex });
-            }
+            const hitSegmentIndex = enemy.segments.length > 0 ? Math.floor(Math.random() * enemy.segments.length) : -1;
+            const target = hitSegmentIndex >= 0 ? enemy.segments[hitSegmentIndex] : enemy;
+            damageEnemy(enemy, BURN_DAMAGE_PER_TICK, target.x, target.y, application.color, { hitSegmentIndex });
             application.remaining -= 1;
             application.timer += BURN_TICK_INTERVAL;
           }
@@ -7203,6 +7238,11 @@
 
   function chooseEnemyIntent(enemy) {
     enemy.wobble += random(-1.2, 1.2);
+    if (enemy.archetype === "engineer") {
+      enemy.target = null;
+      if (enemy.behaviorState !== "deploy") enemy.behaviorState = "roam";
+      return;
+    }
     if (enemy.archetype === "liner") {
       enemy.target = null;
       enemy.behaviorState = "straight";
@@ -7267,6 +7307,17 @@
   }
 
   function steerEnemy(enemy, activeFoods) {
+    if (enemy.archetype === "engineer") {
+      enemy.target = null;
+      enemy.desiredAngle = isStaticEngineerJoint(enemy)
+        ? enemy.angle
+        : enemy.desiredAngle + Math.sin(gameTime + enemy.wobble) * 0.05;
+      if (!isStaticEngineerJoint(enemy) && enemy.behaviorState !== "deploy") {
+        enemy.behaviorState = "roam";
+        enemy.behaviorPhase = 0;
+      }
+      return;
+    }
     if (enemy.archetype === "liner") {
       enemy.desiredAngle = enemy.angle;
       enemy.behaviorState = "straight";
@@ -7328,6 +7379,13 @@
   }
 
   function initializeQueuedEnemyBehavior(enemy) {
+    if (enemy.archetype === "engineer") {
+      enemy.behaviorState = "roam";
+      enemy.behaviorPhase = 0;
+      enemy.behaviorDuration = ENEMY_BEHAVIOR_TUNING.engineerDetachInterval;
+      enemy.behaviorTimer = enemy.segments.length > 0 ? enemy.behaviorDuration : 0;
+      return;
+    }
     if (enemy.archetype === "liner") {
       const angle = enemyBehaviorApi.randomAngle(Math.random);
       enemy.angle = angle;
@@ -7346,6 +7404,83 @@
       enemy.behaviorPhase = 0;
       enemy.needsReacquire = true;
     }
+  }
+
+  function detachEngineerTailJoint(enemy) {
+    if (enemy.archetype !== "engineer" || enemy.behaviorState === "activate" || enemy.behaviorState === "static" || enemy.segments.length === 0) return;
+    const detached = enemyVitalityApi.detachTail(enemy);
+    if (!detached) return;
+    const segment = detached.joint;
+    enemy.totalHealth = detached.maximumAfter;
+    const previous = enemy.segments[enemy.segments.length - 1] || enemy;
+    const angle = Math.atan2(previous.row - segment.row, previous.col - segment.col);
+    const activationDuration = Math.max(0.05, ENEMY_BEHAVIOR_TUNING.engineerJointActivationDuration);
+    const detachedEnemy = {
+      id: nextEnemyId++,
+      archetype: "engineer",
+      behaviorState: "activate",
+      behaviorPhase: 0,
+      color: enemy.color,
+      x: segment.x,
+      y: segment.y,
+      col: segment.col,
+      row: segment.row,
+      angle,
+      desiredAngle: angle,
+      birthLength: 1,
+      totalHealth: segment.maxHealth,
+      health: segment.health,
+      maxHealth: segment.maxHealth,
+      speed: 0,
+      turnRate: 0,
+      radius: 0,
+      segments: [],
+      captured: 0,
+      target: null,
+      think: Number.POSITIVE_INFINITY,
+      wobble: enemy.wobble,
+      behaviorTimer: activationDuration,
+      behaviorDuration: activationDuration,
+      targetCol: segment.col,
+      targetRow: segment.row,
+      lockedAngle: angle,
+      needsReacquire: false,
+      slow: enemy.slow,
+      frostStacks: enemy.frostStacks,
+      frostPotency: enemy.frostPotency,
+      knockbackX: 0,
+      knockbackY: 0,
+      corrosionStacks: enemy.corrosionStacks,
+      corrosionPotency: enemy.corrosionPotency,
+      corrosionTimer: enemy.corrosionTimer,
+      corrosionColor: enemy.corrosionColor,
+      corrosionFieldTimers: new Map(),
+      burnStacks: enemy.burnStacks,
+      burningApplications: (enemy.burningApplications || []).map((application) => ({ ...application })),
+      sawCooldown: enemy.sawCooldown,
+      collisionCooldown: 0,
+      dead: false,
+      hitBounds: null
+    };
+    syncEnemyJointRadii(detachedEnemy);
+    updateEnemyHitBounds(detachedEnemy);
+    enemies.push(detachedEnemy);
+    if (enemy.segments.length > 0) {
+      enemy.behaviorState = "roam";
+      enemy.behaviorPhase = 0;
+      enemy.behaviorTimer = Math.max(0.1, ENEMY_BEHAVIOR_TUNING.engineerDetachInterval);
+      enemy.behaviorDuration = enemy.behaviorTimer;
+    } else {
+      enemy.behaviorState = "roam";
+      enemy.behaviorPhase = 0;
+      enemy.behaviorTimer = 0;
+      enemy.behaviorDuration = 0;
+    }
+    syncEnemyJointRadii(enemy);
+    followEnemySegments(enemy, 0);
+    updateEnemyHitBounds(enemy);
+    burst(segment.x, segment.y, enemy.color, 8, 95);
+    effects.push({ type: "ring", x: segment.x, y: segment.y, color: enemy.color, life: activationDuration, maxLife: activationDuration, radius: 0, endRadius: enemySegmentRadiusPixels(segment) });
   }
 
   function assignSkitterTarget(enemy) {
@@ -7384,6 +7519,51 @@
   }
 
   function advanceEnemyBehaviorState(enemy, dt) {
+    if (enemy.archetype === "engineer") {
+      if (enemy.behaviorState === "activate") {
+        enemy.behaviorTimer -= dt;
+        enemy.behaviorPhase = ENEMY_BEHAVIOR_TUNING.engineerJointActivationDuration > 0
+          ? clamp(1 - enemy.behaviorTimer / ENEMY_BEHAVIOR_TUNING.engineerJointActivationDuration, 0, 1)
+          : 1;
+        if (enemy.behaviorTimer <= 0) {
+          enemy.behaviorState = "static";
+          enemy.behaviorPhase = 1;
+          enemy.behaviorTimer = 0;
+        }
+        syncEnemyJointRadii(enemy);
+        updateEnemyHitBounds(enemy);
+        return;
+      }
+      if (enemy.behaviorState === "static") {
+        enemy.behaviorPhase = 1;
+        syncEnemyJointRadii(enemy);
+        updateEnemyHitBounds(enemy);
+        return;
+      }
+      if (enemy.segments.length === 0) {
+        enemy.behaviorState = "roam";
+        enemy.behaviorPhase = 0;
+        enemy.behaviorTimer = 0;
+        enemy.behaviorDuration = 0;
+        return;
+      }
+      const interval = Math.max(0.1, ENEMY_BEHAVIOR_TUNING.engineerDetachInterval);
+      const warning = Math.min(interval, Math.max(0, ENEMY_BEHAVIOR_TUNING.engineerDetachWarningDuration));
+      enemy.behaviorDuration = interval;
+      enemy.behaviorTimer = Number.isFinite(enemy.behaviorTimer) ? enemy.behaviorTimer - dt : interval - dt;
+      if (enemy.behaviorTimer <= 0) {
+        detachEngineerTailJoint(enemy);
+        return;
+      }
+      if (warning > 0 && enemy.behaviorTimer <= warning) {
+        enemy.behaviorState = "deploy";
+        enemy.behaviorPhase = clamp(1 - enemy.behaviorTimer / warning, 0, 1);
+      } else {
+        enemy.behaviorState = "roam";
+        enemy.behaviorPhase = 0;
+      }
+      return;
+    }
     if (enemy.archetype === "skitter") {
       enemy.behaviorTimer -= dt;
       const deltaCol = enemy.targetCol - enemy.col;
@@ -7443,11 +7623,21 @@
     activeEnemyFoods.clear();
     for (const food of foods) activeEnemyFoods.add(food);
     rebuildEnemySpatialBuckets();
-    for (const enemy of enemies) {
+    const initialEnemyCount = enemies.length;
+    for (let enemyIndex = 0; enemyIndex < initialEnemyCount; enemyIndex += 1) {
+      const enemy = enemies[enemyIndex];
       if (enemy.dead) continue;
+      const staticJoint = isStaticEngineerJoint(enemy);
+      const engineerBehavior = enemy.archetype === "engineer";
       enemy.collisionCooldown = Math.max(0, enemy.collisionCooldown - dt);
-      if (enemy.collisionCooldown <= 0) {
+      if (staticJoint || engineerBehavior) {
         advanceEnemyBehaviorState(enemy, dt);
+      }
+      if (staticJoint) {
+        enemy.knockbackX = 0;
+        enemy.knockbackY = 0;
+      } else if (enemy.collisionCooldown <= 0) {
+        if (!engineerBehavior) advanceEnemyBehaviorState(enemy, dt);
         enemy.think -= dt;
         if (enemy.think <= 0) {
           enemy.think = random(Math.min(ENEMY_THINK_INTERVAL_MIN, ENEMY_THINK_INTERVAL_MAX), Math.max(ENEMY_THINK_INTERVAL_MIN, ENEMY_THINK_INTERVAL_MAX));
@@ -7494,7 +7684,9 @@
           : enemy.behaviorState === "lock"
             ? ENEMY_BEHAVIOR_TUNING.headHunterLockSpeedMultiplier
             : 1;
-      const speed = enemy.speed * waveSpeedMultiplier * chronosMultiplier * statusMultiplier * behaviorSpeedMultiplier;
+      const speed = staticJoint
+        ? 0
+        : enemy.speed * waveSpeedMultiplier * chronosMultiplier * statusMultiplier * behaviorSpeedMultiplier;
       enemyMovementStart.col = enemy.col;
       enemyMovementStart.row = enemy.row;
       const nextCol = enemy.col + (Math.cos(enemy.angle) * speed + enemy.knockbackX) * dt;
@@ -7561,7 +7753,7 @@
             normalX = -Math.cos(player.angle);
             normalY = -Math.sin(player.angle);
           }
-          resolvePlayerEnemyContact(enemy, enemy, true);
+          resolvePlayerEnemyContact(enemy, enemy, !isStaticEngineerJoint(enemy));
           const impulseMultiplier = enemy.archetype === "warden" ? ENEMY_BEHAVIOR_TUNING.wardenKnockbackMultiplier : 1;
           if (state === "running") bounceEntity(player, normalX, normalY, "#dffcff", impulseMultiplier, true);
           if (!enemy.dead) bounceEntity(enemy, -normalX, -normalY, enemy.color, 1 + MODULE_EFFECTS.momentumKnockbackBonus(moduleCount("momentum")));
@@ -7861,7 +8053,7 @@
 
       if (hazard.kind === "gravity") {
         for (const enemy of enemies) {
-          if (enemy.dead) continue;
+          if (enemy.dead || isStaticEngineerJoint(enemy)) continue;
           const dx = hazard.x - enemy.x;
           const dy = hazard.y - enemy.y;
           const distance = Math.hypot(dx, dy);
@@ -8022,14 +8214,15 @@
       ? clamp(options.hitSegmentIndex, -1, Math.max(-1, beforeCount - 1))
       : nearestEnemySegmentIndex(enemy, impactX, impactY);
     const hitsHead = hitSegmentIndex < 0;
+    const usesHeadArmor = hitsHead && !isStaticEngineerJoint(enemy);
     const oldHeadX = enemy.x;
     const oldHeadY = enemy.y;
     const hitJoint = hitsHead ? enemy : enemy.segments[hitSegmentIndex];
     if (!hitJoint) return;
     const damageResult = enemyVitalityApi.damage(hitJoint, safeAmount);
     if (damageResult.applied <= 0) return;
-    presentArmorDamage(hitJoint, impactColor, damageResult.before, damageResult.after, hitsHead);
-    hitJoint.radius = enemyJointRadiusPixels(hitJoint, hitsHead);
+    presentArmorDamage(hitJoint, impactColor, damageResult.before, damageResult.after, usesHeadArmor);
+    hitJoint.radius = enemyJointRadiusPixels(hitJoint, usesHeadArmor) * (isStaticEngineerJoint(enemy) ? staticEngineerActivationScale(enemy) : 1);
     const removed = [];
     let reconnectIndex = -1;
     let promotedHead = null;
@@ -8083,6 +8276,13 @@
   function killEnemy(enemy, rewardSelf = true) {
     if (!enemy || enemy.dead) return;
     enemy.dead = true;
+    if (isStaticEngineerJoint(enemy)) {
+      burst(enemy.x, enemy.y, enemy.color, 10, 115);
+      effects.push({ type: "ring", x: enemy.x, y: enemy.y, color: "#ffffff", life: 0.42, maxLife: 0.42, radius: 3, endRadius: enemyJointRadiusPixels(enemy, false) * 1.8 });
+      effects.push({ type: "text", x: enemy.x, y: enemy.y - 12, text: "拆除", color: "#ffffff", life: 0.72, maxLife: 0.72, emphasis: true });
+      if (rewardSelf) sound("kill");
+      return;
+    }
     const deathBurstLevel = moduleCount("deathburst");
     if (deathBurstLevel > 0) {
       const origin = player.segments.find((segment) => segment.module === "deathburst") || player;
@@ -8286,7 +8486,7 @@
         normalY = -Math.sin(player.angle);
       }
 
-      if (player.invulnerable <= 0) resolvePlayerEnemyContact(enemy, enemy, true);
+      if (player.invulnerable <= 0) resolvePlayerEnemyContact(enemy, enemy, !isStaticEngineerJoint(enemy));
 
       const impulseMultiplier = enemy.archetype === "warden" ? ENEMY_BEHAVIOR_TUNING.wardenKnockbackMultiplier : 1;
       if (state === "running") bounceEntity(player, normalX, normalY, "#dffcff", impulseMultiplier, true);
@@ -8811,6 +9011,9 @@
       case "headhunter":
         context.moveTo(23, 0); context.lineTo(4, 13); context.lineTo(-13, 8); context.lineTo(-13, -8); context.lineTo(4, -13); context.closePath();
         break;
+      case "engineer":
+        context.rect(-13, -13, 26, 26);
+        break;
       default:
         context.moveTo(18, 0); context.lineTo(8, 12); context.lineTo(-7, 11); context.lineTo(-15, 5); context.lineTo(-12, 0); context.lineTo(-15, -5); context.lineTo(-7, -11); context.lineTo(8, -12); context.closePath();
         break;
@@ -9022,9 +9225,10 @@
     const bodyWidthScale = enemyMaximumBodyRadiusCells(enemy) * arena.cellSize / Math.max(0.001, bodyCoreRadius);
     drawSnakeBodyShadow(enemy, enemy.segments, pieceScale, alpha, bodyWidthScale);
     if (!renderWorldBounds.active || pointIntersectsRenderBounds(enemy.x, enemy.y, enemyHeadRadiusPixels(enemy) + 24 * pieceScale)) {
-      const headCoreRadius = ENEMY_ARMOR_TUNING.headCoreRadius * arena.cellSize;
+      const staticJoint = isStaticEngineerJoint(enemy);
+      const headCoreRadius = (staticJoint ? ENEMY_ARMOR_TUNING.bodyCoreRadius : ENEMY_ARMOR_TUNING.headCoreRadius) * arena.cellSize;
       const headArmorScale = enemyHeadRadiusPixels(enemy) / Math.max(0.001, headCoreRadius);
-      const headCoreScale = enemyCoreSpriteScale(enemy, true, pieceScale);
+      const headCoreScale = enemyCoreSpriteScale(enemy, !staticJoint, pieceScale);
       drawEntityShadowSilhouette(
         enemy.x,
         enemy.y,
@@ -9359,6 +9563,9 @@
       case "headhunter":
         context.moveTo(11, 0); context.lineTo(3, 9); context.lineTo(-9, 6); context.lineTo(-9, -6); context.lineTo(3, -9); context.closePath();
         break;
+      case "engineer":
+        context.moveTo(9, -9); context.lineTo(9, 9); context.lineTo(-9, 9); context.lineTo(-9, -9); context.closePath();
+        break;
       default:
         context.moveTo(10, 0); context.lineTo(4, 9); context.lineTo(-8, 7); context.lineTo(-11, 0); context.lineTo(-8, -7); context.lineTo(4, -9); context.closePath();
         break;
@@ -9388,6 +9595,13 @@
       context.fillRect(-1.5, -7, 3, 14);
     } else if (enemy.archetype === "liner" || enemy.archetype === "headhunter") {
       context.fillRect(-8, -1.5, 16, 3);
+    } else if (enemy.archetype === "engineer") {
+      context.globalAlpha = 1;
+      context.strokeStyle = "#ffffff";
+      context.lineWidth = 1.5;
+      context.strokeRect(-6.5, -6.5, 13, 13);
+      context.strokeStyle = "#7d898e";
+      context.strokeRect(-3.5, -3.5, 7, 7);
     } else {
       context.fillRect(-7, -2, 11, 4);
     }
@@ -9428,6 +9642,9 @@
       case "headhunter":
         context.moveTo(23, 0); context.lineTo(4, 13); context.lineTo(-13, 8); context.lineTo(-13, -8); context.lineTo(4, -13); context.closePath();
         break;
+      case "engineer":
+        context.moveTo(17, 0); context.lineTo(10, 13); context.lineTo(-11, 13); context.lineTo(-16, 7); context.lineTo(-16, -7); context.lineTo(-11, -13); context.lineTo(10, -13); context.closePath();
+        break;
       default:
         context.moveTo(18, 0); context.lineTo(8, 12); context.lineTo(-7, 11); context.lineTo(-15, 5); context.lineTo(-12, 0); context.lineTo(-15, -5); context.lineTo(-7, -11); context.lineTo(8, -12); context.closePath();
         break;
@@ -9460,6 +9677,11 @@
       context.fillRect(0, -8, 4, 16);
     } else if (enemy.archetype === "headhunter") {
       context.moveTo(21, 0); context.lineTo(7, 7); context.lineTo(10, 0); context.lineTo(7, -7); context.closePath(); context.fill();
+    } else if (enemy.archetype === "engineer") {
+      context.strokeStyle = enemy.color;
+      context.lineWidth = 2;
+      context.strokeRect(-9, -9, 18, 18);
+      context.fillRect(8, -5, 6, 10);
     } else {
       context.moveTo(enemy.archetype === "charger" ? 21 : 18, 0);
       context.lineTo(7, 6);
@@ -9625,7 +9847,7 @@
     }
   }
 
-  function drawEnemyArmor(node, enemy, isHead) {
+  function drawEnemyArmor(node, enemy, isHead, visualScale = 1) {
     const layers = enemyArmorRenderLayers(node);
     if (layers.length === 0) return;
     const shape = enemyArmorShape(enemy, isHead);
@@ -9635,6 +9857,7 @@
     ctx.save();
     ctx.translate(node.x, node.y);
     applyBillboardCompensation();
+    ctx.scale(visualScale, visualScale);
     ctx.rotate(projectedWorldAngle(node.angle || enemy.angle || 0));
     ctx.lineCap = "butt";
     ctx.lineJoin = "round";
@@ -9726,6 +9949,41 @@
     ctx.restore();
   }
 
+  function drawStaticEngineerJoint(enemy, pieceScale) {
+    const activationScale = staticEngineerActivationScale(enemy);
+    if (activationScale <= 0.001) return;
+    drawEnemyArmor(enemy, enemy, false, activationScale);
+    const coreRadius = ENEMY_ARMOR_TUNING.bodyCoreRadius * arena.cellSize;
+    ctx.save();
+    ctx.translate(enemy.x, enemy.y);
+    applyBillboardCompensation();
+    ctx.rotate(projectedWorldAngle(enemy.angle || 0));
+    ctx.scale(activationScale, activationScale);
+    ctx.fillStyle = "rgba(8,12,14,0.96)";
+    ctx.fillRect(-coreRadius, -coreRadius, coreRadius * 2, coreRadius * 2);
+    ctx.shadowColor = enemy.color;
+    ctx.shadowBlur = 9 * pieceScale;
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = Math.max(1.4, 2.2 * pieceScale);
+    ctx.strokeRect(-coreRadius, -coreRadius, coreRadius * 2, coreRadius * 2);
+    ctx.shadowBlur = 0;
+    const innerRadius = coreRadius * 0.56;
+    ctx.strokeStyle = "#7d898e";
+    ctx.lineWidth = Math.max(1, 1.5 * pieceScale);
+    ctx.strokeRect(-innerRadius, -innerRadius, innerRadius * 2, innerRadius * 2);
+    ctx.fillStyle = enemy.color;
+    const marker = Math.max(1.2, coreRadius * 0.14);
+    ctx.fillRect(-marker, -marker, marker * 2, marker * 2);
+    if (enemy.behaviorState === "activate") {
+      ctx.globalAlpha = 0.72 * (1 - enemy.behaviorPhase);
+      ctx.strokeStyle = enemy.color;
+      ctx.lineWidth = Math.max(0.8, pieceScale);
+      const activationRadius = coreRadius * (1.3 + enemy.behaviorPhase * 0.75);
+      ctx.strokeRect(-activationRadius, -activationRadius, activationRadius * 2, activationRadius * 2);
+    }
+    ctx.restore();
+  }
+
   function drawEnemyStatusParticles(enemy, pieceScale) {
     const frozen = enemy.frostStacks > 0;
     const corroded = enemy.corrosionStacks > 0;
@@ -9735,7 +9993,7 @@
     ctx.globalCompositeOperation = "lighter";
     for (let index = 0; index <= enemy.segments.length; index += 1) {
       const node = index === 0 ? enemy : enemy.segments[index - 1];
-      const isHead = index === 0;
+      const isHead = index === 0 && !isStaticEngineerJoint(enemy);
       const jointRadius = isHead ? enemyHeadRadiusPixels(enemy) : enemySegmentRadiusPixels(node);
       if (renderWorldBounds.active && !pointIntersectsRenderBounds(node.x, node.y, jointRadius + 18 * pieceScale)) continue;
       if (frozen) {
@@ -9825,8 +10083,32 @@
 
   function drawEnemyJointHealth(enemy, pieceScale) {
     if (!ENEMY_JOINT_HEALTH_DEBUG) return;
-    drawEnemyJointHealthLabel(enemy, pieceScale, true);
+    drawEnemyJointHealthLabel(enemy, pieceScale, !isStaticEngineerJoint(enemy));
     for (const segment of enemy.segments) drawEnemyJointHealthLabel(segment, pieceScale, false);
+  }
+
+  function drawEngineerDetachWarning(enemy, pieceScale) {
+    if (enemy.archetype !== "engineer" || enemy.behaviorState !== "deploy" || enemy.segments.length === 0) return;
+    const tail = enemy.segments[enemy.segments.length - 1];
+    const progress = clamp(enemy.behaviorPhase || 0, 0, 1);
+    const pulse = 0.58 + Math.sin(progress * Math.PI * 8) * 0.18 + progress * 0.2;
+    const radius = enemySegmentRadiusPixels(tail) * (1.15 + progress * 0.3);
+    ctx.save();
+    ctx.translate(tail.x, tail.y);
+    applyBillboardCompensation();
+    ctx.rotate(projectedWorldAngle((tail.angle || enemy.angle || 0) + progress * Math.PI * 0.5));
+    ctx.globalAlpha *= clamp(pulse, 0.25, 1);
+    ctx.shadowColor = "#ffffff";
+    ctx.shadowBlur = 8 * pieceScale;
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = Math.max(1.2, 2 * pieceScale);
+    ctx.strokeRect(-radius, -radius, radius * 2, radius * 2);
+    const innerRadius = radius * (0.52 + progress * 0.12);
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = "#7d898e";
+    ctx.lineWidth = Math.max(0.8, 1.2 * pieceScale);
+    ctx.strokeRect(-innerRadius, -innerRadius, innerRadius * 2, innerRadius * 2);
+    ctx.restore();
   }
 
   function drawLinerCourseWarning(enemy, time, pieceScale) {
@@ -9868,6 +10150,13 @@
       const blink = 0.48 + Math.abs(Math.sin(time * 12)) * 0.52;
       ctx.globalAlpha *= 0.2 + blink * 0.48;
     }
+    if (isStaticEngineerJoint(enemy)) {
+      drawStaticEngineerJoint(enemy, pieceScale);
+      if (!spawning) drawEnemyStatusParticles(enemy, pieceScale);
+      if (!spawning) drawEnemyJointHealth(enemy, pieceScale);
+      ctx.restore();
+      return;
+    }
     drawLinerCourseWarning(enemy, time, pieceScale);
     drawLinkedPath(enemy, enemy.segments, "rgba(4, 6, 7, 0.92)", (enemy.archetype === "warden" ? 14 : 11) * pieceScale);
     drawLinkedPath(enemy, enemy.segments, enemy.color, (enemy.archetype === "cutter" ? 3.4 : 2.2) * pieceScale, 0.72);
@@ -9878,6 +10167,7 @@
         drawEnemySegment(segment, pieceScale, segmentSprite, enemy);
       }
     }
+    drawEngineerDetachWarning(enemy, pieceScale);
     const headVisible = !renderWorldBounds.active || pointIntersectsRenderBounds(enemy.x, enemy.y, enemyHeadRadiusPixels(enemy) + 20 * pieceScale);
     if (headVisible) drawEnemyHead(enemy, pieceScale, segmentSprite);
     if (!spawning) drawEnemyStatusParticles(enemy, pieceScale);

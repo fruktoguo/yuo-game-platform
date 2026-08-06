@@ -13,7 +13,7 @@ interface DesignerConfigSource {
 }
 
 const source = (globalThis as typeof globalThis & { GSS0_DESIGNER_CONFIG?: DesignerConfigSource }).GSS0_DESIGNER_CONFIG;
-if (source?.schemaVersion !== 53) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 53');
+if (source?.schemaVersion !== 54) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 54');
 
 function numberSetting(key: string, fallback: number, minimum: number, maximum: number, integer = false): number {
   const candidate = source?.balance?.[key];
@@ -180,6 +180,14 @@ export const DESIGNER_BALANCE = Object.freeze({
   enemyHeadHunterLockDuration: numberSetting('enemyHeadHunterLockDuration', 0.22, 0, 3),
   enemyHeadHunterAimSpeedMultiplier: numberSetting('enemyHeadHunterAimSpeedMultiplier', 0.35, 0, 1),
   enemyHeadHunterLockSpeedMultiplier: numberSetting('enemyHeadHunterLockSpeedMultiplier', 0, 0, 1),
+  enemyEngineerUnlockSeconds: numberSetting('enemyEngineerUnlockSeconds', 120, 0, 3_600),
+  enemyEngineerSpawnWeight: numberSetting('enemyEngineerSpawnWeight', 1.5, 0, 20),
+  enemyEngineerHealthWeight: numberSetting('enemyEngineerHealthWeight', 4, 0.01, 20),
+  enemyEngineerSpeedMultiplier: numberSetting('enemyEngineerSpeedMultiplier', 0.75, 0.1, 3),
+  enemyEngineerTurnMultiplier: numberSetting('enemyEngineerTurnMultiplier', 0.9, 0.1, 3),
+  enemyEngineerDetachInterval: numberSetting('enemyEngineerDetachInterval', 6, 0.1, 60),
+  enemyEngineerDetachWarningDuration: numberSetting('enemyEngineerDetachWarningDuration', 0.9, 0, 10),
+  enemyEngineerJointActivationDuration: numberSetting('enemyEngineerJointActivationDuration', 0.55, 0.05, 10),
   waveInterval: numberSetting('waveInterval', 6, 0.5, 120),
   foodSpawnSafetyDistance: numberSetting('foodSpawnSafetyDistance', 0.8, 0, 5),
   spawnPlacementAttempts: numberSetting('spawnPlacementAttempts', 96, 1, 1_000, true),

@@ -1,5 +1,5 @@
 globalThis.GSS0_DESIGNER_CONFIG = {
-  "schemaVersion": 53,
+  "schemaVersion": 54,
   "balance": {
     "playerBaseSpeed": 5,
     "snakeBodySizeScale": 0.775,
@@ -159,6 +159,14 @@ globalThis.GSS0_DESIGNER_CONFIG = {
     "enemyHeadHunterLockDuration": 0.22,
     "enemyHeadHunterAimSpeedMultiplier": 0.35,
     "enemyHeadHunterLockSpeedMultiplier": 0,
+    "enemyEngineerUnlockSeconds": 120,
+    "enemyEngineerSpawnWeight": 1.5,
+    "enemyEngineerHealthWeight": 4,
+    "enemyEngineerSpeedMultiplier": 0.75,
+    "enemyEngineerTurnMultiplier": 0.9,
+    "enemyEngineerDetachInterval": 6,
+    "enemyEngineerDetachWarningDuration": 0.9,
+    "enemyEngineerJointActivationDuration": 0.55,
     "projectileSpeedScale": 3,
     "projectileSizeScale": 2,
     "frostSlowPerStack": 0.2,

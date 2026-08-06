@@ -93,7 +93,7 @@ interface ClientProjectileRuntime {
 }
 
 describe('客户端网络模块', () => {
-  it('独立解码器与服务端 V25 主动敌群快照格式一致', () => {
+  it('独立解码器与服务端 V26 工兵及静态关节快照格式一致', () => {
     const snapshot: UltraSnapshot = {
       tick: 7, serverTime: 700, gameTime: 3, waveCount: 2, waveTimer: 4, threatLevel: 1, arenaSize: 24, worldObjectRevision: 0, worldObjectsComplete: true,
       players: [{
@@ -106,7 +106,10 @@ describe('客户端网络模块', () => {
         ],
         growth: null,
       }],
-      enemies: [{ id: 2, archetype: 'charger', behaviorState: 'roam', behaviorPhase: 0, col: 8, row: 9, angle: 1, health: 2, maxHealth: 5, color: '#ff5c62', captured: 0, frostStacks: 2, corrosionStacks: 2, burnStacks: 5, segments: [{ col: 7.5, row: 9, health: 3, maxHealth: 3 }] }],
+      enemies: [
+        { id: 2, archetype: 'charger', behaviorState: 'roam', behaviorPhase: 0, col: 8, row: 9, angle: 1, health: 2, maxHealth: 5, color: '#ff5c62', captured: 0, frostStacks: 2, corrosionStacks: 2, burnStacks: 5, segments: [{ col: 7.5, row: 9, health: 3, maxHealth: 3 }] },
+        { id: 4, archetype: 'engineer', behaviorState: 'static', behaviorPhase: 1, col: 10, row: 11, angle: 0.2, health: 13, maxHealth: 21, color: '#c4d0d4', captured: 0, frostStacks: 1, corrosionStacks: 0, burnStacks: 0, segments: [] },
+      ],
       foods: [], projectiles: [], hazards: [],
       pendingSpawns: [{ id: 3, archetype: 'warden', color: '#d95cff', angle: Math.PI / 2, headCell: { col: 18, row: 4, health: 13, maxHealth: 13 }, bodyCells: [{ col: 17, row: 4, health: 8, maxHealth: 8 }], timer: 1, maxTimer: 1.5 }],
     };
@@ -124,6 +127,7 @@ describe('客户端网络模块', () => {
     expect(decoded.players[0].segments[1].orbit).toBe(0);
     expect(decoded.enemies[0]).toMatchObject({ archetype: 'charger', behaviorState: 'roam', behaviorPhase: 0, health: 2, maxHealth: 5, frostStacks: 2, corrosionStacks: 2, burnStacks: 5 });
     expect(decoded.enemies[0].segments[0]).toMatchObject({ health: 3, maxHealth: 3 });
+    expect(decoded.enemies[1]).toMatchObject({ archetype: 'engineer', behaviorState: 'static', behaviorPhase: 1, health: 13, maxHealth: 21, segments: [] });
     expect(decoded.pendingSpawns[0]).toMatchObject({ id: 3, archetype: 'warden', color: '#d95cff' });
     expect(decoded.pendingSpawns[0].angle).toBeCloseTo(Math.PI / 2, 3);
   });

@@ -18,6 +18,12 @@
     return 1 + Math.floor(randomUnit(random) * total);
   }
 
+  function chooseJointCountAtLeast(totalHealth, minimumJointCount, random = Math.random) {
+    const minimum = positiveInteger(minimumJointCount);
+    const total = Math.max(minimum, positiveInteger(totalHealth));
+    return minimum + Math.floor(randomUnit(random) * (total - minimum + 1));
+  }
+
   function allocateForJointCount(totalHealth, jointCount, random = Math.random) {
     const total = positiveInteger(totalHealth);
     const count = Math.min(total, positiveInteger(jointCount));
@@ -33,6 +39,30 @@
   function allocate(totalHealth, random = Math.random) {
     const total = positiveInteger(totalHealth);
     return allocateForJointCount(total, chooseJointCount(total, random), random);
+  }
+
+  function allocateWithMinimumJointCount(totalHealth, minimumJointCount, random = Math.random) {
+    const minimum = positiveInteger(minimumJointCount);
+    const total = Math.max(minimum, positiveInteger(totalHealth));
+    return allocateForJointCount(total, chooseJointCountAtLeast(total, minimum, random), random);
+  }
+
+  function detachTail(enemy) {
+    if (!enemy || typeof enemy !== "object" || !Array.isArray(enemy.segments) || enemy.segments.length === 0) return null;
+    const currentBefore = currentTotal(enemy);
+    const maximumBefore = maximumTotal(enemy);
+    const joint = enemy.segments.pop();
+    const currentAfter = currentTotal(enemy);
+    const maximumAfter = maximumTotal(enemy);
+    return {
+      joint,
+      currentBefore,
+      currentAfter,
+      maximumBefore,
+      maximumAfter,
+      currentTransferred: Math.max(0, Math.floor(Number(joint?.health) || 0)),
+      maximumTransferred: Math.max(0, Math.floor(Number(joint?.maxHealth) || 0))
+    };
   }
 
   function damage(joint, amount) {
@@ -66,9 +96,12 @@
   globalThis.GSS0EnemyVitality = Object.freeze({
     allocate,
     allocateForJointCount,
+    allocateWithMinimumJointCount,
     chooseJointCount,
+    chooseJointCountAtLeast,
     currentTotal,
     damage,
+    detachTail,
     maximumTotal
   });
 })();

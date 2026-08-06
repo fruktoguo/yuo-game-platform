@@ -683,7 +683,7 @@ export class UltraWorld {
       const nearPlayer = distanceSquared(player, enemy) <= 9 || bodyConnectionContact(enemy, player, 3) !== null;
       if (!Number.isFinite(claim.normalCol) || !Number.isFinite(claim.normalRow) || !nearPlayer) return false;
       if (claim.kind === 'enemy-head') {
-        if (!this.isPlayerProtected(player)) this.resolvePlayerEnemyContact(player, enemy, enemy, -1, true, now);
+        if (!this.isPlayerProtected(player)) this.resolvePlayerEnemyContact(player, enemy, enemy, -1, !isStaticEngineerJoint(enemy), now);
       }
       if (!enemy.dead) this.bounceEntity(enemy, -claim.normalCol, -claim.normalRow, enemy.color, 1 + MODULE_PROGRESSION.effects.momentumKnockbackBonus(this.moduleCount(player, 'momentum')));
       return true;
@@ -2452,7 +2452,9 @@ export class UltraWorld {
   }
 
   private queueEnemySpawn(archetype: EnemyArchetypeDefinition, assignedHealth: number, occupied: GridPoint[] = []): boolean {
-    const vitality = ENEMY_VITALITY.allocate(assignedHealth, () => this.random());
+    const vitality = archetype.id === 'engineer'
+      ? ENEMY_VITALITY.allocateWithMinimumJointCount(assignedHealth, 2, () => this.random())
+      : ENEMY_VITALITY.allocate(assignedHealth, () => this.random());
     const totalLength = vitality.jointCount;
     let spawnWallMargin = ENEMY_ARMOR.radius(vitality.joints[0].health, vitality.joints[0].maxHealth, true, ENEMY_ARMOR_TUNING);
     let spawnSpacing = SNAKE_SEGMENT_SPACING;
@@ -3223,10 +3225,9 @@ export class UltraWorld {
           application.timer -= delta;
           while (application.remaining > 0 && application.timer <= 0 && !target.dead) {
             const owner = this.playersByEntity.get(application.ownerEntityId) ?? null;
-            if (target.segments.length > 0) {
-              const hitSegmentIndex = Math.floor(this.random() * target.segments.length);
-              this.damageTarget(owner, target, BURN_DAMAGE_PER_TICK, target.segments[hitSegmentIndex], application.color, hitSegmentIndex, true, 'incendiary');
-            }
+            const hitSegmentIndex = target.segments.length > 0 ? Math.floor(this.random() * target.segments.length) : -1;
+            const point = hitSegmentIndex >= 0 ? target.segments[hitSegmentIndex] : target;
+            this.damageTarget(owner, target, BURN_DAMAGE_PER_TICK, point, application.color, hitSegmentIndex, true, 'incendiary');
             application.remaining -= 1;
             application.timer += BURN_TICK_INTERVAL;
           }
@@ -3268,6 +3269,11 @@ export class UltraWorld {
 
   private chooseEnemyIntent(enemy: EnemyEntity): void {
     enemy.wobble += this.randomBetween(-1.2, 1.2);
+    if (enemy.archetype === 'engineer') {
+      enemy.targetFoodId = null;
+      if (enemy.behaviorState !== 'deploy') enemy.behaviorState = 'roam';
+      return;
+    }
     if (enemy.archetype === 'liner') {
       enemy.targetFoodId = null;
       enemy.behaviorState = 'straight';
@@ -3334,6 +3340,15 @@ export class UltraWorld {
 
   private steerEnemy(enemy: EnemyEntity, players: readonly PlayerEntity[]): void {
     const targetFood = enemy.targetFoodId === null ? null : this.foodsById.get(enemy.targetFoodId) ?? null;
+    if (enemy.archetype === 'engineer') {
+      enemy.targetFoodId = null;
+      enemy.desiredAngle = isStaticEngineerJoint(enemy) ? enemy.angle : enemy.desiredAngle + Math.sin(this.gameTime + enemy.wobble) * 0.05;
+      if (!isStaticEngineerJoint(enemy) && enemy.behaviorState !== 'deploy') {
+        enemy.behaviorState = 'roam';
+        enemy.behaviorPhase = 0;
+      }
+      return;
+    }
     if (enemy.archetype === 'liner') {
       enemy.desiredAngle = enemy.angle;
       enemy.behaviorState = 'straight';
@@ -3400,6 +3415,13 @@ export class UltraWorld {
   }
 
   private initializeQueuedEnemyBehavior(enemy: EnemyEntity): void {
+    if (enemy.archetype === 'engineer') {
+      enemy.behaviorState = 'roam';
+      enemy.behaviorPhase = 0;
+      enemy.behaviorDuration = ENEMY_ACTIVE_BEHAVIOR_TUNING.engineerDetachInterval;
+      enemy.behaviorTimer = enemy.segments.length > 0 ? enemy.behaviorDuration : 0;
+      return;
+    }
     if (enemy.archetype === 'liner') {
       const angle = ENEMY_BEHAVIOR.randomAngle(() => this.random());
       enemy.angle = angle;
@@ -3418,6 +3440,86 @@ export class UltraWorld {
       enemy.behaviorPhase = 0;
       enemy.needsReacquire = true;
     }
+  }
+
+  private detachEngineerTailJoint(enemy: EnemyEntity): void {
+    if (enemy.archetype !== 'engineer' || enemy.behaviorState === 'activate' || enemy.behaviorState === 'static' || enemy.segments.length === 0) return;
+    const detached = ENEMY_VITALITY.detachTail(enemy);
+    if (!detached) return;
+    const segment = detached.joint;
+    enemy.totalHealth = detached.maximumAfter;
+    const previous = enemy.segments[enemy.segments.length - 1] ?? enemy;
+    const angle = Math.atan2(previous.row - segment.row, previous.col - segment.col);
+    const activationDuration = Math.max(0.05, ENEMY_ACTIVE_BEHAVIOR_TUNING.engineerJointActivationDuration);
+    const detachedEnemy: EnemyEntity = {
+      id: this.nextEnemyId++,
+      archetype: 'engineer',
+      behaviorState: 'activate',
+      behaviorPhase: 0,
+      col: segment.col,
+      row: segment.row,
+      angle,
+      health: segment.health,
+      maxHealth: segment.maxHealth,
+      color: enemy.color,
+      captured: 0,
+      frostStacks: enemy.frostStacks,
+      corrosionStacks: enemy.corrosionStacks,
+      burnStacks: enemy.burnStacks,
+      segments: [],
+      radius: 0,
+      birthLength: 1,
+      totalHealth: segment.maxHealth,
+      speed: 0,
+      turnRate: 0,
+      desiredAngle: angle,
+      targetFoodId: null,
+      think: Number.POSITIVE_INFINITY,
+      wobble: enemy.wobble,
+      behaviorTimer: activationDuration,
+      behaviorDuration: activationDuration,
+      targetCol: segment.col,
+      targetRow: segment.row,
+      lockedAngle: angle,
+      needsReacquire: false,
+      slow: enemy.slow,
+      frostPotency: enemy.frostPotency,
+      knockbackX: 0,
+      knockbackY: 0,
+      corrosionPotency: enemy.corrosionPotency,
+      corrosionTimer: enemy.corrosionTimer,
+      corrosionColor: enemy.corrosionColor,
+      corrosionOwnerEntityId: enemy.corrosionOwnerEntityId,
+      corrosionFieldTimers: new Map(),
+      burningApplications: enemy.burningApplications.map((application) => ({ ...application })),
+      sawCooldownsByPlayer: new Map(enemy.sawCooldownsByPlayer),
+      collisionCooldown: 0,
+      projectileMinCol: segment.col,
+      projectileMaxCol: segment.col,
+      projectileMinRow: segment.row,
+      projectileMaxRow: segment.row,
+      dead: false,
+    };
+    syncEnemyJointRadii(detachedEnemy);
+    this.enemies.push(detachedEnemy);
+    if (enemy.segments.length > 0) {
+      enemy.behaviorState = 'roam';
+      enemy.behaviorPhase = 0;
+      enemy.behaviorTimer = Math.max(0.1, ENEMY_ACTIVE_BEHAVIOR_TUNING.engineerDetachInterval);
+      enemy.behaviorDuration = enemy.behaviorTimer;
+    } else {
+      enemy.behaviorState = 'roam';
+      enemy.behaviorPhase = 0;
+      enemy.behaviorTimer = 0;
+      enemy.behaviorDuration = 0;
+    }
+    syncEnemyJointRadii(enemy);
+    followEnemySegments(enemy, 0);
+    this.refreshSingleEnemyProjectileBounds(enemy);
+    this.refreshSingleEnemyProjectileBounds(detachedEnemy);
+    const anchor: UltraEffectAnchor = { anchorKind: 'enemy', anchorId: detachedEnemy.id };
+    this.burst(segment.col, segment.row, enemy.color, 8, 95, undefined, anchor);
+    this.ring(segment.col, segment.row, enemy.color, activationDuration, 0, this.enemySegmentRadiusCells(segment), undefined, 'cells', anchor);
   }
 
   private assignSkitterTarget(enemy: EnemyEntity): void {
@@ -3458,6 +3560,49 @@ export class UltraWorld {
   }
 
   private advanceEnemyBehaviorState(enemy: EnemyEntity, delta: number, players: readonly PlayerEntity[]): void {
+    if (enemy.archetype === 'engineer') {
+      if (enemy.behaviorState === 'activate') {
+        enemy.behaviorTimer -= delta;
+        enemy.behaviorPhase = ENEMY_ACTIVE_BEHAVIOR_TUNING.engineerJointActivationDuration > 0
+          ? clamp(1 - enemy.behaviorTimer / ENEMY_ACTIVE_BEHAVIOR_TUNING.engineerJointActivationDuration, 0, 1)
+          : 1;
+        if (enemy.behaviorTimer <= 0) {
+          enemy.behaviorState = 'static';
+          enemy.behaviorPhase = 1;
+          enemy.behaviorTimer = 0;
+          syncEnemyJointRadii(enemy);
+        } else syncEnemyJointRadii(enemy);
+        return;
+      }
+      if (enemy.behaviorState === 'static') {
+        enemy.behaviorPhase = 1;
+        syncEnemyJointRadii(enemy);
+        return;
+      }
+      if (enemy.segments.length === 0) {
+        enemy.behaviorState = 'roam';
+        enemy.behaviorPhase = 0;
+        enemy.behaviorTimer = 0;
+        enemy.behaviorDuration = 0;
+        return;
+      }
+      const interval = Math.max(0.1, ENEMY_ACTIVE_BEHAVIOR_TUNING.engineerDetachInterval);
+      const warning = Math.min(interval, Math.max(0, ENEMY_ACTIVE_BEHAVIOR_TUNING.engineerDetachWarningDuration));
+      enemy.behaviorDuration = interval;
+      enemy.behaviorTimer = Number.isFinite(enemy.behaviorTimer) ? enemy.behaviorTimer - delta : interval - delta;
+      if (enemy.behaviorTimer <= 0) {
+        this.detachEngineerTailJoint(enemy);
+        return;
+      }
+      if (warning > 0 && enemy.behaviorTimer <= warning) {
+        enemy.behaviorState = 'deploy';
+        enemy.behaviorPhase = clamp(1 - enemy.behaviorTimer / warning, 0, 1);
+      } else {
+        enemy.behaviorState = 'roam';
+        enemy.behaviorPhase = 0;
+      }
+      return;
+    }
     if (enemy.archetype === 'skitter') {
       enemy.behaviorTimer -= delta;
       const deltaCol = enemy.targetCol - enemy.col;
@@ -3519,11 +3664,21 @@ export class UltraWorld {
     collisionPlayers.length = 0;
     for (const player of presentPlayers) if (player.autopilot || player.paused || player.choosingUpgrade) collisionPlayers.push(player);
     this.ensureFoodIndexes();
-    for (const enemy of this.enemies) {
+    const initialEnemyCount = this.enemies.length;
+    for (let enemyIndex = 0; enemyIndex < initialEnemyCount; enemyIndex += 1) {
+      const enemy = this.enemies[enemyIndex];
       if (enemy.dead) continue;
+      const staticJoint = isStaticEngineerJoint(enemy);
+      const engineerBehavior = enemy.archetype === 'engineer';
       enemy.collisionCooldown = Math.max(0, enemy.collisionCooldown - delta);
-      if (enemy.collisionCooldown <= 0) {
+      if (staticJoint || engineerBehavior) {
         this.advanceEnemyBehaviorState(enemy, delta, presentPlayers);
+      }
+      if (staticJoint) {
+        enemy.knockbackX = 0;
+        enemy.knockbackY = 0;
+      } else if (enemy.collisionCooldown <= 0) {
+        if (!engineerBehavior) this.advanceEnemyBehaviorState(enemy, delta, presentPlayers);
         enemy.think -= delta;
         if (enemy.think <= 0) {
           enemy.think = this.randomBetween(ENEMY_THINK_INTERVAL_MIN, ENEMY_THINK_INTERVAL_MAX);
@@ -3557,7 +3712,9 @@ export class UltraWorld {
           : enemy.behaviorState === 'lock'
             ? ENEMY_ACTIVE_BEHAVIOR_TUNING.headHunterLockSpeedMultiplier
             : 1;
-      const speed = enemy.speed * waveSpeedMultiplier * chronosMultiplier * (enemy.slow > 0 ? 0.55 : 1) * frostMultiplier * behaviorSpeedMultiplier;
+      const speed = staticJoint
+        ? 0
+        : enemy.speed * waveSpeedMultiplier * chronosMultiplier * (enemy.slow > 0 ? 0.55 : 1) * frostMultiplier * behaviorSpeedMultiplier;
       const previousPosition = this.enemyMovementStart;
       previousPosition.col = enemy.col;
       previousPosition.row = enemy.row;
@@ -3581,7 +3738,7 @@ export class UltraWorld {
           this.resolveBodyIntercept(playerCollision.player, enemy, playerCollision.point);
         } else {
           const normal = collisionNormal(playerCollision.player, enemy);
-          this.resolvePlayerEnemyContact(playerCollision.player, enemy, enemy, -1, true, this.now);
+          this.resolvePlayerEnemyContact(playerCollision.player, enemy, enemy, -1, !isStaticEngineerJoint(enemy), this.now);
           const knockbackMultiplier = enemy.archetype === 'warden' ? DESIGNER_BALANCE.enemyWardenKnockbackMultiplier : 1;
           this.bounceEntity(playerCollision.player, normal.col, normal.row, '#dffcff', knockbackMultiplier, true);
           if (!enemy.dead) this.bounceEntity(enemy, -normal.col, -normal.row, enemy.color, 1 + MODULE_PROGRESSION.effects.momentumKnockbackBonus(this.moduleCount(playerCollision.player, 'momentum')));
@@ -3985,7 +4142,7 @@ export class UltraWorld {
       if (hazard.kind === 'corrosion') continue;
       if (hazard.kind === 'gravity') {
         for (const hostile of this.enemies) {
-          if (hostile.dead) continue;
+          if (hostile.dead || isStaticEngineerJoint(hostile)) continue;
           const dx = hazard.col - hostile.col;
           const dy = hazard.row - hostile.row;
           const distance = Math.hypot(dx, dy);
@@ -4219,7 +4376,7 @@ export class UltraWorld {
       for (const enemy of this.enemies) {
         if (enemy.dead || Math.hypot(player.col - enemy.col, player.row - enemy.row) >= this.playerHeadRadiusCells() + this.enemyHeadRadiusCells(enemy) || player.collisionCooldown > 0 || enemy.collisionCooldown > 0) continue;
         const normal = collisionNormal(player, enemy);
-        if (!this.isPlayerProtected(player)) this.resolvePlayerEnemyContact(player, enemy, enemy, -1, true, now);
+        if (!this.isPlayerProtected(player)) this.resolvePlayerEnemyContact(player, enemy, enemy, -1, !isStaticEngineerJoint(enemy), now);
         const knockbackMultiplier = enemy.archetype === 'warden' ? DESIGNER_BALANCE.enemyWardenKnockbackMultiplier : 1;
         this.bounceEntity(player, normal.col, normal.row, '#dffcff', knockbackMultiplier, true);
         if (!enemy.dead) this.bounceEntity(enemy, -normal.col, -normal.row, enemy.color, 1 + MODULE_PROGRESSION.effects.momentumKnockbackBonus(this.moduleCount(player, 'momentum')));
@@ -4429,6 +4586,7 @@ export class UltraWorld {
       return;
     }
     const hitsHead = resolvedHitIndex < 0;
+    const usesHeadArmor = hitsHead && !isStaticEngineerJoint(target);
     const oldHead = { col: target.col, row: target.row };
     const hitJoint = hitsHead ? target : target.segments[resolvedHitIndex];
     if (!hitJoint) return;
@@ -4441,9 +4599,9 @@ export class UltraWorld {
       hitJoint.maxHealth,
       damageResult.before,
       damageResult.after,
-      hitsHead,
+      usesHeadArmor,
     );
-    hitJoint.radius = enemyJointRadiusCells(hitJoint, hitsHead);
+    hitJoint.radius = enemyJointRadiusCells(hitJoint, usesHeadArmor) * (isStaticEngineerJoint(target) ? staticEngineerActivationScale(target) : 1);
     const removed: EnemySegment[] = [];
     let reconnectIndex = -1;
     let promotedHead: EnemySegment | null = null;
@@ -4515,6 +4673,13 @@ export class UltraWorld {
   private killEnemy(enemy: EnemyEntity, owner: PlayerEntity | null): void {
     if (enemy.dead) return;
     enemy.dead = true;
+    if (isStaticEngineerJoint(enemy)) {
+      this.burst(enemy.col, enemy.row, enemy.color, 10, 115, owner?.entityId);
+      this.ring(enemy.col, enemy.row, '#ffffff', 0.42, 0.08, this.enemySegmentRadiusCells(enemy) * 1.8, owner?.entityId);
+      this.textEffect(enemy.col, enemy.row - 0.35, '拆除', '#ffffff', 0.72, owner?.entityId, true);
+      if (owner) this.effectSound('kill', owner.entityId);
+      return;
+    }
     for (const player of this.playersByEntity.values()) {
       if (!player.alive || player.ghost) continue;
       const deathBurstLevel = this.moduleCount(player, 'deathburst');
@@ -4654,21 +4819,25 @@ export class UltraWorld {
   private refreshProjectileHitBounds(): void {
     for (const target of this.enemies) {
       if (target.dead) continue;
-      let minCol = target.col;
-      let maxCol = target.col;
-      let minRow = target.row;
-      let maxRow = target.row;
-      for (const segment of target.segments) {
-        minCol = Math.min(minCol, segment.col);
-        maxCol = Math.max(maxCol, segment.col);
-        minRow = Math.min(minRow, segment.row);
-        maxRow = Math.max(maxRow, segment.row);
-      }
-      target.projectileMinCol = minCol;
-      target.projectileMaxCol = maxCol;
-      target.projectileMinRow = minRow;
-      target.projectileMaxRow = maxRow;
+      this.refreshSingleEnemyProjectileBounds(target);
     }
+  }
+
+  private refreshSingleEnemyProjectileBounds(target: EnemyEntity): void {
+    let minCol = target.col;
+    let maxCol = target.col;
+    let minRow = target.row;
+    let maxRow = target.row;
+    for (const segment of target.segments) {
+      minCol = Math.min(minCol, segment.col);
+      maxCol = Math.max(maxCol, segment.col);
+      minRow = Math.min(minRow, segment.row);
+      maxRow = Math.max(maxRow, segment.row);
+    }
+    target.projectileMinCol = minCol;
+    target.projectileMaxCol = maxCol;
+    target.projectileMinRow = minRow;
+    target.projectileMaxRow = maxRow;
   }
 
   private sweptTargetContacts(start: GridPoint, end: GridPoint, radius: number, target: EnemyEntity): Array<{ node: GridPoint; progress: number; head: boolean }> {
@@ -4719,7 +4888,10 @@ export class UltraWorld {
     return 9 / CANONICAL_CELL_SIZE * SNAKE_BODY_SIZE_SCALE;
   }
 
-  private enemyHeadRadiusCells(enemy: EnemyJointView & { radius?: number }): number {
+  private enemyHeadRadiusCells(enemy: EnemyJointView & { radius?: number; archetype?: string; behaviorState?: string }): number {
+    if (isStaticEngineerJoint(enemy)) {
+      return Number.isFinite(enemy.radius) ? Math.max(0, enemy.radius!) : enemyJointRadiusCells(enemy, false) * staticEngineerActivationScale(enemy);
+    }
     return Number.isFinite(enemy.radius) && enemy.radius! > 0
       ? enemy.radius!
       : enemyJointRadiusCells(enemy, true);
@@ -4874,6 +5046,16 @@ export class UltraWorld {
     const isPlayer = 'accountId' in entity;
     let nx = normalX / length;
     let ny = normalY / length;
+    if (!isPlayer && isStaticEngineerJoint(entity)) {
+      entity.knockbackX = 0;
+      entity.knockbackY = 0;
+      entity.slow = Math.max(entity.slow, BOUNCE_SLOW_TIME);
+      entity.collisionCooldown = Math.max(0.06, BOUNCE_LOCK_TIME);
+      this.burst(entity.col, entity.row, color, 13, 135, undefined, { anchorKind: 'enemy', anchorId: entity.id });
+      this.ring(entity.col, entity.row, color, 0.38, 0.08, this.enemySegmentRadiusCells(entity) * 0.85, undefined, 'cells', { anchorKind: 'enemy', anchorId: entity.id });
+      this.effectSound('bounce');
+      return;
+    }
     if (isPlayer) ({ col: nx, row: ny } = correctedPlayerKnockbackNormal(entity.angle, nx, ny));
     const velocityX = Math.cos(entity.angle);
     const velocityY = Math.sin(entity.angle);
@@ -5156,8 +5338,20 @@ function enemyJointRadiusCells(joint: EnemyArmorJoint, isHead: boolean): number 
   return ENEMY_ARMOR.radius(joint.health, joint.maxHealth, isHead, ENEMY_ARMOR_TUNING);
 }
 
+function isStaticEngineerJoint(enemy: { archetype?: string; behaviorState?: string } | null | undefined): boolean {
+  return enemy?.archetype === 'engineer' && (enemy.behaviorState === 'activate' || enemy.behaviorState === 'static');
+}
+
+function staticEngineerActivationScale(enemy: { behaviorState?: string; behaviorPhase?: number }): number {
+  if (enemy.behaviorState === 'static') return 1;
+  const progress = clamp(Number(enemy.behaviorPhase) || 0, 0, 1);
+  return progress * progress * (3 - 2 * progress);
+}
+
 function syncEnemyJointRadii(enemy: EnemyEntity): void {
-  enemy.radius = enemyJointRadiusCells(enemy, true);
+  enemy.radius = isStaticEngineerJoint(enemy)
+    ? enemyJointRadiusCells(enemy, false) * staticEngineerActivationScale(enemy)
+    : enemyJointRadiusCells(enemy, true);
   for (const segment of enemy.segments) segment.radius = enemyJointRadiusCells(segment, false);
 }
 

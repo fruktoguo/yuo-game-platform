@@ -102,6 +102,16 @@
       parameterPrefix: "enemyHeadHunter",
       description: "捕获当时玩家蛇头方向后完成瞄准与短暂锁定，再沿锁死方向高速直行，不会途中追踪；撞到任意物体反弹后才重新捕获目标。",
       traits: Object.freeze(["捕获蛇头方向", "瞄准后锁向直行", "反弹后重新锁定"])
+    }),
+    Object.freeze({
+      id: "engineer",
+      code: "ENGINEER",
+      name: "工兵体",
+      role: "静态布防",
+      color: "#c4d0d4",
+      parameterPrefix: "enemyEngineer",
+      description: "至少以两节机体出生，周期性将最后一个真实尾节连同生命、装甲与异常状态转移为永久静止的独立关节；仅剩头部后停止投放。",
+      traits: Object.freeze(["至少双节出生", "尾节生命原样转移", "独立关节永久布防"])
     })
   ]);
   const byId = Object.freeze(Object.fromEntries(entries.map((entry) => [entry.id, entry])));
@@ -152,6 +162,11 @@
       Object.freeze({ label: "锁定时长", key: "enemyHeadHunterLockDuration", format: "time" }),
       Object.freeze({ label: "瞄准速度", key: "enemyHeadHunterAimSpeedMultiplier", format: "multiplier" }),
       Object.freeze({ label: "锁定速度", key: "enemyHeadHunterLockSpeedMultiplier", format: "multiplier" })
+    ]),
+    engineer: Object.freeze([
+      Object.freeze({ label: "脱落间隔", key: "enemyEngineerDetachInterval", format: "time" }),
+      Object.freeze({ label: "脱落预警", key: "enemyEngineerDetachWarningDuration", format: "time" }),
+      Object.freeze({ label: "关节激活", key: "enemyEngineerJointActivationDuration", format: "time" })
     ])
   });
 
@@ -236,6 +251,9 @@
       case "headhunter":
         context.moveTo(11, 0); context.lineTo(3, 9); context.lineTo(-9, 6); context.lineTo(-9, -6); context.lineTo(3, -9); context.closePath();
         break;
+      case "engineer":
+        context.moveTo(9, -9); context.lineTo(9, 9); context.lineTo(-9, 9); context.lineTo(-9, -9); context.closePath();
+        break;
       default:
         context.moveTo(10, 0); context.lineTo(4, 9); context.lineTo(-8, 7); context.lineTo(-11, 0); context.lineTo(-8, -7); context.lineTo(4, -9); context.closePath();
     }
@@ -269,6 +287,9 @@
         break;
       case "headhunter":
         context.moveTo(23, 0); context.lineTo(4, 13); context.lineTo(-13, 8); context.lineTo(-13, -8); context.lineTo(4, -13); context.closePath();
+        break;
+      case "engineer":
+        context.moveTo(17, 0); context.lineTo(10, 13); context.lineTo(-11, 13); context.lineTo(-16, 7); context.lineTo(-16, -7); context.lineTo(-11, -13); context.lineTo(10, -13); context.closePath();
         break;
       default:
         context.moveTo(18, 0); context.lineTo(8, 12); context.lineTo(-7, 11); context.lineTo(-15, 5); context.lineTo(-12, 0); context.lineTo(-15, -5); context.lineTo(-7, -11); context.lineTo(8, -12); context.closePath();
@@ -308,6 +329,13 @@
       context.fillRect(-1.5, -7, 3, 14);
     } else if (entry.id === "liner" || entry.id === "headhunter") {
       context.fillRect(-8, -1.5, 16, 3);
+    } else if (entry.id === "engineer") {
+      context.globalAlpha = 1;
+      context.strokeStyle = "#ffffff";
+      context.lineWidth = 1.5;
+      context.strokeRect(-6.5, -6.5, 13, 13);
+      context.strokeStyle = "#7d898e";
+      context.strokeRect(-3.5, -3.5, 7, 7);
     } else {
       context.fillRect(-7, -2, 11, 4);
     }
@@ -353,6 +381,11 @@
       context.fillRect(0, -8, 4, 16);
     } else if (entry.id === "headhunter") {
       context.moveTo(21, 0); context.lineTo(7, 7); context.lineTo(10, 0); context.lineTo(7, -7); context.closePath(); context.fill();
+    } else if (entry.id === "engineer") {
+      context.strokeStyle = entry.color;
+      context.lineWidth = 2;
+      context.strokeRect(-9, -9, 18, 18);
+      context.fillRect(8, -5, 6, 10);
     } else {
       context.moveTo(entry.id === "charger" ? 21 : 18, 0);
       context.lineTo(7, 6);
@@ -366,6 +399,26 @@
     context.fillStyle = "#080a0b";
     context.fillRect(4, -7, 2, 3);
     context.fillRect(4, 4, 2, 3);
+    context.restore();
+  }
+
+  function drawEngineerIndependentJoint(context, entry) {
+    context.save();
+    context.translate(116, 132);
+    context.rotate(-0.18);
+    context.shadowColor = entry.color;
+    context.shadowBlur = 15;
+    context.fillStyle = "rgba(8,12,14,0.96)";
+    context.fillRect(-13, -13, 26, 26);
+    context.shadowBlur = 0;
+    context.strokeStyle = "#ffffff";
+    context.lineWidth = 3;
+    context.strokeRect(-13, -13, 26, 26);
+    context.strokeStyle = "#7d898e";
+    context.lineWidth = 2;
+    context.strokeRect(-7, -7, 14, 14);
+    context.fillStyle = entry.color;
+    context.fillRect(-2, -2, 4, 4);
     context.restore();
   }
 
@@ -434,6 +487,7 @@
     }
     for (let index = pieces.length - 1; index >= 1; index -= 1) drawSegment(context, entry, pieces[index]);
     drawHead(context, entry, pieces[0]);
+    if (entry.id === "engineer") drawEngineerIndependentJoint(context, entry);
 
     context.fillStyle = entry.color;
     context.font = "900 11px Bahnschrift, Arial, sans-serif";

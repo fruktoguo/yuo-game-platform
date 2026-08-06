@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0b0d0f">
   <meta name="description" content="代号：几何贪吃蛇 - 单人及多人共享世界肉鸽贪吃蛇战斗游戏">
   <title>代号：几何贪吃蛇</title>
-  <link rel="stylesheet" href="styles.css?v=150">
+  <link rel="stylesheet" href="styles.css?v=151">
 </head>
 <body>
   <main id="game-shell" aria-label="代号：几何贪吃蛇 游戏区域">
@@ -19,7 +19,7 @@
           <strong>代号：几何贪吃蛇</strong>
         </div>
         <span class="signature">by 四季鸽</span>
-        <span class="brand-version" aria-label="游戏版本 V150">V150</span>
+        <span class="brand-version" aria-label="游戏版本 V151">V151</span>
       </div>
 
       <div class="run-stats">
@@ -209,7 +209,7 @@
 
     <section id="start-screen" class="modal-layer start-screen is-visible" aria-labelledby="game-title">
       <div class="start-glow" aria-hidden="true"></div>
-          <div class="start-version" aria-label="游戏版本 V150"><span>BUILD</span><strong>V150</strong></div>
+          <div class="start-version" aria-label="游戏版本 V151"><span>BUILD</span><strong>V151</strong></div>
       <div class="start-layout">
         <div class="start-content">
           <div id="network-status" class="title-kicker">TACTICAL SURVIVAL / LOCAL</div>
@@ -398,6 +398,22 @@
           <button id="changelog-close-button" class="icon-button codex-close-button" type="button" aria-label="关闭更新日志" title="关闭更新日志">×</button>
         </header>
         <div class="changelog-list">
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V151</strong></div>
+              <time datetime="2026-08-06">2026.08.06</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">敌群生态</span>
+              <h3>工兵体与静态独立关节</h3>
+              <ul>
+                <li>新增工兵体：至少以2点总生命和2个真实关节出生，按固定周期预警并将最后一个尾节脱落布防，仅剩头部后停止投放。</li>
+                <li>脱落关节原样继承生命、指数装甲及冰冻、腐蚀、燃烧状态，经短暂激活后成为永久静止的独立障碍；转移过程严格守恒，不复制工兵生命。</li>
+                <li>静态关节参与玩家碰撞、突进、投射物、范围伤害、异常状态与敌人硬碰撞，不受反弹、击退和重力移动；摧毁时不重复结算整条敌蛇的击杀、掉球与完整奖励。</li>
+                <li>工兵体、尾节脱落预警与静态关节已加入视觉和敌人图鉴，解锁、权重、速度、转向、脱落及激活参数接入设计控制台与联机权威；联机快照协议升级至V26。</li>
+              </ul>
+            </div>
+          </article>
           <article class="changelog-entry">
             <header>
               <div class="changelog-version"><span>BUILD</span><strong>V150</strong></div>
@@ -2402,29 +2418,29 @@
     </section>
   </main>
 
-  <script src="designer-config.js?v=150"></script>
-  <script src="status-catalog.js?v=150"></script>
-  <script src="module-catalog.js?v=150"></script>
-  <script src="module-progression.js?v=150"></script>
-  <script src="wave-director.js?v=150"></script>
-  <script src="arena-geometry.js?v=150"></script>
-  <script src="player-body-path.js?v=150"></script>
-  <script src="player-dash.js?v=150"></script>
-  <script src="enemy-behavior.js?v=150"></script>
-  <script src="enemy-vitality.js?v=150"></script>
-  <script src="enemy-armor.js?v=150"></script>
-  <script src="spawn-planner.js?v=150"></script>
-  <script src="network-codec.js?v=150"></script>
-  <script src="network-player-prediction.js?v=150"></script>
-  <script src="network-player-state-codec.js?v=150"></script>
-  <script src="network-player-collisions.js?v=150"></script>
-  <script src="network-head-collisions.js?v=150"></script>
-  <script src="network-food-claims.js?v=150"></script>
-  <script src="network-projectiles.js?v=150"></script>
-  <script src="lobby-navigation.js?v=150"></script>
-  <script src="enemy-codex.js?v=150"></script>
-  <script src="camera-projection.js?v=150"></script>
-  <script type="module" src="src/client/p2p/bootstrap.ts?v=150"></script>
-  <script src="game.js?v=150"></script>
+  <script src="designer-config.js?v=151"></script>
+  <script src="status-catalog.js?v=151"></script>
+  <script src="module-catalog.js?v=151"></script>
+  <script src="module-progression.js?v=151"></script>
+  <script src="wave-director.js?v=151"></script>
+  <script src="arena-geometry.js?v=151"></script>
+  <script src="player-body-path.js?v=151"></script>
+  <script src="player-dash.js?v=151"></script>
+  <script src="enemy-behavior.js?v=151"></script>
+  <script src="enemy-vitality.js?v=151"></script>
+  <script src="enemy-armor.js?v=151"></script>
+  <script src="spawn-planner.js?v=151"></script>
+  <script src="network-codec.js?v=151"></script>
+  <script src="network-player-prediction.js?v=151"></script>
+  <script src="network-player-state-codec.js?v=151"></script>
+  <script src="network-player-collisions.js?v=151"></script>
+  <script src="network-head-collisions.js?v=151"></script>
+  <script src="network-food-claims.js?v=151"></script>
+  <script src="network-projectiles.js?v=151"></script>
+  <script src="lobby-navigation.js?v=151"></script>
+  <script src="enemy-codex.js?v=151"></script>
+  <script src="camera-projection.js?v=151"></script>
+  <script type="module" src="src/client/p2p/bootstrap.ts?v=151"></script>
+  <script src="game.js?v=151"></script>
 </body>
 </html>
