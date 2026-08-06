@@ -14,7 +14,7 @@ import type {
 } from './protocol';
 
 const MAGIC = 0x5553_4e50;
-export const SNAPSHOT_PROTOCOL_VERSION = 23;
+export const SNAPSHOT_PROTOCOL_VERSION = 24;
 const COORDINATE_SCALE = 65_535;
 const COORDINATE_PADDING = 2;
 const VELOCITY_SCALE = 64;
@@ -107,9 +107,9 @@ function writePlayer(writer: BinaryWriter, player: UltraPlayerView, arenaSize: n
   writer.u16(player.entityId);
   writer.string(player.name);
   writer.u8(player.colorIndex);
-  writer.u8(Number(player.connected) | Number(player.alive) << 1 | Number(player.paused) << 2 | Number(player.choosingUpgrade) << 3 | Number(player.ghost) << 4);
+  writer.u8(Number(player.connected) | Number(player.alive) << 1 | Number(player.paused) << 2 | Number(player.choosingUpgrade) << 3 | Number(player.ghost) << 4 | Number(player.dashing) << 5);
   writeCoordinate(writer, player.col, arenaSize); writeCoordinate(writer, player.row, arenaSize); writeAngle(writer, player.angle); writeAngle(writer, player.desiredAngle);
-  writer.u32(player.lastInputSequence + 1); writer.f32(player.speed); writer.f32(player.slow); writer.f32(player.foodBoost); writer.f32(player.knockbackX); writer.f32(player.knockbackY);
+  writer.u32(player.lastInputSequence + 1); writer.f32(player.speed); writer.f32(player.energy); writer.f32(player.dashElapsed); writer.f32(player.slow); writer.f32(player.foodBoost); writer.f32(player.knockbackX); writer.f32(player.knockbackY);
   writer.f32(player.invulnerable); writer.f32(player.collisionCooldown); writer.f32(player.health); writer.f32(player.maxHealth); writer.u8(player.shieldCharges);
   writer.f32(player.score); writer.u16(player.kills); writer.u16(player.botKills); writer.u16(player.pvpKills);
   writer.f32(player.survivalTime); writer.u16(player.level); writer.u16(player.xp); writer.u16(player.xpNeeded);
@@ -132,10 +132,11 @@ function readPlayer(reader: BinaryReader, arenaSize: number): UltraPlayerView {
     connected: Boolean(flags & 1),
     alive: Boolean(flags & 2),
     ghost: Boolean(flags & 16),
+    dashing: Boolean(flags & 32),
     paused: Boolean(flags & 4),
     choosingUpgrade: Boolean(flags & 8),
     col: readCoordinate(reader, arenaSize), row: readCoordinate(reader, arenaSize), angle: readAngle(reader), desiredAngle: readAngle(reader),
-    lastInputSequence: reader.u32() - 1, speed: reader.f32(), slow: reader.f32(), foodBoost: reader.f32(), knockbackX: reader.f32(), knockbackY: reader.f32(),
+    lastInputSequence: reader.u32() - 1, speed: reader.f32(), energy: reader.f32(), dashElapsed: reader.f32(), slow: reader.f32(), foodBoost: reader.f32(), knockbackX: reader.f32(), knockbackY: reader.f32(),
     invulnerable: reader.f32(), collisionCooldown: reader.f32(), health: reader.f32(), maxHealth: reader.f32(), shieldCharges: reader.u8(),
     score: reader.f32(), kills: reader.u16(), botKills: reader.u16(), pvpKills: reader.u16(),
     survivalTime: reader.f32(), level: reader.u16(), xp: reader.u16(), xpNeeded: reader.u16(),

@@ -161,7 +161,7 @@
     }
 
     for (const enemy of enemies || []) {
-      if (enemy.dead) continue;
+      if (enemy.dead || enemy.collisionCooldown > 0) continue;
       const contactRange = enemyHeadToPlayerBodyRange(options, enemy, playerBodyRadius, dynamicEnemyHeadRadius);
       const contact = bodyConnectionContact(enemy, player, contactRange * contactRange);
       if (contact) {

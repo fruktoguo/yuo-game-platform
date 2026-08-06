@@ -61,8 +61,11 @@ import {
   NETWORK_HEAD_COLLISION_EVENT_GRACE_MS,
   NETWORK_HEAD_COLLISION_VALIDATION_TOLERANCE,
   PLAYER_BASE_SPEED,
-  PLAYER_COLLISION_DAMAGE,
+  PLAYER_BODY_INTERCEPT_DAMAGE,
   PLAYER_COLORS,
+  PLAYER_DASH_COLLISION_DAMAGE,
+  PLAYER_DASH_TUNING,
+  PLAYER_ENERGY_MAXIMUM,
   PLAYER_ENEMY_BODY_COLLISION_DAMAGE,
   PLAYER_HEALTH_REGEN_PER_SECOND,
   PLAYER_KNOCKBACK_REAR_BLOCKED_ANGLE,
@@ -98,6 +101,7 @@ import {
 } from '../shared/modules';
 import { MODULE_PROGRESSION } from '../shared/moduleProgression';
 import { PLAYER_BODY_PATH, type PlayerBodyPathState } from '../shared/playerBodyPath';
+import { PLAYER_DASH } from '../shared/playerDash';
 import { ENEMY_ARMOR, type EnemyArmorJoint } from '../shared/enemyArmor';
 import { ENEMY_VITALITY } from '../shared/enemyVitality';
 import type { PlayerMovementState } from '../shared/playerStateCodec';
@@ -161,6 +165,8 @@ interface PlayerEntity extends UltraPlayerView {
   knockbackX: number;
   knockbackY: number;
   foodBoost: number;
+  dashHeld: boolean;
+  dashMovementMultiplier: number;
   thornsCooldown: number;
   bloomCooldown: number;
   cacheKills: number;
@@ -480,6 +486,7 @@ export class UltraWorld {
     player.paused = true;
     player.knockbackX = 0;
     player.knockbackY = 0;
+    player.dashHeld = false;
   }
 
   spawn(accountId: string, now = Date.now(), initialModuleId?: ModuleId): boolean {
@@ -538,6 +545,7 @@ export class UltraWorld {
     const player = this.playersByAccount.get(accountId);
     if (!player?.connected) return false;
     player.autopilot = enabled;
+    if (enabled) player.dashHeld = false;
     if (!enabled) player.lastManualStateAt = this.now;
     player.autoSelectModules = autoSelectModules;
     player.autoRestart = autoRestart;
@@ -557,6 +565,7 @@ export class UltraWorld {
       player.desiredAngle = player.angle;
       player.knockbackX = 0;
       player.knockbackY = 0;
+      player.dashHeld = false;
     }
     return true;
   }
@@ -598,6 +607,8 @@ export class UltraWorld {
     }
     player.lastInputSequence = payload.sequence;
     player.lastManualStateAt = now;
+    player.dashHeld = !player.ghost && payload.dashHeld;
+    PLAYER_DASH.advance(player, player.dashHeld, 0, PLAYER_DASH_TUNING);
     const constrainedHead = this.constrainArenaPoint(payload.col, payload.row);
     player.col = constrainedHead.col;
     player.row = constrainedHead.row;
@@ -640,13 +651,13 @@ export class UltraWorld {
         : -1;
       if (distance < this.arenaPlayableRadius() - 1.5 || alignment < 0.5) return false;
       this.triggerCollisionEcho(player);
-      this.damagePlayer(player, PLAYER_WALL_COLLISION_DAMAGE, now, '撞上墙壁');
+      this.damagePlayerFromCollision(player, PLAYER_WALL_COLLISION_DAMAGE, now, '撞上墙壁');
       return true;
     }
     if (claim.kind === 'self-body') {
       if (!findSelfCollision(player, PLAYER_SELF_COLLISION_RANGE)) return false;
       this.triggerCollisionEcho(player);
-      if (!this.hasActiveKnockback(player)) this.damagePlayer(player, PLAYER_WALL_COLLISION_DAMAGE, now, '撞上自己的身体');
+      if (!this.hasActiveKnockback(player)) this.damagePlayerFromCollision(player, PLAYER_WALL_COLLISION_DAMAGE, now, '撞上自己的身体');
       return true;
     }
     if (!Number.isSafeInteger(claim.targetId) || claim.targetId <= 0) return false;
@@ -664,7 +675,7 @@ export class UltraWorld {
       const nearPlayer = distanceSquared(player, enemy) <= 9 || bodyConnectionContact(enemy, player, 3) !== null;
       if (!Number.isFinite(claim.normalCol) || !Number.isFinite(claim.normalRow) || !nearPlayer) return false;
       if (claim.kind === 'enemy-head') {
-        this.applyPlayerCollisionAttack(player, enemy, enemy, -1, true);
+        if (!this.isPlayerProtected(player)) this.resolvePlayerEnemyContact(player, enemy, enemy, -1, true, now);
       }
       if (!enemy.dead) this.bounceEntity(enemy, -claim.normalCol, -claim.normalRow, enemy.color, 1 + MODULE_PROGRESSION.effects.momentumKnockbackBonus(this.moduleCount(player, 'momentum')));
       return true;
@@ -672,9 +683,7 @@ export class UltraWorld {
     if (claim.kind === 'enemy-body') {
       const segment = enemy.segments[claim.segmentIndex];
       if (!segment || distanceSquared(player, segment) > 9) return false;
-      const defended = this.consumeDefense(player);
-      this.applyPlayerCollisionAttack(player, enemy, segment, claim.segmentIndex, false);
-      if (!defended) this.damagePlayer(player, PLAYER_ENEMY_BODY_COLLISION_DAMAGE, now, '被敌蛇重创');
+      this.resolvePlayerEnemyContact(player, enemy, segment, claim.segmentIndex, false, now);
       return true;
     }
     if (claim.kind !== 'enemy-hit-body') return false;
@@ -683,13 +692,7 @@ export class UltraWorld {
     const previousSegment = claim.segmentIndex > 0 ? player.segments[claim.segmentIndex - 1] : player;
     const collisionPoint = closestPointOnGridSegment(enemy, previousSegment, bodySegment);
     if (distanceSquared(enemy, collisionPoint) > 9) return false;
-    const thorns = this.moduleCount(player, 'thorns');
-    const thornsReady = thorns > 0 && player.thornsCooldown <= 0;
-    this.killEnemy(enemy, player);
-    if (thornsReady) {
-      this.triggerBodyIntercept(player, collisionPoint, enemy);
-      player.thornsCooldown = this.activeModuleCooldown(player, 'thorns', thorns);
-    }
+    this.resolveBodyIntercept(player, enemy, collisionPoint);
     return true;
   }
 
@@ -766,7 +769,7 @@ export class UltraWorld {
     const collisionPoint = closestPointOnGridSegment(source, previous, segment);
     if (distanceSquared(source, collisionPoint) > 9) return false;
     this.triggerCollisionEcho(source);
-    this.damagePlayer(source, PLAYER_OTHER_BODY_COLLISION_DAMAGE, now, '撞上其他玩家的身体');
+    this.damagePlayerFromCollision(source, PLAYER_OTHER_BODY_COLLISION_DAMAGE, now, '撞上其他玩家的身体');
     return true;
   }
 
@@ -1228,6 +1231,11 @@ export class UltraWorld {
       desiredAngle: 0,
       speed: PLAYER_BASE_SPEED,
       invulnerable: 0,
+      energy: PLAYER_ENERGY_MAXIMUM,
+      dashing: false,
+      dashHeld: false,
+      dashElapsed: 0,
+      dashMovementMultiplier: 1,
       health: PLAYER_MAX_HEALTH,
       maxHealth: PLAYER_MAX_HEALTH,
       shieldCharges: 0,
@@ -1276,6 +1284,11 @@ export class UltraWorld {
     player.desiredAngle = 0;
     player.speed = PLAYER_BASE_SPEED;
     player.invulnerable = 0;
+    player.energy = PLAYER_ENERGY_MAXIMUM;
+    player.dashing = false;
+    player.dashHeld = false;
+    player.dashElapsed = 0;
+    player.dashMovementMultiplier = 1;
     player.health = PLAYER_MAX_HEALTH;
     player.maxHealth = PLAYER_MAX_HEALTH;
     player.shieldCharges = 0;
@@ -1462,7 +1475,7 @@ export class UltraWorld {
   }
 
   private playerHeadDamage(player: PlayerEntity, hitEnemyHead = false): number {
-    return PLAYER_COLLISION_DAMAGE
+    return PLAYER_DASH_COLLISION_DAMAGE
       + this.moduleCount(player, 'ram')
       + MODULE_PROGRESSION.effects.missingHealthHeadDamageBonus(this.moduleCount(player, 'berserk'), this.missingHealthFraction(player))
       + (hitEnemyHead ? MODULE_PROGRESSION.effects.headCollisionDamageBonus(this.moduleCount(player, 'headstrike')) : 0);
@@ -1668,7 +1681,7 @@ export class UltraWorld {
     if (player.collisionCooldown > 0) player.desiredAngle = player.angle;
     else player.angle = rotateToward(player.angle, player.desiredAngle, PLAYER_TURN_RATE * (1 + MODULE_PROGRESSION.effects.hasteTurnRateBonus(this.moduleCount(player, 'haste'))) * delta);
     const slowMultiplier = player.slow > 0 ? 0.48 : 1;
-    player.speed = this.playerBaseSpeed(player) * slowMultiplier;
+    player.speed = this.playerBaseSpeed(player) * slowMultiplier * player.dashMovementMultiplier;
     const previousCol = player.col;
     const previousRow = player.row;
     const nextCol = player.col + (Math.cos(player.angle) * player.speed + player.knockbackX) * delta;
@@ -1729,6 +1742,10 @@ export class UltraWorld {
 
   private updatePlayerTimers(player: PlayerEntity, delta: number): void {
     player.invulnerable = Math.max(0, player.invulnerable - delta);
+    const dashHeld = player.autopilot
+      ? false
+      : player.dashHeld && this.now - player.lastManualStateAt <= NETWORK_MANUAL_PREDICTION_MS;
+    player.dashMovementMultiplier = PLAYER_DASH.advance(player, dashHeld, delta, PLAYER_DASH_TUNING);
     const regenRate = this.playerHealthRegenRate(player);
     if (regenRate >= 0) {
       this.healPlayer(player, regenRate * delta);
@@ -1816,6 +1833,7 @@ export class UltraWorld {
       return;
     }
     player.choosingUpgrade = true;
+    player.dashHeld = false;
     player.upgradeOffer = offer;
     player.upgradeRevealTimer = 0;
     this.effectSound('level', player.entityId);
@@ -2610,15 +2628,14 @@ export class UltraWorld {
     this.effectSound('shoot', player.entityId);
   }
 
-  private applyPlayerCollisionAttack(
+  private applyPlayerDashCollisionAttack(
     player: PlayerEntity,
     enemy: EnemyEntity,
     point: GridPoint,
     segmentIndex: number,
     hitHead: boolean,
   ): void {
-    if (enemy.dead) return;
-    this.triggerCollisionEcho(player);
+    if (!player.dashing || enemy.dead) return;
     let damage = this.playerHeadDamage(player, hitHead);
     const doubleChance = MODULE_PROGRESSION.effects.collisionDoubleChance(this.moduleCount(player, 'doublehit'));
     if (doubleChance > 0 && this.random() < doubleChance) damage *= 2;
@@ -2632,6 +2649,43 @@ export class UltraWorld {
       false,
     );
     if (!enemy.dead) this.applyRandomCollisionStatuses(player, enemy);
+  }
+
+  private resolvePlayerEnemyContact(
+    player: PlayerEntity,
+    enemy: EnemyEntity,
+    point: GridPoint,
+    segmentIndex: number,
+    hitHead: boolean,
+    now: number,
+  ): void {
+    this.triggerCollisionEcho(player);
+    if (player.dashing) {
+      this.applyPlayerDashCollisionAttack(player, enemy, point, segmentIndex, hitHead);
+      return;
+    }
+    const defended = this.consumeDefense(player);
+    if (!defended) this.damagePlayerFromCollision(player, PLAYER_ENEMY_BODY_COLLISION_DAMAGE, now, '被敌蛇重创');
+  }
+
+  private resolveBodyIntercept(player: PlayerEntity, enemy: EnemyEntity, collisionPoint: GridPoint): void {
+    if (enemy.dead) return;
+    const thorns = this.moduleCount(player, 'thorns');
+    const thornsReady = thorns > 0 && player.thornsCooldown <= 0;
+    this.damageTarget(
+      player,
+      enemy,
+      PLAYER_BODY_INTERCEPT_DAMAGE,
+      enemy,
+      PLAYER_COLORS[player.colorIndex],
+      -1,
+      false,
+    );
+    if (thornsReady) {
+      this.triggerBodyIntercept(player, collisionPoint, enemy);
+      player.thornsCooldown = this.activeModuleCooldown(player, 'thorns', thorns);
+    }
+    if (!enemy.dead) this.bounceEntity(enemy, enemy.col - collisionPoint.col, enemy.row - collisionPoint.row, enemy.color);
   }
 
   private statusEffectMultiplier(player: PlayerEntity): number {
@@ -3355,16 +3409,10 @@ export class UltraWorld {
             PLAYER_COLORS[playerCollision.player.colorIndex],
           );
         } else if (playerCollision.kind === 'body') {
-          const thorns = this.moduleCount(playerCollision.player, 'thorns');
-          const thornsReady = thorns > 0 && playerCollision.player.thornsCooldown <= 0;
-          this.killEnemy(enemy, playerCollision.player);
-          if (thornsReady) {
-            this.triggerBodyIntercept(playerCollision.player, playerCollision.point, enemy);
-            playerCollision.player.thornsCooldown = this.activeModuleCooldown(playerCollision.player, 'thorns', thorns);
-          }
+          this.resolveBodyIntercept(playerCollision.player, enemy, playerCollision.point);
         } else {
           const normal = collisionNormal(playerCollision.player, enemy);
-          this.applyPlayerCollisionAttack(playerCollision.player, enemy, enemy, -1, true);
+          this.resolvePlayerEnemyContact(playerCollision.player, enemy, enemy, -1, true, this.now);
           const knockbackMultiplier = enemy.archetype === 'warden' ? DESIGNER_BALANCE.enemyWardenKnockbackMultiplier : 1;
           this.bounceEntity(playerCollision.player, normal.col, normal.row, '#dffcff', knockbackMultiplier, true);
           if (!enemy.dead) this.bounceEntity(enemy, -normal.col, -normal.row, enemy.color, 1 + MODULE_PROGRESSION.effects.momentumKnockbackBonus(this.moduleCount(playerCollision.player, 'momentum')));
@@ -3437,7 +3485,7 @@ export class UltraWorld {
         }
       }
       for (let segmentIndex = 0; segmentIndex < player.segments.length; segmentIndex += 1) {
-        if (protectedPlayer && enemy.collisionCooldown > 0) continue;
+        if (enemy.collisionCooldown > 0) continue;
         const segment = player.segments[segmentIndex];
         const previousSegment = segmentIndex > 0 ? player.segments[segmentIndex - 1] : player;
         const progress = sweptCapsuleContactProgress(
@@ -3968,7 +4016,7 @@ export class UltraWorld {
         player.row = constrained.row;
         PLAYER_BODY_PATH.correct(player.bodyPath, player, player.segments, this.playerSegmentSpacing(player));
         this.triggerCollisionEcho(player);
-        this.damagePlayer(player, PLAYER_WALL_COLLISION_DAMAGE, now, '撞上墙壁');
+        this.damagePlayerFromCollision(player, PLAYER_WALL_COLLISION_DAMAGE, now, '撞上墙壁');
         if (player.alive) this.bounceEntity(player, wall.col, wall.row, '#b8f53f');
         continue;
       }
@@ -3977,7 +4025,7 @@ export class UltraWorld {
         if (ownBody) {
           const knockedBack = this.hasActiveKnockback(player);
           this.triggerCollisionEcho(player);
-          if (!knockedBack) this.damagePlayer(player, PLAYER_WALL_COLLISION_DAMAGE, now, '撞上自己的身体');
+          if (!knockedBack) this.damagePlayerFromCollision(player, PLAYER_WALL_COLLISION_DAMAGE, now, '撞上自己的身体');
           if (player.alive) this.bounceEntity(player, player.col - ownBody.col, player.row - ownBody.row, '#f4ffdc');
           continue;
         }
@@ -3991,9 +4039,7 @@ export class UltraWorld {
           ));
           if (segmentIndex < 0) continue;
           const body = enemy.segments[segmentIndex];
-          const defended = this.consumeDefense(player);
-          this.applyPlayerCollisionAttack(player, enemy, body, segmentIndex, false);
-          if (!defended) this.damagePlayer(player, PLAYER_ENEMY_BODY_COLLISION_DAMAGE, now, '被敌蛇重创');
+          this.resolvePlayerEnemyContact(player, enemy, body, segmentIndex, false, now);
           if (player.alive) this.bounceEntity(player, player.col - body.col, player.row - body.row, enemy.color, 1, true);
           break;
         }
@@ -4002,7 +4048,7 @@ export class UltraWorld {
       for (const enemy of this.enemies) {
         if (enemy.dead || Math.hypot(player.col - enemy.col, player.row - enemy.row) >= this.playerHeadRadiusCells() + this.enemyHeadRadiusCells(enemy) || player.collisionCooldown > 0 || enemy.collisionCooldown > 0) continue;
         const normal = collisionNormal(player, enemy);
-        this.applyPlayerCollisionAttack(player, enemy, enemy, -1, true);
+        if (!this.isPlayerProtected(player)) this.resolvePlayerEnemyContact(player, enemy, enemy, -1, true, now);
         const knockbackMultiplier = enemy.archetype === 'warden' ? DESIGNER_BALANCE.enemyWardenKnockbackMultiplier : 1;
         this.bounceEntity(player, normal.col, normal.row, '#dffcff', knockbackMultiplier, true);
         if (!enemy.dead) this.bounceEntity(enemy, -normal.col, -normal.row, enemy.color, 1 + MODULE_PROGRESSION.effects.momentumKnockbackBonus(this.moduleCount(player, 'momentum')));
@@ -4082,7 +4128,7 @@ export class UltraWorld {
     const contact = bodyConnectionContact(attacker, defender, SNAKE_BODY_CONTACT_RANGE);
     if (!contact) return;
     this.triggerCollisionEcho(attacker);
-    this.damagePlayer(attacker, PLAYER_OTHER_BODY_COLLISION_DAMAGE, now, '撞上其他玩家的身体');
+    this.damagePlayerFromCollision(attacker, PLAYER_OTHER_BODY_COLLISION_DAMAGE, now, '撞上其他玩家的身体');
     if (attacker.alive) this.bounceEntity(attacker, attacker.col - contact.point.col, attacker.row - contact.point.row, PLAYER_COLORS[defender.colorIndex]);
   }
 
@@ -4154,6 +4200,11 @@ export class UltraWorld {
     return true;
   }
 
+  private damagePlayerFromCollision(player: PlayerEntity, amount: number, now: number, reason: string): boolean {
+    if (player.dashing) return false;
+    return this.damagePlayer(player, amount, now, reason);
+  }
+
   private drainPlayerHealth(player: PlayerEntity, amount: number, now: number, reason: string): boolean {
     if (!player.alive || player.ghost || amount <= 0) return false;
     player.health = Math.max(0, player.health - amount);
@@ -4166,6 +4217,10 @@ export class UltraWorld {
     player.health = 0;
     player.ghost = true;
     player.invulnerable = 0;
+    player.dashing = false;
+    player.dashHeld = false;
+    player.dashElapsed = 0;
+    player.dashMovementMultiplier = 1;
     player.speed = MULTIPLAYER_GHOST_SPEED;
     player.slow = 0;
     player.collisionCooldown = 0;
@@ -4349,7 +4404,7 @@ export class UltraWorld {
     this.spawnFood(enemy, false, dropOccupied);
   }
 
-  private triggerBodyIntercept(player: PlayerEntity, point: GridPoint, defeatedAt: GridPoint): void {
+  private triggerBodyIntercept(player: PlayerEntity, point: GridPoint, enemyAt: GridPoint): void {
     const shotCount = MODULE_PROGRESSION.effects.thornsProjectileCount();
     const startAngle = this.randomBetween(0, TAU);
     const target = this.nearestTarget(player, point, Number.POSITIVE_INFINITY);
@@ -4357,7 +4412,7 @@ export class UltraWorld {
     for (let index = 0; index < shotCount; index += 1) {
       this.createProjectile(player, point, startAngle + index * TAU / shotCount, { speed: 280, color: MODULE_BY_ID.thorns.color, size: 4.2 }, targetRef);
     }
-    this.spawnFood(defeatedAt, true);
+    this.spawnFood(enemyAt, true);
     this.burst(point.col, point.row, MODULE_BY_ID.thorns.color, 18, 145, player.entityId);
     this.ring(point.col, point.row, MODULE_BY_ID.thorns.color, 0.55, 8, 1.4, player.entityId);
     this.playSkillSound(player, 'thorns');
@@ -4606,6 +4661,10 @@ export class UltraWorld {
     }
     victim.alive = false;
     victim.ghost = false;
+    victim.dashing = false;
+    victim.dashHeld = false;
+    victim.dashElapsed = 0;
+    victim.dashMovementMultiplier = 1;
     victim.paused = false;
     victim.choosingUpgrade = false;
     victim.upgradeOffer = null;
@@ -5052,6 +5111,9 @@ function toPlayerView(player: PlayerEntity): UltraPlayerView {
     desiredAngle: player.desiredAngle,
     lastInputSequence: player.lastInputSequence,
     speed: player.speed,
+    energy: player.energy,
+    dashing: player.dashing,
+    dashElapsed: player.dashElapsed,
     slow: player.slow,
     foodBoost: player.foodBoost,
     knockbackX: player.knockbackX,

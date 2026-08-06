@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0b0d0f">
   <meta name="description" content="代号：几何贪吃蛇 - 单人及多人共享世界肉鸽贪吃蛇战斗游戏">
   <title>代号：几何贪吃蛇</title>
-  <link rel="stylesheet" href="styles.css?v=148">
+  <link rel="stylesheet" href="styles.css?v=149">
 </head>
 <body>
   <main id="game-shell" aria-label="代号：几何贪吃蛇 游戏区域">
@@ -19,7 +19,7 @@
           <strong>代号：几何贪吃蛇</strong>
         </div>
         <span class="signature">by 四季鸽</span>
-        <span class="brand-version" aria-label="游戏版本 V148">V148</span>
+        <span class="brand-version" aria-label="游戏版本 V149">V149</span>
       </div>
 
       <div class="run-stats">
@@ -166,7 +166,7 @@
 
     <output id="fps-meter" class="fps-meter" aria-label="实时帧率" aria-hidden="true"><span>FPS</span><strong id="fps-value">--</strong></output>
 
-    <section class="hud hud-bottom" aria-label="等级与经验">
+    <section class="hud hud-bottom" aria-label="等级、生命、能量与经验">
       <div class="level-badge">
         <span>LV.</span>
         <strong id="level-value">0</strong>
@@ -180,6 +180,15 @@
           <div id="shield-fill" class="shield-fill" aria-hidden="true"></div>
           <div class="health-track" aria-hidden="true">
             <div id="health-fill" class="health-fill"></div>
+          </div>
+        </div>
+        <div id="energy-group" class="resource-group energy-group">
+          <div class="xp-row energy-row">
+            <span>突进能量 <em id="dash-status">可突进</em></span>
+            <strong><span id="energy-value">100.0</span> / <span id="energy-max">100.0</span></strong>
+          </div>
+          <div class="energy-track" aria-hidden="true">
+            <div id="energy-fill" class="energy-fill"></div>
           </div>
         </div>
         <div class="resource-group xp-group">
@@ -200,7 +209,7 @@
 
     <section id="start-screen" class="modal-layer start-screen is-visible" aria-labelledby="game-title">
       <div class="start-glow" aria-hidden="true"></div>
-          <div class="start-version" aria-label="游戏版本 V148"><span>BUILD</span><strong>V148</strong></div>
+          <div class="start-version" aria-label="游戏版本 V149"><span>BUILD</span><strong>V149</strong></div>
       <div class="start-layout">
         <div class="start-content">
           <div id="network-status" class="title-kicker">TACTICAL SURVIVAL / LOCAL</div>
@@ -247,11 +256,11 @@
           </header>
           <section>
             <strong>【单人模式】</strong>
-            <p><span>吃球升级</span><span>我撞敌蛇头：造成1伤害</span><span>我撞敌身体：造成1伤害并受到10伤害</span><span>我撞墙/撞自己身体：受到10伤害</span><span>敌撞我：直接摧毁</span><span>敌蛇会吃球，摧毁后全部爆出</span></p>
+            <p><span>鼠标或触控瞄准；按住左键消耗能量突进</span><span>普通撞敌：自身受到10伤害，敌蛇不受伤</span><span>突进撞敌：免疫碰撞伤害，并对命中关节造成2伤害</span><span>撞墙/撞自己身体：受到10伤害，突进时免疫</span><span>敌头撞身体：敌头受到1伤害并反弹</span><span>敌蛇会吃球，摧毁后全部爆出</span></p>
           </section>
           <section>
             <strong>【多人模式】</strong>
-            <p><span>波次规模随人数增加</span><span>我撞其他玩家身体：受到10点伤害</span><span>机体技能不会误伤其他玩家</span><span>阵亡后的玩家可由其它玩家复活。</span></p>
+            <p><span>波次规模随人数增加</span><span>普通状态撞其他玩家身体：受到10点伤害</span><span>机体技能不会误伤其他玩家</span><span>阵亡后的玩家可由其它玩家复活。</span></p>
           </section>
         </aside>
       </div>
@@ -389,6 +398,21 @@
           <button id="changelog-close-button" class="icon-button codex-close-button" type="button" aria-label="关闭更新日志" title="关闭更新日志">×</button>
         </header>
         <div class="changelog-list">
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V149</strong></div>
+              <time datetime="2026-08-06">2026.08.06</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">战斗系统</span>
+              <h3>能量、突进与玩家碰撞重构</h3>
+              <ul>
+                <li>玩家新增100点能量：非突进时每秒恢复10点；按住左键且至少拥有30点能量即可进入至少1秒的2倍速突进，持续消耗30点/秒。</li>
+                <li>突进期间免疫全部碰撞伤害但仍会反弹，并以2点近战伤害命中单个敌蛇关节；普通蛇头接触敌人不再输出碰撞伤害，而是由玩家承受接触伤害。</li>
+                <li>敌蛇蛇头撞上玩家身体时改为受到1点拦截伤害并反弹，不再直接死亡；持续重叠只结算一次接触伤害，能量与突进状态已接入HUD、设计控制台和联机权威同步。</li>
+              </ul>
+            </div>
+          </article>
           <article class="changelog-entry">
             <header>
               <div class="changelog-version"><span>BUILD</span><strong>V148</strong></div>
@@ -2362,27 +2386,28 @@
     </section>
   </main>
 
-  <script src="designer-config.js?v=148"></script>
-  <script src="status-catalog.js?v=148"></script>
-  <script src="module-catalog.js?v=148"></script>
-  <script src="module-progression.js?v=148"></script>
-  <script src="wave-director.js?v=148"></script>
-  <script src="arena-geometry.js?v=148"></script>
-  <script src="player-body-path.js?v=148"></script>
-  <script src="enemy-vitality.js?v=148"></script>
-  <script src="enemy-armor.js?v=148"></script>
-  <script src="spawn-planner.js?v=148"></script>
-  <script src="network-codec.js?v=148"></script>
-  <script src="network-player-prediction.js?v=148"></script>
-  <script src="network-player-state-codec.js?v=148"></script>
-  <script src="network-player-collisions.js?v=148"></script>
-  <script src="network-head-collisions.js?v=148"></script>
-  <script src="network-food-claims.js?v=148"></script>
-  <script src="network-projectiles.js?v=148"></script>
-  <script src="lobby-navigation.js?v=148"></script>
-  <script src="enemy-codex.js?v=148"></script>
-  <script src="camera-projection.js?v=148"></script>
-  <script type="module" src="src/client/p2p/bootstrap.ts?v=148"></script>
-  <script src="game.js?v=148"></script>
+  <script src="designer-config.js?v=149"></script>
+  <script src="status-catalog.js?v=149"></script>
+  <script src="module-catalog.js?v=149"></script>
+  <script src="module-progression.js?v=149"></script>
+  <script src="wave-director.js?v=149"></script>
+  <script src="arena-geometry.js?v=149"></script>
+  <script src="player-body-path.js?v=149"></script>
+  <script src="player-dash.js?v=149"></script>
+  <script src="enemy-vitality.js?v=149"></script>
+  <script src="enemy-armor.js?v=149"></script>
+  <script src="spawn-planner.js?v=149"></script>
+  <script src="network-codec.js?v=149"></script>
+  <script src="network-player-prediction.js?v=149"></script>
+  <script src="network-player-state-codec.js?v=149"></script>
+  <script src="network-player-collisions.js?v=149"></script>
+  <script src="network-head-collisions.js?v=149"></script>
+  <script src="network-food-claims.js?v=149"></script>
+  <script src="network-projectiles.js?v=149"></script>
+  <script src="lobby-navigation.js?v=149"></script>
+  <script src="enemy-codex.js?v=149"></script>
+  <script src="camera-projection.js?v=149"></script>
+  <script type="module" src="src/client/p2p/bootstrap.ts?v=149"></script>
+  <script src="game.js?v=149"></script>
 </body>
 </html>

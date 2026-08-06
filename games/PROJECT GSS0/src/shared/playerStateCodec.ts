@@ -1,7 +1,7 @@
 import type { GridPoint } from './protocol';
 
 const MAGIC = 0x4753;
-export const PLAYER_STATE_PROTOCOL_VERSION = 2;
+export const PLAYER_STATE_PROTOCOL_VERSION = 3;
 const HEADER_BYTES = 46;
 const SEGMENT_BYTES = 4;
 const MAX_SEGMENTS = 512;
@@ -13,6 +13,7 @@ interface PlayerMovementSegment extends GridPoint {
 
 export interface PlayerMovementState extends GridPoint {
   sequence: number;
+  dashHeld: boolean;
   angle: number;
   desiredAngle: number;
   speed: number;
@@ -36,6 +37,7 @@ export function decodePlayerMovementState(payload: ArrayBuffer | ArrayBufferView
   }
   const state: PlayerMovementState = {
     sequence: view.getUint32(4, true),
+    dashHeld: Boolean(view.getUint8(3) & 1),
     col: view.getFloat32(8, true),
     row: view.getFloat32(12, true),
     angle: view.getFloat32(16, true),

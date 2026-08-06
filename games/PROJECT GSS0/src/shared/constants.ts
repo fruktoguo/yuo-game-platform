@@ -49,7 +49,22 @@ export const PLAYER_WALL_COLLISION_DAMAGE = DESIGNER_BALANCE.playerWallCollision
 export const PLAYER_OTHER_BODY_COLLISION_DAMAGE = DESIGNER_BALANCE.playerOtherBodyCollisionDamage;
 export const PLAYER_KNOCKBACK_REAR_BLOCKED_ANGLE = DESIGNER_BALANCE.playerKnockbackRearBlockedAngleDegrees * Math.PI / 180;
 export const PLAYER_KNOCKBACK_REAR_CORRECTION_ANGLE = DESIGNER_BALANCE.playerKnockbackRearCorrectionAngleDegrees * Math.PI / 180;
-export const PLAYER_COLLISION_DAMAGE = DESIGNER_BALANCE.playerCollisionDamage;
+export const PLAYER_ENERGY_MAXIMUM = DESIGNER_BALANCE.playerEnergyMaximum;
+export const PLAYER_ENERGY_RECOVERY_PER_SECOND = DESIGNER_BALANCE.playerEnergyRecoveryPerSecond;
+export const PLAYER_DASH_ENERGY_COST_PER_SECOND = DESIGNER_BALANCE.playerDashEnergyCostPerSecond;
+export const PLAYER_DASH_MINIMUM_DURATION = DESIGNER_BALANCE.playerDashMinimumDuration;
+export const PLAYER_DASH_START_ENERGY = DESIGNER_BALANCE.playerDashStartEnergy;
+export const PLAYER_DASH_SPEED_MULTIPLIER = DESIGNER_BALANCE.playerDashSpeedMultiplier;
+export const PLAYER_DASH_COLLISION_DAMAGE = DESIGNER_BALANCE.playerDashCollisionDamage;
+export const PLAYER_BODY_INTERCEPT_DAMAGE = DESIGNER_BALANCE.playerBodyInterceptDamage;
+export const PLAYER_DASH_TUNING = Object.freeze({
+  maximumEnergy: PLAYER_ENERGY_MAXIMUM,
+  recoveryPerSecond: PLAYER_ENERGY_RECOVERY_PER_SECOND,
+  costPerSecond: PLAYER_DASH_ENERGY_COST_PER_SECOND,
+  minimumDuration: PLAYER_DASH_MINIMUM_DURATION,
+  startEnergy: PLAYER_DASH_START_ENERGY,
+  speedMultiplier: PLAYER_DASH_SPEED_MULTIPLIER,
+});
 export const ENEMY_COLLISION_DAMAGE = DESIGNER_BALANCE.enemyCollisionDamage;
 export const PLAYER_DAMAGE_EFFECT_DURATION = DESIGNER_BALANCE.playerDamageEffectDuration;
 export const PLAYER_DAMAGE_FLASH_STRENGTH = DESIGNER_BALANCE.playerDamageFlashStrength;

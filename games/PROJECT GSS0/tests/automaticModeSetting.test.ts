@@ -66,8 +66,8 @@ describe('自动模式设置', () => {
     expect(roomProtocolSource).toContain("'room:ready'");
     expect(roomProtocolSource).toContain("'room:restart-vote'");
     expect(protocolSource).toContain('autoRestart: boolean;');
-    expect(gameSource).toContain('let damage = playerHeadDamage(hitHead);');
-    expect(serverSource).toContain('let damage = this.playerHeadDamage(player, hitHead);');
+    expect(gameSource).toContain('function applyPlayerDashCollisionAttack(enemy, node, hitHead)');
+    expect(serverSource).toContain('private applyPlayerDashCollisionAttack(');
     expect(gameSource).not.toContain('repel(enemy, 3.2, 3.5);');
     expect(serverSource).not.toContain('repel(enemy, 3.2, 3.5);');
   });

@@ -1199,7 +1199,7 @@ input:focus-visible {
   right: 50%;
   bottom: calc(16px + var(--safe-bottom));
   display: flex;
-  width: min(590px, calc(100% - 32px));
+  width: min(650px, calc(100% - 32px));
   min-height: 68px;
   align-items: stretch;
   overflow: hidden;
@@ -1292,8 +1292,28 @@ input:focus-visible {
   color: #ff6b82;
 }
 
+.energy-row > span {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.energy-row em {
+  color: #70e9ff;
+  font-size: calc(9px * var(--font-scale));
+  font-style: normal;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.energy-row strong,
+.energy-row strong span {
+  color: #70e9ff;
+}
+
 .xp-track,
-.health-track {
+.health-track,
+.energy-track {
   position: relative;
   height: 13px;
   overflow: hidden;
@@ -1552,6 +1572,29 @@ input:focus-visible {
   background: #48e0bf;
   box-shadow: 0 0 8px rgba(72, 224, 191, 0.82);
   transition: width 140ms ease, opacity 140ms ease;
+}
+
+.energy-track {
+  border-color: rgba(8, 199, 220, 0.56);
+  background: repeating-linear-gradient(135deg, #18292d 0 5px, #132126 5px 10px);
+}
+
+.energy-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 100%;
+  background: linear-gradient(90deg, #087c9f, #08c7dc 58%, #dffcff);
+  box-shadow: 8px 0 0 rgba(223, 252, 255, 0.28), 0 0 14px rgba(8, 199, 220, 0.42);
+  transition: width 90ms linear, filter 120ms ease;
+}
+
+.energy-group.is-dashing .energy-track {
+  border-color: #dffcff;
+  box-shadow: 0 0 18px rgba(8, 199, 220, 0.64);
+}
+
+.energy-group.is-dashing .energy-fill {
+  filter: brightness(1.55);
 }
 
 .shield-fill.is-active {
@@ -2886,8 +2929,8 @@ input:focus-visible {
     bottom: auto;
     display: grid;
     width: clamp(340px, 22vw, 428px);
-    min-height: clamp(295px, calc(34vh + 7px), 375px);
-    grid-template-rows: minmax(108px, 1.05fr) minmax(180px, 1.95fr);
+    min-height: clamp(360px, calc(42vh + 7px), 455px);
+    grid-template-rows: minmax(108px, 1.05fr) minmax(245px, 2.45fr);
     border-top: 7px solid var(--cyan);
     border-bottom: 0;
     transform: translateY(-50%) perspective(1200px) translate3d(var(--ui-right-shift-x), 0, 22px) rotateX(var(--ui-tilt-x-soft)) rotateY(var(--ui-tilt-y-reverse));
@@ -2944,7 +2987,8 @@ input:focus-visible {
   }
 
   .hud-bottom .xp-track,
-  .hud-bottom .health-track {
+  .hud-bottom .health-track,
+  .hud-bottom .energy-track {
     height: 18px;
   }
 

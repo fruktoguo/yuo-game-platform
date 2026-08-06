@@ -2,7 +2,7 @@
   "use strict";
 
   const MAGIC = 0x55534e50;
-  const VERSION = 23;
+  const VERSION = 24;
   const GRID_SIZE = 24;
   const COORDINATE_PADDING = 2;
   const TAU = Math.PI * 2;
@@ -91,6 +91,7 @@
     result.connected = Boolean(flags & 1);
     result.alive = Boolean(flags & 2);
     result.ghost = Boolean(flags & 16);
+    result.dashing = Boolean(flags & 32);
     result.paused = Boolean(flags & 4);
     result.choosingUpgrade = Boolean(flags & 8);
     result.col = reader.coordinate();
@@ -99,6 +100,8 @@
     result.desiredAngle = reader.angle();
     result.lastInputSequence = reader.u32() - 1;
     result.speed = reader.f32();
+    result.energy = reader.f32();
+    result.dashElapsed = reader.f32();
     result.slow = reader.f32();
     result.foodBoost = reader.f32();
     result.knockbackX = reader.f32();

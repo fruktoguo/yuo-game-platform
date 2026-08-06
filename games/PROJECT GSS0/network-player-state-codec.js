@@ -2,7 +2,7 @@
   "use strict";
 
   const MAGIC = 0x4753;
-  const VERSION = 2;
+  const VERSION = 3;
   const HEADER_BYTES = 46;
   const SEGMENT_BYTES = 4;
   const MAX_SEGMENTS = 512;
@@ -15,7 +15,7 @@
     const view = new DataView(bytes.buffer);
     view.setUint16(0, MAGIC, true);
     view.setUint8(2, VERSION);
-    view.setUint8(3, 0);
+    view.setUint8(3, player.dashHeld ? 1 : 0);
     view.setUint32(4, sequence, true);
     const values = [
       player.col,

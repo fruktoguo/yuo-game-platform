@@ -39,7 +39,14 @@ describe('设计配置', () => {
       playerOtherBodyCollisionDamage: 10,
       playerKnockbackRearBlockedAngleDegrees: 60,
       playerKnockbackRearCorrectionAngleDegrees: 150,
-      playerCollisionDamage: 1,
+      playerEnergyMaximum: 100,
+      playerEnergyRecoveryPerSecond: 10,
+      playerDashEnergyCostPerSecond: 30,
+      playerDashMinimumDuration: 1,
+      playerDashStartEnergy: 30,
+      playerDashSpeedMultiplier: 2,
+      playerDashCollisionDamage: 2,
+      playerBodyInterceptDamage: 1,
       enemyCollisionDamage: 1,
       xpRequirementPerTargetLevel: 5,
       initialModuleSlots: 5,
@@ -279,8 +286,8 @@ describe('设计配置', () => {
 
     expect(parameterKeys.sort()).toEqual(Object.keys(DESIGNER_BALANCE).sort());
     expect(moduleIds.sort()).toEqual(MODULES.map((module) => module.id).sort());
-    expect(moduleProgressionSource).toContain('config?.schemaVersion !== 51');
-    expect(new Set(parameterKeys).size).toBe(262);
+    expect(moduleProgressionSource).toContain('config?.schemaVersion !== 52');
+    expect(new Set(parameterKeys).size).toBe(269);
     expect(parameterKeys).not.toContain('playerSpeedPerLevel');
     expect(parameterKeys).not.toContain('moduleEffectReductionMaximum');
     expect(parameterKeys).not.toContain('newModuleOfferChance');
@@ -319,8 +326,8 @@ describe('设计配置', () => {
     expect(MODULES.some((module) => ['输出', '进攻', '防御', '恢复'].includes(module.category as string))).toBe(false);
     expect(MODULES.every((module) => ['攻击', '生存', '辅助', '发育'].includes(module.category))).toBe(true);
     expect(MODULES.filter((module) => module.category === '发育')).toHaveLength(9);
-    expect(editorHtml).toContain('src="module-catalog.js?v=148"');
-    expect(editorHtml).toContain('src="module-progression.js?v=148"');
+    expect(editorHtml).toContain('src="module-catalog.js?v=149"');
+    expect(editorHtml).toContain('src="module-progression.js?v=149"');
     expect(editorHtml).toContain('const MODULES = moduleCatalog;');
     expect(editorHtml).toContain('descriptionText.textContent = describeModule(module.id, draft.balance);');
     expect(editorHtml).toContain('descriptionNote.textContent = describeModuleNote(module.id, draft.balance);');

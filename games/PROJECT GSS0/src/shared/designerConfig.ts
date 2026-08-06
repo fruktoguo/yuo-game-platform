@@ -13,7 +13,7 @@ interface DesignerConfigSource {
 }
 
 const source = (globalThis as typeof globalThis & { GSS0_DESIGNER_CONFIG?: DesignerConfigSource }).GSS0_DESIGNER_CONFIG;
-if (source?.schemaVersion !== 51) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 51');
+if (source?.schemaVersion !== 52) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 52');
 
 function numberSetting(key: string, fallback: number, minimum: number, maximum: number, integer = false): number {
   const candidate = source?.balance?.[key];
@@ -67,7 +67,14 @@ export const DESIGNER_BALANCE = Object.freeze({
   playerOtherBodyCollisionDamage: numberSetting('playerOtherBodyCollisionDamage', 10, 0, 10_000),
   playerKnockbackRearBlockedAngleDegrees: numberSetting('playerKnockbackRearBlockedAngleDegrees', 60, 0, 180),
   playerKnockbackRearCorrectionAngleDegrees: numberSetting('playerKnockbackRearCorrectionAngleDegrees', 150, 90, 180),
-  playerCollisionDamage: numberSetting('playerCollisionDamage', 1, 0, 1_000, true),
+  playerEnergyMaximum: numberSetting('playerEnergyMaximum', 100, 0, 10_000),
+  playerEnergyRecoveryPerSecond: numberSetting('playerEnergyRecoveryPerSecond', 10, 0, 10_000),
+  playerDashEnergyCostPerSecond: numberSetting('playerDashEnergyCostPerSecond', 30, 0, 10_000),
+  playerDashMinimumDuration: numberSetting('playerDashMinimumDuration', 1, 0, 60),
+  playerDashStartEnergy: numberSetting('playerDashStartEnergy', 30, 0, 10_000),
+  playerDashSpeedMultiplier: numberSetting('playerDashSpeedMultiplier', 2, 0, 20),
+  playerDashCollisionDamage: numberSetting('playerDashCollisionDamage', 2, 0, 1_000, true),
+  playerBodyInterceptDamage: numberSetting('playerBodyInterceptDamage', 1, 0, 1_000, true),
   enemyCollisionDamage: numberSetting('enemyCollisionDamage', 1, 0, 1_000, true),
   xpRequirementPerTargetLevel: numberSetting('xpRequirementPerTargetLevel', 5, 1, 1_000, true),
   maxModuleLevel: numberSetting('maxModuleLevel', 5, 1, 20, true),

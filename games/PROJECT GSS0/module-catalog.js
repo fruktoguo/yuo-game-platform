@@ -41,7 +41,7 @@
     { id: "phase", name: "幻相节", category: "生存", color: "#bb8cff", shape: "diamond", cooldown: "", activeCooldown: true, desc: "抵消1次头部撞上敌蛇身体时受到的伤害，短暂无敌并保持航向。" },
     { id: "repulse", name: "斥力环节", category: "生存", color: "#75dfff", shape: "ring", cooldown: "被动效果", desc: "持续将靠近蛇头的敌蛇航向推向外侧，每级提供110px作用半径。" },
     { id: "armor", name: "黑曜装甲", category: "生存", color: "#b7c0ce", shape: "square", cooldown: "被动效果", desc: "每级使护盾与相位的冷却速度+18%。" },
-    { id: "thorns", name: "截击反应节", category: "生存", color: "#9ee55f", shape: "star", cooldown: "", activeCooldown: true, desc: "敌蛇撞上身体并被摧毁时，生成1枚球并发射6枚环形弹。" },
+    { id: "thorns", name: "截击反应节", category: "生存", color: "#9ee55f", shape: "star", cooldown: "", activeCooldown: true, desc: "敌蛇撞上身体时，生成1枚球并发射6枚环形弹。" },
     { id: "stabilizer", name: "平衡陀螺", category: "生存", color: "#67d5c8", shape: "ring", cooldown: "被动效果", desc: "每级使反弹减速时间-25%、转向锁定时间-20%。" },
     { id: "magnet", name: "磁吸环节", category: "辅助", color: "#f5cb4c", shape: "ring", cooldown: "被动效果", desc: "每级使蛇头吃球范围+0.55格。" },
     { id: "haste", name: "涡轮节", category: "辅助", color: "#ff8457", shape: "triangle", cooldown: "被动效果", desc: "每级使玩家转向速度提高20%。" },

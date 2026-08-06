@@ -49,6 +49,9 @@ export interface UltraPlayerView extends GridPoint {
   desiredAngle: number;
   lastInputSequence: number;
   speed: number;
+  energy: number;
+  dashing: boolean;
+  dashElapsed: number;
   slow: number;
   foodBoost: number;
   knockbackX: number;

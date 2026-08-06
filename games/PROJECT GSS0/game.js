@@ -34,6 +34,11 @@
     healthFill: document.querySelector("#health-fill"),
     shieldFill: document.querySelector("#shield-fill"),
     healthGroup: document.querySelector("#health-group"),
+    energy: document.querySelector("#energy-value"),
+    maxEnergy: document.querySelector("#energy-max"),
+    energyFill: document.querySelector("#energy-fill"),
+    energyGroup: document.querySelector("#energy-group"),
+    dashStatus: document.querySelector("#dash-status"),
     xpFill: document.querySelector("#xp-fill"),
     rack: document.querySelector("#module-rack"),
     touch: document.querySelector("#touch-indicator"),
@@ -140,12 +145,13 @@
   const TAU = Math.PI * 2;
   const P2P_TOAST_DURATION_MS = 2800;
   const DESIGNER_CONFIG = globalThis.GSS0_DESIGNER_CONFIG || {};
-  if (DESIGNER_CONFIG.schemaVersion !== 51) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 51");
+  if (DESIGNER_CONFIG.schemaVersion !== 52) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 52");
   const DESIGNER_BALANCE = DESIGNER_CONFIG.balance || {};
   const MODULE_DESIGN_STATES = DESIGNER_CONFIG.moduleStates || {};
   const arenaGeometry = globalThis.GSS0ArenaGeometry;
   if (!arenaGeometry) throw new Error("PROJECT GSS0 圆形场地几何未加载");
   const playerBodyPathApi = globalThis.GSS0PlayerBodyPath;
+  const playerDashApi = globalThis.GSS0PlayerDash;
   const enemyVitalityApi = globalThis.GSS0EnemyVitality;
   const enemyArmorApi = globalThis.GSS0EnemyArmor;
   if (!enemyVitalityApi) throw new Error("PROJECT GSS0 敌人关节生命运行时未加载");
@@ -155,6 +161,7 @@
   const ENEMY_ARMOR_SHOWCASE_HEALTHS = Object.freeze([1, 2, 3, 4, 5, 8, 13, 100]);
   const ENEMY_JOINT_HEALTH_DEBUG = DEBUG_QUERY.get("debug-joint-health") === "1" || ENEMY_ARMOR_SHOWCASE;
   if (!playerBodyPathApi) throw new Error("PROJECT GSS0 玩家历史轨迹未加载");
+  if (!playerDashApi) throw new Error("PROJECT GSS0 玩家能量与突进运行时未加载");
 
   function designerNumber(key, fallback, minimum, maximum, integer = false) {
     const candidate = DESIGNER_BALANCE[key];
@@ -346,7 +353,22 @@
   const PLAYER_OTHER_BODY_COLLISION_DAMAGE = designerNumber("playerOtherBodyCollisionDamage", 10, 0, 10000);
   const PLAYER_KNOCKBACK_REAR_BLOCKED_ANGLE = designerNumber("playerKnockbackRearBlockedAngleDegrees", 60, 0, 180) * Math.PI / 180;
   const PLAYER_KNOCKBACK_REAR_CORRECTION_ANGLE = designerNumber("playerKnockbackRearCorrectionAngleDegrees", 150, 90, 180) * Math.PI / 180;
-  const PLAYER_COLLISION_DAMAGE = designerNumber("playerCollisionDamage", 1, 0, 1000, true);
+  const PLAYER_ENERGY_MAXIMUM = designerNumber("playerEnergyMaximum", 100, 0, 10000);
+  const PLAYER_ENERGY_RECOVERY_PER_SECOND = designerNumber("playerEnergyRecoveryPerSecond", 10, 0, 10000);
+  const PLAYER_DASH_ENERGY_COST_PER_SECOND = designerNumber("playerDashEnergyCostPerSecond", 30, 0, 10000);
+  const PLAYER_DASH_MINIMUM_DURATION = designerNumber("playerDashMinimumDuration", 1, 0, 60);
+  const PLAYER_DASH_START_ENERGY = designerNumber("playerDashStartEnergy", 30, 0, 10000);
+  const PLAYER_DASH_SPEED_MULTIPLIER = designerNumber("playerDashSpeedMultiplier", 2, 0, 20);
+  const PLAYER_DASH_COLLISION_DAMAGE = designerNumber("playerDashCollisionDamage", 2, 0, 1000, true);
+  const PLAYER_BODY_INTERCEPT_DAMAGE = designerNumber("playerBodyInterceptDamage", 1, 0, 1000, true);
+  const PLAYER_DASH_TUNING = Object.freeze({
+    maximumEnergy: PLAYER_ENERGY_MAXIMUM,
+    recoveryPerSecond: PLAYER_ENERGY_RECOVERY_PER_SECOND,
+    costPerSecond: PLAYER_DASH_ENERGY_COST_PER_SECOND,
+    minimumDuration: PLAYER_DASH_MINIMUM_DURATION,
+    startEnergy: PLAYER_DASH_START_ENERGY,
+    speedMultiplier: PLAYER_DASH_SPEED_MULTIPLIER
+  });
   const ENEMY_COLLISION_DAMAGE = designerNumber("enemyCollisionDamage", 1, 0, 1000, true);
   const PLAYER_TURN_RATE = designerNumber("playerTurnRate", 4.2, 0.5, 12);
   const AUTOMATIC_HEAD_HUNT_RANGE = designerNumber("automaticHeadHuntRange", 8, 0, 30);
@@ -744,7 +766,8 @@
   const networkPlayerPredictionRuntime = globalThis.GSS0PlayerPrediction?.create({
     knockbackDecay: KNOCKBACK_DECAY,
     knockbackStopSpeed: KNOCKBACK_STOP_SPEED,
-    segmentSpacing: playerSegmentSpacing
+    segmentSpacing: playerSegmentSpacing,
+    dashTuning: PLAYER_DASH_TUNING
   });
   if (!networkPlayerPredictionRuntime) throw new Error("PROJECT GSS0 玩家预测运行时未加载");
   const networkPlayerStateCodec = globalThis.GSS0PlayerStateCodec;
@@ -765,7 +788,7 @@
   if (!spawnPlanner) throw new Error("PROJECT GSS0 出生规划器未加载");
 
   const keys = new Set();
-  const pointer = { active: false, x: 0, y: 0, touchId: null };
+  const pointer = { active: false, primaryDown: false, dashPointerId: null, x: 0, y: 0, touchId: null };
   const uiMotionMedia = window.matchMedia("(hover: hover) and (pointer: fine)");
   const reducedMotionMedia = window.matchMedia("(prefers-reduced-motion: reduce)");
   const uiMotion = { x: 0, y: 0, targetX: 0, targetY: 0, appliedX: NaN, appliedY: NaN, appliedStrength: NaN };
@@ -1259,6 +1282,7 @@
     if (automaticModeEnabled) ui.shell.dataset.automaticMode = "enabled";
     else delete ui.shell.dataset.automaticMode;
     pointer.active = false;
+    setDashInput(false);
     if (!automaticModeEnabled && network.enabled && player?.alive) {
       networkPlayerPredictionRuntime.adoptLocal(player);
       network.localDesiredAngle = player.desiredAngle;
@@ -1919,7 +1943,7 @@
   }
 
   function playerHeadDamage(hitEnemyHead = false) {
-    return PLAYER_COLLISION_DAMAGE
+    return PLAYER_DASH_COLLISION_DAMAGE
       + moduleCount("ram")
       + MODULE_EFFECTS.missingHealthHeadDamageBonus(moduleCount("berserk"), missingHealthFraction())
       + (hitEnemyHead ? MODULE_EFFECTS.headCollisionDamageBonus(moduleCount("headstrike")) : 0);
@@ -3710,6 +3734,10 @@
     view.knockbackY = prediction.knockbackY;
     view.collisionCooldown = prediction.collisionCooldown;
     view.invulnerable = prediction.invulnerable;
+    view.energy = prediction.energy;
+    view.dashing = prediction.dashing;
+    view.dashHeld = prediction.dashHeld;
+    view.dashElapsed = prediction.dashElapsed;
     view.x = arena.left + (view.col - arena.worldMin + 0.5) * arena.cellSize;
     view.y = arena.top + (view.row - arena.worldMin + 0.5) * arena.cellSize;
     const count = Math.min(view.segments.length, prediction.segments.length);
@@ -4001,7 +4029,7 @@
         const predictedState = networkPlayerPredictionRuntime.state;
         const slowMultiplier = predictedState.slow > 0 ? 0.48 : 1;
         const moveSpeed = player.ghost ? MULTIPLAYER_GHOST_SPEED : playerBaseSpeed() * slowMultiplier;
-        networkPlayerPredictionRuntime.update(dt, network.localDesiredAngle, turnRate, moveSpeed);
+        networkPlayerPredictionRuntime.update(dt, network.localDesiredAngle, turnRate, moveSpeed, player.dashHeld);
         applyNetworkSelfPrediction(player);
         if (player.ghost) {
           const constrained = constrainArenaPoint(player.col, player.row);
@@ -4105,14 +4133,14 @@
         { kind: "wall", normalCol: collision.normalCol, normalRow: collision.normalRow },
         "wall"
       );
-      if (claimed && player.invulnerable <= 0) predictNetworkPlayerHurt(PLAYER_WALL_COLLISION_DAMAGE);
+      if (claimed && player.invulnerable <= 0 && !player.dashing) predictNetworkPlayerHurt(PLAYER_WALL_COLLISION_DAMAGE);
       bounceNetworkSelf(collision.normalCol, collision.normalRow, "#b8f53f");
       return;
     }
     if (collision.kind === "self") {
       const knockedBack = hasActiveKnockback(player);
       const claimed = reportNetworkCollision({ kind: "self-body" }, "self-body");
-      if (claimed && !knockedBack && player.invulnerable <= 0) predictNetworkPlayerHurt(PLAYER_WALL_COLLISION_DAMAGE);
+      if (claimed && !knockedBack && player.invulnerable <= 0 && !player.dashing) predictNetworkPlayerHurt(PLAYER_WALL_COLLISION_DAMAGE);
       bounceNetworkSelf(player.col - collision.point.col, player.row - collision.point.row, "#f4ffdc");
       return;
     }
@@ -4122,12 +4150,12 @@
       return;
     }
     if (collision.kind === "enemy-body") {
-      const defended = consumeDefense();
+      const defended = player.dashing ? false : consumeDefense();
       const claimed = reportNetworkCollision(
         { kind: "enemy-body", targetId: collision.targetId, segmentIndex: collision.segmentIndex },
         `enemy-body:${collision.targetId}`
       );
-      if (claimed && !defended) predictNetworkPlayerHurt(PLAYER_ENEMY_BODY_COLLISION_DAMAGE);
+      if (claimed && !defended && !player.dashing) predictNetworkPlayerHurt(PLAYER_ENEMY_BODY_COLLISION_DAMAGE);
       const enemy = enemies.find((item) => item.id === collision.targetId);
       bounceNetworkSelf(player.col - collision.point.col, player.row - collision.point.row, enemy?.color || "#ff355e", 1, true);
       return;
@@ -4138,7 +4166,7 @@
         { kind: "player-body", targetId: collision.targetId, segmentIndex: collision.segmentIndex },
         `player-body:${collision.targetId}`
       );
-      if (claimed && player.invulnerable <= 0) predictNetworkPlayerHurt(PLAYER_OTHER_BODY_COLLISION_DAMAGE);
+      if (claimed && player.invulnerable <= 0 && !player.dashing) predictNetworkPlayerHurt(PLAYER_OTHER_BODY_COLLISION_DAMAGE);
       bounceNetworkSelf(
         player.col - collision.point.col,
         player.row - collision.point.row,
@@ -4149,14 +4177,16 @@
     if (collision.kind === "enemy-head") {
       const enemy = enemies.find((item) => item.id === collision.targetId);
       const impulseMultiplier = enemy?.archetype === "warden" ? ENEMY_BEHAVIOR_TUNING.wardenKnockbackMultiplier : 1;
+      const defended = player.dashing ? false : consumeDefense();
       bounceNetworkSelf(collision.normalCol, collision.normalRow, "#dffcff", impulseMultiplier, true);
-      reportNetworkCollision(
+      const claimed = reportNetworkCollision(
         { kind: "enemy-head", targetId: collision.targetId, normalCol: collision.normalCol, normalRow: collision.normalRow },
         `enemy-head:${collision.targetId}`,
         null,
         performance.now(),
         true
       );
+      if (claimed && !defended && !player.dashing) predictNetworkPlayerHurt(PLAYER_ENEMY_BODY_COLLISION_DAMAGE);
       return;
     }
     if (collision.kind === "player-head") {
@@ -4203,20 +4233,11 @@
       );
       return;
     }
-    const enemy = enemies.find((item) => item.id === collision.targetId);
     const key = `enemy-hit-body:${collision.targetId}`;
-    if (!enemy || !reportNetworkCollision(
+    reportNetworkCollision(
       { kind: "enemy-hit-body", targetId: collision.targetId, segmentIndex: collision.segmentIndex },
-      key,
-      () => network.localEnemyDeaths.delete(collision.targetId)
-    )) return;
-    network.localEnemyDeaths.set(collision.targetId, performance.now());
-    enemy.dead = true;
-    playEnemyDeathPresentation(enemy, enemy.segments, enemy.color, {
-      playSound: true,
-      rewardSelf: true,
-      soundSourceEntityId: network.selfEntityId
-    });
+      key
+    );
   }
 
   function claimNetworkFoodContacts() {
@@ -4329,6 +4350,7 @@
   }
 
   function showNetworkGameOver(result) {
+    setDashInput(false);
     state = "gameover";
     triggerScreenShake(16);
     flash = 0.5;
@@ -4352,6 +4374,8 @@
   }
 
   function resetGame() {
+    pointer.primaryDown = false;
+    pointer.dashPointerId = null;
     arenaResizeElapsed = 0;
     setArenaWorldSize(ARENA_BASE_SIZE);
     gameTime = 0;
@@ -4408,6 +4432,10 @@
       speed: 5,
       radius: playerHeadRadiusPixels(),
       invulnerable: 0,
+      energy: PLAYER_ENERGY_MAXIMUM,
+      dashing: false,
+      dashHeld: false,
+      dashElapsed: 0,
       health: PLAYER_MAX_HEALTH,
       maxHealth: PLAYER_MAX_HEALTH,
       shieldCharges: 0,
@@ -4774,6 +4802,7 @@
   }
 
   function setPaused(paused) {
+    if (paused) setDashInput(false);
     if (network.enabled) {
       if (paused && state === "running") {
         state = "paused";
@@ -4871,6 +4900,7 @@
 
   function gameOver() {
     if (state !== "running") return;
+    setDashInput(false);
     state = "gameover";
     triggerScreenShake(16);
     flash = 0.5;
@@ -5354,6 +5384,7 @@
   }
 
   function showUpgrade(networkChoices = null) {
+    setDashInput(false);
     state = "upgrade";
     ui.levelUpBanner.classList.remove("is-active");
     ui.shell.classList.remove("is-leveling");
@@ -5651,6 +5682,16 @@
     const shieldWidth = `${clamp(shieldCharges * 20, 0, 100)}%`;
     if (force || ui.shieldFill.style.width !== shieldWidth) ui.shieldFill.style.width = shieldWidth;
     ui.shieldFill.classList.toggle("is-active", shieldCharges > 0);
+    const currentEnergy = clamp(player?.energy ?? PLAYER_ENERGY_MAXIMUM, 0, PLAYER_ENERGY_MAXIMUM);
+    setText(ui.energy, currentEnergy.toFixed(1));
+    setText(ui.maxEnergy, PLAYER_ENERGY_MAXIMUM.toFixed(1));
+    const energyWidth = `${clamp(currentEnergy / Math.max(1, PLAYER_ENERGY_MAXIMUM) * 100, 0, 100)}%`;
+    if (force || ui.energyFill.style.width !== energyWidth) ui.energyFill.style.width = energyWidth;
+    const dashing = Boolean(player?.dashing);
+    const dashReady = currentEnergy + 1e-7 >= PLAYER_DASH_START_ENERGY;
+    setText(ui.dashStatus, dashing ? "突进中" : dashReady ? "可突进" : "充能中");
+    ui.energyGroup.classList.toggle("is-dashing", dashing);
+    ui.energyGroup.classList.toggle("is-ready", !dashing && dashReady);
     setText(ui.xp, xp);
     setText(ui.needed, xpNeeded);
     const xpWidth = `${clamp((xp / xpNeeded) * 100, 0, 100)}%`;
@@ -5797,6 +5838,7 @@
   }
 
   function updateInput(dt, applyTurn = true) {
+    player.dashHeld = pointer.primaryDown;
     if (player.collisionCooldown > 0) {
       player.desiredAngle = player.angle;
       return;
@@ -6013,7 +6055,8 @@
     player.thornsCooldown = Math.max(0, player.thornsCooldown - dt);
     player.bloomCooldown = Math.max(0, player.bloomCooldown - dt);
     const slowMultiplier = player.slow > 0 ? 0.48 : 1;
-    player.speed = playerBaseSpeed() * slowMultiplier;
+    const dashMultiplier = playerDashApi.advance(player, player.dashHeld, dt, PLAYER_DASH_TUNING);
+    player.speed = playerBaseSpeed() * slowMultiplier * dashMultiplier;
     const previousCol = player.col;
     const previousRow = player.row;
     player.col += (Math.cos(player.angle) * player.speed + player.knockbackX) * dt;
@@ -6290,15 +6333,25 @@
     sound("shoot");
   }
 
-  function applyPlayerCollisionAttack(enemy, node, hitHead) {
-    if (!enemy || enemy.dead || !node) return;
+  function applyPlayerDashCollisionAttack(enemy, node, hitHead) {
+    if (!player.dashing || !enemy || enemy.dead || !node) return;
     const segmentIndex = hitHead ? -1 : enemy.segments.indexOf(node);
-    triggerCollisionEcho();
+    if (!hitHead && segmentIndex < 0) return;
     let damage = playerHeadDamage(hitHead);
     const doubleChance = MODULE_EFFECTS.collisionDoubleChance(moduleCount("doublehit"));
     if (doubleChance > 0 && random() < doubleChance) damage *= 2;
     damageEnemy(enemy, damage, node.x, node.y, player.playerColor || "#f3c600", { hitSegmentIndex: segmentIndex });
     if (!enemy.dead) applyLocalRandomCollisionStatuses(enemy);
+  }
+
+  function resolvePlayerEnemyContact(enemy, node, hitHead) {
+    triggerCollisionEcho();
+    if (player.dashing) {
+      applyPlayerDashCollisionAttack(enemy, node, hitHead);
+      return;
+    }
+    const defended = consumeDefense();
+    if (!defended) damagePlayerFromCollision(PLAYER_ENEMY_BODY_COLLISION_DAMAGE);
   }
 
   function localStatusEffectMultiplier() {
@@ -6809,6 +6862,32 @@
     playSkillSound("thorns");
   }
 
+  function resolveBodyIntercept(enemy, collisionPoint) {
+    if (!enemy || enemy.dead) return;
+    const thorns = moduleCount("thorns");
+    const thornsReady = thorns > 0 && player.thornsCooldown <= 0;
+    damageEnemy(
+      enemy,
+      PLAYER_BODY_INTERCEPT_DAMAGE,
+      enemy.x,
+      enemy.y,
+      player.playerColor || "#f3c600",
+      { hitSegmentIndex: -1 }
+    );
+    if (thornsReady) {
+      triggerBodyIntercept(enemy, collisionPoint);
+      player.thornsCooldown = activeModuleCooldown("thorns", thorns);
+    }
+    if (!enemy.dead) {
+      bounceEntity(
+        enemy,
+        enemy.col - collisionPoint.col,
+        enemy.row - collisionPoint.row,
+        enemy.color
+      );
+    }
+  }
+
   function playerBodyAvoidance(enemy) {
     if (!player.segments.length) return null;
     const range = ENEMY_BEHAVIOR_TUNING.bodyAvoidanceRange;
@@ -7239,7 +7318,7 @@
           : { kind: "head", progress: headProgress };
       }
       for (let segmentIndex = 0; segmentIndex < player.segments.length; segmentIndex += 1) {
-        if (protectedPlayer && enemy.collisionCooldown > 0) continue;
+        if (enemy.collisionCooldown > 0) continue;
         const segment = player.segments[segmentIndex];
         const previousSegment = segmentIndex > 0 ? player.segments[segmentIndex - 1] : player;
         const progress = sweptCapsuleContactProgress(
@@ -7273,13 +7352,7 @@
             player.playerColor || "#f3c600"
           );
         } else if (playerCollision.kind === "body") {
-          const thorns = moduleCount("thorns");
-          const thornsReady = thorns > 0 && player.thornsCooldown <= 0;
-          killEnemy(enemy);
-          if (thornsReady) {
-            triggerBodyIntercept(enemy, playerCollision.point);
-            player.thornsCooldown = activeModuleCooldown("thorns", thorns);
-          }
+          resolveBodyIntercept(enemy, playerCollision.point);
         } else {
           let normalX = player.col - enemy.col;
           let normalY = player.row - enemy.row;
@@ -7291,9 +7364,9 @@
             normalX = -Math.cos(player.angle);
             normalY = -Math.sin(player.angle);
           }
-          applyPlayerCollisionAttack(enemy, enemy, true);
+          resolvePlayerEnemyContact(enemy, enemy, true);
           const impulseMultiplier = enemy.archetype === "warden" ? ENEMY_BEHAVIOR_TUNING.wardenKnockbackMultiplier : 1;
-          bounceEntity(player, normalX, normalY, "#dffcff", impulseMultiplier, true);
+          if (state === "running") bounceEntity(player, normalX, normalY, "#dffcff", impulseMultiplier, true);
           if (!enemy.dead) bounceEntity(enemy, -normalX, -normalY, enemy.color, 1 + MODULE_EFFECTS.momentumKnockbackBonus(moduleCount("momentum")));
         }
         continue;
@@ -7921,6 +7994,11 @@
     return true;
   }
 
+  function damagePlayerFromCollision(amount) {
+    if (player?.dashing) return false;
+    return damagePlayer(amount);
+  }
+
   function drainPlayerHealth(amount) {
     if (!player || state !== "running" || amount <= 0) return false;
     player.health = Math.max(0, player.health - amount);
@@ -7961,7 +8039,7 @@
       player.row = constrained.row;
       correctPlayerBodyPath(player);
       triggerCollisionEcho();
-      damagePlayer(PLAYER_WALL_COLLISION_DAMAGE);
+      damagePlayerFromCollision(PLAYER_WALL_COLLISION_DAMAGE);
       if (state === "running") bounceEntity(player, wallNormal.x, wallNormal.y, "#b8f53f");
       return;
     }
@@ -7971,7 +8049,7 @@
       if (ownBodyHit) {
         const knockedBack = hasActiveKnockback(player);
         triggerCollisionEcho();
-        if (!knockedBack) damagePlayer(PLAYER_WALL_COLLISION_DAMAGE);
+        if (!knockedBack) damagePlayerFromCollision(PLAYER_WALL_COLLISION_DAMAGE);
         if (state === "running") bounceEntity(player, player.col - ownBodyHit.col, player.row - ownBodyHit.row, "#f4ffdc");
         return;
       }
@@ -7984,9 +8062,7 @@
           const segment = enemy.segments[segmentIndex];
           const contactRange = player.radius / arena.cellSize + enemySegmentRadiusPixels(segment) / arena.cellSize;
           if (Math.hypot(player.col - segment.col, player.row - segment.row) < contactRange) {
-            const defended = consumeDefense();
-            applyPlayerCollisionAttack(enemy, segment, false);
-            if (!defended) damagePlayer(PLAYER_ENEMY_BODY_COLLISION_DAMAGE);
+            resolvePlayerEnemyContact(enemy, segment, false);
             if (state === "running") bounceEntity(player, player.col - segment.col, player.row - segment.row, enemy.color, 1, true);
             return;
           }
@@ -8011,10 +8087,10 @@
         normalY = -Math.sin(player.angle);
       }
 
-      applyPlayerCollisionAttack(enemy, enemy, true);
+      if (player.invulnerable <= 0) resolvePlayerEnemyContact(enemy, enemy, true);
 
       const impulseMultiplier = enemy.archetype === "warden" ? ENEMY_BEHAVIOR_TUNING.wardenKnockbackMultiplier : 1;
-      bounceEntity(player, normalX, normalY, "#dffcff", impulseMultiplier, true);
+      if (state === "running") bounceEntity(player, normalX, normalY, "#dffcff", impulseMultiplier, true);
       if (!enemy.dead) bounceEntity(enemy, -normalX, -normalY, enemy.color, 1 + MODULE_EFFECTS.momentumKnockbackBonus(moduleCount("momentum")));
       return;
     }
@@ -10378,12 +10454,32 @@
     }
   }
 
+  function setDashInput(held, pointerId = null) {
+    const next = Boolean(held);
+    const pointerUnchanged = pointer.primaryDown === next
+      && (next ? pointer.dashPointerId === pointerId : pointer.dashPointerId === null);
+    if (pointerUnchanged && (!player || Boolean(player.dashHeld) === next)) return;
+    pointer.primaryDown = next;
+    pointer.dashPointerId = next ? pointerId : null;
+    if (!player) return;
+    player.dashHeld = next;
+    if (network.enabled && !automaticModeEnabled && networkPlayerPredictionRuntime.state.initialized) {
+      networkPlayerPredictionRuntime.setDashHeld(next);
+      applyNetworkSelfPrediction(player);
+      if (state === "running") sendNetworkInput(true, true);
+    } else if (!network.enabled) {
+      playerDashApi.advance(player, next, 0, PLAYER_DASH_TUNING);
+    }
+    updateHud();
+  }
+
   canvas.addEventListener("pointerdown", (event) => {
     if (state !== "running") return;
     pointer.active = true;
     pointer.touchId = event.pointerId;
     updatePointer(event);
     canvas.setPointerCapture?.(event.pointerId);
+    if (event.button === 0 && event.isPrimary !== false) setDashInput(true, event.pointerId);
     if (event.pointerType === "touch") ui.touch.classList.add("is-visible");
   });
 
@@ -10402,6 +10498,7 @@
   }, { passive: false });
 
   function endPointer(event) {
+    if (pointer.dashPointerId === event.pointerId) setDashInput(false);
     if (event.pointerType === "touch" && pointer.touchId === event.pointerId) {
       pointer.active = false;
       pointer.touchId = null;
@@ -10419,6 +10516,8 @@
 
   canvas.addEventListener("pointerup", endPointer);
   canvas.addEventListener("pointercancel", endPointer);
+  window.addEventListener("pointerup", endPointer);
+  window.addEventListener("pointercancel", endPointer);
   window.addEventListener("pointermove", updateUIMotionTarget, { passive: true });
   window.addEventListener("pointerout", (event) => {
     if (!event.relatedTarget) resetUIMotionTarget();
@@ -10483,10 +10582,12 @@
   window.addEventListener("keyup", (event) => keys.delete(event.code));
   window.addEventListener("blur", () => {
     keys.clear();
+    setDashInput(false);
     resetUIMotionTarget();
     if (backgroundPauseEnabled && state === "running") setPaused(true);
   });
   document.addEventListener("visibilitychange", () => {
+    if (document.hidden) setDashInput(false);
     if (document.hidden && backgroundPauseEnabled && state === "running") setPaused(true);
   });
   window.addEventListener("resize", resize);

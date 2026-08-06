@@ -10,6 +10,7 @@ const FLOAT32_DECIMAL_PRECISION = 5;
 
 runInThisContext(readFileSync(new URL('../arena-geometry.js', import.meta.url), 'utf8'));
 runInThisContext(readFileSync(new URL('../player-body-path.js', import.meta.url), 'utf8'));
+runInThisContext(readFileSync(new URL('../player-dash.js', import.meta.url), 'utf8'));
 runInThisContext(readFileSync(new URL('../network-codec.js', import.meta.url), 'utf8'));
 runInThisContext(readFileSync(new URL('../network-player-prediction.js', import.meta.url), 'utf8'));
 runInThisContext(readFileSync(new URL('../network-player-state-codec.js', import.meta.url), 'utf8'));
@@ -20,7 +21,7 @@ runInThisContext(readFileSync(new URL('../network-projectiles.js', import.meta.u
 
 const clientGlobals = globalThis as typeof globalThis & {
   GSS0NetworkCodec: { decode: (payload: ArrayBuffer | ArrayBufferView, modules: typeof MODULES, target?: UltraSnapshot) => UltraSnapshot };
-  GSS0PlayerPrediction: { create: (options?: Record<string, number>) => ClientPlayerPredictionRuntime };
+  GSS0PlayerPrediction: { create: (options?: Record<string, unknown>) => ClientPlayerPredictionRuntime };
   GSS0PlayerStateCodec: { version: number; encode: (sequence: number, player: Record<string, unknown>) => Uint8Array };
   GSS0PlayerCollisions: { detect: (...args: unknown[]) => Record<string, unknown> | null };
   GSS0NetworkHeadCollisions: { create: (options?: Record<string, number>) => ClientHeadCollisionRuntime };
@@ -54,13 +55,18 @@ interface ClientPlayerPredictionRuntime {
     col: number;
     row: number;
     angle: number;
+    energy: number;
+    dashing: boolean;
+    dashHeld: boolean;
+    dashElapsed: number;
     segments: Array<{ col: number; row: number }>;
   };
   clear(): void;
   reconcile(authoritative: UltraSnapshot['players'][number]): void;
   syncAuthoritative(authoritative: UltraSnapshot['players'][number]): void;
   correctHead(col: number, row: number): void;
-  update(duration: number, desiredAngle: number, turnRate: number, speed: number): void;
+  setDashHeld(held: boolean): void;
+  update(duration: number, desiredAngle: number, turnRate: number, speed: number, dashHeld?: boolean): void;
 }
 
 interface ClientHeadCollisionRuntime {
@@ -87,12 +93,12 @@ interface ClientProjectileRuntime {
 }
 
 describe('客户端网络模块', () => {
-  it('独立解码器与服务端 V23 装甲出生预警快照格式一致', () => {
+  it('独立解码器与服务端 V24 能量突进快照格式一致', () => {
     const snapshot: UltraSnapshot = {
       tick: 7, serverTime: 700, gameTime: 3, waveCount: 2, waveTimer: 4, threatLevel: 1, arenaSize: 24, worldObjectRevision: 0, worldObjectsComplete: true,
       players: [{
         entityId: 1, name: '玩家甲', colorIndex: 0, connected: true, alive: true, ghost: false, paused: false, choosingUpgrade: false,
-        col: 4.25, row: 5.5, angle: 0.4, desiredAngle: 0.5, lastInputSequence: 7, speed: 5, slow: 0, foodBoost: 0, knockbackX: 0.5, knockbackY: -0.25, invulnerable: 0, collisionCooldown: 0, health: 18.5, maxHealth: 30, shieldCharges: 4,
+        col: 4.25, row: 5.5, angle: 0.4, desiredAngle: 0.5, lastInputSequence: 7, speed: 10, energy: 72.5, dashing: true, dashElapsed: 0.9, slow: 0, foodBoost: 0, knockbackX: 0.5, knockbackY: -0.25, invulnerable: 0, collisionCooldown: 0, health: 18.5, maxHealth: 30, shieldCharges: 4,
         score: 12, kills: 1, botKills: 1, pvpKills: 0, survivalTime: 3, level: 1, xp: 2, xpNeeded: 10, respawnAt: null,
         segments: [
           { col: 3.7, row: 5.5, angle: 0, module: 'shield', moduleLevel: 3, storage: false, tailGuard: false, timer: 5, ready: false, cooldown: 7.5, orbit: 2, birthAge: null },
@@ -107,7 +113,7 @@ describe('客户端网络模块', () => {
 
     const decoded = clientGlobals.GSS0NetworkCodec.decode(encodeUltraSnapshot(snapshot), MODULES);
     expect(decoded).toMatchObject({ tick: 7, players: [{ name: '玩家甲' }] });
-    expect(decoded.players[0]).toMatchObject({ lastInputSequence: 7, speed: 5, knockbackX: 0.5, knockbackY: -0.25, health: 18.5, maxHealth: 30 });
+    expect(decoded.players[0]).toMatchObject({ lastInputSequence: 7, speed: 10, energy: 72.5, dashing: true, dashElapsed: 0.9, knockbackX: 0.5, knockbackY: -0.25, health: 18.5, maxHealth: 30 });
     expect(decoded.players[0].shieldCharges).toBe(4);
     expect(decoded.players[0].col).toBeCloseTo(4.25, 3);
     expect(decoded.players[0].segments).toHaveLength(2);
@@ -189,11 +195,12 @@ describe('客户端网络模块', () => {
 
   it('完整蛇身状态使用紧凑定点坐标包往返，碰撞只按客户端可见距离触发', () => {
     const player = snapshotAt(9, 5).players[0];
-    const encoded = clientGlobals.GSS0PlayerStateCodec.encode(10, player as unknown as Record<string, unknown>);
+    const encoded = clientGlobals.GSS0PlayerStateCodec.encode(10, { ...player, dashHeld: true });
     const decoded = decodePlayerMovementState(encoded);
-    expect(clientGlobals.GSS0PlayerStateCodec.version).toBe(2);
+    expect(clientGlobals.GSS0PlayerStateCodec.version).toBe(3);
     expect(encoded.byteLength).toBe(50);
     expect(decoded.sequence).toBe(10);
+    expect(decoded.dashHeld).toBe(true);
     expect(decoded.col).toBeCloseTo(player.col, FLOAT32_DECIMAL_PRECISION);
     expect(decoded.row).toBeCloseTo(player.row, FLOAT32_DECIMAL_PRECISION);
     expect(decoded.angle).toBeCloseTo(player.angle, FLOAT32_DECIMAL_PRECISION);
@@ -353,7 +360,7 @@ function snapshotAt(tick: number, col: number): UltraSnapshot {
     worldObjectsComplete: true,
     players: [{
       entityId: 1, name: '玩家甲', colorIndex: 0, connected: true, alive: true, ghost: false, paused: false, choosingUpgrade: false,
-      col, row: 5, angle: 0.4, desiredAngle: 0.5, lastInputSequence: tick, speed: 5, slow: 0, foodBoost: 0, knockbackX: 0, knockbackY: 0, invulnerable: 0, collisionCooldown: 0, health: 30, maxHealth: 30, shieldCharges: 0,
+      col, row: 5, angle: 0.4, desiredAngle: 0.5, lastInputSequence: tick, speed: 5, energy: 100, dashing: false, dashElapsed: 0, slow: 0, foodBoost: 0, knockbackX: 0, knockbackY: 0, invulnerable: 0, collisionCooldown: 0, health: 30, maxHealth: 30, shieldCharges: 0,
       score: 0, kills: 0, botKills: 0, pvpKills: 0, survivalTime: 1, level: 0, xp: 0, xpNeeded: 5,
       respawnAt: null,
       segments: [{ col: col - 0.6, row: 5, angle: 0, module: null, moduleLevel: 0, storage: true, tailGuard: false, timer: 0, ready: true, cooldown: 0, orbit: 0, birthAge: null }],
