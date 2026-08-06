@@ -406,12 +406,12 @@
     </div>
   </main>
 
-  <script src="enemy-codex.js?v=153"></script>
-  <script src="wave-director.js?v=153"></script>
-  <script src="designer-config.js?v=153"></script>
-  <script src="status-catalog.js?v=153"></script>
-  <script src="module-catalog.js?v=153"></script>
-  <script src="module-progression.js?v=153"></script>
+  <script src="enemy-codex.js?v=154"></script>
+  <script src="wave-director.js?v=154"></script>
+  <script src="designer-config.js?v=154"></script>
+  <script src="status-catalog.js?v=154"></script>
+  <script src="module-catalog.js?v=154"></script>
+  <script src="module-progression.js?v=154"></script>
   <script>
     (() => {
       "use strict";
@@ -724,7 +724,11 @@
         { key: "foodShadowHeight", group: "表现", label: "球的虚拟高度", hint: "球相对普通蛇身的阴影距离与拉伸倍率", min: 0, max: 4, step: 0.05, unit: "倍" },
         { key: "projectileShadowHeight", group: "表现", label: "投射物虚拟高度", hint: "子弹与环刃相对普通蛇身的阴影距离与拉伸倍率", min: 0, max: 6, step: 0.05, unit: "倍" },
         { key: "maxRenderFps", group: "性能", label: "最高绘制帧率", hint: "Canvas 与界面动效的绘制上限；默认覆盖常见高刷新率屏幕，避免非整除节流造成帧间隔抖动", min: 30, max: 240, step: 1, unit: "FPS" },
-        { key: "maxRenderDpr", group: "性能", label: "最高渲染像素倍率", hint: "Canvas 按设备像素密度清晰绘制时使用的倍率上限；运行中不会再自动降低", min: 1, max: 2, step: 0.05, unit: "DPR" },
+        { key: "maxRenderDpr", group: "性能", label: "最高渲染像素倍率", hint: "Canvas 常规模式按设备像素密度绘制时使用的倍率上限；总像素预算与稳帧模式仍可使用更低倍率", min: 1, max: 2, step: 0.05, unit: "DPR" },
+        { key: "renderPixelBudgetMegapixels", group: "性能", label: "画布像素预算", hint: "高分辨率窗口按总像素预算限制实际渲染倍率；普通窗口保持设备原生清晰度，超大窗口避免像素填充拖垮帧率", min: 1, max: 16, step: 0.1, unit: "MP" },
+        { key: "performanceFallbackFps", group: "性能", label: "稳帧模式触发帧率", hint: "持续低于此帧率时启用轻量投影与稳帧像素倍率；高于最高绘制帧率的配置不会误触发", min: 30, max: 120, step: 1, unit: "FPS" },
+        { key: "performanceFallbackDelaySeconds", group: "性能", label: "稳帧模式触发延迟", hint: "低帧率必须连续维持的时间，短暂爆炸或切换场景不会立即降低渲染负担", min: 0.5, max: 10, step: 0.1, unit: "秒" },
+        { key: "performanceFallbackMaxDpr", group: "性能", label: "稳帧模式像素倍率", hint: "稳帧模式启用后使用的最高 Canvas 像素倍率；仅影响渲染清晰度，不改变玩法和界面尺寸", min: 1, max: 2, step: 0.05, unit: "DPR" },
         { key: "hudUpdateHz", group: "性能", label: "本地 HUD 更新频率", hint: "单人游戏中时间、分数、波次等文字的每秒刷新次数；关键状态变化仍会立即刷新", min: 1, max: 60, step: 1, unit: "Hz" },
         { key: "networkPlayerStateHz", group: "性能", label: "玩家状态同步频率", hint: "手动玩家每秒向服务器发送完整蛇身状态的次数", min: 5, max: 60, step: 1, unit: "Hz" },
         { key: "networkManualPredictionMs", group: "性能", label: "手动玩家远端预测时限", hint: "服务器收到最后一次手动玩家状态后继续外推的最长时间；超时后远端位置冻结等待新状态", min: 50, max: 1000, step: 10, unit: "ms" },
@@ -815,7 +819,7 @@
       const filePickerSupported = typeof window.showOpenFilePicker === "function";
 
       function normalizeConfig(value) {
-        const config = { schemaVersion: 55, balance: {}, waveSpawnSchedule: [], moduleCooldownPercentages: {}, moduleNames: {}, moduleInitialUpgrades: {}, moduleStates: {} };
+        const config = { schemaVersion: 56, balance: {}, waveSpawnSchedule: [], moduleCooldownPercentages: {}, moduleNames: {}, moduleInitialUpgrades: {}, moduleStates: {} };
         for (const definition of ALL_PARAMETER_DEFINITIONS) {
           const candidate = Number(value?.balance?.[definition.key]);
           config.balance[definition.key] = Number.isFinite(candidate) ? Math.max(definition.min, Math.min(definition.max, candidate)) : definition.min;
@@ -860,7 +864,7 @@
         const end = text.lastIndexOf("}");
         if (start < 0 || end <= start) throw new Error("配置内容不完整");
         const parsed = JSON.parse(text.slice(start, end + 1));
-        if (parsed?.schemaVersion !== 55) throw new Error("配置版本无效，需要 schemaVersion 55");
+        if (parsed?.schemaVersion !== 56) throw new Error("配置版本无效，需要 schemaVersion 56");
         return normalizeConfig(parsed);
       }
 

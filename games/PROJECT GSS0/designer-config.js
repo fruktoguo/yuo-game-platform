@@ -1,5 +1,5 @@
 globalThis.GSS0_DESIGNER_CONFIG = {
-  "schemaVersion": 55,
+  "schemaVersion": 56,
   "balance": {
     "playerBaseSpeed": 5,
     "snakeBodySizeScale": 0.775,
@@ -295,6 +295,10 @@ globalThis.GSS0_DESIGNER_CONFIG = {
     "projectileShadowHeight": 1.9,
     "maxRenderFps": 240,
     "maxRenderDpr": 2,
+    "renderPixelBudgetMegapixels": 3.2,
+    "performanceFallbackFps": 50,
+    "performanceFallbackDelaySeconds": 1.5,
+    "performanceFallbackMaxDpr": 1,
     "hudUpdateHz": 15,
     "networkPlayerStateHz": 20,
     "networkManualPredictionMs": 400,

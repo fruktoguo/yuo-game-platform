@@ -14,6 +14,8 @@
   const enemySpriteCache = new Map();
   const corrosionParticleSpriteCache = new Map();
   const entityShadowSpriteCache = new Map();
+  const foodSpriteCache = new Map();
+  const projectileSpriteCache = new Map();
   const cameraProjectionApi = globalThis.GSS0CameraProjection;
   if (!cameraProjectionApi) throw new Error("PROJECT GSS0 摄像机投影运行时未加载");
   const cameraProjection = cameraProjectionApi.create();
@@ -145,7 +147,7 @@
   const TAU = Math.PI * 2;
   const P2P_TOAST_DURATION_MS = 2800;
   const DESIGNER_CONFIG = globalThis.GSS0_DESIGNER_CONFIG || {};
-  if (DESIGNER_CONFIG.schemaVersion !== 55) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 55");
+  if (DESIGNER_CONFIG.schemaVersion !== 56) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 56");
   const DESIGNER_BALANCE = DESIGNER_CONFIG.balance || {};
   const MODULE_DESIGN_STATES = DESIGNER_CONFIG.moduleStates || {};
   const arenaGeometry = globalThis.GSS0ArenaGeometry;
@@ -544,6 +546,10 @@
   const ENEMY_HEAD_REFORM_DURATION = designerNumber("enemyHeadReformDuration", 0.42, 0.05, 2);
   const MAX_RENDER_FPS = designerNumber("maxRenderFps", 240, 30, 240, true);
   const MAX_RENDER_DPR = designerNumber("maxRenderDpr", 2, 1, 2);
+  const RENDER_PIXEL_BUDGET = designerNumber("renderPixelBudgetMegapixels", 3.2, 1, 16) * 1_000_000;
+  const PERFORMANCE_FALLBACK_FPS = designerNumber("performanceFallbackFps", 50, 30, 120, true);
+  const PERFORMANCE_FALLBACK_DELAY = designerNumber("performanceFallbackDelaySeconds", 1.5, 0.5, 10);
+  const PERFORMANCE_FALLBACK_MAX_DPR = designerNumber("performanceFallbackMaxDpr", 1, 1, 2);
   const HUD_UPDATE_INTERVAL = 1 / designerNumber("hudUpdateHz", 15, 1, 60, true);
   const AMBIENT_RENDER_INTERVAL = 1 / 30;
   const AMBIENT_RENDER_SCALE = 0.55;
@@ -556,6 +562,8 @@
   let width = 1;
   let height = 1;
   let dpr = 1;
+  let performanceFallbackActive = false;
+  let lowPerformanceElapsed = 0;
   let arenaWorldSize = ARENA_BASE_SIZE;
   let arenaResizeElapsed = 0;
   let arena = { left: 16, top: 80, right: 241, bottom: 305, width: 225, height: 225, centerX: 128.5, centerY: 192.5, centerCol: ARENA_CENTER_COORDINATE, centerRow: ARENA_CENTER_COORDINATE, boundaryRadius: arenaGeometry.boundaryRadius(ARENA_BASE_SIZE), baseCellSize: 225 / ARENA_BASE_SIZE, cellSize: 225 / ARENA_BASE_SIZE, worldMin: (GRID_SIZE - ARENA_BASE_SIZE) / 2, worldMax: (GRID_SIZE + ARENA_BASE_SIZE) / 2 - 1, worldSize: ARENA_BASE_SIZE };
@@ -938,12 +946,13 @@
   function refreshWorldCameraProjection() {
     const strength = player && state !== "menu" ? pseudo3DStrength : 0;
     worldCamera.projectionStrength = strength;
+    const renderProjectionStrength = performanceFallbackActive ? 0 : strength;
     cameraProjection.update(
       width,
       height,
       worldCamera.axisX,
       worldCamera.axisY,
-      strength,
+      renderProjectionStrength,
       CAMERA_PSEUDO_3D_PITCH_FORESHORTENING,
       CAMERA_PSEUDO_3D_YAW_SHEAR,
       CAMERA_PSEUDO_3D_ROLL_DEGREES,
@@ -1482,7 +1491,12 @@
     const rect = ui.shell.getBoundingClientRect();
     width = Math.max(320, rect.width);
     height = Math.max(420, rect.height);
-    dpr = Math.min(MAX_RENDER_DPR, window.devicePixelRatio || 1);
+    const renderDprLimit = performanceFallbackActive
+      ? Math.min(MAX_RENDER_DPR, PERFORMANCE_FALLBACK_MAX_DPR)
+      : MAX_RENDER_DPR;
+    const deviceDpr = Math.min(renderDprLimit, window.devicePixelRatio || 1);
+    const pixelBudgetDpr = Math.sqrt(RENDER_PIXEL_BUDGET / Math.max(1, width * height));
+    dpr = Math.max(1, Math.min(deviceDpr, pixelBudgetDpr));
     canvas.width = Math.round(width * dpr);
     canvas.height = Math.round(height * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -1505,6 +1519,15 @@
       }
     }
     refreshWorldCameraProjection();
+  }
+
+  function activatePerformanceFallback() {
+    if (performanceFallbackActive) return;
+    performanceFallbackActive = true;
+    lowPerformanceElapsed = 0;
+    document.documentElement.dataset.renderMode = "performance";
+    ui.fpsMeter.setAttribute("aria-label", "实时帧率，稳帧渲染已启用");
+    resize();
   }
 
   function updateArenaBounds() {
@@ -9608,6 +9631,43 @@
     mainContext.restore();
   }
 
+  function foodSprite(food) {
+    const radius = Math.max(0.5, Math.round(food.radius * 4) / 4);
+    const key = `${food.color}:${radius}`;
+    let sprite = foodSpriteCache.get(key);
+    if (sprite) return sprite;
+    if (foodSpriteCache.size >= 96) foodSpriteCache.clear();
+
+    const renderScale = MAX_RENDER_DPR;
+    const outer = radius * 1.52;
+    const halfSize = Math.ceil(outer + 26);
+    const size = halfSize * 2;
+    const spriteCanvas = document.createElement("canvas");
+    spriteCanvas.width = Math.max(1, Math.ceil(size * renderScale));
+    spriteCanvas.height = Math.max(1, Math.ceil(size * renderScale));
+    const spriteContext = spriteCanvas.getContext("2d");
+    spriteContext.setTransform(renderScale, 0, 0, renderScale, halfSize * renderScale, halfSize * renderScale);
+    spriteContext.shadowColor = food.color;
+    spriteContext.shadowBlur = 12 * renderScale;
+    spriteContext.fillStyle = "#111518";
+    spriteContext.strokeStyle = food.color;
+    spriteContext.lineWidth = Math.max(1, radius * 0.34);
+    spriteContext.fillRect(-outer, -outer, outer * 2, outer * 2);
+    spriteContext.strokeRect(-outer, -outer, outer * 2, outer * 2);
+    spriteContext.rotate(-Math.PI / 4);
+    spriteContext.fillStyle = food.color;
+    spriteContext.beginPath();
+    spriteContext.arc(0, 0, radius * 0.82, 0, TAU);
+    spriteContext.fill();
+    spriteContext.shadowBlur = 0;
+    spriteContext.fillStyle = "#f4f6f5";
+    spriteContext.fillRect(-radius * 0.18, -radius * 0.62, radius * 0.36, radius * 1.24);
+    spriteContext.fillRect(-radius * 0.62, -radius * 0.18, radius * 1.24, radius * 0.36);
+    sprite = { canvas: spriteCanvas, size };
+    foodSpriteCache.set(key, sprite);
+    return sprite;
+  }
+
   function drawFood(time) {
     for (const food of foods) {
       if (food.networkHidden) continue;
@@ -9647,23 +9707,8 @@
       ctx.globalAlpha *= 0.2 + birthProgress * 0.8;
       ctx.scale(pulse * birthScale, pulse * birthScale);
       ctx.rotate(Math.PI / 4 + Math.sin(time * 1.6 + food.phase) * 0.08);
-      ctx.shadowColor = food.color;
-      ctx.shadowBlur = 12;
-      ctx.fillStyle = "#111518";
-      ctx.strokeStyle = food.color;
-      ctx.lineWidth = Math.max(1, food.radius * 0.34);
-      const outer = food.radius * 1.52;
-      ctx.fillRect(-outer, -outer, outer * 2, outer * 2);
-      ctx.strokeRect(-outer, -outer, outer * 2, outer * 2);
-      ctx.rotate(-Math.PI / 4);
-      ctx.fillStyle = food.color;
-      ctx.beginPath();
-      ctx.arc(0, 0, food.radius * 0.82, 0, TAU);
-      ctx.fill();
-      ctx.shadowBlur = 0;
-      ctx.fillStyle = "#f4f6f5";
-      ctx.fillRect(-food.radius * 0.18, -food.radius * 0.62, food.radius * 0.36, food.radius * 1.24);
-      ctx.fillRect(-food.radius * 0.62, -food.radius * 0.18, food.radius * 1.24, food.radius * 0.36);
+      const sprite = foodSprite(food);
+      ctx.drawImage(sprite.canvas, -sprite.size / 2, -sprite.size / 2, sprite.size, sprite.size);
       ctx.restore();
     }
   }
@@ -11006,28 +11051,58 @@
     }
   }
 
+  function projectileSprite(projectile) {
+    const blade = projectile.kind === "blade";
+    const bladeScale = blade ? Math.max(0.1, Math.round(projectile.size / 10 * 20) / 20) : 1;
+    const shapeSize = blade ? 10 * bladeScale : Math.max(1, Math.round(projectile.size * 1.15 * 4) / 4);
+    const key = `${blade ? "blade" : "shot"}:${projectile.color}:${shapeSize}`;
+    let sprite = projectileSpriteCache.get(key);
+    if (sprite) return sprite;
+    if (projectileSpriteCache.size >= 128) projectileSpriteCache.clear();
+
+    const renderScale = MAX_RENDER_DPR;
+    const blur = blade ? 12 : 9;
+    const halfSize = Math.ceil(shapeSize + blur * 2 + 2);
+    const size = halfSize * 2;
+    const spriteCanvas = document.createElement("canvas");
+    spriteCanvas.width = Math.max(1, Math.ceil(size * renderScale));
+    spriteCanvas.height = Math.max(1, Math.ceil(size * renderScale));
+    const spriteContext = spriteCanvas.getContext("2d");
+    spriteContext.setTransform(renderScale, 0, 0, renderScale, halfSize * renderScale, halfSize * renderScale);
+    spriteContext.shadowColor = projectile.color;
+    spriteContext.shadowBlur = blur * renderScale;
+    spriteContext.fillStyle = projectile.color;
+    spriteContext.beginPath();
+    if (blade) {
+      spriteContext.moveTo(10 * bladeScale, 0);
+      spriteContext.lineTo(3.6 * bladeScale, 4.2 * bladeScale);
+      spriteContext.lineTo(-1.4 * bladeScale, 1.5 * bladeScale);
+      spriteContext.lineTo(-10 * bladeScale, 0);
+      spriteContext.lineTo(-3.6 * bladeScale, -4.2 * bladeScale);
+      spriteContext.lineTo(1.4 * bladeScale, -1.5 * bladeScale);
+    } else {
+      spriteContext.moveTo(shapeSize, 0);
+      spriteContext.lineTo(0, shapeSize);
+      spriteContext.lineTo(-shapeSize, 0);
+      spriteContext.lineTo(0, -shapeSize);
+    }
+    spriteContext.closePath();
+    spriteContext.fill();
+    sprite = { canvas: spriteCanvas, size };
+    projectileSpriteCache.set(key, sprite);
+    return sprite;
+  }
+
   function drawProjectiles() {
     for (const projectile of projectiles) {
       if (renderWorldBounds.active && !pointIntersectsRenderBounds(projectile.x, projectile.y, 36 + projectile.size * 3)) continue;
       if (projectile.kind === "blade") {
-        const bladeScale = projectile.size / 10;
         ctx.save();
         ctx.translate(projectile.x, projectile.y);
         applyBillboardCompensation();
-        ctx.scale(bladeScale, bladeScale);
         ctx.rotate((projectile.orbitAngle || 0) * 2);
-        ctx.shadowColor = projectile.color;
-        ctx.shadowBlur = 12;
-        ctx.fillStyle = projectile.color;
-        ctx.beginPath();
-        ctx.moveTo(10, 0);
-        ctx.lineTo(3.6, 4.2);
-        ctx.lineTo(-1.4, 1.5);
-        ctx.lineTo(-10, 0);
-        ctx.lineTo(-3.6, -4.2);
-        ctx.lineTo(1.4, -1.5);
-        ctx.closePath();
-        ctx.fill();
+        const sprite = projectileSprite(projectile);
+        ctx.drawImage(sprite.canvas, -sprite.size / 2, -sprite.size / 2, sprite.size, sprite.size);
         ctx.restore();
         continue;
       }
@@ -11052,11 +11127,9 @@
       ctx.globalAlpha = 1;
       ctx.translate(projectile.x, projectile.y);
       applyBillboardCompensation();
-      ctx.fillStyle = projectile.color;
-      ctx.shadowColor = projectile.color;
-      ctx.shadowBlur = 9;
-      drawPolygonPath(0, 0, projectile.size * 1.15, 4, projectedWorldAngle(Math.atan2(projectile.vy, projectile.vx)));
-      ctx.fill();
+      ctx.rotate(projectedWorldAngle(Math.atan2(projectile.vy, projectile.vx)));
+      const sprite = projectileSprite(projectile);
+      ctx.drawImage(sprite.canvas, -sprite.size / 2, -sprite.size / 2, sprite.size, sprite.size);
       ctx.restore();
     }
   }
@@ -11275,6 +11348,7 @@
 
   function updateFpsMeter(now, frameInterval) {
     if (state !== "running" || document.hidden || frameInterval <= 0) {
+      lowPerformanceElapsed = 0;
       resetFpsMeasurement(now);
       return;
     }
@@ -11283,6 +11357,12 @@
     const elapsed = now - fpsWindowStartedAt;
     if (elapsed < 500) return;
     const rawFps = fpsFrameCount * 1000 / Math.max(1, elapsed);
+    if (!performanceFallbackActive && MAX_RENDER_FPS > PERFORMANCE_FALLBACK_FPS) {
+      lowPerformanceElapsed = rawFps < PERFORMANCE_FALLBACK_FPS
+        ? lowPerformanceElapsed + elapsed / 1000
+        : 0;
+      if (lowPerformanceElapsed >= PERFORMANCE_FALLBACK_DELAY) activatePerformanceFallback();
+    }
     const observedRefreshRate = sampledRefreshRate();
     if (observedRefreshRate >= 50) estimatedRefreshRate = Math.max(estimatedRefreshRate, observedRefreshRate);
     smoothedFps = smoothedFps > 0 ? smoothedFps + (rawFps - smoothedFps) * 0.32 : rawFps;

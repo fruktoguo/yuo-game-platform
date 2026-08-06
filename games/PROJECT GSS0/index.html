@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0b0d0f">
   <meta name="description" content="代号：几何贪吃蛇 - 单人及多人共享世界肉鸽贪吃蛇战斗游戏">
   <title>代号：几何贪吃蛇</title>
-  <link rel="stylesheet" href="styles.css?v=153">
+  <link rel="stylesheet" href="styles.css?v=154">
 </head>
 <body>
   <main id="game-shell" aria-label="代号：几何贪吃蛇 游戏区域">
@@ -19,7 +19,7 @@
           <strong>代号：几何贪吃蛇</strong>
         </div>
         <span class="signature">by 四季鸽</span>
-        <span class="brand-version" aria-label="游戏版本 V153">V153</span>
+        <span class="brand-version" aria-label="游戏版本 V154">V154</span>
       </div>
 
       <div class="run-stats">
@@ -209,7 +209,7 @@
 
     <section id="start-screen" class="modal-layer start-screen is-visible" aria-labelledby="game-title">
       <div class="start-glow" aria-hidden="true"></div>
-          <div class="start-version" aria-label="游戏版本 V153"><span>BUILD</span><strong>V153</strong></div>
+          <div class="start-version" aria-label="游戏版本 V154"><span>BUILD</span><strong>V154</strong></div>
       <div class="start-layout">
         <div class="start-content">
           <div id="network-status" class="title-kicker">TACTICAL SURVIVAL / LOCAL</div>
@@ -398,6 +398,22 @@
           <button id="changelog-close-button" class="icon-button codex-close-button" type="button" aria-label="关闭更新日志" title="关闭更新日志">×</button>
         </header>
         <div class="changelog-list">
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V154</strong></div>
+              <time datetime="2026-08-06">2026.08.06</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">性能修复</span>
+              <h3>高分辨率与伪3D自适应稳帧</h3>
+              <ul>
+                <li>高分辨率窗口现在按320万像素预算限制 Canvas 实际渲染倍率，2048×1024、150%系统缩放下不再盲目创建470万像素主画布。</li>
+                <li>对局持续低于50 FPS达1.5秒时自动启用稳帧渲染：保留实体落影、平台厚度与界面伪3D，停用昂贵的动态场地倾斜并将渲染倍率限制为1倍。</li>
+                <li>球与玩家投射物的发光外观改为预烘焙精灵缓存，移除高密度场景中逐个实体每帧重复计算的实时模糊。</li>
+                <li>同尺寸压力场景中，稳帧路径在约11名敌人的长局从约100 FPS恢复至153～159 FPS；全部新阈值、延迟、像素预算与倍率已接入设计控制台。</li>
+              </ul>
+            </div>
+          </article>
           <article class="changelog-entry">
             <header>
               <div class="changelog-version"><span>BUILD</span><strong>V153</strong></div>
@@ -2451,29 +2467,29 @@
     </section>
   </main>
 
-  <script src="designer-config.js?v=153"></script>
-  <script src="status-catalog.js?v=153"></script>
-  <script src="module-catalog.js?v=153"></script>
-  <script src="module-progression.js?v=153"></script>
-  <script src="wave-director.js?v=153"></script>
-  <script src="arena-geometry.js?v=153"></script>
-  <script src="player-body-path.js?v=153"></script>
-  <script src="player-dash.js?v=153"></script>
-  <script src="enemy-behavior.js?v=153"></script>
-  <script src="enemy-vitality.js?v=153"></script>
-  <script src="enemy-armor.js?v=153"></script>
-  <script src="spawn-planner.js?v=153"></script>
-  <script src="network-codec.js?v=153"></script>
-  <script src="network-player-prediction.js?v=153"></script>
-  <script src="network-player-state-codec.js?v=153"></script>
-  <script src="network-player-collisions.js?v=153"></script>
-  <script src="network-head-collisions.js?v=153"></script>
-  <script src="network-food-claims.js?v=153"></script>
-  <script src="network-projectiles.js?v=153"></script>
-  <script src="lobby-navigation.js?v=153"></script>
-  <script src="enemy-codex.js?v=153"></script>
-  <script src="camera-projection.js?v=153"></script>
-  <script type="module" src="src/client/p2p/bootstrap.ts?v=153"></script>
-  <script src="game.js?v=153"></script>
+  <script src="designer-config.js?v=154"></script>
+  <script src="status-catalog.js?v=154"></script>
+  <script src="module-catalog.js?v=154"></script>
+  <script src="module-progression.js?v=154"></script>
+  <script src="wave-director.js?v=154"></script>
+  <script src="arena-geometry.js?v=154"></script>
+  <script src="player-body-path.js?v=154"></script>
+  <script src="player-dash.js?v=154"></script>
+  <script src="enemy-behavior.js?v=154"></script>
+  <script src="enemy-vitality.js?v=154"></script>
+  <script src="enemy-armor.js?v=154"></script>
+  <script src="spawn-planner.js?v=154"></script>
+  <script src="network-codec.js?v=154"></script>
+  <script src="network-player-prediction.js?v=154"></script>
+  <script src="network-player-state-codec.js?v=154"></script>
+  <script src="network-player-collisions.js?v=154"></script>
+  <script src="network-head-collisions.js?v=154"></script>
+  <script src="network-food-claims.js?v=154"></script>
+  <script src="network-projectiles.js?v=154"></script>
+  <script src="lobby-navigation.js?v=154"></script>
+  <script src="enemy-codex.js?v=154"></script>
+  <script src="camera-projection.js?v=154"></script>
+  <script type="module" src="src/client/p2p/bootstrap.ts?v=154"></script>
+  <script src="game.js?v=154"></script>
 </body>
 </html>

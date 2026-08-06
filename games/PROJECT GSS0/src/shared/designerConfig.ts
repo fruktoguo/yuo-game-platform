@@ -13,7 +13,7 @@ interface DesignerConfigSource {
 }
 
 const source = (globalThis as typeof globalThis & { GSS0_DESIGNER_CONFIG?: DesignerConfigSource }).GSS0_DESIGNER_CONFIG;
-if (source?.schemaVersion !== 55) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 55');
+if (source?.schemaVersion !== 56) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 56');
 
 function numberSetting(key: string, fallback: number, minimum: number, maximum: number, integer = false): number {
   const candidate = source?.balance?.[key];
@@ -344,6 +344,10 @@ export const DESIGNER_BALANCE = Object.freeze({
   foodBirthDuration: numberSetting('foodBirthDuration', 0.36, 0.05, 2),
   maxRenderFps: numberSetting('maxRenderFps', 240, 30, 240, true),
   maxRenderDpr: numberSetting('maxRenderDpr', 2, 1, 2),
+  renderPixelBudgetMegapixels: numberSetting('renderPixelBudgetMegapixels', 3.2, 1, 16),
+  performanceFallbackFps: numberSetting('performanceFallbackFps', 50, 30, 120, true),
+  performanceFallbackDelaySeconds: numberSetting('performanceFallbackDelaySeconds', 1.5, 0.5, 10),
+  performanceFallbackMaxDpr: numberSetting('performanceFallbackMaxDpr', 1, 1, 2),
   hudUpdateHz: numberSetting('hudUpdateHz', 15, 1, 60, true),
   networkPlayerStateHz: numberSetting('networkPlayerStateHz', 20, 5, 60, true),
   networkManualPredictionMs: numberSetting('networkManualPredictionMs', 400, 50, 1_000, true),
