@@ -96,13 +96,15 @@
     const playerBodyRadius = Math.max(0, Number(options.playerBodyRadius) || 0);
     const dynamicEnemyHeadRadius = typeof options.enemyHeadRadius === "function";
     const dynamicEnemyBodyRadius = typeof options.enemyBodyRadius === "function";
+    const dashContact = player.dashing === true;
+    const ordinaryPlayerContact = player.invulnerable <= 0 && player.collisionCooldown <= 0;
 
     if (player.collisionCooldown <= 0) {
       const selfContact = bodyConnectionContact(player, player, options.selfRange * options.selfRange, 2);
       if (selfContact) return { kind: "self", point: selfContact.point };
     }
 
-    if (player.protectedState || player.invulnerable > 0) {
+    if ((player.protectedState || player.invulnerable > 0) && !dashContact) {
       for (const enemy of enemies || []) {
         if (enemy.dead) continue;
         const headRange = enemyHeadContactRange(options, enemy, playerHeadRadius, dynamicEnemyHeadRadius);
@@ -126,7 +128,7 @@
       if (contact) return { kind: "protected-player", targetId: other.entityId, point: contact.point };
     }
 
-    if (player.invulnerable <= 0 && player.collisionCooldown <= 0) {
+    if (ordinaryPlayerContact || dashContact) {
       for (const enemy of enemies || []) {
         if (enemy.dead) continue;
         for (let index = 0; index < enemy.segments.length; index += 1) {
@@ -137,6 +139,8 @@
           }
         }
       }
+    }
+    if (ordinaryPlayerContact) {
       for (const other of players || []) {
         if (other === player || other.isSelf || other.ghost || other.protectedState) continue;
         if (distanceSquared(player, other) >= playerHeadRangeSquared) {
@@ -148,12 +152,14 @@
       }
     }
 
-    if (player.collisionCooldown <= 0) {
+    if (player.collisionCooldown <= 0 || dashContact) {
       for (const enemy of enemies || []) {
         const contactRange = enemyHeadContactRange(options, enemy, playerHeadRadius, dynamicEnemyHeadRadius);
         if (enemy.dead || enemy.collisionCooldown > 0 || distanceSquared(player, enemy) >= contactRange * contactRange) continue;
         return { kind: "enemy-head", targetId: enemy.id, ...normalBetween(player, enemy) };
       }
+    }
+    if (player.collisionCooldown <= 0) {
       for (const other of players || []) {
         if (other === player || other.isSelf || other.ghost || other.collisionCooldown > 0 || distanceSquared(player, other) >= playerHeadRangeSquared) continue;
         return { kind: "player-head", targetId: other.entityId, ...normalBetween(player, other) };

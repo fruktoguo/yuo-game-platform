@@ -248,43 +248,10 @@
   }
 
   function traceSegment(context, id) {
-    switch (id) {
-      case "scout":
-        context.moveTo(10, 0); context.lineTo(0, 6); context.lineTo(-9, 0); context.lineTo(0, -6); context.closePath();
-        break;
-      case "courier":
-        roundedRectPath(context, -11, -7, 22, 14, 3); context.closePath();
-        break;
-      case "charger":
-        context.moveTo(11, 0); context.lineTo(1, 9); context.lineTo(-9, 6); context.lineTo(-5, 0); context.lineTo(-9, -6); context.lineTo(1, -9); context.closePath();
-        break;
-      case "cutter":
-        context.moveTo(10, 0); context.lineTo(0, 11); context.lineTo(-5, 4); context.lineTo(-11, 0); context.lineTo(-5, -4); context.lineTo(0, -11); context.closePath();
-        break;
-      case "coiler":
-        context.arc(0, 0, 9, 0, TAU);
-        break;
-      case "warden":
-        context.moveTo(8, -9); context.lineTo(11, -4); context.lineTo(11, 4); context.lineTo(8, 9); context.lineTo(-8, 9); context.lineTo(-11, 4); context.lineTo(-11, -4); context.lineTo(-8, -9); context.closePath();
-        break;
-      case "liner":
-        context.moveTo(12, 0); context.lineTo(0, 5); context.lineTo(-12, 0); context.lineTo(0, -5); context.closePath();
-        break;
-      case "skitter":
-        context.moveTo(8, -8); context.lineTo(11, 0); context.lineTo(8, 8); context.lineTo(-8, 8); context.lineTo(-11, 0); context.lineTo(-8, -8); context.closePath();
-        break;
-      case "headhunter":
-        context.moveTo(11, 0); context.lineTo(3, 9); context.lineTo(-9, 6); context.lineTo(-9, -6); context.lineTo(3, -9); context.closePath();
-        break;
-      case "engineer":
-        context.moveTo(9, -9); context.lineTo(9, 9); context.lineTo(-9, 9); context.lineTo(-9, -9); context.closePath();
-        break;
-      case "bombardier":
-        context.moveTo(11, 0); context.lineTo(5, 9); context.lineTo(-7, 9); context.lineTo(-11, 0); context.lineTo(-7, -9); context.lineTo(5, -9); context.closePath();
-        break;
-      default:
-        context.moveTo(10, 0); context.lineTo(4, 9); context.lineTo(-8, 7); context.lineTo(-11, 0); context.lineTo(-8, -7); context.lineTo(4, -9); context.closePath();
-    }
+    context.save();
+    context.scale(0.5, 0.5);
+    traceHead(context, id);
+    context.restore();
   }
 
   function traceHead(context, id) {
@@ -338,46 +305,6 @@
     traceSegment(context, entry.id);
     context.fill();
     context.stroke();
-    context.fillStyle = entry.color;
-    context.globalAlpha = 0.78;
-    if (entry.id === "coiler") {
-      context.lineWidth = 2;
-      context.beginPath();
-      context.arc(0, 0, 4.5, 0.2, TAU * 0.86);
-      context.stroke();
-    } else if (entry.id === "courier") {
-      context.fillRect(-5, -5, 9, 10);
-      context.fillStyle = "#f4f6f5";
-      context.fillRect(-2, -4, 2, 8);
-    } else if (entry.id === "cutter") {
-      context.fillRect(-7, -1.5, 14, 3);
-    } else if (entry.id === "warden") {
-      context.strokeStyle = "#ffffff";
-      context.lineWidth = 1;
-      context.strokeRect(-6, -5, 12, 10);
-    } else if (entry.id === "skitter") {
-      context.fillRect(-7, -1.5, 14, 3);
-      context.fillRect(-1.5, -7, 3, 14);
-    } else if (entry.id === "liner" || entry.id === "headhunter") {
-      context.fillRect(-8, -1.5, 16, 3);
-    } else if (entry.id === "engineer") {
-      context.globalAlpha = 1;
-      context.strokeStyle = "#ffffff";
-      context.lineWidth = 1.5;
-      context.strokeRect(-6.5, -6.5, 13, 13);
-      context.strokeStyle = "#7d898e";
-      context.strokeRect(-3.5, -3.5, 7, 7);
-    } else if (entry.id === "bombardier") {
-      context.globalAlpha = 1;
-      context.strokeStyle = "#ffffff";
-      context.lineWidth = 1.4;
-      context.beginPath(); context.arc(0, 0, 5.8, 0, TAU); context.stroke();
-      context.strokeStyle = entry.color;
-      context.lineWidth = 2;
-      context.beginPath(); context.arc(0, 0, 2.4, 0, TAU); context.stroke();
-    } else {
-      context.fillRect(-7, -2, 11, 4);
-    }
     context.restore();
   }
 
@@ -454,19 +381,16 @@
     context.save();
     context.translate(116, 132);
     context.rotate(-0.18);
+    context.scale(1.45, 1.45);
     context.shadowColor = entry.color;
     context.shadowBlur = 15;
-    context.fillStyle = "rgba(8,12,14,0.96)";
-    context.fillRect(-13, -13, 26, 26);
-    context.shadowBlur = 0;
-    context.strokeStyle = "#ffffff";
-    context.lineWidth = 3;
-    context.strokeRect(-13, -13, 26, 26);
-    context.strokeStyle = "#7d898e";
+    context.fillStyle = "#171b1e";
+    context.strokeStyle = entry.color;
     context.lineWidth = 2;
-    context.strokeRect(-7, -7, 14, 14);
-    context.fillStyle = entry.color;
-    context.fillRect(-2, -2, 4, 4);
+    context.beginPath();
+    traceSegment(context, entry.id);
+    context.fill();
+    context.stroke();
     context.restore();
   }
 

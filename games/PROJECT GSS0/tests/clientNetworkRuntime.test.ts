@@ -238,6 +238,15 @@ describe('客户端网络模块', () => {
       segments: [{ col: 5.68, row: 5, radiusCells: 0.3 }], dead: false,
     }], [player], options);
     expect(armoredBody).toMatchObject({ kind: 'enemy-body', targetId: 3, segmentIndex: 0 });
+
+    const protectedDash = { ...player, dashing: true, protectedState: true, invulnerable: 0.5, collisionCooldown: 0.25 };
+    const dashHead = clientGlobals.GSS0PlayerCollisions.detect(protectedDash, [{ id: 4, col: 5.7, row: 5, angle: Math.PI, radiusCells: 0.48, segments: [], dead: false }], [protectedDash], options);
+    const dashBody = clientGlobals.GSS0PlayerCollisions.detect(protectedDash, [{
+      id: 5, col: 8, row: 5, angle: Math.PI, radiusCells: 0.2,
+      segments: [{ col: 5.68, row: 5, radiusCells: 0.3 }], dead: false,
+    }], [protectedDash], options);
+    expect(dashHead).toMatchObject({ kind: 'enemy-head', targetId: 4 });
+    expect(dashBody).toMatchObject({ kind: 'enemy-body', targetId: 5, segmentIndex: 0 });
   });
 
   it('玩家头撞事件可靠去重，先等待视觉接触再平滑补足远端弹开', () => {

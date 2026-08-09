@@ -39,7 +39,6 @@ export const ENEMY_ARMOR_TUNING = Object.freeze({
   baseSpacing: SNAKE_SEGMENT_SPACING,
   spacingScale: DESIGNER_BALANCE.enemyArmorSpacingScale,
   spacingResponse: DESIGNER_BALANCE.enemyArmorSpacingResponse,
-  maxPlates: DESIGNER_BALANCE.enemyArmorMaxPlatesPerLayer,
 });
 export const ENEMY_ARMOR_BREAK_CASCADE_INTERVAL = DESIGNER_BALANCE.enemyArmorBreakCascadeInterval;
 export const PLAYER_MAX_HEALTH = DESIGNER_BALANCE.playerMaxHealth;
@@ -56,6 +55,9 @@ export const PLAYER_DASH_MINIMUM_DURATION = DESIGNER_BALANCE.playerDashMinimumDu
 export const PLAYER_DASH_START_ENERGY = DESIGNER_BALANCE.playerDashStartEnergy;
 export const PLAYER_DASH_SPEED_MULTIPLIER = DESIGNER_BALANCE.playerDashSpeedMultiplier;
 export const PLAYER_DASH_COLLISION_DAMAGE = DESIGNER_BALANCE.playerDashCollisionDamage;
+export const PLAYER_DASH_ENEMY_PUSH_SPEED = DESIGNER_BALANCE.playerDashEnemyPushSpeed;
+export const PLAYER_DASH_ENEMY_PUSH_DURATION = DESIGNER_BALANCE.playerDashEnemyPushDuration;
+export const PLAYER_DASH_ENEMY_PUSH_PROPAGATION = DESIGNER_BALANCE.playerDashEnemyPushPropagation;
 export const PLAYER_DASH_PARTICLE_RATE = DESIGNER_BALANCE.playerDashParticleRate;
 export const PLAYER_DASH_PARTICLE_SPEED = DESIGNER_BALANCE.playerDashParticleSpeed;
 export const PLAYER_DASH_PARTICLE_LIFETIME = DESIGNER_BALANCE.playerDashParticleLifetime;

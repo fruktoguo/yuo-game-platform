@@ -22,7 +22,7 @@
     const normalized = {
       headCoreRadius: positiveNumber(tuning.headCoreRadius, 0.41),
       bodyCoreRadius: positiveNumber(tuning.bodyCoreRadius, 0.205),
-      layerThickness: positiveNumber(tuning.layerThickness, 0.043),
+      layerThickness: positiveNumber(tuning.layerThickness, 0.05425),
       baseSpacing: positiveNumber(tuning.baseSpacing, 0.45),
       spacingScale: Math.max(0, Number.isFinite(Number(tuning.spacingScale)) ? Number(tuning.spacingScale) : 1),
       spacingResponse: Math.max(0, Number.isFinite(Number(tuning.spacingResponse)) ? Number(tuning.spacingResponse) : 12),

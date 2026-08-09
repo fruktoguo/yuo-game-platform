@@ -13,7 +13,7 @@ interface DesignerConfigSource {
 }
 
 const source = (globalThis as typeof globalThis & { GSS0_DESIGNER_CONFIG?: DesignerConfigSource }).GSS0_DESIGNER_CONFIG;
-if (source?.schemaVersion !== 58) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 58');
+if (source?.schemaVersion !== 59) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 59');
 
 function numberSetting(key: string, fallback: number, minimum: number, maximum: number, integer = false): number {
   const candidate = source?.balance?.[key];
@@ -55,8 +55,7 @@ export const DESIGNER_BALANCE = Object.freeze({
   snakeSegmentSpacing: numberSetting('snakeSegmentSpacing', 0.45, 0.1, 1.5),
   enemyArmorHeadCoreRadiusCells: numberSetting('enemyArmorHeadCoreRadiusCells', 0.53, 0.1, 1.5),
   enemyArmorBodyCoreRadiusCells: numberSetting('enemyArmorBodyCoreRadiusCells', 0.265, 0.05, 1),
-  enemyArmorLayerThicknessCells: numberSetting('enemyArmorLayerThicknessCells', 0.055, 0.005, 0.25),
-  enemyArmorMaxPlatesPerLayer: numberSetting('enemyArmorMaxPlatesPerLayer', 8, 1, 32, true),
+  enemyArmorLayerThicknessCells: numberSetting('enemyArmorLayerThicknessCells', 0.07, 0.005, 0.25),
   enemyArmorSpacingScale: numberSetting('enemyArmorSpacingScale', 1, 0, 3),
   enemyArmorSpacingResponse: numberSetting('enemyArmorSpacingResponse', 12, 0.1, 60),
   enemyArmorBreakCascadeInterval: numberSetting('enemyArmorBreakCascadeInterval', 0.055, 0, 0.3),
@@ -74,6 +73,9 @@ export const DESIGNER_BALANCE = Object.freeze({
   playerDashStartEnergy: numberSetting('playerDashStartEnergy', 30, 0, 10_000),
   playerDashSpeedMultiplier: numberSetting('playerDashSpeedMultiplier', 2, 0, 20),
   playerDashCollisionDamage: numberSetting('playerDashCollisionDamage', 2, 0, 1_000, true),
+  playerDashEnemyPushSpeed: numberSetting('playerDashEnemyPushSpeed', 9, 0, 100),
+  playerDashEnemyPushDuration: numberSetting('playerDashEnemyPushDuration', 0.28, 0.01, 3),
+  playerDashEnemyPushPropagation: numberSetting('playerDashEnemyPushPropagation', 0.72, 0, 1),
   playerDashParticleRate: numberSetting('playerDashParticleRate', 36, 0, 120, true),
   playerDashParticleSpeed: numberSetting('playerDashParticleSpeed', 130, 0, 1_000),
   playerDashParticleLifetime: numberSetting('playerDashParticleLifetime', 0.4, 0.05, 3),

@@ -77,7 +77,7 @@ describe('敌人异质关节生命', () => {
   });
 
   it('本地、服务端和调试验收入口统一接入共享生命核心', () => {
-    expect(indexHtml).toContain('<script src="enemy-vitality.js?v=156"></script>');
+    expect(indexHtml).toContain('<script src="enemy-vitality.js?v=157"></script>');
     expect(gameSource).toContain('enemyVitalityApi.allocate(assignedHealth, Math.random)');
     expect(gameSource).toContain('enemyVitalityApi.allocateForJointCount(showcaseHealth, 1, Math.random)');
     expect(gameSource).toContain('ENEMY_ARMOR_SHOWCASE_HEALTHS');

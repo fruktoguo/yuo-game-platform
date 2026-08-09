@@ -12,7 +12,6 @@ export interface EnemyArmorTuning {
   baseSpacing: number;
   spacingScale: number;
   spacingResponse: number;
-  maxPlates: number;
 }
 
 export interface EnemyArmorLayer {

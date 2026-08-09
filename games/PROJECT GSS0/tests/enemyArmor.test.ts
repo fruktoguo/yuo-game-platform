@@ -8,7 +8,6 @@ const tuning: EnemyArmorTuning = {
   baseSpacing: 0.66,
   spacingScale: 1,
   spacingResponse: 12,
-  maxPlates: 8,
 };
 
 describe('敌人指数装甲', () => {

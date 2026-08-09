@@ -65,6 +65,9 @@ import {
   PLAYER_BODY_INTERCEPT_DAMAGE,
   PLAYER_COLORS,
   PLAYER_DASH_COLLISION_DAMAGE,
+  PLAYER_DASH_ENEMY_PUSH_DURATION,
+  PLAYER_DASH_ENEMY_PUSH_PROPAGATION,
+  PLAYER_DASH_ENEMY_PUSH_SPEED,
   PLAYER_DASH_TUNING,
   PLAYER_ENERGY_MAXIMUM,
   PLAYER_ENEMY_BODY_COLLISION_DAMAGE,
@@ -191,6 +194,8 @@ interface EnemySegment extends EnemyJointView {
   spacing: number;
   reconnectElapsed: number;
   reconnectGap: number;
+  dashPushX: number;
+  dashPushY: number;
 }
 
 interface EnemyEntity extends UltraEnemyView {
@@ -214,6 +219,10 @@ interface EnemyEntity extends UltraEnemyView {
   frostPotency: number;
   knockbackX: number;
   knockbackY: number;
+  dashPushX: number;
+  dashPushY: number;
+  dashPushTimer: number;
+  dashPushAnchorIndex: number;
   corrosionPotency: number;
   corrosionTimer: number;
   corrosionColor: string | null;
@@ -682,16 +691,18 @@ export class UltraWorld {
     if (claim.kind === 'enemy-head' || claim.kind === 'enemy-protected') {
       const nearPlayer = distanceSquared(player, enemy) <= 9 || bodyConnectionContact(enemy, player, 3) !== null;
       if (!Number.isFinite(claim.normalCol) || !Number.isFinite(claim.normalRow) || !nearPlayer) return false;
+      const dashContact = claim.kind === 'enemy-head' && player.dashing;
+      if (dashContact && enemy.collisionCooldown > 0) return false;
       if (claim.kind === 'enemy-head') {
-        if (!this.isPlayerProtected(player)) this.resolvePlayerEnemyContact(player, enemy, enemy, -1, !isStaticEngineerJoint(enemy), now);
+        if (!this.isPlayerProtected(player) || dashContact) this.resolvePlayerEnemyContact(player, enemy, enemy, -1, !isStaticEngineerJoint(enemy), now);
       }
       if (isBombardierProjectile(enemy) && !enemy.dead) this.killEnemy(enemy, null);
-      if (!enemy.dead) this.bounceEntity(enemy, -claim.normalCol, -claim.normalRow, enemy.color, 1 + MODULE_PROGRESSION.effects.momentumKnockbackBonus(this.moduleCount(player, 'momentum')));
+      if (!enemy.dead && !dashContact) this.bounceEntity(enemy, -claim.normalCol, -claim.normalRow, enemy.color, 1 + MODULE_PROGRESSION.effects.momentumKnockbackBonus(this.moduleCount(player, 'momentum')));
       return true;
     }
     if (claim.kind === 'enemy-body') {
       const segment = enemy.segments[claim.segmentIndex];
-      if (!segment || distanceSquared(player, segment) > 9) return false;
+      if (!segment || enemy.collisionCooldown > 0 || distanceSquared(player, segment) > 9) return false;
       this.resolvePlayerEnemyContact(player, enemy, segment, claim.segmentIndex, false, now);
       return true;
     }
@@ -2484,6 +2495,8 @@ export class UltraWorld {
       spacing: SNAKE_SEGMENT_SPACING,
       reconnectElapsed: 0,
       reconnectGap: 0,
+      dashPushX: 0,
+      dashPushY: 0,
     }));
     const spawn: PendingSpawn = {
       id: this.nextEnemyId++,
@@ -2518,6 +2531,10 @@ export class UltraWorld {
       frostPotency: 0,
       knockbackX: 0,
       knockbackY: 0,
+      dashPushX: 0,
+      dashPushY: 0,
+      dashPushTimer: 0,
+      dashPushAnchorIndex: 0,
       corrosionStacks: 0,
       corrosionPotency: 0,
       corrosionTimer: 0,
@@ -2647,6 +2664,67 @@ export class UltraWorld {
     this.effectSound('shoot', player.entityId);
   }
 
+  private applyEnemyDashPush(player: PlayerEntity, enemy: EnemyEntity, segmentIndex: number): boolean {
+    if (
+      enemy.dead
+      || isStaticEngineerJoint(enemy)
+      || isBombardierProjectile(enemy)
+      || PLAYER_DASH_ENEMY_PUSH_SPEED <= 0
+    ) return false;
+    const nodeCount = enemy.segments.length + 1;
+    const anchorIndex = clamp(segmentIndex + 1, 0, nodeCount - 1);
+    const anchor = enemyNodeAt(enemy, anchorIndex);
+    let directionCol = anchor.col - player.col;
+    let directionRow = anchor.row - player.row;
+    let directionLength = Math.hypot(directionCol, directionRow);
+    if (directionLength < 0.001) {
+      directionCol = Math.cos(player.angle);
+      directionRow = Math.sin(player.angle);
+      directionLength = 1;
+    }
+    const impulseMultiplier = 1 + MODULE_PROGRESSION.effects.momentumKnockbackBonus(this.moduleCount(player, 'momentum'));
+    const speed = PLAYER_DASH_ENEMY_PUSH_SPEED * impulseMultiplier;
+    for (let nodeIndex = 0; nodeIndex < nodeCount; nodeIndex += 1) {
+      const node = enemyNodeAt(enemy, nodeIndex);
+      const propagation = PLAYER_DASH_ENEMY_PUSH_PROPAGATION ** Math.abs(nodeIndex - anchorIndex);
+      node.dashPushX = directionCol / directionLength * speed * propagation;
+      node.dashPushY = directionRow / directionLength * speed * propagation;
+    }
+    enemy.dashPushAnchorIndex = anchorIndex;
+    enemy.dashPushTimer = PLAYER_DASH_ENEMY_PUSH_DURATION;
+    enemy.collisionCooldown = Math.max(enemy.collisionCooldown, PLAYER_DASH_ENEMY_PUSH_DURATION);
+    return true;
+  }
+
+  private advanceEnemyDashPush(enemy: EnemyEntity, delta: number): void {
+    const timer = Math.max(0, enemy.dashPushTimer);
+    if (timer <= 0 || delta <= 0) return;
+    const activeDuration = Math.min(timer, delta);
+    const remaining = Math.max(0, timer - activeDuration);
+    const velocityScale = timer > 0 ? remaining / timer : 0;
+    const nodeCount = enemy.segments.length + 1;
+    for (let nodeIndex = 0; nodeIndex < nodeCount; nodeIndex += 1) {
+      const node = enemyNodeAt(enemy, nodeIndex);
+      node.col += node.dashPushX * activeDuration;
+      node.row += node.dashPushY * activeDuration;
+      const margin = nodeIndex === 0 ? this.enemyHeadRadiusCells(enemy) : this.enemySegmentRadiusCells(node);
+      const constrained = this.constrainArenaPoint(node.col, node.row, margin);
+      node.col = constrained.col;
+      node.row = constrained.row;
+      node.dashPushX *= velocityScale;
+      node.dashPushY *= velocityScale;
+    }
+    enemy.dashPushTimer = remaining;
+    if (remaining <= 0) {
+      enemy.dashPushAnchorIndex = 0;
+      for (let nodeIndex = 0; nodeIndex < nodeCount; nodeIndex += 1) {
+        const node = enemyNodeAt(enemy, nodeIndex);
+        node.dashPushX = 0;
+        node.dashPushY = 0;
+      }
+    }
+  }
+
   private applyPlayerDashCollisionAttack(
     player: PlayerEntity,
     enemy: EnemyEntity,
@@ -2655,6 +2733,8 @@ export class UltraWorld {
     hitHead: boolean,
   ): void {
     if (!player.dashing || enemy.dead) return;
+    enemy.collisionCooldown = Math.max(enemy.collisionCooldown, PLAYER_DASH_ENEMY_PUSH_DURATION);
+    this.applyEnemyDashPush(player, enemy, segmentIndex);
     let damage = this.playerHeadDamage(player, hitHead);
     const doubleChance = MODULE_PROGRESSION.effects.collisionDoubleChance(this.moduleCount(player, 'doublehit'));
     if (doubleChance > 0 && this.random() < doubleChance) damage *= 2;
@@ -3518,6 +3598,10 @@ export class UltraWorld {
       frostPotency: enemy.frostPotency,
       knockbackX: 0,
       knockbackY: 0,
+      dashPushX: 0,
+      dashPushY: 0,
+      dashPushTimer: 0,
+      dashPushAnchorIndex: 0,
       corrosionPotency: enemy.corrosionPotency,
       corrosionTimer: enemy.corrosionTimer,
       corrosionColor: enemy.corrosionColor,
@@ -3635,6 +3719,10 @@ export class UltraWorld {
       frostPotency: 0,
       knockbackX: 0,
       knockbackY: 0,
+      dashPushX: 0,
+      dashPushY: 0,
+      dashPushTimer: 0,
+      dashPushAnchorIndex: 0,
       corrosionPotency: 0,
       corrosionTimer: 0,
       corrosionColor: null,
@@ -3834,6 +3922,7 @@ export class UltraWorld {
       const linerBehavior = enemy.archetype === 'liner';
       const bombardierProjectile = isBombardierProjectile(enemy);
       enemy.collisionCooldown = Math.max(0, enemy.collisionCooldown - delta);
+      this.advanceEnemyDashPush(enemy, delta);
       if (staticJoint || engineerBehavior || bombardierBehavior || linerBehavior) {
         this.advanceEnemyBehaviorState(enemy, delta, presentPlayers);
       }
@@ -3910,10 +3999,13 @@ export class UltraWorld {
           this.resolveBodyIntercept(playerCollision.player, enemy, playerCollision.point);
         } else {
           const normal = collisionNormal(playerCollision.player, enemy);
+          const dashContact = playerCollision.player.dashing;
           this.resolvePlayerEnemyContact(playerCollision.player, enemy, enemy, -1, !isStaticEngineerJoint(enemy), this.now);
-          const knockbackMultiplier = enemy.archetype === 'warden' ? DESIGNER_BALANCE.enemyWardenKnockbackMultiplier : 1;
-          this.bounceEntity(playerCollision.player, normal.col, normal.row, '#dffcff', knockbackMultiplier, true);
-          if (!enemy.dead) this.bounceEntity(enemy, -normal.col, -normal.row, enemy.color, 1 + MODULE_PROGRESSION.effects.momentumKnockbackBonus(this.moduleCount(playerCollision.player, 'momentum')));
+          if (!dashContact) {
+            const knockbackMultiplier = enemy.archetype === 'warden' ? DESIGNER_BALANCE.enemyWardenKnockbackMultiplier : 1;
+            this.bounceEntity(playerCollision.player, normal.col, normal.row, '#dffcff', knockbackMultiplier, true);
+            if (!enemy.dead) this.bounceEntity(enemy, -normal.col, -normal.row, enemy.color, 1 + MODULE_PROGRESSION.effects.momentumKnockbackBonus(this.moduleCount(playerCollision.player, 'momentum')));
+          }
         }
         continue;
       }
@@ -3979,8 +4071,8 @@ export class UltraWorld {
       | { kind: 'protected'; player: PlayerEntity; point: GridPoint; progress: number }
       | null = null;
     for (const player of presentPlayers) {
-      const protectedPlayer = this.isPlayerProtected(player);
-      if ((protectedPlayer || player.collisionCooldown <= 0) && enemy.collisionCooldown <= 0) {
+      const protectedPlayer = this.isPlayerProtected(player) && !player.dashing;
+      if ((protectedPlayer || player.dashing || player.collisionCooldown <= 0) && enemy.collisionCooldown <= 0) {
         const headProgress = sweptContactProgress(start, end, player, this.playerHeadRadiusCells() + this.enemyHeadRadiusCells(enemy));
         if (headProgress !== null && (!nearest || headProgress < nearest.progress)) {
           nearest = protectedPlayer
@@ -4534,25 +4626,28 @@ export class UltraWorld {
           continue;
         }
       }
-      if (player.invulnerable <= 0 && player.collisionCooldown <= 0) {
+      if ((!this.isPlayerProtected(player) && player.collisionCooldown <= 0) || player.dashing) {
         for (const enemy of this.enemies) {
-          if (enemy.dead) continue;
+          if (enemy.dead || enemy.collisionCooldown > 0) continue;
           const segmentIndex = enemy.segments.findIndex((segment) => (
             Math.hypot(player.col - segment.col, player.row - segment.row)
               < this.playerHeadRadiusCells() + this.enemySegmentRadiusCells(segment)
           ));
           if (segmentIndex < 0) continue;
           const body = enemy.segments[segmentIndex];
+          const dashContact = player.dashing;
           this.resolvePlayerEnemyContact(player, enemy, body, segmentIndex, false, now);
-          if (player.alive) this.bounceEntity(player, player.col - body.col, player.row - body.row, enemy.color, 1, true);
+          if (player.alive && !dashContact) this.bounceEntity(player, player.col - body.col, player.row - body.row, enemy.color, 1, true);
           break;
         }
       }
       if (!player.alive) continue;
       for (const enemy of this.enemies) {
-        if (enemy.dead || Math.hypot(player.col - enemy.col, player.row - enemy.row) >= this.playerHeadRadiusCells() + this.enemyHeadRadiusCells(enemy) || player.collisionCooldown > 0 || enemy.collisionCooldown > 0) continue;
+        if (enemy.dead || Math.hypot(player.col - enemy.col, player.row - enemy.row) >= this.playerHeadRadiusCells() + this.enemyHeadRadiusCells(enemy) || (!player.dashing && player.collisionCooldown > 0) || enemy.collisionCooldown > 0) continue;
         const normal = collisionNormal(player, enemy);
-        if (!this.isPlayerProtected(player)) this.resolvePlayerEnemyContact(player, enemy, enemy, -1, !isStaticEngineerJoint(enemy), now);
+        const dashContact = player.dashing;
+        if (!this.isPlayerProtected(player) || dashContact) this.resolvePlayerEnemyContact(player, enemy, enemy, -1, !isStaticEngineerJoint(enemy), now);
+        if (dashContact) continue;
         const knockbackMultiplier = enemy.archetype === 'warden' ? DESIGNER_BALANCE.enemyWardenKnockbackMultiplier : 1;
         this.bounceEntity(player, normal.col, normal.row, '#dffcff', knockbackMultiplier, true);
         if (!enemy.dead) this.bounceEntity(enemy, -normal.col, -normal.row, enemy.color, 1 + MODULE_PROGRESSION.effects.momentumKnockbackBonus(this.moduleCount(player, 'momentum')));
@@ -5603,30 +5698,48 @@ function beginEnemyReconnect(enemy: EnemyEntity, index: number): void {
   segment.reconnectGap = gap;
 }
 
-function followEnemySegments(enemy: EnemyEntity, delta: number): void {
-  let previous: EnemyEntity | EnemySegment = enemy;
-  let previousIsHead = true;
-  for (const segment of enemy.segments) {
-    const targetSpacing = enemyJointSpacing(previous, previousIsHead, segment);
-    segment.spacing = ENEMY_ARMOR.smoothSpacing(
-      segment.spacing,
-      targetSpacing,
-      delta,
-      ENEMY_ARMOR_TUNING.spacingResponse,
-    );
-    let allowedDistance = segment.spacing;
-    if (segment.reconnectGap > targetSpacing) {
-      segment.reconnectElapsed = Math.min(ENEMY_BODY_RECONNECT_DURATION, segment.reconnectElapsed + delta);
-      const progress = ENEMY_BODY_RECONNECT_DURATION <= 0
-        ? 1
-        : clamp(segment.reconnectElapsed / ENEMY_BODY_RECONNECT_DURATION, 0, 1);
-      const eased = 1 - (1 - progress) ** 3;
-      allowedDistance += (segment.reconnectGap - targetSpacing) * (1 - eased);
-      if (progress >= 1) {
-        segment.reconnectElapsed = 0;
-        segment.reconnectGap = 0;
-      }
+function enemyNodeAt(enemy: EnemyEntity, nodeIndex: number): EnemyEntity | EnemySegment {
+  return nodeIndex === 0 ? enemy : enemy.segments[nodeIndex - 1];
+}
+
+function enemyAllowedLinkDistance(
+  segment: EnemySegment,
+  previous: EnemyEntity | EnemySegment,
+  previousIsHead: boolean,
+  delta: number,
+): number {
+  const targetSpacing = enemyJointSpacing(previous, previousIsHead, segment);
+  segment.spacing = ENEMY_ARMOR.smoothSpacing(
+    segment.spacing,
+    targetSpacing,
+    delta,
+    ENEMY_ARMOR_TUNING.spacingResponse,
+  );
+  let allowedDistance = segment.spacing;
+  if (segment.reconnectGap > targetSpacing) {
+    segment.reconnectElapsed = Math.min(ENEMY_BODY_RECONNECT_DURATION, segment.reconnectElapsed + delta);
+    const progress = ENEMY_BODY_RECONNECT_DURATION <= 0
+      ? 1
+      : clamp(segment.reconnectElapsed / ENEMY_BODY_RECONNECT_DURATION, 0, 1);
+    const eased = 1 - (1 - progress) ** 3;
+    allowedDistance += (segment.reconnectGap - targetSpacing) * (1 - eased);
+    if (progress >= 1) {
+      segment.reconnectElapsed = 0;
+      segment.reconnectGap = 0;
     }
+  }
+  return allowedDistance;
+}
+
+function followEnemySegments(enemy: EnemyEntity, delta: number): void {
+  const nodeCount = enemy.segments.length + 1;
+  const anchorIndex = enemy.dashPushTimer > 0
+    ? clamp(Math.round(enemy.dashPushAnchorIndex), 0, nodeCount - 1)
+    : 0;
+  for (let linkIndex = anchorIndex; linkIndex < enemy.segments.length; linkIndex += 1) {
+    const previous = enemyNodeAt(enemy, linkIndex);
+    const segment = enemy.segments[linkIndex];
+    const allowedDistance = enemyAllowedLinkDistance(segment, previous, linkIndex === 0, delta);
     const dx = previous.col - segment.col;
     const dy = previous.row - segment.row;
     const distance = Math.hypot(dx, dy) || 1;
@@ -5634,8 +5747,18 @@ function followEnemySegments(enemy: EnemyEntity, delta: number): void {
       segment.col = previous.col - dx / distance * allowedDistance;
       segment.row = previous.row - dy / distance * allowedDistance;
     }
-    previous = segment;
-    previousIsHead = false;
+  }
+  for (let linkIndex = anchorIndex - 1; linkIndex >= 0; linkIndex -= 1) {
+    const previous = enemyNodeAt(enemy, linkIndex);
+    const segment = enemy.segments[linkIndex];
+    const allowedDistance = enemyAllowedLinkDistance(segment, previous, linkIndex === 0, delta);
+    const dx = previous.col - segment.col;
+    const dy = previous.row - segment.row;
+    const distance = Math.hypot(dx, dy) || 1;
+    if (distance > allowedDistance) {
+      previous.col = segment.col + dx / distance * allowedDistance;
+      previous.row = segment.row + dy / distance * allowedDistance;
+    }
   }
 }
 
