@@ -56,6 +56,11 @@ export const PLAYER_DASH_MINIMUM_DURATION = DESIGNER_BALANCE.playerDashMinimumDu
 export const PLAYER_DASH_START_ENERGY = DESIGNER_BALANCE.playerDashStartEnergy;
 export const PLAYER_DASH_SPEED_MULTIPLIER = DESIGNER_BALANCE.playerDashSpeedMultiplier;
 export const PLAYER_DASH_COLLISION_DAMAGE = DESIGNER_BALANCE.playerDashCollisionDamage;
+export const PLAYER_DASH_PARTICLE_RATE = DESIGNER_BALANCE.playerDashParticleRate;
+export const PLAYER_DASH_PARTICLE_SPEED = DESIGNER_BALANCE.playerDashParticleSpeed;
+export const PLAYER_DASH_PARTICLE_LIFETIME = DESIGNER_BALANCE.playerDashParticleLifetime;
+export const PLAYER_DASH_PARTICLE_SIZE = DESIGNER_BALANCE.playerDashParticleSize;
+export const PLAYER_DASH_PARTICLE_SPREAD = DESIGNER_BALANCE.playerDashParticleSpreadDegrees * Math.PI / 180;
 export const PLAYER_BODY_INTERCEPT_DAMAGE = DESIGNER_BALANCE.playerBodyInterceptDamage;
 export const PLAYER_DASH_TUNING = Object.freeze({
   maximumEnergy: PLAYER_ENERGY_MAXIMUM,

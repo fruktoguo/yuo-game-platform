@@ -1,5 +1,5 @@
 globalThis.GSS0_DESIGNER_CONFIG = {
-  "schemaVersion": 56,
+  "schemaVersion": 57,
   "balance": {
     "playerBaseSpeed": 5,
     "snakeBodySizeScale": 0.775,
@@ -25,6 +25,11 @@ globalThis.GSS0_DESIGNER_CONFIG = {
     "playerDashStartEnergy": 30,
     "playerDashSpeedMultiplier": 2,
     "playerDashCollisionDamage": 2,
+    "playerDashParticleRate": 36,
+    "playerDashParticleSpeed": 130,
+    "playerDashParticleLifetime": 0.4,
+    "playerDashParticleSize": 2.8,
+    "playerDashParticleSpreadDegrees": 24,
     "playerBodyInterceptDamage": 1,
     "xpRequirementPerTargetLevel": 5,
     "maxModuleLevel": 5,

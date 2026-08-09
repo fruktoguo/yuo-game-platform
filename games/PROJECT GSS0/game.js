@@ -147,7 +147,7 @@
   const TAU = Math.PI * 2;
   const P2P_TOAST_DURATION_MS = 2800;
   const DESIGNER_CONFIG = globalThis.GSS0_DESIGNER_CONFIG || {};
-  if (DESIGNER_CONFIG.schemaVersion !== 56) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 56");
+  if (DESIGNER_CONFIG.schemaVersion !== 57) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 57");
   const DESIGNER_BALANCE = DESIGNER_CONFIG.balance || {};
   const MODULE_DESIGN_STATES = DESIGNER_CONFIG.moduleStates || {};
   const arenaGeometry = globalThis.GSS0ArenaGeometry;
@@ -496,6 +496,11 @@
   const PLAYER_DAMAGE_SHAKE_STRENGTH = designerNumber("playerDamageShakeStrength", 9, 0, 30);
   const PLAYER_DAMAGE_PARTICLE_COUNT = designerNumber("playerDamageParticleCount", 26, 0, 200, true);
   const PLAYER_DAMAGE_PARTICLE_SPEED = designerNumber("playerDamageParticleSpeed", 190, 0, 1000);
+  const PLAYER_DASH_PARTICLE_RATE = designerNumber("playerDashParticleRate", 36, 0, 120, true);
+  const PLAYER_DASH_PARTICLE_SPEED = designerNumber("playerDashParticleSpeed", 130, 0, 1000);
+  const PLAYER_DASH_PARTICLE_LIFETIME = designerNumber("playerDashParticleLifetime", 0.4, 0.05, 3);
+  const PLAYER_DASH_PARTICLE_SIZE = designerNumber("playerDashParticleSize", 2.8, 0.5, 12);
+  const PLAYER_DASH_PARTICLE_SPREAD = designerNumber("playerDashParticleSpreadDegrees", 24, 0, 180) * Math.PI / 180;
   const ENEMY_DAMAGE_NUMBER_DURATION = designerNumber("enemyDamageNumberDuration", 0.82, 0.1, 3);
   const COMBAT_TEXT_FONT_SIZE = designerNumber("combatTextFontSize", 38, 8, 96, true);
   const FOOD_BIRTH_DURATION = designerNumber("foodBirthDuration", 0.36, 0.05, 2);
@@ -655,6 +660,10 @@
     select: Object.freeze([480, 760, 0.13, "sine", 0.042]),
     shield: Object.freeze([760, 240, 0.2, "sine", 0.05, 1040]),
     death: Object.freeze([170, 45, 0.48, "sawtooth", 0.065, 75])
+  });
+  const SOUND_ALIASES = Object.freeze({
+    dashStart: "resume",
+    dashEnd: "pause"
   });
   let soundVolume = loadSetting("ultra-snake-volume", 1, 0, SOUND_MAX_VOLUME);
   let fontScale = loadSetting("ultra-snake-font-scale", 1.5, 0.5, 2);
@@ -4139,6 +4148,9 @@
       if (!player.ghost) claimNetworkFoodContacts();
     }
     applyNetworkPlayerHeadCollisionOffsets(now);
+    for (const visiblePlayer of visiblePlayers) {
+      updatePlayerDashPresentation(visiblePlayer, dt, Boolean(visiblePlayer.isSelf));
+    }
     updateEffects(dt);
     if (network.lastHudTick !== network.presentationSnapshot?.tick) {
       network.lastHudTick = network.presentationSnapshot?.tick ?? -1;
@@ -5119,7 +5131,7 @@
     if (cooldown && wallTime - (lastSoundAt[cooldownKey] || 0) < cooldown) return;
     lastSoundAt[cooldownKey] = wallTime;
 
-    const settings = SOUND_SETTINGS[kind];
+    const settings = SOUND_SETTINGS[SOUND_ALIASES[kind] || kind];
     if (!settings) return;
 
     const [from, to, duration, type, baseVolume, accent] = settings;
@@ -6195,6 +6207,7 @@
     applyKnockbackDecay(player, dt);
     syncNodePosition(player);
     advancePlayerBodyPath(player);
+    updatePlayerDashPresentation(player, dt, true);
     updateCorrosionFieldTrail(previousCol, previousRow);
   }
 
@@ -8718,21 +8731,74 @@
     }
   }
 
-  function burst(x, y, color, count, speed) {
+  function acquireParticle() {
     if (particles.length === 0) nextParticleSlot = 0;
+    if (particles.length < MAX_DECORATIVE_PARTICLES) {
+      const particle = particlePool.pop() || {};
+      particles.push(particle);
+      return particle;
+    }
+    const particle = particles[nextParticleSlot];
+    nextParticleSlot = (nextParticleSlot + 1) % MAX_DECORATIVE_PARTICLES;
+    return particle;
+  }
+
+  function emitPlayerDashParticles(target, dt) {
+    if (PLAYER_DASH_PARTICLE_RATE <= 0 || dt <= 0) return;
+    const previousX = Number.isFinite(target.dashParticleLastX) ? target.dashParticleLastX : target.x;
+    const previousY = Number.isFinite(target.dashParticleLastY) ? target.dashParticleLastY : target.y;
+    target.dashParticleAccumulator = Math.max(0, Number(target.dashParticleAccumulator) || 0) + dt * PLAYER_DASH_PARTICLE_RATE;
+    const emissionCount = Math.floor(target.dashParticleAccumulator);
+    target.dashParticleAccumulator -= emissionCount;
+    target.dashParticleLastX = target.x;
+    target.dashParticleLastY = target.y;
+    if (emissionCount <= 0) return;
+
+    const scale = arenaVisualScale();
+    const particleSpeed = PLAYER_DASH_PARTICLE_SPEED * scale;
+    const particleSize = PLAYER_DASH_PARTICLE_SIZE * scale;
+    const headRadius = Number.isFinite(target.radius) ? target.radius : playerHeadRadiusPixels();
+    const rearAngle = target.angle + Math.PI;
+    const lateralAngle = target.angle + Math.PI / 2;
+    for (let index = 0; index < emissionCount; index += 1) {
+      const progress = (index + 1) / (emissionCount + 1);
+      const centerX = previousX + (target.x - previousX) * progress;
+      const centerY = previousY + (target.y - previousY) * progress;
+      const lateralOffset = random(-particleSize, particleSize);
+      const angle = rearAngle + random(-PLAYER_DASH_PARTICLE_SPREAD, PLAYER_DASH_PARTICLE_SPREAD);
+      const particle = acquireParticle();
+      particle.x = centerX + Math.cos(rearAngle) * headRadius + Math.cos(lateralAngle) * lateralOffset;
+      particle.y = centerY + Math.sin(rearAngle) * headRadius + Math.sin(lateralAngle) * lateralOffset;
+      particle.vx = Math.cos(angle) * particleSpeed;
+      particle.vy = Math.sin(angle) * particleSpeed;
+      particle.life = PLAYER_DASH_PARTICLE_LIFETIME;
+      particle.maxLife = PLAYER_DASH_PARTICLE_LIFETIME;
+      particle.color = "#63eaff";
+      particle.size = particleSize;
+    }
+  }
+
+  function updatePlayerDashPresentation(target, dt, localAudio = false) {
+    if (!target) return;
+    const active = Boolean(target.dashing) && !target.ghost;
+    const wasActive = Boolean(target.dashPresentationActive);
+    if (active !== wasActive) {
+      target.dashPresentationActive = active;
+      target.dashParticleAccumulator = 0;
+      target.dashParticleLastX = target.x;
+      target.dashParticleLastY = target.y;
+      if (localAudio) sound(active ? "dashStart" : "dashEnd");
+    }
+    if (active) emitPlayerDashParticles(target, dt);
+  }
+
+  function burst(x, y, color, count, speed) {
     const scale = arenaVisualScale();
     for (let index = 0; index < count; index += 1) {
       const angle = random(0, TAU);
       const velocity = random(speed * 0.25, speed) * scale;
       const life = random(0.25, 0.75);
-      let particle;
-      if (particles.length < MAX_DECORATIVE_PARTICLES) {
-        particle = particlePool.pop() || {};
-        particles.push(particle);
-      } else {
-        particle = particles[nextParticleSlot];
-        nextParticleSlot = (nextParticleSlot + 1) % MAX_DECORATIVE_PARTICLES;
-      }
+      const particle = acquireParticle();
       particle.x = x;
       particle.y = y;
       particle.vx = Math.cos(angle) * velocity;
@@ -9964,7 +10030,9 @@
       context.fillRect(-6, -2, 20, 4);
       context.fillRect(0, -8, 4, 16);
     } else if (enemy.archetype === "headhunter") {
-      context.moveTo(21, 0); context.lineTo(7, 7); context.lineTo(10, 0); context.lineTo(7, -7); context.closePath(); context.fill();
+      if (headHunterArrowVisible(enemy)) {
+        context.moveTo(21, 0); context.lineTo(7, 7); context.lineTo(10, 0); context.lineTo(7, -7); context.closePath(); context.fill();
+      }
     } else if (enemy.archetype === "engineer") {
       context.strokeStyle = enemy.color;
       context.lineWidth = 2;
@@ -9994,8 +10062,15 @@
     context.fillRect(4, 4, 2, 3);
   }
 
+  function headHunterArrowVisible(enemy) {
+    return enemy.archetype === "headhunter" && (enemy.behaviorState === "aim" || enemy.behaviorState === "lock");
+  }
+
   function enemySprite(kind, enemy) {
-    const key = `${kind}:${enemy.archetype}:${enemy.color}`;
+    const headHunterArrowVariant = kind === "head" && enemy.archetype === "headhunter"
+      ? (headHunterArrowVisible(enemy) ? ":arrow" : ":rush")
+      : "";
+    const key = kind + ":" + enemy.archetype + ":" + enemy.color + headHunterArrowVariant;
     let sprite = enemySpriteCache.get(key);
     if (sprite) return sprite;
     const size = kind === "head" ? 112 : 64;

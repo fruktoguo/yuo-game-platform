@@ -13,7 +13,7 @@ interface DesignerConfigSource {
 }
 
 const source = (globalThis as typeof globalThis & { GSS0_DESIGNER_CONFIG?: DesignerConfigSource }).GSS0_DESIGNER_CONFIG;
-if (source?.schemaVersion !== 56) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 56');
+if (source?.schemaVersion !== 57) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 57');
 
 function numberSetting(key: string, fallback: number, minimum: number, maximum: number, integer = false): number {
   const candidate = source?.balance?.[key];
@@ -74,6 +74,11 @@ export const DESIGNER_BALANCE = Object.freeze({
   playerDashStartEnergy: numberSetting('playerDashStartEnergy', 30, 0, 10_000),
   playerDashSpeedMultiplier: numberSetting('playerDashSpeedMultiplier', 2, 0, 20),
   playerDashCollisionDamage: numberSetting('playerDashCollisionDamage', 2, 0, 1_000, true),
+  playerDashParticleRate: numberSetting('playerDashParticleRate', 36, 0, 120, true),
+  playerDashParticleSpeed: numberSetting('playerDashParticleSpeed', 130, 0, 1_000),
+  playerDashParticleLifetime: numberSetting('playerDashParticleLifetime', 0.4, 0.05, 3),
+  playerDashParticleSize: numberSetting('playerDashParticleSize', 2.8, 0.5, 12),
+  playerDashParticleSpreadDegrees: numberSetting('playerDashParticleSpreadDegrees', 24, 0, 180),
   playerBodyInterceptDamage: numberSetting('playerBodyInterceptDamage', 1, 0, 1_000, true),
   enemyCollisionDamage: numberSetting('enemyCollisionDamage', 1, 0, 1_000, true),
   xpRequirementPerTargetLevel: numberSetting('xpRequirementPerTargetLevel', 5, 1, 1_000, true),
