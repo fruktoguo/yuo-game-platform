@@ -147,7 +147,7 @@
   const TAU = Math.PI * 2;
   const P2P_TOAST_DURATION_MS = 2800;
   const DESIGNER_CONFIG = globalThis.GSS0_DESIGNER_CONFIG || {};
-  if (DESIGNER_CONFIG.schemaVersion !== 57) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 57");
+  if (DESIGNER_CONFIG.schemaVersion !== 58) throw new Error("PROJECT GSS0 设计配置版本无效，需要 schemaVersion 58");
   const DESIGNER_BALANCE = DESIGNER_CONFIG.balance || {};
   const MODULE_DESIGN_STATES = DESIGNER_CONFIG.moduleStates || {};
   const arenaGeometry = globalThis.GSS0ArenaGeometry;
@@ -457,6 +457,7 @@
     coilerFoodRange: designerNumber("enemyCoilerFoodRange", 6, 0, 30),
     wardenFoodRange: designerNumber("enemyWardenFoodRange", 6, 0, 30),
     wardenKnockbackMultiplier: designerNumber("enemyWardenKnockbackMultiplier", 2, 1, 4),
+    linerWarningDuration: designerNumber("enemyLinerWarningDuration", 0.9, 0, 10),
     linerWarningLengthCells: designerNumber("enemyLinerWarningLengthCells", 2.8, 0.5, 10),
     linerWarningWidthCells: designerNumber("enemyLinerWarningWidthCells", 0.18, 0.03, 1),
     linerWarningPulseRate: designerNumber("enemyLinerWarningPulseRate", 2.4, 0, 12),
@@ -3583,6 +3584,12 @@
     }
     spawn.id = item.id;
     spawn.archetype = item.archetype;
+    spawn.behaviorState = item.archetype === "liner"
+      ? "straight"
+      : item.archetype === "headhunter"
+        ? "aim"
+        : "roam";
+    spawn.behaviorPhase = item.archetype === "liner" || item.archetype === "headhunter" ? 0 : 1;
     spawn.color = item.color;
     spawn.angle = Number(item.angle) || 0;
     spawn.timer = Number(item.timer) || 0;
@@ -6138,6 +6145,7 @@
         entity.knockbackY = 0;
       }
       if (entity.archetype === "skitter") entity.behaviorTimer = 0;
+      if (entity.archetype === "liner") beginLinerWarning(entity);
       if (entity.archetype === "headhunter") {
         entity.needsReacquire = true;
         entity.behaviorDuration = 0;
@@ -7315,7 +7323,6 @@
       enemy.target = null;
       enemy.behaviorState = "straight";
       enemy.desiredAngle = enemy.angle;
-      enemy.behaviorPhase = 1;
       return;
     }
     if (enemy.archetype === "skitter") {
@@ -7401,7 +7408,6 @@
     if (enemy.archetype === "liner") {
       enemy.desiredAngle = enemy.angle;
       enemy.behaviorState = "straight";
-      enemy.behaviorPhase = 1;
       return;
     }
     if (enemy.archetype === "skitter") {
@@ -7458,6 +7464,15 @@
     enemy.desiredAngle += Math.sin(gameTime + enemy.wobble) * 0.05;
   }
 
+  function beginLinerWarning(enemy) {
+    const duration = Math.max(0, ENEMY_BEHAVIOR_TUNING.linerWarningDuration);
+    enemy.behaviorState = "straight";
+    enemy.behaviorDuration = duration;
+    enemy.behaviorTimer = duration;
+    enemy.behaviorPhase = duration > 0 ? 0 : 1;
+    enemy.lockedAngle = enemy.angle;
+  }
+
   function initializeQueuedEnemyBehavior(enemy) {
     if (enemy.archetype === "engineer") {
       enemy.behaviorState = "roam";
@@ -7477,9 +7492,7 @@
       const angle = enemyBehaviorApi.randomAngle(Math.random);
       enemy.angle = angle;
       enemy.desiredAngle = angle;
-      enemy.lockedAngle = angle;
-      enemy.behaviorState = "straight";
-      enemy.behaviorPhase = 1;
+      beginLinerWarning(enemy);
       return;
     }
     if (enemy.archetype === "skitter") {
@@ -7728,6 +7741,15 @@
   }
 
   function advanceEnemyBehaviorState(enemy, dt) {
+    if (enemy.archetype === "liner") {
+      const duration = Math.max(0, enemy.behaviorDuration || 0);
+      enemy.behaviorState = "straight";
+      enemy.behaviorTimer = Math.max(0, (enemy.behaviorTimer || 0) - dt);
+      enemy.behaviorPhase = duration > 0
+        ? clamp(1 - enemy.behaviorTimer / duration, 0, 1)
+        : 1;
+      return;
+    }
     if (enemy.archetype === "bombardier") {
       advanceBombardierBehavior(enemy, dt);
       return;
@@ -7843,9 +7865,10 @@
       const staticJoint = isStaticEngineerJoint(enemy);
       const engineerBehavior = enemy.archetype === "engineer";
       const bombardierBehavior = enemy.archetype === "bombardier";
+      const linerBehavior = enemy.archetype === "liner";
       const bombardierProjectile = isBombardierProjectile(enemy);
       enemy.collisionCooldown = Math.max(0, enemy.collisionCooldown - dt);
-      if (staticJoint || engineerBehavior || bombardierBehavior) {
+      if (staticJoint || engineerBehavior || bombardierBehavior || linerBehavior) {
         advanceEnemyBehaviorState(enemy, dt);
       }
       if (staticJoint) {
@@ -7855,7 +7878,7 @@
         enemy.angle = enemy.lockedAngle;
         enemy.desiredAngle = enemy.lockedAngle;
       } else if (enemy.collisionCooldown <= 0) {
-        if (!engineerBehavior && !bombardierBehavior) advanceEnemyBehaviorState(enemy, dt);
+        if (!engineerBehavior && !bombardierBehavior && !linerBehavior) advanceEnemyBehaviorState(enemy, dt);
         enemy.think -= dt;
         if (enemy.think <= 0) {
           enemy.think = random(Math.min(ENEMY_THINK_INTERVAL_MIN, ENEMY_THINK_INTERVAL_MAX), Math.max(ENEMY_THINK_INTERVAL_MIN, ENEMY_THINK_INTERVAL_MAX));
@@ -10025,12 +10048,14 @@
       context.fillStyle = "#ffffff";
       context.fillRect(-8, -5, 2, 10);
     } else if (enemy.archetype === "liner") {
-      context.moveTo(20, 0); context.lineTo(6, 7); context.lineTo(9, 0); context.lineTo(6, -7); context.closePath(); context.fill();
+      if (temporaryEnemyArrowVisible(enemy)) {
+        context.moveTo(20, 0); context.lineTo(6, 7); context.lineTo(9, 0); context.lineTo(6, -7); context.closePath(); context.fill();
+      }
     } else if (enemy.archetype === "skitter") {
       context.fillRect(-6, -2, 20, 4);
       context.fillRect(0, -8, 4, 16);
     } else if (enemy.archetype === "headhunter") {
-      if (headHunterArrowVisible(enemy)) {
+      if (temporaryEnemyArrowVisible(enemy)) {
         context.moveTo(21, 0); context.lineTo(7, 7); context.lineTo(10, 0); context.lineTo(7, -7); context.closePath(); context.fill();
       }
     } else if (enemy.archetype === "engineer") {
@@ -10062,15 +10087,21 @@
     context.fillRect(4, 4, 2, 3);
   }
 
-  function headHunterArrowVisible(enemy) {
-    return enemy.archetype === "headhunter" && (enemy.behaviorState === "aim" || enemy.behaviorState === "lock");
+  function temporaryEnemyArrowVisible(enemy) {
+    if (enemy.archetype === "liner") {
+      const phase = Number.isFinite(enemy.behaviorPhase) ? enemy.behaviorPhase : 1;
+      return enemy.behaviorState === "straight" && phase < 1;
+    }
+    return (enemy.archetype === "headhunter" || enemy.archetype === "bombardier")
+      && (enemy.behaviorState === "aim" || enemy.behaviorState === "lock");
   }
 
   function enemySprite(kind, enemy) {
-    const headHunterArrowVariant = kind === "head" && enemy.archetype === "headhunter"
-      ? (headHunterArrowVisible(enemy) ? ":arrow" : ":rush")
+    const usesTemporaryHeadArrow = kind === "head" && (enemy.archetype === "liner" || enemy.archetype === "headhunter");
+    const temporaryHeadArrowVariant = usesTemporaryHeadArrow
+      ? (temporaryEnemyArrowVisible(enemy) ? ":arrow" : ":plain")
       : "";
-    const key = kind + ":" + enemy.archetype + ":" + enemy.color + headHunterArrowVariant;
+    const key = kind + ":" + enemy.archetype + ":" + enemy.color + temporaryHeadArrowVariant;
     let sprite = enemySpriteCache.get(key);
     if (sprite) return sprite;
     const size = kind === "head" ? 112 : 64;
@@ -10514,7 +10545,7 @@
   }
 
   function drawLinerCourseWarning(enemy, time, pieceScale) {
-    if (enemy.archetype !== "liner") return;
+    if (enemy.archetype !== "liner" || !temporaryEnemyArrowVisible(enemy)) return;
     const pulse = 0.72 + (Math.sin(time * TAU * ENEMY_BEHAVIOR_TUNING.linerWarningPulseRate) + 1) * 0.1;
     const startDistance = enemyHeadRadiusPixels(enemy) * 0.48;
     const length = arena.cellSize * ENEMY_BEHAVIOR_TUNING.linerWarningLengthCells;
@@ -10544,7 +10575,7 @@
   }
 
   function drawBombardierFireWarning(enemy, time, pieceScale) {
-    if (enemy.archetype !== "bombardier" || !["aim", "lock"].includes(enemy.behaviorState)) return;
+    if (enemy.archetype !== "bombardier" || !temporaryEnemyArrowVisible(enemy)) return;
     const locked = enemy.behaviorState === "lock";
     const angle = locked && Number.isFinite(enemy.lockedAngle) ? enemy.lockedAngle : enemy.angle;
     const pulseWave = (Math.sin(time * TAU * ENEMY_BEHAVIOR_TUNING.bombardierWarningPulseRate) + 1) * 0.5;

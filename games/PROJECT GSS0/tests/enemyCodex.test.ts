@@ -89,6 +89,20 @@ describe('敌人图鉴', () => {
     expect(parameters).toContainEqual({ label: '锁定时长', value: '0.22秒' });
   });
 
+  it('全部战斗箭头共用临时预警判定，直行体出生与反弹都会重启预警窗', () => {
+    const linerParameters = codex.resolveParameters('liner', {
+      enemyLinerWarningDuration: 0.9,
+    });
+
+    expect(linerParameters).toContainEqual({ label: '预警时长', value: '0.9秒' });
+    expect(gameSource).toContain('function temporaryEnemyArrowVisible(enemy)');
+    expect(gameSource).toContain('return enemy.behaviorState === "straight" && phase < 1;');
+    expect(gameSource).toContain('(enemy.archetype === "headhunter" || enemy.archetype === "bombardier")');
+    expect(gameSource).toContain('if (entity.archetype === "liner") beginLinerWarning(entity);');
+    expect(serverSource).toContain("if (entity.archetype === 'liner') this.beginLinerWarning(entity);");
+    expect(gameSource).not.toContain('headHunterArrowVisible');
+  });
+
   it('轰击体资料区分本体参数、障碍弹与分离式预警', () => {
     const parameters = codex.resolveParameters('bombardier', {
       enemyBombardierUnlockSeconds: 180,
@@ -118,20 +132,20 @@ describe('敌人图鉴', () => {
     expect(indexHtml).toContain('id="enemy-codex-button"');
     expect(indexHtml).toContain('id="enemy-codex-screen"');
     expect(indexHtml).toContain('id="enemy-codex-list"');
-    expect(indexHtml).toContain('src="enemy-codex.js?v=155"');
+    expect(indexHtml).toContain('src="enemy-codex.js?v=156"');
     expect(gameSource).toContain('function renderEnemyCodex()');
     expect(gameSource).toContain('ui.enemyCodexButton.addEventListener("click", openEnemyCodex);');
     expect(gameSource).toContain('ui.enemyCodexCloseButton.addEventListener("click", closeEnemyCodex);');
     expect(styles).toContain('.enemy-codex-card');
     expect(styles).toContain('.enemy-codex-parameters');
     expect(gameSource).toContain('window.GSS0EnemyCodex.resolveParameters(entry.id, DESIGNER_BALANCE)');
-    expect(indexHtml).toContain('<span>连接式实心箭头表示敌人本体将沿该方向冲撞</span>');
-    expect(indexHtml).toContain('<span>分离式空心箭头与圆弹符号表示轰击弹道</span>');
+    expect(indexHtml).toContain('<span>连接式实心箭头仅在直行体出生或反弹改向后短暂提示本体冲撞</span>');
+    expect(indexHtml).toContain('<span>分离式空心箭头与圆弹符号仅在轰击体瞄准或锁定时提示弹道</span>');
     expect(styles).toContain('grid-template-columns: minmax(300px, 0.86fr) minmax(300px, 1fr);');
   });
 
   it('设计控制台复用敌人资料与身体预览，并把专属参数放入第三页', () => {
-    expect(editorHtml).toContain('src="enemy-codex.js?v=155"');
+    expect(editorHtml).toContain('src="enemy-codex.js?v=156"');
     expect(editorHtml).toContain('enemyCodex.entries.map((entry) =>');
     expect(editorHtml).toContain('enemyCodex.drawPreview(canvas, entry.id);');
     expect(editorHtml).toContain('ui.enemiesView.hidden = tab.dataset.view !== "enemies";');

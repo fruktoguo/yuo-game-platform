@@ -406,12 +406,12 @@
     </div>
   </main>
 
-  <script src="enemy-codex.js?v=155"></script>
-  <script src="wave-director.js?v=155"></script>
-  <script src="designer-config.js?v=155"></script>
-  <script src="status-catalog.js?v=155"></script>
-  <script src="module-catalog.js?v=155"></script>
-  <script src="module-progression.js?v=155"></script>
+  <script src="enemy-codex.js?v=156"></script>
+  <script src="wave-director.js?v=156"></script>
+  <script src="designer-config.js?v=156"></script>
+  <script src="status-catalog.js?v=156"></script>
+  <script src="module-catalog.js?v=156"></script>
+  <script src="module-progression.js?v=156"></script>
   <script>
     (() => {
       "use strict";
@@ -573,6 +573,7 @@
         { key: "enemyLinerHealthWeight", group: "直行体", label: "生命权重", hint: "直行体在同波总威胁分配中的相对生命份额", min: 0.01, max: 20, step: 0.05, unit: "权重" },
         { key: "enemyLinerSpeedMultiplier", group: "直行体", label: "速度倍率", hint: "直行体相对全局敌人速度的倍率", min: 0.1, max: 3, step: 0.01, unit: "倍" },
         { key: "enemyLinerTurnMultiplier", group: "直行体", label: "转向倍率", hint: "保留的通用转向参数；直行行为本身不会主动使用它改变方向", min: 0.1, max: 3, step: 0.01, unit: "倍" },
+        { key: "enemyLinerWarningDuration", group: "直行体", label: "临时预警时长", hint: "直行体出生或反弹改向后，头部与路线箭头继续显示的时间；0 表示不显示", min: 0, max: 10, step: 0.05, unit: "秒" },
         { key: "enemyLinerWarningLengthCells", group: "直行体", label: "实心预警长度", hint: "从直行体头部向运动方向连接伸出的实心箭头长度", min: 0.5, max: 10, step: 0.05, unit: "格" },
         { key: "enemyLinerWarningWidthCells", group: "直行体", label: "实心预警宽度", hint: "连接式实心预警箭杆的宽度", min: 0.03, max: 1, step: 0.01, unit: "格" },
         { key: "enemyLinerWarningPulseRate", group: "直行体", label: "实心预警脉冲", hint: "连接式实心箭头每秒明暗脉冲次数；0 表示静止亮度", min: 0, max: 12, step: 0.1, unit: "次/秒" },
@@ -824,7 +825,7 @@
       const filePickerSupported = typeof window.showOpenFilePicker === "function";
 
       function normalizeConfig(value) {
-        const config = { schemaVersion: 57, balance: {}, waveSpawnSchedule: [], moduleCooldownPercentages: {}, moduleNames: {}, moduleInitialUpgrades: {}, moduleStates: {} };
+        const config = { schemaVersion: 58, balance: {}, waveSpawnSchedule: [], moduleCooldownPercentages: {}, moduleNames: {}, moduleInitialUpgrades: {}, moduleStates: {} };
         for (const definition of ALL_PARAMETER_DEFINITIONS) {
           const candidate = Number(value?.balance?.[definition.key]);
           config.balance[definition.key] = Number.isFinite(candidate) ? Math.max(definition.min, Math.min(definition.max, candidate)) : definition.min;
@@ -869,7 +870,7 @@
         const end = text.lastIndexOf("}");
         if (start < 0 || end <= start) throw new Error("配置内容不完整");
         const parsed = JSON.parse(text.slice(start, end + 1));
-        if (parsed?.schemaVersion !== 57) throw new Error("配置版本无效，需要 schemaVersion 57");
+        if (parsed?.schemaVersion !== 58) throw new Error("配置版本无效，需要 schemaVersion 58");
         return normalizeConfig(parsed);
       }
 

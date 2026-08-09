@@ -3286,7 +3286,6 @@ export class UltraWorld {
       enemy.targetFoodId = null;
       enemy.behaviorState = 'straight';
       enemy.desiredAngle = enemy.angle;
-      enemy.behaviorPhase = 1;
       return;
     }
     if (enemy.archetype === 'skitter') {
@@ -3372,7 +3371,6 @@ export class UltraWorld {
     if (enemy.archetype === 'liner') {
       enemy.desiredAngle = enemy.angle;
       enemy.behaviorState = 'straight';
-      enemy.behaviorPhase = 1;
       return;
     }
     if (enemy.archetype === 'skitter') {
@@ -3434,6 +3432,15 @@ export class UltraWorld {
     enemy.desiredAngle += Math.sin(this.gameTime + enemy.wobble) * 0.05;
   }
 
+  private beginLinerWarning(enemy: EnemyEntity): void {
+    const duration = Math.max(0, ENEMY_ACTIVE_BEHAVIOR_TUNING.linerWarningDuration);
+    enemy.behaviorState = 'straight';
+    enemy.behaviorDuration = duration;
+    enemy.behaviorTimer = duration;
+    enemy.behaviorPhase = duration > 0 ? 0 : 1;
+    enemy.lockedAngle = enemy.angle;
+  }
+
   private initializeQueuedEnemyBehavior(enemy: EnemyEntity): void {
     if (enemy.archetype === 'engineer') {
       enemy.behaviorState = 'roam';
@@ -3453,9 +3460,7 @@ export class UltraWorld {
       const angle = ENEMY_BEHAVIOR.randomAngle(() => this.random());
       enemy.angle = angle;
       enemy.desiredAngle = angle;
-      enemy.lockedAngle = angle;
-      enemy.behaviorState = 'straight';
-      enemy.behaviorPhase = 1;
+      this.beginLinerWarning(enemy);
       return;
     }
     if (enemy.archetype === 'skitter') {
@@ -3702,6 +3707,15 @@ export class UltraWorld {
   }
 
   private advanceEnemyBehaviorState(enemy: EnemyEntity, delta: number, players: readonly PlayerEntity[]): void {
+    if (enemy.archetype === 'liner') {
+      const duration = Math.max(0, enemy.behaviorDuration);
+      enemy.behaviorState = 'straight';
+      enemy.behaviorTimer = Math.max(0, enemy.behaviorTimer - delta);
+      enemy.behaviorPhase = duration > 0
+        ? clamp(1 - enemy.behaviorTimer / duration, 0, 1)
+        : 1;
+      return;
+    }
     if (enemy.archetype === 'bombardier') {
       this.advanceBombardierBehavior(enemy, delta, players);
       return;
@@ -3817,9 +3831,10 @@ export class UltraWorld {
       const staticJoint = isStaticEngineerJoint(enemy);
       const engineerBehavior = enemy.archetype === 'engineer';
       const bombardierBehavior = enemy.archetype === 'bombardier';
+      const linerBehavior = enemy.archetype === 'liner';
       const bombardierProjectile = isBombardierProjectile(enemy);
       enemy.collisionCooldown = Math.max(0, enemy.collisionCooldown - delta);
-      if (staticJoint || engineerBehavior || bombardierBehavior) {
+      if (staticJoint || engineerBehavior || bombardierBehavior || linerBehavior) {
         this.advanceEnemyBehaviorState(enemy, delta, presentPlayers);
       }
       if (staticJoint) {
@@ -3829,7 +3844,7 @@ export class UltraWorld {
         enemy.angle = enemy.lockedAngle;
         enemy.desiredAngle = enemy.lockedAngle;
       } else if (enemy.collisionCooldown <= 0) {
-        if (!engineerBehavior && !bombardierBehavior) this.advanceEnemyBehaviorState(enemy, delta, presentPlayers);
+        if (!engineerBehavior && !bombardierBehavior && !linerBehavior) this.advanceEnemyBehaviorState(enemy, delta, presentPlayers);
         enemy.think -= delta;
         if (enemy.think <= 0) {
           enemy.think = this.randomBetween(ENEMY_THINK_INTERVAL_MIN, ENEMY_THINK_INTERVAL_MAX);
@@ -5260,6 +5275,7 @@ export class UltraWorld {
         entity.knockbackY = 0;
       }
       if (entity.archetype === 'skitter') entity.behaviorTimer = 0;
+      if (entity.archetype === 'liner') this.beginLinerWarning(entity);
       if (entity.archetype === 'headhunter') {
         entity.needsReacquire = true;
         entity.behaviorDuration = 0;

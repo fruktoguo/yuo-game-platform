@@ -1,5 +1,5 @@
 globalThis.GSS0_DESIGNER_CONFIG = {
-  "schemaVersion": 57,
+  "schemaVersion": 58,
   "balance": {
     "playerBaseSpeed": 5,
     "snakeBodySizeScale": 0.775,
@@ -143,6 +143,7 @@ globalThis.GSS0_DESIGNER_CONFIG = {
     "enemyLinerHealthWeight": 1,
     "enemyLinerSpeedMultiplier": 1.2,
     "enemyLinerTurnMultiplier": 1,
+    "enemyLinerWarningDuration": 0.9,
     "enemyLinerWarningLengthCells": 2.8,
     "enemyLinerWarningWidthCells": 0.18,
     "enemyLinerWarningPulseRate": 2.4,

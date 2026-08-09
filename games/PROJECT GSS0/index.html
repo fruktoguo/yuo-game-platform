@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0b0d0f">
   <meta name="description" content="代号：几何贪吃蛇 - 单人及多人共享世界肉鸽贪吃蛇战斗游戏">
   <title>代号：几何贪吃蛇</title>
-  <link rel="stylesheet" href="styles.css?v=155">
+  <link rel="stylesheet" href="styles.css?v=156">
 </head>
 <body>
   <main id="game-shell" aria-label="代号：几何贪吃蛇 游戏区域">
@@ -19,7 +19,7 @@
           <strong>代号：几何贪吃蛇</strong>
         </div>
         <span class="signature">by 四季鸽</span>
-        <span class="brand-version" aria-label="游戏版本 V155">V155</span>
+        <span class="brand-version" aria-label="游戏版本 V156">V156</span>
       </div>
 
       <div class="run-stats">
@@ -209,7 +209,7 @@
 
     <section id="start-screen" class="modal-layer start-screen is-visible" aria-labelledby="game-title">
       <div class="start-glow" aria-hidden="true"></div>
-          <div class="start-version" aria-label="游戏版本 V155"><span>BUILD</span><strong>V155</strong></div>
+          <div class="start-version" aria-label="游戏版本 V156"><span>BUILD</span><strong>V156</strong></div>
       <div class="start-layout">
         <div class="start-content">
           <div id="network-status" class="title-kicker">TACTICAL SURVIVAL / LOCAL</div>
@@ -256,7 +256,7 @@
           </header>
           <section>
             <strong>【单人模式】</strong>
-            <p><span>鼠标或触控瞄准；按住左键消耗能量突进</span><span>普通撞敌：自身受到10伤害，敌蛇不受伤</span><span>突进撞敌：免疫碰撞伤害，并对命中关节造成2伤害</span><span>撞墙/撞自己身体：受到10伤害，突进时免疫</span><span>敌头撞身体：敌头受到1伤害并反弹</span><span>仅觅食类敌蛇会吃球，摧毁后全部爆出</span><span>连接式实心箭头表示敌人本体将沿该方向冲撞</span><span>分离式空心箭头与圆弹符号表示轰击弹道</span></p>
+            <p><span>鼠标或触控瞄准；按住左键消耗能量突进</span><span>普通撞敌：自身受到10伤害，敌蛇不受伤</span><span>突进撞敌：免疫碰撞伤害，并对命中关节造成2伤害</span><span>撞墙/撞自己身体：受到10伤害，突进时免疫</span><span>敌头撞身体：敌头受到1伤害并反弹</span><span>仅觅食类敌蛇会吃球，摧毁后全部爆出</span><span>连接式实心箭头仅在直行体出生或反弹改向后短暂提示本体冲撞</span><span>分离式空心箭头与圆弹符号仅在轰击体瞄准或锁定时提示弹道</span></p>
           </section>
           <section>
             <strong>【多人模式】</strong>
@@ -398,6 +398,21 @@
           <button id="changelog-close-button" class="icon-button codex-close-button" type="button" aria-label="关闭更新日志" title="关闭更新日志">×</button>
         </header>
         <div class="changelog-list">
+          <article class="changelog-entry">
+            <header>
+              <div class="changelog-version"><span>BUILD</span><strong>V156</strong></div>
+              <time datetime="2026-08-10">2026.08.10</time>
+            </header>
+            <div class="changelog-copy">
+              <span class="changelog-type">表现优化</span>
+              <h3>统一临时箭头预警</h3>
+              <ul>
+                <li>所有战斗箭头统一为临时危险提示：猎头体与轰击体只在瞄准、锁定阶段显示，进入冲撞或完成发射后立即隐藏。</li>
+                <li>直行体的头部箭头与连接式路线箭头现在只在出生和反弹改向后短暂出现，随后自动消失；反弹会按新方向重新触发完整预警窗。</li>
+                <li>直行体预警时长已接入设计控制台及联机权威，行动简报与敌人图鉴同步明确全部箭头仅承担阶段性提示功能。</li>
+              </ul>
+            </div>
+          </article>
           <article class="changelog-entry">
             <header>
               <div class="changelog-version"><span>BUILD</span><strong>V155</strong></div>
@@ -2482,29 +2497,29 @@
     </section>
   </main>
 
-  <script src="designer-config.js?v=155"></script>
-  <script src="status-catalog.js?v=155"></script>
-  <script src="module-catalog.js?v=155"></script>
-  <script src="module-progression.js?v=155"></script>
-  <script src="wave-director.js?v=155"></script>
-  <script src="arena-geometry.js?v=155"></script>
-  <script src="player-body-path.js?v=155"></script>
-  <script src="player-dash.js?v=155"></script>
-  <script src="enemy-behavior.js?v=155"></script>
-  <script src="enemy-vitality.js?v=155"></script>
-  <script src="enemy-armor.js?v=155"></script>
-  <script src="spawn-planner.js?v=155"></script>
-  <script src="network-codec.js?v=155"></script>
-  <script src="network-player-prediction.js?v=155"></script>
-  <script src="network-player-state-codec.js?v=155"></script>
-  <script src="network-player-collisions.js?v=155"></script>
-  <script src="network-head-collisions.js?v=155"></script>
-  <script src="network-food-claims.js?v=155"></script>
-  <script src="network-projectiles.js?v=155"></script>
-  <script src="lobby-navigation.js?v=155"></script>
-  <script src="enemy-codex.js?v=155"></script>
-  <script src="camera-projection.js?v=155"></script>
-  <script type="module" src="src/client/p2p/bootstrap.ts?v=155"></script>
-  <script src="game.js?v=155"></script>
+  <script src="designer-config.js?v=156"></script>
+  <script src="status-catalog.js?v=156"></script>
+  <script src="module-catalog.js?v=156"></script>
+  <script src="module-progression.js?v=156"></script>
+  <script src="wave-director.js?v=156"></script>
+  <script src="arena-geometry.js?v=156"></script>
+  <script src="player-body-path.js?v=156"></script>
+  <script src="player-dash.js?v=156"></script>
+  <script src="enemy-behavior.js?v=156"></script>
+  <script src="enemy-vitality.js?v=156"></script>
+  <script src="enemy-armor.js?v=156"></script>
+  <script src="spawn-planner.js?v=156"></script>
+  <script src="network-codec.js?v=156"></script>
+  <script src="network-player-prediction.js?v=156"></script>
+  <script src="network-player-state-codec.js?v=156"></script>
+  <script src="network-player-collisions.js?v=156"></script>
+  <script src="network-head-collisions.js?v=156"></script>
+  <script src="network-food-claims.js?v=156"></script>
+  <script src="network-projectiles.js?v=156"></script>
+  <script src="lobby-navigation.js?v=156"></script>
+  <script src="enemy-codex.js?v=156"></script>
+  <script src="camera-projection.js?v=156"></script>
+  <script type="module" src="src/client/p2p/bootstrap.ts?v=156"></script>
+  <script src="game.js?v=156"></script>
 </body>
 </html>

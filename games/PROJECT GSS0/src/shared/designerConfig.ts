@@ -13,7 +13,7 @@ interface DesignerConfigSource {
 }
 
 const source = (globalThis as typeof globalThis & { GSS0_DESIGNER_CONFIG?: DesignerConfigSource }).GSS0_DESIGNER_CONFIG;
-if (source?.schemaVersion !== 57) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 57');
+if (source?.schemaVersion !== 58) throw new Error('PROJECT GSS0 设计配置版本无效，需要 schemaVersion 58');
 
 function numberSetting(key: string, fallback: number, minimum: number, maximum: number, integer = false): number {
   const candidate = source?.balance?.[key];
@@ -164,6 +164,7 @@ export const DESIGNER_BALANCE = Object.freeze({
   enemyLinerHealthWeight: numberSetting('enemyLinerHealthWeight', 1, 0.01, 20),
   enemyLinerSpeedMultiplier: numberSetting('enemyLinerSpeedMultiplier', 1.2, 0.1, 3),
   enemyLinerTurnMultiplier: numberSetting('enemyLinerTurnMultiplier', 1, 0.1, 3),
+  enemyLinerWarningDuration: numberSetting('enemyLinerWarningDuration', 0.9, 0, 10),
   enemyLinerWarningLengthCells: numberSetting('enemyLinerWarningLengthCells', 2.8, 0.5, 10),
   enemyLinerWarningWidthCells: numberSetting('enemyLinerWarningWidthCells', 0.18, 0.03, 1),
   enemyLinerWarningPulseRate: numberSetting('enemyLinerWarningPulseRate', 2.4, 0, 12),

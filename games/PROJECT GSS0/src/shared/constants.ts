@@ -101,6 +101,7 @@ export const ENEMY_SPAWN_FORWARD_PATH_HALF_WIDTH = DESIGNER_BALANCE.enemySpawnFo
 export const ENEMY_ACTIVE_BEHAVIOR_TUNING = Object.freeze({
   chargerTrackingWobble: DESIGNER_BALANCE.enemyChargerTrackingWobble,
   chargerInterceptMaxSeconds: DESIGNER_BALANCE.enemyChargerInterceptMaxSeconds,
+  linerWarningDuration: DESIGNER_BALANCE.enemyLinerWarningDuration,
   skitterRetargetMinSeconds: DESIGNER_BALANCE.enemySkitterRetargetMinSeconds,
   skitterRetargetMaxSeconds: DESIGNER_BALANCE.enemySkitterRetargetMaxSeconds,
   skitterTargetMinimumDistance: DESIGNER_BALANCE.enemySkitterTargetMinimumDistance,

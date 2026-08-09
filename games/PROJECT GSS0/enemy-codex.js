@@ -80,8 +80,8 @@
       role: "直线冲撞",
       color: "#ffd166",
       parameterPrefix: "enemyLiner",
-      description: "出生时随机选择一个方向，此后绝不主动转向；只有撞到实体或圆形边界时才按硬碰撞结果反弹。头部前方的连接式实心箭头始终标明本体路线。",
-      traits: Object.freeze(["随机初始方向", "全程不主动转向", "实心连接式预警"])
+      description: "出生时随机选择一个方向，此后绝不主动转向；只有撞到实体或圆形边界时才按硬碰撞结果反弹。连接式实心箭头只会在出生与反弹改向后短暂标明本体路线。",
+      traits: Object.freeze(["随机初始方向", "全程不主动转向", "出生/反弹短预警"])
     }),
     Object.freeze({
       id: "skitter",
@@ -158,6 +158,7 @@
       Object.freeze({ label: "头撞击退", key: "enemyWardenKnockbackMultiplier", format: "multiplier" })
     ]),
     liner: Object.freeze([
+      Object.freeze({ label: "预警时长", key: "enemyLinerWarningDuration", format: "time" }),
       Object.freeze({ label: "预警长度", key: "enemyLinerWarningLengthCells", format: "cells" }),
       Object.freeze({ label: "预警宽度", key: "enemyLinerWarningWidthCells", format: "cells" }),
       Object.freeze({ label: "预警脉冲", key: "enemyLinerWarningPulseRate", format: "frequency" })
